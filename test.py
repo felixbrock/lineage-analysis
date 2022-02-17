@@ -73,6 +73,7 @@
 
 from enum import Enum
 from itertools import count
+from tkinter.tix import COLUMN
 import sqlfluff
 import json
 
@@ -141,7 +142,7 @@ class SQLElement(Enum):
   CREATE_TABLE_STATEMENT = 'create_table_statement'
 
   JOIN_CLAUSE = 'join_clause'
-  ODERBY_CLAUSE = 'oderby_clause'
+  ODERBY_CLAUSE = 'orderby_clause'
 
   SELECT_CLAUSE_ELEMENT = 'select_clause_element'
   FROM_EXPRESSION_ELEMENT = 'from_expression_element'
@@ -153,9 +154,11 @@ class SQLElement(Enum):
   IDENTIFIER = 'identifier'
 
 class LineageInformation(Enum):
-  TABLE_TO_CREATE = 'table_to_create'
+  TABLE_SELF = 'table_self'
   TABLE_FROM = 'table_from'
   TABLE_JOIN = 'table_join'
+
+  COLUMN = 'column'
 
   DEPENDENCY_TYPE = 'dependency_type'
 
@@ -164,11 +167,11 @@ class LineageInformation(Enum):
   TYPE_ORDERBY_CLAUSE = 'oderby_clause'
 
 
-class ReferenceAnalyzer:
+class DependencyAnalyzer:
   def __init__(self, referencingStatements) -> None:
       self.referencingStatements = referencingStatements
 
-  def __isColumnReference(self, key):
+  def isColumnReference(self, key):
     return SQLElement.COLUMN_REFERENCE.value in key
 
   # def __analyze(self, key, statementIndex):
@@ -181,12 +184,9 @@ class ReferenceAnalyzer:
 
   #         # return {LineageInformation.TABLE_TO_CREATE: self.referencingStatements[tableToCreateRef]}
 
+  def analyzeColumnDependency(self, key, statementIndex):
 
-
-
-  def analyze(self, key, statementIndex):
-
-    if not (self.__isColumnReference(key)):
+    if not (self.isColumnReference(key)):
         return
 
     # lineageInfo = {}
@@ -202,7 +202,7 @@ class ReferenceAnalyzer:
       if not tableToCreateRef in referencingStatement:
         raise LookupError(f'{tableToCreateRef} not found')
 
-      result[LineageInformation.TABLE_TO_CREATE.value] = self.referencingStatements[tableToCreateRef]
+      result[LineageInformation.TABLE_SELF.value] = referencingStatement[tableToCreateRef]
 
     if SQLElement.SELECT_CLAUSE_ELEMENT.value in key:
       fromTable = ''
@@ -231,16 +231,9 @@ class ReferenceAnalyzer:
       result[LineageInformation.TABLE_JOIN.value] = joinTable
       result[LineageInformation.DEPENDENCY_TYPE.value] = LineageInformation.TYPE_JOIN_CONDITION.value
     elif SQLElement.ODERBY_CLAUSE.value in key:
-      result[LineageInformation.TABLE_JOIN.value] = joinTable
       result[LineageInformation.DEPENDENCY_TYPE.value] = LineageInformation.TYPE_ORDERBY_CLAUSE.value
         
     return result
-
-    # for k,v in result.items():
-    #   if not k in lineageInfo:
-    #     lineageInfo[k] = v
-    
-    # return lineageInfo
       
 
 referencingStatements = []
@@ -257,17 +250,22 @@ elif isinstance(file, list):
 
 print(referencingStatements)
 
-analyzer = ReferenceAnalyzer(referencingStatements)
+analyzer = DependencyAnalyzer(referencingStatements)
 
 lineageInfo = []
 
 counter = 0
 for statement in referencingStatements:
   for k,v in statement.items():
-    result = analyzer.analyze(k, counter)
+    if not analyzer.isColumnReference(k):
+      continue
+
+    result = analyzer.analyzeColumnDependency(k, counter)
 
     if not result:
-      raise LookupError(f'No information for reference found')
+      raise LookupError(f'No information for column reference found')
+
+    result[LineageInformation.COLUMN.value] = v
 
     lineageInfo.append(result)
   counter += 1
