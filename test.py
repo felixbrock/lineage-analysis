@@ -41,8 +41,7 @@ class SQLElement(Enum):
 
 class LineageInformation(Enum):
   TABLE_SELF = 'table_self'
-  TABLE_FROM = 'table_from'
-  TABLE_JOIN = 'table_join'
+  TABLE = 'table'
 
   COLUMN = 'column'
 
@@ -56,7 +55,7 @@ class LineageInformation(Enum):
 class DependencyAnalyzer:
   
   def __init__(self) -> None:
-      self.dependencyStatements = []
+      self.statementDependencies = []
 
   def __appendPath(self, key, path):
     if not path:
@@ -65,73 +64,99 @@ class DependencyAnalyzer:
       path += f'.{key}'
     return path
 
-  def addDependencyStatement(self, dependencyStatement):
-    self.dependencyStatements.append(dependencyStatement)
+  def addStatementDependencyObj(self, statementDependencyObj):
+    self.statementDependencies.append(statementDependencyObj)
 
-  def extractDependencyStatement(self, targetKey, var, path = ''):
+  def extractStatementDependencies(self, targetKey, var, path = ''):
     if hasattr(var,'items'):
-      results = {}
+      statementDependencyObj = []
       for k0, v0 in var.items():
         if k0 == targetKey:
           path = self.__appendPath(k0, path)
-          results[path] = v0
+          statementDependencyObj.append((path,v0))
         if isinstance(v0, dict):
-          for k1,v1 in self.extractDependencyStatement(targetKey, v0, self.__appendPath(k0, path)).items():
-            results[k1] = v1
-        elif isinstance(v0, list):
-          for d in v0:
-            for k2, v2 in self.extractDependencyStatement(targetKey, d, self.__appendPath(k0, path)).items():
-              results[k2] = v2
-      return results
+          dependencies = self.extractStatementDependencies(targetKey, v0, self.__appendPath(k0, path))
+          for dependency in dependencies:
+            statementDependencyObj.append(dependency)
+        elif isinstance(v0, list):            
+          if k0 == SQLElement.COLUMN_REFERENCE.value:
+            valuePath = ''
+            keyPath = ''
+            for element in v0:
+              dependencies = self.extractStatementDependencies(targetKey, element, self.__appendPath(k0, path))
+              for dependency in dependencies:
+                 valuePath = self.__appendPath(dependency[1], valuePath)
+                 keyPath = dependency[0]
+            statementDependencyObj.append((keyPath, valuePath))
+          else:
+            for element in v0:
+              dependencies = self.extractStatementDependencies(targetKey, element, self.__appendPath(k0, path))
+              for dependency in dependencies:
+                statementDependencyObj.append(dependency)
+      return statementDependencyObj
 
   def isColumnDependency(self, key):
     return SQLElement.COLUMN_REFERENCE.value in key
 
-  def analyzeColumnDependency(self, key, statementIndex):
+  def analyzeColumnDependency(self, key, value, dependencyObjIndex):
 
     if not (self.isColumnDependency(key)):
         return
 
-    referencingStatement = self.dependencyStatements[statementIndex]
-
     result = {}
 
-    if SQLElement.CREATE_TABLE_STATEMENT.value in key:
-      tableToCreateRef = f'{SQLElement.CREATE_TABLE_STATEMENT.value}.{SQLElement.TABLE_REFERENCE.value}.{SQLElement.IDENTIFIER.value}'
-      if not tableToCreateRef in referencingStatement:
-        raise LookupError(f'{tableToCreateRef} not found')
+    tableRef = ''
+    valueRef = value
 
-      result[LineageInformation.TABLE_SELF.value] = referencingStatement[tableToCreateRef]
+    if '.' in value:
+      valuePathElements = value.split('.')
+      tableRef = valuePathElements[0]
+      valueRef = valuePathElements[1]
+
+    statementDependencyObj = self.statementDependencies[dependencyObjIndex]
+
+    if SQLElement.CREATE_TABLE_STATEMENT.value in key:
+      tableSelfRef = f'{SQLElement.CREATE_TABLE_STATEMENT.value}.{SQLElement.TABLE_REFERENCE.value}.{SQLElement.IDENTIFIER.value}'
+
+      tableSelfSearchRes = [item for item in statementDependencyObj if tableSelfRef in item]
+
+      if len(tableSelfSearchRes) > 1:
+        raise LookupError(f'Multiple instances of {tableSelfRef} found')
+      if len(tableSelfSearchRes) < 1:
+        raise LookupError(f'{tableSelfRef} not found')
+
+      result[LineageInformation.TABLE_SELF.value] = tableSelfSearchRes[0]
 
     if SQLElement.SELECT_CLAUSE_ELEMENT.value in key:
-      fromTable = ''
-      for k,v in referencingStatement.items():
-        isFromTable = all(x in k for x in [SQLElement.FROM_EXPRESSION_ELEMENT.value, SQLElement.TABLE_REFERENCE.value])
-        if isFromTable:
-          fromTable = v
-          break
+      if(not tableRef):
+        for k,v in statementDependencyObj:
+          isFromTable = all(x in k for x in [SQLElement.FROM_EXPRESSION_ELEMENT.value, SQLElement.TABLE_REFERENCE.value])
+          if isFromTable:
+            tableRef = v
+            break
 
-      if not fromTable:
+      if not tableRef:
         raise LookupError(f'No table for SELECT statement found')
 
-      result[LineageInformation.TABLE_FROM.value] = fromTable
+      result[LineageInformation.TABLE.value] = tableRef
       result[LineageInformation.DEPENDENCY_TYPE.value] = LineageInformation.TYPE_SELECT.value
     elif SQLElement.JOIN_ON_CONDITION.value in key:
-      joinTable = ''
-      for k,v in referencingStatement.items():
-        isJoinTable = all(x in k for x in [SQLElement.JOIN_CLAUSE.value, SQLElement.FROM_EXPRESSION_ELEMENT.value, SQLElement.TABLE_REFERENCE.value])
-        if isJoinTable:
-          joinTable = v
-          break
+      if(not tableRef):
+        for k,v in statementDependencyObj:
+          isJoinTable = all(x in k for x in [SQLElement.JOIN_CLAUSE.value, SQLElement.FROM_EXPRESSION_ELEMENT.value, SQLElement.TABLE_REFERENCE.value])
+          if isJoinTable:
+            tableRef = v
+            break
 
-      if not joinTable:
+      if not tableRef:
         raise LookupError(f'No table for JOIN statement found')
 
-      result[LineageInformation.TABLE_JOIN.value] = joinTable
+      result[LineageInformation.TABLE.value] = tableRef
       result[LineageInformation.DEPENDENCY_TYPE.value] = LineageInformation.TYPE_JOIN_CONDITION.value
     elif SQLElement.ODERBY_CLAUSE.value in key:
       result[LineageInformation.DEPENDENCY_TYPE.value] = LineageInformation.TYPE_ORDERBY_CLAUSE.value
-        
+
+    result[LineageInformation.COLUMN.value] = valueRef
     return result
       
 
@@ -140,29 +165,27 @@ analyzer = DependencyAnalyzer()
 file = parseResult[SQLElement.FILE.value]
 
 if isinstance(file, dict) and SQLElement.STATEMENT.value in file:
-  dependencyStatement = analyzer.extractDependencyStatement(SQLElement.IDENTIFIER.value, file[SQLElement.STATEMENT.value])
-  analyzer.addDependencyStatement(dependencyStatement)
+  statementDependencyObj = analyzer.extractStatementDependencies(SQLElement.IDENTIFIER.value, file[SQLElement.STATEMENT.value])
+  analyzer.addStatementDependencyObj(statementDependencyObj)
 elif isinstance(file, list):
   for statement in file:
     if not SQLElement.STATEMENT.value in statement:
         continue
-    dependencyStatement = analyzer.extractDependencyStatement(analyzer.extractDependencies(SQLElement.IDENTIFIER.value, statement[SQLElement.STATEMENT.value]))
-    analyzer.addDependencyStatement(dependencyStatement)
+    statementDependencyObj = analyzer.extractStatementDependencies(analyzer.extractStatementDependencies(SQLElement.IDENTIFIER.value, statement[SQLElement.STATEMENT.value]))
+    analyzer.addStatementDependencyObj(statementDependencyObj)
 
 lineageInfo = []
 
 counter = 0
-for statement in analyzer.dependencyStatements:
-  for k,v in statement.items():
+for statement in analyzer.statementDependencies:
+  for k,v in statement:
     if not analyzer.isColumnDependency(k):
       continue
 
-    result = analyzer.analyzeColumnDependency(k, counter)
+    result = analyzer.analyzeColumnDependency(k, v, counter)
 
     if not result:
       raise LookupError(f'No information for column reference found')
-
-    result[LineageInformation.COLUMN.value] = v
 
     lineageInfo.append(result)
   counter += 1
