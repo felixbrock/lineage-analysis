@@ -2,25 +2,6 @@ from enum import Enum
 import sqlfluff
 import json
 
-fd = open('table2.sql', 'r')
-sqlFile = fd.read()
-# print(sqlFile)
-fd.close()
-
-# my_bad_query = "SeLEct  *, 1, blah as  fOO  from mySchema.myTable"
-# query2 = "with customers as (    select * from {{ ref('stg_customers') }}), orders as (    select * from {{ ref('stg_orders') }}),customer_orders as (   select       customer_id,        min(order_date) as first_order_date,        max(order_date) as most_recent_order_date,        count(order_id) as number_of_orders    from orders group by 1), final as (    select        customers.customer_id,        customers.first_name,        customers.last_name,        customer_orders.first_order_date,        customer_orders.most_recent_order_date,        coalesce(customer_orders.number_of_orders, 0) as number_of_orders   from customers    left join customer_orders using (customer_id))select * from final"
-
-# fix_result_1 = sqlfluff.fix(sqlFile, dialect="snowflake")
-# print(fix_result_1)
-
-parseResult = sqlfluff.parse(sqlFile, 'snowflake')
-
-# json = json.dumps(parse_result)
-# print()
-
-
-
-
 class SQLElement(Enum):
   FILE = 'file'
   STATEMENT = 'statement'
@@ -50,6 +31,37 @@ class LineageInformation(Enum):
   TYPE_SELECT = 'select'
   TYPE_JOIN_CONDITION  = 'join_condition'
   TYPE_ORDERBY_CLAUSE = 'oderby_clause'
+
+class Table():
+  def __init__(self, identifier) -> None:
+      self.identifier = identifier
+      self.analyzer = DependencyAnalyzer()
+  
+  def readSQL(self):
+    # TODO - REPLACE
+    fd = open(self.identifier, 'r')
+    sqlFile = fd.read()
+    fd.close()
+
+    return sqlFile
+
+  def parseSQL(self, sql, dialect):
+    return sqlfluff.parse(sql, dialect)
+
+  def getStatementDependencies(self, fileObj):
+
+    # TODO - Build into solution
+    if isinstance(fileObj, dict) and SQLElement.STATEMENT.value in fileObj:
+      statementDependencyObj = self.analyzer.extractStatementDependencies(SQLElement.IDENTIFIER.value, fileObj[SQLElement.STATEMENT.value])
+      self.analyzer.addStatementDependencyObj(statementDependencyObj)
+    elif isinstance(fileObj, list):
+      for statement in fileObj:
+        if not SQLElement.STATEMENT.value in statement:
+            continue
+        statementDependencyObj = self.analyzer.extractStatementDependencies(self.analyzer.extractStatementDependencies(SQLElement.IDENTIFIER.value, statement[SQLElement.STATEMENT.value]))
+        self.analyzer.addStatementDependencyObj(statementDependencyObj)
+
+    return self.analyzer.statementDependencies
 
 
 class DependencyAnalyzer:
@@ -158,21 +170,18 @@ class DependencyAnalyzer:
 
     result[LineageInformation.COLUMN.value] = valueRef
     return result
-      
+
+tableSelf = Table('table2.sql')
+
+sql = tableSelf.readSQL()
+
+parseResult = tableSelf.parseSQL(sql, 'snowflake')
 
 analyzer = DependencyAnalyzer()
 
-file = parseResult[SQLElement.FILE.value]
+fileObj = parseResult[SQLElement.FILE.value]
 
-if isinstance(file, dict) and SQLElement.STATEMENT.value in file:
-  statementDependencyObj = analyzer.extractStatementDependencies(SQLElement.IDENTIFIER.value, file[SQLElement.STATEMENT.value])
-  analyzer.addStatementDependencyObj(statementDependencyObj)
-elif isinstance(file, list):
-  for statement in file:
-    if not SQLElement.STATEMENT.value in statement:
-        continue
-    statementDependencyObj = analyzer.extractStatementDependencies(analyzer.extractStatementDependencies(SQLElement.IDENTIFIER.value, statement[SQLElement.STATEMENT.value]))
-    analyzer.addStatementDependencyObj(statementDependencyObj)
+# TODO - LOGIC MISSING
 
 lineageInfo = []
 
