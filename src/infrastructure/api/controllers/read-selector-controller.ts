@@ -26,12 +26,10 @@ export default class ReadSelectorController extends BaseController {
     this.#getAccounts = getAccounts;
   }
 
-  // eslint-disable-next-line class-methods-use-this
   #buildRequestDto = (httpRequest: Request): ReadSelectorRequestDto => ({
     id: httpRequest.params.selectorId,
   });
 
-  // eslint-disable-next-line class-methods-use-this
   #buildAuthDto = (userAccountInfo: UserAccountInfo): ReadSelectorAuthDto => ({
     organizationId: userAccountInfo.organizationId,
   });

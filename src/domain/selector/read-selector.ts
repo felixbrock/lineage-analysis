@@ -25,8 +25,7 @@ export class ReadSelector
     console.log('read selector constructor');
   }
 
-  // eslint-disable-next-line class-methods-use-this
-  public async execute(
+  public static async execute(
     request: ReadSelectorRequestDto,
     auth: ReadSelectorAuthDto
   ): Promise<ReadSelectorResponseDto> {
