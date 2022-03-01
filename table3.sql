@@ -1,1 +1,0 @@
-create table table3 as select department_name from table2

@@ -90,11 +90,16 @@ class Table():
 
     self.__columns = self.__analyzer.getTableColumns()
 
-    # TODO - get parents
+    self.__getParents()
 
     self.__getLineageInfo()
 
     # TODO - resolve analysis result to properties
+
+  def __getParents(self):
+    parentTableNames = self.__analyzer.getParentTableNames()
+    print(parentTableNames)
+
 
   def __getStatementDependencies(self, fileObj):
 
@@ -136,8 +141,6 @@ class Table():
       else:
         path += f'.{key}'
       return path
-
-
 
     def extractStatementDependencies(self, targetKey, var, path = ''):
       if hasattr(var,'items'):
@@ -190,6 +193,10 @@ class Table():
 
       return [item[1] for item in self.__flatten(self.__table.statementDependencies) if columnSelfRef in item[0]]
 
+    def getParentTableNames(self):
+      tableSelfRef = f'{SQLElement.CREATE_TABLE_STATEMENT.value}.{SQLElement.TABLE_REFERENCE.value}.{SQLElement.IDENTIFIER.value}'
+
+      return [item[1] for item in self.__flatten(self.__table.statementDependencies) if not tableSelfRef in item and SQLElement.TABLE_REFERENCE.value in item[0]]
 
     def analyzeColumnDependency(self, key, value, dependencyObjIndex):
 
