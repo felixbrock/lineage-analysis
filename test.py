@@ -55,6 +55,10 @@ class Table():
   def name(self):
       return self.__name
 
+  @property
+  def columns(self):
+      return self.__columns
+
   # @lineageInfo.setter
   # def lineageInfo(self, value):
   #     self._lineageInfo = value
@@ -84,7 +88,7 @@ class Table():
 
     self.__name = self.__analyzer.getTableName()
 
-    # TODO - read columns
+    self.__columns = self.__analyzer.getTableColumns()
 
     # TODO - get parents
 
@@ -180,6 +184,12 @@ class Table():
         raise LookupError(f'{tableSelfRef} not found')
 
       return tableSelfSearchRes[0]
+
+    def getTableColumns(self):
+      columnSelfRef = f'{SQLElement.SELECT_CLAUSE_ELEMENT.value}.{SQLElement.COLUMN_REFERENCE.value}.{SQLElement.IDENTIFIER.value}'
+
+      return [item[1] for item in self.__flatten(self.__table.statementDependencies) if columnSelfRef in item[0]]
+
 
     def analyzeColumnDependency(self, key, value, dependencyObjIndex):
 
