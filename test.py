@@ -1,4 +1,5 @@
 from enum import Enum
+from webbrowser import get
 import sqlfluff
 import json
 
@@ -34,40 +35,79 @@ class LineageInformation(Enum):
 
 class Table():
   def __init__(self, identifier) -> None:
-      self.identifier = identifier
-      self.__analyzer = self.DependencyAnalyzer()
+      self.__identifier = identifier
+      self.__name = None
+      self.__columns = []
+      self.__parents = []
+      self.__statementDependencies = []
+      self.__lineageInfo = []
+      self.__analyzer = self.DependencyAnalyzer(self)
   
-  def readSQL(self):
+  @property
+  def statementDependencies(self):
+      return self.__statementDependencies
+
+  @property
+  def lineageInfo(self):
+      return self.__lineageInfo
+
+  @property
+  def name(self):
+      return self.__name
+
+  # @lineageInfo.setter
+  # def lineageInfo(self, value):
+  #     self._lineageInfo = value
+
+  def __addStatementDependencyObj(self, statementDependencyObj):
+    self.__statementDependencies.append(statementDependencyObj)
+
+  def __readSQL(self):
     # TODO - REPLACE
-    fd = open(self.identifier, 'r')
+    fd = open(self.__identifier, 'r')
     sqlFile = fd.read()
     fd.close()
 
     return sqlFile
 
-  def parseSQL(self, sql, dialect):
+  def __parseSQL(self, sql, dialect):
     return sqlfluff.parse(sql, dialect)
 
-  def getStatementDependencies(self, fileObj):
+  def populate(self, dialect):
+    sql = self.__readSQL()
+
+    parseResult = self.__parseSQL(sql, dialect)
+
+    fileObj = parseResult[SQLElement.FILE.value]
+
+    self.__getStatementDependencies(fileObj)
+
+    self.__name = self.__analyzer.getTableName()
+
+    # TODO - read columns
+
+    # TODO - get parents
+
+    self.__getLineageInfo()
+
+    # TODO - resolve analysis result to properties
+
+  def __getStatementDependencies(self, fileObj):
 
     # TODO - Build into solution
     if isinstance(fileObj, dict) and SQLElement.STATEMENT.value in fileObj:
       statementDependencyObj = self.__analyzer.extractStatementDependencies(SQLElement.IDENTIFIER.value, fileObj[SQLElement.STATEMENT.value])
-      self.__analyzer.addStatementDependencyObj(statementDependencyObj)
+      self.__addStatementDependencyObj(statementDependencyObj)
     elif isinstance(fileObj, list):
       for statement in fileObj:
         if not SQLElement.STATEMENT.value in statement:
             continue
         statementDependencyObj = self.__analyzer.extractStatementDependencies(self.__analyzer.extractStatementDependencies(SQLElement.IDENTIFIER.value, statement[SQLElement.STATEMENT.value]))
-        self.__analyzer.addStatementDependencyObj(statementDependencyObj)
+        self.__addStatementDependencyObj(statementDependencyObj)
 
-    return self.__analyzer.statementDependencies
-
-  def analyzeColumnDependencies(self, dependencies):
-    lineageInfo = []
-
+  def __getLineageInfo(self):
     counter = 0
-    for statementDependency in dependencies:
+    for statementDependency in self.__statementDependencies:
       for k,v in statementDependency:
         if not self.__analyzer.isColumnDependency(k):
           continue
@@ -77,16 +117,14 @@ class Table():
         if not result:
           raise LookupError(f'No information for column reference found')
 
-        lineageInfo.append(result)
+        self.__lineageInfo.append(result)
       counter += 1
 
-    return lineageInfo
 
+  class DependencyAnalyzer():
 
-  class DependencyAnalyzer:
-    
-    def __init__(self) -> None:
-        self.statementDependencies = []
+    def __init__(self, table) -> None:
+      self.__table = table
 
     def __appendPath(self, key, path):
       if not path:
@@ -95,8 +133,7 @@ class Table():
         path += f'.{key}'
       return path
 
-    def addStatementDependencyObj(self, statementDependencyObj):
-      self.statementDependencies.append(statementDependencyObj)
+
 
     def extractStatementDependencies(self, targetKey, var, path = ''):
       if hasattr(var,'items'):
@@ -129,6 +166,21 @@ class Table():
     def isColumnDependency(self, key):
       return SQLElement.COLUMN_REFERENCE.value in key
 
+    def __flatten(self, t):
+      return [item for sublist in t for item in sublist]
+
+    def getTableName(self):
+      tableSelfRef = f'{SQLElement.CREATE_TABLE_STATEMENT.value}.{SQLElement.TABLE_REFERENCE.value}.{SQLElement.IDENTIFIER.value}'
+
+      tableSelfSearchRes = [item[1] for item in self.__flatten(self.__table.statementDependencies) if tableSelfRef in item]
+
+      if len(tableSelfSearchRes) > 1:
+        raise LookupError(f'Multiple instances of {tableSelfRef} found')
+      if len(tableSelfSearchRes) < 1:
+        raise LookupError(f'{tableSelfRef} not found')
+
+      return tableSelfSearchRes[0]
+
     def analyzeColumnDependency(self, key, value, dependencyObjIndex):
 
       if not (self.isColumnDependency(key)):
@@ -144,19 +196,7 @@ class Table():
         tableRef = valuePathElements[0]
         valueRef = valuePathElements[1]
 
-      statementDependencyObj = self.statementDependencies[dependencyObjIndex]
-
-      if SQLElement.CREATE_TABLE_STATEMENT.value in key:
-        tableSelfRef = f'{SQLElement.CREATE_TABLE_STATEMENT.value}.{SQLElement.TABLE_REFERENCE.value}.{SQLElement.IDENTIFIER.value}'
-
-        tableSelfSearchRes = [item[1] for item in statementDependencyObj if tableSelfRef in item]
-
-        if len(tableSelfSearchRes) > 1:
-          raise LookupError(f'Multiple instances of {tableSelfRef} found')
-        if len(tableSelfSearchRes) < 1:
-          raise LookupError(f'{tableSelfRef} not found')
-
-        result[LineageInformation.TABLE_SELF.value] = tableSelfSearchRes[0]
+      statementDependencyObj = self.__table.statementDependencies[dependencyObjIndex]
 
       if SQLElement.SELECT_CLAUSE_ELEMENT.value in key:
         if(not tableRef):
@@ -192,18 +232,7 @@ class Table():
 
 tableSelf = Table('table2.sql')
 
-sql = tableSelf.readSQL()
-
-parseResult = tableSelf.parseSQL(sql, 'snowflake')
-
-fileObj = parseResult[SQLElement.FILE.value]
-
-statementDependencies = tableSelf.getStatementDependencies(fileObj)
-
-dependencyAnalysisResult = tableSelf.analyzeColumnDependencies(statementDependencies)
-
-
-
+tableSelf.populate('snowflake')
 
 
 
