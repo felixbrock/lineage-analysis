@@ -1,24 +1,28 @@
 import { InjectionMode, asClass, createContainer } from 'awilix';
 
-import SelectorDomain from '../domain/selector-domain';
-import { ReadSelector } from '../domain/selector/read-selector';
-import AccountApiRepository from './persistence/account-api-repository';
+import TableDomain from '../domain/table-domain';
+import { ReadTable } from '../domain/table/read-table';
+import AccountApiRepo from './persistence/account-api-repo';
 import { GetAccounts } from '../domain/account-api/get-accounts';
+import { ParseSQL } from '../domain/sql-parser-api/parse-sql';
+import SQLParserApiRepo from './persistence/sql-parser-api-repo';
 
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
 iocRegister.register({
-  selectorDomain: asClass(SelectorDomain),
-  readSelector: asClass(ReadSelector),
+  tableDomain: asClass(TableDomain),
+  readTable: asClass(ReadTable),
+  parseSQL: asClass(ParseSQL),
   getAccounts: asClass(GetAccounts),
 
-  accountApiRepository: asClass(AccountApiRepository),
+  accountApiRepo: asClass(AccountApiRepo),
+  sqlParserApiRepo: asClass(SQLParserApiRepo)
 
 });
 
-const selectorMain = iocRegister.resolve<SelectorDomain>('selectorDomain');
+const tableMain = iocRegister.resolve<TableDomain>('tableDomain');
 
 export default {
-  selectorMain,
+  tableMain,
   container: iocRegister,
 };

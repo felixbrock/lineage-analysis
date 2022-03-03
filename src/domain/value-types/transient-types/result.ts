@@ -11,15 +11,15 @@ export default class Result<T> {
     this.#value = value;
   }
 
-  public get error(): string | undefined {
+  get error(): string | undefined {
     return this.#error;
   }
 
-  public get success(): boolean {
+  get success(): boolean {
     return this.#success;
   }
 
-  public get value(): T | undefined {
+  get value(): T | undefined {
     if (!this.#success)
       throw new Error(
         `An error occured. Cannot get the value of an error result: ${
@@ -29,11 +29,11 @@ export default class Result<T> {
     return this.#value;
   }
 
-  public static ok<U>(value?: U): Result<U> {
+  static ok<U>(value?: U): Result<U> {
     return new Result<U>(true, value, undefined);
   }
 
-  public static fail<U>(error: string): Result<U> {
+  static fail<U>(error: string): Result<U> {
     return new Result<U>(false, undefined, error);
   }
 }

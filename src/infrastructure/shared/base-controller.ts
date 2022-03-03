@@ -24,7 +24,7 @@ export interface UserAccountInfo {
 }
 
 export abstract class BaseController {
-  public static jsonResponse(
+  static jsonResponse(
     res: Response,
     code: number,
     message: string
@@ -32,7 +32,7 @@ export abstract class BaseController {
     return res.status(code).json({ message });
   }
 
-  public async execute(req: Request, res: Response): Promise<void | Response> {
+  async execute(req: Request, res: Response): Promise<void | Response> {
     try {
       await this.executeImpl(req, res);
     } catch (error) {
@@ -40,7 +40,7 @@ export abstract class BaseController {
     }
   }
 
-  public static async getUserAccountInfo(
+  static async getUserAccountInfo(
     jwt: string,
     getAccounts: GetAccounts
   ): Promise<Result<UserAccountInfo>> {
@@ -76,7 +76,7 @@ export abstract class BaseController {
     }
   }
 
-  public static ok<T>(res: Response, dto?: T, created?: CodeHttp): Response {
+  static ok<T>(res: Response, dto?: T, created?: CodeHttp): Response {
     const codeHttp: CodeHttp = created || CodeHttp.OK;
     if (dto) {
       res.type('application/json');
@@ -86,7 +86,7 @@ export abstract class BaseController {
     return res.sendStatus(codeHttp);
   }
 
-  public static badRequest(res: Response, message?: string): Response {
+  static badRequest(res: Response, message?: string): Response {
     return BaseController.jsonResponse(
       res,
       CodeHttp.BAD_REQUEST,
@@ -94,7 +94,7 @@ export abstract class BaseController {
     );
   }
 
-  public static unauthorized(res: Response, message?: string): Response {
+  static unauthorized(res: Response, message?: string): Response {
     return BaseController.jsonResponse(
       res,
       CodeHttp.UNAUTHORIZED,
@@ -102,7 +102,7 @@ export abstract class BaseController {
     );
   }
 
-  public static notFound(res: Response, message?: string): Response {
+  static notFound(res: Response, message?: string): Response {
     return BaseController.jsonResponse(
       res,
       CodeHttp.NOT_FOUND,
@@ -110,7 +110,7 @@ export abstract class BaseController {
     );
   }
 
-  public static fail(res: Response, error: Error | string): Response {
+  static fail(res: Response, error: Error | string): Response {
     return res.status(CodeHttp.SERVER_ERROR).json({
       message: error.toString(),
     });

@@ -1,7 +1,7 @@
 import { URLSearchParams } from 'url';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { IAccountApiRepository } from './i-account-api-repository';
+import { IAccountApiRepo } from './i-account-api-repo';
 import { AccountDto } from './account-dto';
 
 export interface GetAccountsRequestDto {
@@ -18,19 +18,19 @@ export class GetAccounts
   implements
     IUseCase<GetAccountsRequestDto, GetAccountsResponseDto, GetAccountsAuthDto>
 {
-  #accountApiRepository: IAccountApiRepository;
+  #accountApiRepo: IAccountApiRepo;
 
-  public constructor(accountApiRepository: IAccountApiRepository) {
-    this.#accountApiRepository = accountApiRepository;
+  constructor(accountApiRepo: IAccountApiRepo) {
+    this.#accountApiRepo = accountApiRepo;
   }
 
-  public async execute(
+  async execute(
     request: GetAccountsRequestDto,
     auth: GetAccountsAuthDto
   ): Promise<GetAccountsResponseDto> {
     try {
       const getAccountsResponse: AccountDto[] =
-        await this.#accountApiRepository.getBy(
+        await this.#accountApiRepo.getBy(
           new URLSearchParams({ userId: request.userId }),
           auth.jwt
         );

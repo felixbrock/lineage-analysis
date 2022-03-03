@@ -1,17 +1,17 @@
 import axios, { AxiosRequestConfig } from 'axios';
 import { URLSearchParams } from 'url';
 import { AccountDto } from '../../domain/account-api/account-dto';
-import { IAccountApiRepository } from '../../domain/account-api/i-account-api-repository';
+import { IAccountApiRepo } from '../../domain/account-api/i-account-api-repo';
 import getRoot from '../shared/api-root-builder';
 
-export default class AccountApiRepositoryImpl implements IAccountApiRepository {
+export default class AccountApiRepoImpl implements IAccountApiRepo {
   #path = 'api/v1';
 
   #serviceName = 'account';
 
   #port = '8081';
 
-  public getBy = async (
+  getBy = async (
     params: URLSearchParams,
     jwt: string
   ): Promise<AccountDto[]> => {

@@ -11,12 +11,12 @@ export default class ExpressApp {
 
   #config: AppConfig;
 
-  public constructor(config: AppConfig) {
+  constructor(config: AppConfig) {
     this.#expressApp = express();
     this.#config = config;
   }
 
-  public start(): Application {
+  start(): Application {
     this.configApp();
 
     this.#expressApp.listen(this.#config.port, () => {
