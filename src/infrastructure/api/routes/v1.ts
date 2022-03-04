@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { apiRoot } from '../../../config';
-import tableRoutes from './table-routes';
+import tableRoutes from './lineage-routes';
 
 const version = 'v1';
 
