@@ -6,7 +6,6 @@ export interface TableDto {
   columns: string[];
   parents: Table[];
   statementDependencies: [string, string][][];
-  lineageInfo: { [key: string]: string }[];
 }
 
 export const buildTableDto = (table: Table): TableDto => ({
@@ -15,5 +14,4 @@ export const buildTableDto = (table: Table): TableDto => ({
   columns: table.columns,
   parents: table.parents,
   statementDependencies: table.statementDependencies,
-  lineageInfo: table.lineageInfo
 });

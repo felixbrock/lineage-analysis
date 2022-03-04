@@ -48,7 +48,6 @@ export class ReadTable
       console.log(table.name);
       console.log(table.columns);
       console.log(table.statementDependencies);
-      console.log(table.lineageInfo);
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');
@@ -59,7 +58,6 @@ export class ReadTable
         columns: table.columns,
         parents: table.parents,
         statementDependencies: table.statementDependencies,
-        lineageInfo: table.lineageInfo,
       });
     } catch (error: unknown) {
       if (typeof error === 'string') return Result.fail(error);
