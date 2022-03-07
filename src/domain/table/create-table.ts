@@ -110,12 +110,15 @@ export class CreateTable
   #getTableColumns = (
     statementDependencies: [string, string][][]
   ): string[] => {
-    const columnSelfRef = `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`;
+    const columnSelfRefs = [
+      `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
+      `${SQLElement.COLUMN_DEFINITION}.${SQLElement.IDENTIFIER}`,
+    ];
 
     const columnSelfSearchRes: string[] = [];
 
     statementDependencies.flat().forEach((element) => {
-      if (element[0].includes(columnSelfRef))
+      if (columnSelfRefs.some((ref) => element[0].includes(ref)))
         columnSelfSearchRes.push(element[1]);
     });
 
@@ -125,12 +128,16 @@ export class CreateTable
   #getParentTableNames = (
     statementDependencies: [string, string][][]
   ): string[] => {
-    const tableSelfRef = `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
+    const tableRef = `${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
+    const tableSelfRefs = [
+      `${SQLElement.CREATE_TABLE_STATEMENT}.${tableRef}`,
+      `${SQLElement.INSERT_STATEMENT}.${tableRef}`,
+    ];
 
     const parentTableNames: string[] = [];
     statementDependencies.flat().forEach((element) => {
       if (
-        !element.includes(tableSelfRef) &&
+        !tableSelfRefs.some((ref) => element.includes(ref)) &&
         element[0].includes(SQLElement.TABLE_REFERENCE)
       )
         parentTableNames.push(element[1]);

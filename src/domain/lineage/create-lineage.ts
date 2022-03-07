@@ -1,13 +1,12 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 // todo - Clean Code dependency violation. Fix
-import fs from 'fs';
 import { LineageDto } from './lineage-dto';
 import { CreateTable, CreateTableResponseDto } from '../table/create-table';
 import { Lineage } from '../entities/lineage';
-import { Table } from '../entities/table';
 import { TableDto } from '../table/table-dto';
 import { SQLElement } from '../value-types/sql-element';
+import { Table } from '../entities/table';
 
 export interface CreateLineageRequestDto {
   id: string;
@@ -43,81 +42,135 @@ export class CreateLineage
   };
 
   #isColumnDependency = (key: string): boolean =>
+    !key.includes(SQLElement.INSERT_STATEMENT) &&
     key.includes(SQLElement.COLUMN_REFERENCE);
 
   #analyzeColumnDependency = (
-    key: string,
-    value: string,
+    dependency: [string, string],
+    dependencyTableName: string,
     statementDependencyObj: [string, string][]
   ) => {
+    const key = dependency[0];
+    const value = dependency[1].includes('.')
+      ? dependency[1].split('.').slice(-1)[0]
+      : dependency[1];
+
     if (!this.#isColumnDependency(key)) return;
 
     const result: { [key: string]: string } = {};
-    let tableRef = '';
-    let valueRef = value;
-
-    if (value.includes('.')) {
-      const valuePathElements = value.split('.');
-      tableRef = valuePathElements[0];
-      valueRef = valuePathElements[1];
-    }
 
     if (key.includes(SQLElement.SELECT_CLAUSE_ELEMENT)) {
-      if (!tableRef) {
-        const tableRefs = statementDependencyObj.filter((element) =>
-          [
-            SQLElement.FROM_EXPRESSION_ELEMENT,
-            SQLElement.TABLE_REFERENCE,
-          ].every((substring) => element[0].includes(substring))
-        );
-        tableRef = tableRefs[0][1];
-      }
+      //   if (!tableRef) {
+      //     const tableRefs = statementDependencyObj.filter((element) =>
+      //       [
+      //         SQLElement.FROM_EXPRESSION_ELEMENT,
+      //         SQLElement.TABLE_REFERENCE,
+      //       ].every((substring) => element[0].includes(substring))
+      //     );
+      //     tableRef = tableRefs[0][1];
+      //   }
 
-      if (!tableRef)
-        throw ReferenceError(`No table for SELECT statement found`);
+      //   if (!tableRef)
+      //     throw ReferenceError(`No table for SELECT statement found`);
 
-      result[this.#LineageElement.TABLE] = tableRef;
+      result[this.#LineageElement.TABLE] = dependencyTableName;
       result[this.#LineageElement.DEPENDENCY_TYPE] =
         this.#LineageElement.TYPE_SELECT;
     } else if (key.includes(SQLElement.JOIN_ON_CONDITION)) {
-      if (!tableRef) {
-        Object.entries(statementDependencyObj).forEach((element) => {
-          const isJoinTable = [
-            SQLElement.JOIN_CLAUSE,
-            SQLElement.FROM_EXPRESSION_ELEMENT,
-            SQLElement.TABLE_REFERENCE,
-          ].every((substring) => element[0].includes(substring));
-          if (isJoinTable) {
-            tableRef = value;
-            return;
-          }
-        });
+      // if (!tableRef) {
+      //   Object.entries(statementDependencyObj).forEach((element) => {
+      //     const isJoinTable = [
+      //       SQLElement.JOIN_CLAUSE,
+      //       SQLElement.FROM_EXPRESSION_ELEMENT,
+      //       SQLElement.TABLE_REFERENCE,
+      //     ].every((substring) => element[0].includes(substring));
+      //     if (isJoinTable) {
+      //       tableRef = value;
+      //       return;
+      //     }
+      //   });
 
-        if (!tableRef)
-          throw ReferenceError(`No table for JOIN statement found`);
-      }
+      //   if (!tableRef)
+      //     throw ReferenceError(`No table for JOIN statement found`);
+      // }
 
-      result[this.#LineageElement.TABLE] = tableRef;
+      result[this.#LineageElement.TABLE] = dependencyTableName;
       result[this.#LineageElement.DEPENDENCY_TYPE] =
         this.#LineageElement.TYPE_JOIN_CONDITION;
     } else if (key.includes(SQLElement.ODERBY_CLAUSE))
       result[this.#LineageElement.DEPENDENCY_TYPE] =
         this.#LineageElement.TYPE_ORDERBY_CLAUSE;
 
-    result[this.#LineageElement.COLUMN] = valueRef;
+    result[this.#LineageElement.COLUMN] = value;
     return result;
   };
 
-  #getLineage = (statementDependencies: [string, string][][]) : { [key: string]: string }[] => {
-    const lineage: { [key: string]: string }[] = []
+  #findDependencyTable = (
+    dependency: [string, string],
+    statementDependencies: [string, string][],
+    parents: TableDto[]
+  ): TableDto => {
+    const columnName = dependency[1].includes('.')
+      ? dependency[1].split('.').slice(-1)[0]
+      : dependency[1];
+    const tableName = dependency[1].includes('.')
+      ? dependency[1].split('.').slice(0)[0]
+      : '';
+
+    const potentialDependencyTables = parents.filter((table) =>
+      table.columns.includes(columnName)
+    );
+
+    if (potentialDependencyTables.length === 1)
+      return potentialDependencyTables[0];
+    else if (potentialDependencyTables.length === 0)
+      throw new ReferenceError(`Table for column ${columnName} not found`);
+
+    if (tableName) {
+      const dependencyTableMatches = potentialDependencyTables.filter(
+        (table) => table.name === tableName
+      );
+      if (dependencyTableMatches.length === 1) return dependencyTableMatches[0];
+      throw new ReferenceError('Multiple parents with the same name exist');
+    }
+
+    if (dependency[0].includes(SQLElement.FROM_EXPRESSION_ELEMENT)) {
+      const potentialMatches = statementDependencies.filter((element) =>
+        [SQLElement.FROM_EXPRESSION_ELEMENT, SQLElement.TABLE_REFERENCE].every(
+          (key) => element[0].includes(key)
+        )
+      );
+
+      const dependencyTableMatches = potentialDependencyTables.filter(
+        (element) =>
+          potentialMatches.map((match) => match[1]).includes(element.name)
+      );
+      if (dependencyTableMatches.length === 1) return dependencyTableMatches[0];
+      throw new ReferenceError('Multiple parents with the same name exist');
+    }
+
+    throw new ReferenceError(`Table for column ${columnName} not found`);
+  };
+
+  #getLineage = (
+    statementDependencies: [string, string][][],
+    parents: TableDto[]
+  ): { [key: string]: string }[] => {
+    const lineage: { [key: string]: string }[] = [];
 
     statementDependencies.forEach((element) => {
       element
         .filter((dependency) => this.#isColumnDependency(dependency[0]))
         .forEach((dependency) => {
+          const dependencyTable = this.#findDependencyTable(
+            dependency,
+            element,
+            parents
+          );
+
           const result = this.#analyzeColumnDependency(
-            dependency[0],
-            dependency[1],
+            dependency,
+            dependencyTable.name,
             element
           );
 
@@ -130,7 +183,7 @@ export class CreateLineage
         });
     });
 
-    return lineage
+    return lineage;
   };
 
   constructor(createTable: CreateTable) {
@@ -156,7 +209,7 @@ export class CreateLineage
         createTableResult.value.parentNames.map(
           async (element) =>
             await this.#createTable.execute(
-              { id: 'table1' },
+              { id: element },
               { organizationId: 'todo' }
             )
         )
@@ -170,15 +223,15 @@ export class CreateLineage
         parents.push(result.value);
 
         // todo is async ok here?
-        this.execute(
-          { id: result.value.name },
-          { organizationId: 'todo' }
-        );
+        this.execute({ id: result.value.name }, { organizationId: 'todo' });
       });
 
-      const lineage = this.#getLineage(createTableResult.value.statementDependencies)
+      const lineage = this.#getLineage(
+        createTableResult.value.statementDependencies,
+        parents
+      );
 
-      const lineageObj = Lineage.create({lineage});
+      const lineageObj = Lineage.create({ lineage });
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');
