@@ -7,6 +7,7 @@ import { Lineage } from '../entities/lineage';
 import { TableDto } from '../table/table-dto';
 import { SQLElement } from '../value-types/sql-element';
 import { Table } from '../entities/table';
+import { ObjectId } from 'mongodb';
 
 export interface CreateLineageRequestDto {
   id: string;
@@ -29,10 +30,11 @@ export class CreateLineage
   #createTable: CreateTable;
 
   #LineageElement = {
-    TABLE_SELF: 'table_self',
     TABLE: 'table',
 
     COLUMN: 'column',
+
+    TARGETS: 'targets',
 
     DEPENDENCY_TYPE: 'dependency_type',
 
@@ -57,50 +59,24 @@ export class CreateLineage
 
     if (!this.#isColumnDependency(key)) return;
 
-    const result: { [key: string]: string } = {};
+    const result: { [key: string]: any } = {};
 
     if (key.includes(SQLElement.SELECT_CLAUSE_ELEMENT)) {
-      //   if (!tableRef) {
-      //     const tableRefs = statementDependencyObj.filter((element) =>
-      //       [
-      //         SQLElement.FROM_EXPRESSION_ELEMENT,
-      //         SQLElement.TABLE_REFERENCE,
-      //       ].every((substring) => element[0].includes(substring))
-      //     );
-      //     tableRef = tableRefs[0][1];
-      //   }
-
-      //   if (!tableRef)
-      //     throw ReferenceError(`No table for SELECT statement found`);
-
       result[this.#LineageElement.TABLE] = dependencyTableName;
+      result[this.#LineageElement.TARGETS] = [value];
       result[this.#LineageElement.DEPENDENCY_TYPE] =
         this.#LineageElement.TYPE_SELECT;
     } else if (key.includes(SQLElement.JOIN_ON_CONDITION)) {
-      // if (!tableRef) {
-      //   Object.entries(statementDependencyObj).forEach((element) => {
-      //     const isJoinTable = [
-      //       SQLElement.JOIN_CLAUSE,
-      //       SQLElement.FROM_EXPRESSION_ELEMENT,
-      //       SQLElement.TABLE_REFERENCE,
-      //     ].every((substring) => element[0].includes(substring));
-      //     if (isJoinTable) {
-      //       tableRef = value;
-      //       return;
-      //     }
-      //   });
-
-      //   if (!tableRef)
-      //     throw ReferenceError(`No table for JOIN statement found`);
-      // }
-
       result[this.#LineageElement.TABLE] = dependencyTableName;
+      result[this.#LineageElement.TARGETS] = [];
       result[this.#LineageElement.DEPENDENCY_TYPE] =
         this.#LineageElement.TYPE_JOIN_CONDITION;
-    } else if (key.includes(SQLElement.ODERBY_CLAUSE))
+    } else if (key.includes(SQLElement.ODERBY_CLAUSE)) {
+      result[this.#LineageElement.TABLE] = '';
+      result[this.#LineageElement.TARGETS] = [];
       result[this.#LineageElement.DEPENDENCY_TYPE] =
         this.#LineageElement.TYPE_ORDERBY_CLAUSE;
-
+    }
     result[this.#LineageElement.COLUMN] = value;
     return result;
   };
@@ -154,24 +130,25 @@ export class CreateLineage
 
   #getLineage = (
     statementDependencies: [string, string][][],
+    columns: string[],
     parents: TableDto[]
   ): { [key: string]: string }[] => {
     const lineage: { [key: string]: string }[] = [];
 
-    statementDependencies.forEach((element) => {
-      element
+    statementDependencies.forEach((statement) => {
+      statement
         .filter((dependency) => this.#isColumnDependency(dependency[0]))
         .forEach((dependency) => {
           const dependencyTable = this.#findDependencyTable(
             dependency,
-            element,
+            statement,
             parents
           );
 
           const result = this.#analyzeColumnDependency(
             dependency,
             dependencyTable.name,
-            element
+            statement
           );
 
           if (!result)
@@ -228,10 +205,14 @@ export class CreateLineage
 
       const lineage = this.#getLineage(
         createTableResult.value.statementDependencies,
+        createTableResult.value.columns,
         parents
       );
 
-      const lineageObj = Lineage.create({ lineage });
+      const lineageObj = Lineage.create({
+        id: new ObjectId().toHexString(),
+        lineage,
+      });
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');

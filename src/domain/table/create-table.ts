@@ -6,9 +6,11 @@ import fs from 'fs';
 import { Table } from '../entities/table';
 import { ParseSQL } from '../sql-parser-api/parse-sql';
 import { SQLElement } from '../value-types/sql-element';
+// todo cleancode violation
+import { ObjectId } from 'mongodb';
 
 export interface CreateTableRequestDto {
-  id: string;
+  name: string;
 }
 
 export interface CreateTableAuthDto {
@@ -189,7 +191,7 @@ export class CreateTable
   ): Promise<CreateTableResponseDto> {
     try {
       const data = fs.readFileSync(
-        `C://Users/felix-pc/Desktop/Test/${request.id}.sql`,
+        `C://Users/felix-pc/Desktop/Test/${request.name}.sql`,
         'base64'
       );
 
@@ -212,7 +214,7 @@ export class CreateTable
       const parentNames = this.#getParentTableNames(statementDependencies);
 
       const table = Table.create({
-        id: request.id,
+        id: new ObjectId().toHexString(),
         name,
         columns,
         parentNames,
