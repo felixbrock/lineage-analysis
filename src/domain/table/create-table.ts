@@ -1,6 +1,6 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { TableDto } from './table-dto';
+import { buildTableDto, TableDto } from './table-dto';
 // todo - Clean Code dependency violation. Fix
 import fs from 'fs';
 import { Table } from '../entities/table';
@@ -8,6 +8,9 @@ import { ParseSQL } from '../sql-parser-api/parse-sql';
 import { SQLElement } from '../value-types/sql-element';
 // todo cleancode violation
 import { ObjectId } from 'mongodb';
+import { CreateModel, CreateModelResponse } from './create-model';
+import { Model } from '../value-types/model';
+import { buildModelDto } from './model-dto';
 
 export interface CreateTableRequestDto {
   name: string;
@@ -23,75 +26,11 @@ export class CreateTable
   implements
     IUseCase<CreateTableRequestDto, CreateTableResponseDto, CreateTableAuthDto>
 {
-  #parseSQL: ParseSQL;
+  #createModel: CreateModel;
 
-  constructor(parseSQL: ParseSQL) {
-    this.#parseSQL = parseSQL;
+  constructor(createModel: CreateModel) {
+    this.#createModel = createModel;
   }
-
-  #appendPath = (key: string, path: string): string => {
-    let newPath = path;
-    newPath += !path ? key : `.${key}`;
-    return newPath;
-  };
-
-  #extractStatementDependencies = (
-    targetKey: string,
-    parsedSQL: { [key: string]: any },
-    path = ''
-  ): [string, string][] => {
-    const statementDependencyObj: [string, string][] = [];
-
-    Object.entries(parsedSQL).forEach((element) => {
-      const key = element[0];
-      const value = element[1];
-
-      if (key === targetKey)
-        statementDependencyObj.push([this.#appendPath(key, path), value]);
-
-      // check if value is dictionary
-      if (value.constructor === Object) {
-        const dependencies = this.#extractStatementDependencies(
-          targetKey,
-          value,
-          this.#appendPath(key, path)
-        );
-        dependencies.forEach((dependencyElement) =>
-          statementDependencyObj.push(dependencyElement)
-        );
-      } else if (Object.prototype.toString.call(value) === '[object Array]') {
-        if (key === SQLElement.COLUMN_REFERENCE) {
-          let valuePath = '';
-          let keyPath = '';
-          value.forEach((valueElement: { [key: string]: any }) => {
-            const dependencies = this.#extractStatementDependencies(
-              targetKey,
-              valueElement,
-              this.#appendPath(key, path)
-            );
-            dependencies.forEach((dependencyElement: [string, string]) => {
-              valuePath = this.#appendPath(dependencyElement[1], valuePath);
-              [keyPath] = dependencyElement;
-            });
-          });
-          statementDependencyObj.push([keyPath, valuePath]);
-        } else {
-          value.forEach((valueElement: { [key: string]: any }) => {
-            const dependencies = this.#extractStatementDependencies(
-              targetKey,
-              valueElement,
-              this.#appendPath(key, path)
-            );
-            dependencies.forEach((dependencyElement) =>
-              statementDependencyObj.push(dependencyElement)
-            );
-          });
-        }
-      }
-    });
-
-    return statementDependencyObj;
-  };
 
   #getTableName = (statementDependencies: [string, string][][]): string => {
     const tableSelfRef = `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
@@ -148,110 +87,47 @@ export class CreateTable
     return parentTableNames;
   };
 
-  // #populateParents = (): void => {
-  //   const parentTableNames = this.#getParentTableNames(this);
-
-  //   parentTableNames.forEach(element => {
-
-  //   })
-
-  //   console.log(parentTableNames);
-  // };
-
-  #getStatementDependencies = (fileObj: any): [string, string][][] => {
-    const statementDependencies: [string, string][][] = [];
-
-    if (
-      fileObj.constructor === Object &&
-      fileObj[SQLElement.STATEMENT] !== undefined
-    ) {
-      const statementDependencyObj = this.#extractStatementDependencies(
-        SQLElement.IDENTIFIER,
-        fileObj[SQLElement.STATEMENT]
-      );
-      statementDependencies.push(statementDependencyObj);
-    } else if (Object.prototype.toString.call(fileObj) === '[object Array]') {
-      fileObj
-        .filter((statement: any) => SQLElement.STATEMENT in statement)
-        .forEach((statement: any) => {
-          const statementDependencyObj = this.#extractStatementDependencies(
-            SQLElement.IDENTIFIER,
-            statement[SQLElement.STATEMENT]
-          );
-          statementDependencies.push(statementDependencyObj);
-        });
-    }
-
-    return statementDependencies;
-  };
-
   async execute(
     request: CreateTableRequestDto,
     auth: CreateTableAuthDto
   ): Promise<CreateTableResponseDto> {
     try {
-      const data = fs.readFileSync(
-        `C://Users/felix-pc/Desktop/Test/${request.name}.sql`,
-        'base64'
+      const createModelResult: CreateModelResponse =
+        await this.#createModel.execute(
+          { name: request.name },
+          { organizationId: 'XXX' }
+        );
+
+      if (!createModelResult.success) throw new Error(createModelResult.error);
+      if (!createModelResult.value)
+        throw new Error(`Creation of model for table ${request.name} failed`);
+
+      const model = createModelResult.value;
+
+      const name = this.#getTableName(model.statementDependencies);
+
+      const columns = this.#getTableColumns(model.statementDependencies);
+      // create columns
+
+      const parentNames = this.#getParentTableNames(
+        model.statementDependencies
       );
-
-      const parseSQLResult: Result<any> = await this.#parseSQL.execute(
-        { dialect: 'snowflake', sql: data },
-        { jwt: 'XXX' }
-      );
-
-      if (!parseSQLResult.success) throw new Error(parseSQLResult.error);
-      if (!parseSQLResult.value) throw new Error(`Parsing of SQL logic failed`);
-
-      const statementDependencies = this.#getStatementDependencies(
-        parseSQLResult.value[SQLElement.FILE]
-      );
-
-      const name = this.#getTableName(statementDependencies);
-
-      const columns = this.#getTableColumns(statementDependencies);
-
-      const parentNames = this.#getParentTableNames(statementDependencies);
+      // create Parent tables
 
       const table = Table.create({
         id: new ObjectId().toHexString(),
         name,
-        columns,
-        parentNames,
-        statementDependencies,
+        model,
       });
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');
 
-      return Result.ok({
-        id: table.id,
-        name: table.name,
-        columns: table.columns,
-        parentNames: table.parentNames,
-        statementDependencies: table.statementDependencies,
-      });
+      return Result.ok(buildTableDto(table));
     } catch (error: unknown) {
       if (typeof error === 'string') return Result.fail(error);
       if (error instanceof Error) return Result.fail(error.message);
       return Result.fail('Unknown error occured');
     }
   }
-
-  // #runChildProcess = () => {
-  //   const childProcess = spawn('python', [
-  //     '../value-types/sql-parser.py',
-  //     // id,
-  //     'C://Users/felix-pc/Desktop/Test/table2.sql',
-  //     'snowflake',
-  //   ]);
-
-  //       const processResults: any[] = [];
-
-  //       childProcess.stdout.on('data', (data) =>
-  //         processResults.push(data.toString())
-  //       );
-
-  //       childProcess.on('close', (code) => {
-  // });}
 }

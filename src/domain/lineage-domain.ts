@@ -1,4 +1,4 @@
-import { CreateLineage } from './lineage/create-lineage';
+import { CreateLineage } from './column/create-column';
 
 export default class LineageDomain {
   #createLineage: CreateLineage;

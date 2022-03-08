@@ -1,6 +1,5 @@
-import { ObjectId } from 'mongodb';
 import fs from 'fs';
-import { Lineage, LineageProperties } from '../../domain/entities/lineage';
+import { Lineage, LineageProperties } from '../../domain/value-types/dependency';
 
 interface LineagePersistence {
   _id: string;

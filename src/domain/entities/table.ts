@@ -1,12 +1,9 @@
-import fs from 'fs';
-import { SQLElement } from "../value-types/sql-element";
+import { Model } from "../value-types/model";
 
 export interface TableProperties {
   id: string,
   name: string,
-  columns: string[],
-  parentNames: string[],
-  statementDependencies: [string, string][][]
+  model: Model
 }
 
 export class Table {
@@ -14,11 +11,7 @@ export class Table {
 
   #name: string;
 
-  #columns: string[];
-
-  #parentNames: string[];
-
-  #statementDependencies: [string, string][][];
+  #model: Model;
 
   get id(): string {
     return this.#id;
@@ -28,29 +21,20 @@ export class Table {
     return this.#name;
   }
 
-  get columns(): string[] {
-    return this.#columns;
-  }
-
-  get parentNames(): string[] {
-    return this.#parentNames;
-  }
-
-  get statementDependencies(): [string, string][][] {
-    return this.#statementDependencies;
+  get model(): Model {
+    return this.#model;
   }
 
   private constructor(properties: TableProperties) {
     this.#id = properties.id;
     this.#name = properties.name;
-    this.#columns = properties.columns;
-    this.#parentNames = properties.parentNames;
-    this.#statementDependencies = properties.statementDependencies;
+    this.#model = properties.model;
   }
 
   static create(properties: TableProperties): Table {
     if (!properties.id) throw new TypeError('Table must have id');
     if (!properties.name) throw new TypeError('Table must have name');
+    if (!properties.model) throw new TypeError('Table must have model');
 
     const table = new Table(properties);
 

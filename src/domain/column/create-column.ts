@@ -1,16 +1,16 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 // todo - Clean Code dependency violation. Fix
-import { LineageDto } from './lineage-dto';
+import { LineageDto } from './column-dto';
 import { CreateTable, CreateTableResponseDto } from '../table/create-table';
-import { Lineage } from '../entities/lineage';
+import { Lineage } from '../value-types/dependency';
 import { TableDto } from '../table/table-dto';
 import { SQLElement } from '../value-types/sql-element';
 import { Table } from '../entities/table';
 import { ObjectId } from 'mongodb';
 
 export interface CreateLineageRequestDto {
-  id: string;
+  name: string;
 }
 
 export interface CreateLineageAuthDto {
@@ -174,19 +174,19 @@ export class CreateLineage
     try {
       const createTableResult: CreateTableResponseDto =
         await this.#createTable.execute(
-          { id: request.id },
+          { name: request.name },
           { organizationId: 'todo' }
         );
 
       if (!createTableResult.success) throw new Error(createTableResult.error);
       if (!createTableResult.value)
-        throw new Error(`Creation of table ${request.id} failed`);
+        throw new Error(`Creation of table ${request.name} failed`);
 
       const createTableResults = await Promise.all(
         createTableResult.value.parentNames.map(
           async (element) =>
             await this.#createTable.execute(
-              { id: element },
+              { name: element },
               { organizationId: 'todo' }
             )
         )
@@ -200,7 +200,7 @@ export class CreateLineage
         parents.push(result.value);
 
         // todo is async ok here?
-        this.execute({ id: result.value.name }, { organizationId: 'todo' });
+        this.execute({ name: result.value.name }, { organizationId: 'todo' });
       });
 
       const lineage = this.#getLineage(

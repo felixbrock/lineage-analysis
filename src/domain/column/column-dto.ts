@@ -1,4 +1,4 @@
-import { Lineage } from '../entities/lineage';
+import { Lineage } from '../value-types/dependency';
 
 export interface LineageDto {
   lineage: { [key: string]: string }[];

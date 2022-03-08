@@ -1,7 +1,7 @@
 // TODO: Violation of control flow. DI for express instead
 import { Request, Response } from 'express';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
-import { CreateLineage, CreateLineageAuthDto, CreateLineageRequestDto, CreateLineageResponseDto } from '../../../domain/lineage/create-lineage';
+import { CreateLineage, CreateLineageAuthDto, CreateLineageRequestDto, CreateLineageResponseDto } from '../../../domain/column/create-column';
 import { ParseSQL } from '../../../domain/sql-parser-api/parse-sql';
 
 import Result from '../../../domain/value-types/transient-types/result';
@@ -24,7 +24,7 @@ export default class CreateLineageController extends BaseController {
   }
 
   #buildRequestDto = (httpRequest: Request): CreateLineageRequestDto => ({
-    id: httpRequest.params.lineageId
+    name: httpRequest.params.tableName
   });
 
   #buildAuthDto = (userAccountInfo: UserAccountInfo): CreateLineageAuthDto => ({
