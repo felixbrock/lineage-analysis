@@ -1,24 +1,24 @@
 export interface ModelProperties {
   sql: string;
-  statementDependencies: [string, string][][];
+  statementReferences: [string, string][][];
 }
 
 export class Model {
   #sql: string;
 
-  #statementDependencies: [string, string][][];
+  #statementReferences: [string, string][][];
 
   get sql(): string {
     return this.#sql;
   }
 
-  get statementDependencies(): [string, string][][] {
-    return this.#statementDependencies;
+  get statementReferences(): [string, string][][] {
+    return this.#statementReferences;
   }
 
   private constructor(properties: ModelProperties) {
     this.#sql = properties.sql;
-    this.#statementDependencies = properties.statementDependencies;
+    this.#statementReferences = properties.statementReferences;
   }
 
   static create(properties: ModelProperties): Model {

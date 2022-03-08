@@ -32,11 +32,11 @@ export class CreateTable
     this.#createModel = createModel;
   }
 
-  #getTableName = (statementDependencies: [string, string][][]): string => {
+  #getTableName = (statementReferences: [string, string][][]): string => {
     const tableSelfRef = `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
 
     const tableSelfSearchRes: string[] = [];
-    statementDependencies.flat().forEach((element) => {
+    statementReferences.flat().forEach((element) => {
       if (element.includes(tableSelfRef)) tableSelfSearchRes.push(element[1]);
     });
 
@@ -49,7 +49,7 @@ export class CreateTable
   };
 
   #getTableColumns = (
-    statementDependencies: [string, string][][]
+    statementReferences: [string, string][][]
   ): string[] => {
     const columnSelfRefs = [
       `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
@@ -58,7 +58,7 @@ export class CreateTable
 
     const columnSelfSearchRes: string[] = [];
 
-    statementDependencies.flat().forEach((element) => {
+    statementReferences.flat().forEach((element) => {
       if (columnSelfRefs.some((ref) => element[0].includes(ref)))
         columnSelfSearchRes.push(element[1]);
     });
@@ -67,7 +67,7 @@ export class CreateTable
   };
 
   #getParentTableNames = (
-    statementDependencies: [string, string][][]
+    statementReferences: [string, string][][]
   ): string[] => {
     const tableRef = `${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
     const tableSelfRefs = [
@@ -76,7 +76,7 @@ export class CreateTable
     ];
 
     const parentTableNames: string[] = [];
-    statementDependencies.flat().forEach((element) => {
+    statementReferences.flat().forEach((element) => {
       if (
         !tableSelfRefs.some((ref) => element.includes(ref)) &&
         element[0].includes(SQLElement.TABLE_REFERENCE)
@@ -104,15 +104,17 @@ export class CreateTable
 
       const model = createModelResult.value;
 
-      const name = this.#getTableName(model.statementDependencies);
-
-      const columns = this.#getTableColumns(model.statementDependencies);
-      // create columns
+      const name = this.#getTableName(model.statementReferences);
 
       const parentNames = this.#getParentTableNames(
-        model.statementDependencies
+        model.statementReferences
       );
       // create Parent tables
+
+      const columns = this.#getTableColumns(model.statementReferences);
+      columns.for
+
+      
 
       const table = Table.create({
         id: new ObjectId().toHexString(),
@@ -123,6 +125,7 @@ export class CreateTable
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');
 
+      // todo return table
       return Result.ok(buildTableDto(table));
     } catch (error: unknown) {
       if (typeof error === 'string') return Result.fail(error);

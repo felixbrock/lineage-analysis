@@ -1,40 +1,37 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 // todo - Clean Code dependency violation. Fix
-import { LineageDto } from './column-dto';
+import { ColumnDto } from './column-dto';
 import { CreateTable, CreateTableResponseDto } from '../table/create-table';
-import { Lineage } from '../value-types/dependency';
+import { Column } from '../entities/column';
 import { TableDto } from '../table/table-dto';
 import { SQLElement } from '../value-types/sql-element';
-import { Table } from '../entities/table';
 import { ObjectId } from 'mongodb';
 
-export interface CreateLineageRequestDto {
+export interface CreateColumnRequestDto {
+  tableId: string;
   name: string;
+  statementReferences: [string, string][][];
 }
 
-export interface CreateLineageAuthDto {
+export interface CreateColumnAuthDto {
   organizationId: string;
 }
 
-export type CreateLineageResponseDto = Result<LineageDto>;
+export type CreateColumnResponseDto = Result<Column>;
 
-export class CreateLineage
+export class CreateColumn
   implements
     IUseCase<
-      CreateLineageRequestDto,
-      CreateLineageResponseDto,
-      CreateLineageAuthDto
+      CreateColumnRequestDto,
+      CreateColumnResponseDto,
+      CreateColumnAuthDto
     >
 {
   #createTable: CreateTable;
 
-  #LineageElement = {
-    TABLE: 'table',
-
-    COLUMN: 'column',
-
-    TARGETS: 'targets',
+  #ColumnElement = {
+    NAME: 'name',
 
     DEPENDENCY_TYPE: 'dependency_type',
 
@@ -50,7 +47,7 @@ export class CreateLineage
   #analyzeColumnDependency = (
     dependency: [string, string],
     dependencyTableName: string,
-    statementDependencyObj: [string, string][]
+    statementReferencesObj: [string, string][]
   ) => {
     const key = dependency[0];
     const value = dependency[1].includes('.')
@@ -62,28 +59,28 @@ export class CreateLineage
     const result: { [key: string]: any } = {};
 
     if (key.includes(SQLElement.SELECT_CLAUSE_ELEMENT)) {
-      result[this.#LineageElement.TABLE] = dependencyTableName;
-      result[this.#LineageElement.TARGETS] = [value];
-      result[this.#LineageElement.DEPENDENCY_TYPE] =
-        this.#LineageElement.TYPE_SELECT;
+      result[this.#ColumnElement.TABLE] = dependencyTableName;
+      result[this.#ColumnElement.TARGETS] = [value];
+      result[this.#ColumnElement.DEPENDENCY_TYPE] =
+        this.#ColumnElement.TYPE_SELECT;
     } else if (key.includes(SQLElement.JOIN_ON_CONDITION)) {
-      result[this.#LineageElement.TABLE] = dependencyTableName;
-      result[this.#LineageElement.TARGETS] = [];
-      result[this.#LineageElement.DEPENDENCY_TYPE] =
-        this.#LineageElement.TYPE_JOIN_CONDITION;
+      result[this.#ColumnElement.TABLE] = dependencyTableName;
+      result[this.#ColumnElement.TARGETS] = [];
+      result[this.#ColumnElement.DEPENDENCY_TYPE] =
+        this.#ColumnElement.TYPE_JOIN_CONDITION;
     } else if (key.includes(SQLElement.ODERBY_CLAUSE)) {
-      result[this.#LineageElement.TABLE] = '';
-      result[this.#LineageElement.TARGETS] = [];
-      result[this.#LineageElement.DEPENDENCY_TYPE] =
-        this.#LineageElement.TYPE_ORDERBY_CLAUSE;
+      result[this.#ColumnElement.TABLE] = '';
+      result[this.#ColumnElement.TARGETS] = [];
+      result[this.#ColumnElement.DEPENDENCY_TYPE] =
+        this.#ColumnElement.TYPE_ORDERBY_CLAUSE;
     }
-    result[this.#LineageElement.COLUMN] = value;
+    result[this.#ColumnElement.COLUMN] = value;
     return result;
   };
 
   #findDependencyTable = (
     dependency: [string, string],
-    statementDependencies: [string, string][],
+    statementReferences: [string, string][],
     parents: TableDto[]
   ): TableDto => {
     const columnName = dependency[1].includes('.')
@@ -111,7 +108,7 @@ export class CreateLineage
     }
 
     if (dependency[0].includes(SQLElement.FROM_EXPRESSION_ELEMENT)) {
-      const potentialMatches = statementDependencies.filter((element) =>
+      const potentialMatches = statementReferences.filter((element) =>
         [SQLElement.FROM_EXPRESSION_ELEMENT, SQLElement.TABLE_REFERENCE].every(
           (key) => element[0].includes(key)
         )
@@ -128,14 +125,14 @@ export class CreateLineage
     throw new ReferenceError(`Table for column ${columnName} not found`);
   };
 
-  #getLineage = (
-    statementDependencies: [string, string][][],
+  #getColumn = (
+    statementReferences: [string, string][][],
     columns: string[],
     parents: TableDto[]
   ): { [key: string]: string }[] => {
-    const lineage: { [key: string]: string }[] = [];
+    const column: { [key: string]: string }[] = [];
 
-    statementDependencies.forEach((statement) => {
+    statementReferences.forEach((statement) => {
       statement
         .filter((dependency) => this.#isColumnDependency(dependency[0]))
         .forEach((dependency) => {
@@ -156,11 +153,11 @@ export class CreateLineage
               'No information for column reference found'
             );
 
-          lineage.push(result);
+          column.push(result);
         });
     });
 
-    return lineage;
+    return column;
   };
 
   constructor(createTable: CreateTable) {
@@ -168,9 +165,9 @@ export class CreateLineage
   }
 
   async execute(
-    request: CreateLineageRequestDto,
-    auth: CreateLineageAuthDto
-  ): Promise<CreateLineageResponseDto> {
+    request: CreateColumnRequestDto,
+    auth: CreateColumnAuthDto
+  ): Promise<CreateColumnResponseDto> {
     try {
       const createTableResult: CreateTableResponseDto =
         await this.#createTable.execute(
@@ -203,22 +200,22 @@ export class CreateLineage
         this.execute({ name: result.value.name }, { organizationId: 'todo' });
       });
 
-      const lineage = this.#getLineage(
-        createTableResult.value.statementDependencies,
+      const column = this.#getColumn(
+        createTableResult.value.statementReferences,
         createTableResult.value.columns,
         parents
       );
 
-      const lineageObj = Lineage.create({
+      const columnObj = Column.create({
         id: new ObjectId().toHexString(),
-        lineage,
+        column,
       });
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');
 
       return Result.ok({
-        lineage: lineageObj.lineage,
+        column: columnObj.column,
       });
     } catch (error: unknown) {
       if (typeof error === 'string') return Result.fail(error);
@@ -226,21 +223,4 @@ export class CreateLineage
       return Result.fail('Unknown error occured');
     }
   }
-
-  // #runChildProcess = () => {
-  //   const childProcess = spawn('python', [
-  //     '../value-types/sql-parser.py',
-  //     // id,
-  //     'C://Users/felix-pc/Desktop/Test/table2.sql',
-  //     'snowflake',
-  //   ]);
-
-  //       const processResults: any[] = [];
-
-  //       childProcess.stdout.on('data', (data) =>
-  //         processResults.push(data.toString())
-  //       );
-
-  //       childProcess.on('close', (code) => {
-  // });}
 }

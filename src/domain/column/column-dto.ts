@@ -1,9 +1,18 @@
-import { Lineage } from '../value-types/dependency';
+import { Column } from '../entities/column';
+import { Dependency } from '../value-types/dependency';
 
-export interface LineageDto {
-  lineage: { [key: string]: string }[];
+export interface ColumnDto {
+  id: string;
+  name: string;
+  tableId: string;
+  upstreamDependencies: Dependency[];
+  downstreamDependencies: Dependency[];
 }
 
-export const buildLineageDto = (lineage: Lineage): LineageDto => ({
-  lineage: lineage.lineage,
+export const buildColumnDto = (column: Column): ColumnDto => ({
+  id: column.id,
+  name: column.name,
+  tableId: column.tableId,
+  upstreamDependencies: column.upstreamDependencies,
+  downstreamDependencies: column.downstreamDependencies,
 });

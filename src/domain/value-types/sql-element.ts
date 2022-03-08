@@ -19,4 +19,8 @@ export class SQLElement {
     static COLUMN_DEFINITION= 'column_definition';
 
     static IDENTIFIER= 'identifier';
+
+    static KEYWORD = 'keyword';
+
+    static KEYWORD_AS = 'as';
 }

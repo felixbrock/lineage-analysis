@@ -34,36 +34,38 @@ export class CreateModel
     return newPath;
   };
 
-  #extractStatementDependencies = (
+  #extractstatementReferences = (
     targetKey: string,
     parsedSQL: { [key: string]: any },
     path = ''
   ): [string, string][] => {
-    const statementDependencyObj: [string, string][] = [];
+    const statementReferencesObj: [string, string][] = [];
 
     Object.entries(parsedSQL).forEach((element) => {
       const key = element[0];
       const value = element[1];
 
       if (key === targetKey)
-        statementDependencyObj.push([this.#appendPath(key, path), value]);
+        statementReferencesObj.push([this.#appendPath(key, path), value]);
+      else if (key === SQLElement.KEYWORD && value === SQLElement.KEYWORD_AS)
+        path = this.#appendPath(value, path);
 
       // check if value is dictionary
       if (value.constructor === Object) {
-        const dependencies = this.#extractStatementDependencies(
+        const dependencies = this.#extractstatementReferences(
           targetKey,
           value,
           this.#appendPath(key, path)
         );
         dependencies.forEach((dependencyElement) =>
-          statementDependencyObj.push(dependencyElement)
+          statementReferencesObj.push(dependencyElement)
         );
       } else if (Object.prototype.toString.call(value) === '[object Array]') {
         if (key === SQLElement.COLUMN_REFERENCE) {
           let valuePath = '';
           let keyPath = '';
           value.forEach((valueElement: { [key: string]: any }) => {
-            const dependencies = this.#extractStatementDependencies(
+            const dependencies = this.#extractstatementReferences(
               targetKey,
               valueElement,
               this.#appendPath(key, path)
@@ -73,50 +75,50 @@ export class CreateModel
               [keyPath] = dependencyElement;
             });
           });
-          statementDependencyObj.push([keyPath, valuePath]);
+          statementReferencesObj.push([keyPath, valuePath]);
         } else {
           value.forEach((valueElement: { [key: string]: any }) => {
-            const dependencies = this.#extractStatementDependencies(
+            const dependencies = this.#extractstatementReferences(
               targetKey,
               valueElement,
               this.#appendPath(key, path)
             );
             dependencies.forEach((dependencyElement) =>
-              statementDependencyObj.push(dependencyElement)
+              statementReferencesObj.push(dependencyElement)
             );
           });
         }
       }
     });
 
-    return statementDependencyObj;
+    return statementReferencesObj;
   };
 
-  #getStatementDependencies = (fileObj: any): [string, string][][] => {
-    const statementDependencies: [string, string][][] = [];
+  #getstatementReferences = (fileObj: any): [string, string][][] => {
+    const statementReferences: [string, string][][] = [];
 
     if (
       fileObj.constructor === Object &&
       fileObj[SQLElement.STATEMENT] !== undefined
     ) {
-      const statementDependencyObj = this.#extractStatementDependencies(
+      const statementReferencesObj = this.#extractstatementReferences(
         SQLElement.IDENTIFIER,
         fileObj[SQLElement.STATEMENT]
       );
-      statementDependencies.push(statementDependencyObj);
+      statementReferences.push(statementReferencesObj);
     } else if (Object.prototype.toString.call(fileObj) === '[object Array]') {
       fileObj
         .filter((statement: any) => SQLElement.STATEMENT in statement)
         .forEach((statement: any) => {
-          const statementDependencyObj = this.#extractStatementDependencies(
+          const statementReferencesObj = this.#extractstatementReferences(
             SQLElement.IDENTIFIER,
             statement[SQLElement.STATEMENT]
           );
-          statementDependencies.push(statementDependencyObj);
+          statementReferences.push(statementReferencesObj);
         });
     }
 
-    return statementDependencies;
+    return statementReferences;
   };
 
   async execute(
@@ -137,13 +139,13 @@ export class CreateModel
       if (!parseSQLResult.success) throw new Error(parseSQLResult.error);
       if (!parseSQLResult.value) throw new Error(`Parsing of SQL logic failed`);
 
-      const statementDependencies = this.#getStatementDependencies(
+      const statementReferences = this.#getstatementReferences(
         parseSQLResult.value.file
       );
 
       const model = Model.create({
         sql: parseSQLResult.value.file,
-        statementDependencies,
+        statementReferences,
       });
 
       // if (auth.organizationId !== 'TODO')
