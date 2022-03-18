@@ -1,8 +1,8 @@
-import { Model } from '../value-types/model';
+import { Model } from '../entities/model';
 
 export interface ModelDto {
   sql: string;
-  statementReferences: [string, string][][];
+  statementReferences: StatementReference[][];
 }
 
 export const buildModelDto = (model: Model): ModelDto => ({

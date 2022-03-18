@@ -1,22 +1,32 @@
+export type StatementReference = [string,string];
+
 export interface ModelProperties {
+  id: string
   sql: string;
-  statementReferences: [string, string][][];
+  statementReferences: StatementReference[][];
 }
 
 export class Model {
+  #id: string;
+
   #sql: string;
 
-  #statementReferences: [string, string][][];
+  #statementReferences: StatementReference[][];
+
+  get id(): string {
+    return this.#id
+  }
 
   get sql(): string {
     return this.#sql;
   }
 
-  get statementReferences(): [string, string][][] {
+  get statementReferences(): StatementReference[][] {
     return this.#statementReferences;
   }
 
   private constructor(properties: ModelProperties) {
+    this.#id = properties.id;
     this.#sql = properties.sql;
     this.#statementReferences = properties.statementReferences;
   }

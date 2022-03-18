@@ -1,5 +1,5 @@
 import { Table } from '../entities/table';
-import { Model } from '../value-types/model';
+import { Model } from '../entities/model';
 import { buildModelDto, ModelDto } from './model-dto';
 
 export interface TableDto {

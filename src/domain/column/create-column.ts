@@ -7,11 +7,12 @@ import { Column } from '../entities/column';
 import { TableDto } from '../table/table-dto';
 import { SQLElement } from '../value-types/sql-element';
 import { ObjectId } from 'mongodb';
+import { StatementReference } from '../entities/model';
 
 export interface CreateColumnRequestDto {
   tableId: string;
   name: string;
-  statementReferences: [string, string][][];
+  statementReferences: StatementReference[][];
 }
 
 export interface CreateColumnAuthDto {
@@ -47,7 +48,7 @@ export class CreateColumn
   #analyzeColumnDependency = (
     dependency: [string, string],
     dependencyTableName: string,
-    statementReferencesObj: [string, string][]
+    statementReferencesObj: StatementReference[]
   ) => {
     const key = dependency[0];
     const value = dependency[1].includes('.')
@@ -80,7 +81,7 @@ export class CreateColumn
 
   #findDependencyTable = (
     dependency: [string, string],
-    statementReferences: [string, string][],
+    statementReferences: StatementReference[],
     parents: TableDto[]
   ): TableDto => {
     const columnName = dependency[1].includes('.')
@@ -126,7 +127,7 @@ export class CreateColumn
   };
 
   #getColumn = (
-    statementReferences: [string, string][][],
+    statementReferences: StatementReference[][],
     columns: string[],
     parents: TableDto[]
   ): { [key: string]: string }[] => {
@@ -169,36 +170,36 @@ export class CreateColumn
     auth: CreateColumnAuthDto
   ): Promise<CreateColumnResponseDto> {
     try {
-      const createTableResult: CreateTableResponseDto =
-        await this.#createTable.execute(
-          { name: request.name },
-          { organizationId: 'todo' }
-        );
+      // const createTableResult: CreateTableResponseDto =
+      //   await this.#createTable.execute(
+      //     { name: request.name },
+      //     { organizationId: 'todo' }
+      //   );
 
-      if (!createTableResult.success) throw new Error(createTableResult.error);
-      if (!createTableResult.value)
-        throw new Error(`Creation of table ${request.name} failed`);
+      // if (!createTableResult.success) throw new Error(createTableResult.error);
+      // if (!createTableResult.value)
+      //   throw new Error(`Creation of table ${request.name} failed`);
 
-      const createTableResults = await Promise.all(
-        createTableResult.value.parentNames.map(
-          async (element) =>
-            await this.#createTable.execute(
-              { name: element },
-              { organizationId: 'todo' }
-            )
-        )
-      );
+      // const createTableResults = await Promise.all(
+      //   createTableResult.value.parentNames.map(
+      //     async (element) =>
+      //       await this.#createTable.execute(
+      //         { name: element },
+      //         { organizationId: 'todo' }
+      //       )
+      //   )
+      // );
 
-      const parents: TableDto[] = [];
-      createTableResults.forEach((result) => {
-        if (!result.success) throw new Error(result.error);
-        if (!result.value) throw new Error(`Creation of parent table failed`);
+      // const parents: TableDto[] = [];
+      // createTableResults.forEach((result) => {
+      //   if (!result.success) throw new Error(result.error);
+      //   if (!result.value) throw new Error(`Creation of parent table failed`);
 
-        parents.push(result.value);
+      //   parents.push(result.value);
 
-        // todo is async ok here?
-        this.execute({ name: result.value.name }, { organizationId: 'todo' });
-      });
+      //   // todo is async ok here?
+      //   this.execute({ name: result.value.name }, { organizationId: 'todo' });
+      // });
 
       const column = this.#getColumn(
         createTableResult.value.statementReferences,

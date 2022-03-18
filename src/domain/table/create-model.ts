@@ -2,14 +2,14 @@ import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 // todo - Clean Code dependency violation. Fix
 import fs from 'fs';
-import { Model } from '../value-types/model';
+import { Model, StatementReference } from '../entities/model';
 import { ParseSQL, ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
 import { SQLElement } from '../value-types/sql-element';
 // todo cleancode violation
 import { ObjectId } from 'mongodb';
 
 export interface CreateModelRequestDto {
-  name: string;
+  id: string;
 }
 
 export interface CreateModelAuthDto {
@@ -38,8 +38,8 @@ export class CreateModel
     targetKey: string,
     parsedSQL: { [key: string]: any },
     path = ''
-  ): [string, string][] => {
-    const statementReferencesObj: [string, string][] = [];
+  ): StatementReference[] => {
+    const statementReferencesObj: StatementReference[] = [];
 
     Object.entries(parsedSQL).forEach((element) => {
       const key = element[0];
@@ -94,8 +94,8 @@ export class CreateModel
     return statementReferencesObj;
   };
 
-  #getstatementReferences = (fileObj: any): [string, string][][] => {
-    const statementReferences: [string, string][][] = [];
+  #getstatementReferences = (fileObj: any): StatementReference[][] => {
+    const statementReferences: StatementReference[][] = [];
 
     if (
       fileObj.constructor === Object &&
@@ -127,7 +127,7 @@ export class CreateModel
   ): Promise<CreateModelResponse> {
     try {
       const data = fs.readFileSync(
-        `C://Users/felix-pc/Desktop/Test/${request.name}.sql`,
+        `C://Users/felix-pc/Desktop/Test/${request.id}.sql`,
         'base64'
       );
 
@@ -144,6 +144,7 @@ export class CreateModel
       );
 
       const model = Model.create({
+        id: new ObjectId().toHexString(),
         sql: parseSQLResult.value.file,
         statementReferences,
       });

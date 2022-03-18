@@ -12,7 +12,7 @@ import { Table } from '../entities/table';
 export interface CreateDependenciesRequestDto {
   value: string;
   key: string;
-  statementReferencesObj: [string, string][];
+  statementReferencesObj: StatementReference[];
   parents: Table[];
 }
 

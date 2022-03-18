@@ -1,9 +1,7 @@
-import { Model } from "../value-types/model";
-
 export interface TableProperties {
   id: string,
   name: string,
-  model: Model
+  modelId: string
 }
 
 export class Table {
@@ -11,7 +9,7 @@ export class Table {
 
   #name: string;
 
-  #model: Model;
+  #modelId: string;
 
   get id(): string {
     return this.#id;
@@ -21,20 +19,20 @@ export class Table {
     return this.#name;
   }
 
-  get model(): Model {
-    return this.#model;
+  get modelId(): string {
+    return this.#modelId;
   }
 
   private constructor(properties: TableProperties) {
     this.#id = properties.id;
     this.#name = properties.name;
-    this.#model = properties.model;
+    this.#modelId = properties.modelId;
   }
 
   static create(properties: TableProperties): Table {
     if (!properties.id) throw new TypeError('Table must have id');
     if (!properties.name) throw new TypeError('Table must have name');
-    if (!properties.model) throw new TypeError('Table must have model');
+    if (!properties.modelId) throw new TypeError('Table must have modelId');
 
     const table = new Table(properties);
 
