@@ -14,7 +14,7 @@ export interface CreateTableAuthDto {
   organizationId: string;
 }
 
-export type CreateTableResponseDto = Result<TableDto>;
+export type CreateTableResponseDto = Result<Table>;
 
 export class CreateTable
   implements
@@ -36,8 +36,7 @@ export class CreateTable
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');
 
-      // todo return table
-      return Result.ok(buildTableDto(table));
+      return Result.ok(table);
     } catch (error: unknown) {
       if (typeof error === 'string') return Result.fail(error);
       if (error instanceof Error) return Result.fail(error.message);

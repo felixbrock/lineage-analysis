@@ -1,4 +1,4 @@
-import { Model } from '../entities/model';
+import { Model, StatementReference } from '../entities/model';
 
 export interface ModelDto {
   sql: string;
