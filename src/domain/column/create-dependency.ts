@@ -8,6 +8,7 @@ import { TableDto } from '../table/table-dto';
 import { SQLElement } from '../value-types/sql-element';
 import { ObjectId } from 'mongodb';
 import { Table } from '../entities/table';
+import { StatementReference } from '../entities/model';
 
 export interface CreateDependenciesRequestDto {
   value: string;

@@ -8,8 +8,10 @@ import { ObjectId } from 'mongodb';
 import { StatementReference } from '../entities/model';
 import { CreateColumn } from '../column/create-column';
 import { CreateTable } from '../table/create-table';
-import { LineageDto } from './lineage-dto';
+import { buildLineageDto, LineageDto } from './lineage-dto';
 import { CreateModel, CreateModelResponse } from '../table/create-model';
+import { Lineage } from '../value-types/transient-types/lineage';
+import { Column } from '../entities/column';
 
 export interface CreateLineageRequestDto {
   tableId?: string;
@@ -60,19 +62,19 @@ export class CreateLineage
     return tableSelfSearchRes[0];
   };
 
-  #getTableColumnNames = (
+  #getTableColumnReferences = (
     statementReferences: StatementReference[][]
-  ): string[] => {
+  ): StatementReference[] => {
     const columnSelfRefs = [
       `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
       `${SQLElement.COLUMN_DEFINITION}.${SQLElement.IDENTIFIER}`,
     ];
 
-    const tableColumnNames: string[] = [];
+    const tableColumnNames: StatementReference[] = [];
 
     statementReferences.flat().forEach((element) => {
       if (columnSelfRefs.some((ref) => element[0].includes(ref)))
-        tableColumnNames.push(element[1]);
+        tableColumnNames.push(element);
     });
 
     return tableColumnNames;
@@ -122,13 +124,19 @@ export class CreateLineage
 
       const name = this.#getTableName(model.statementReferences);
 
-      const table = await this.#createTable.execute(
+      const createTableResult = await this.#createTable.execute(
         {
           name,
           modelId: model.id,
         },
         { organizationId: 'todo' }
       );
+
+      if (!createTableResult.success) throw new Error(createTableResult.error);
+      if (!createTableResult.value)
+        throw new Error(`Creation of table ${name} failed`);
+
+      const table = createTableResult.value;
 
       const parentNames = this.#getParentTableNames(model.statementReferences);
 
@@ -153,20 +161,45 @@ export class CreateLineage
           // );
 
           // todo - Last point of changek
-          await this.execute({tableId: name}, {organizationId: 'todo'})
-
+          await this.execute({ tableId: name }, { organizationId: 'todo' });
         })
       );
 
-      const columnNames = this.#getTableColumnNames(model.statementReferences);
-      const columns = await Promise.all(columnNames.map(async (name) => await this.#createColumn.execute({ name, statementReferences, tableId }, {organizationId: 'todo'}));
+      const columnNames = this.#getTableColumnReferences(model.statementReferences);
+      const createColumnResults = await Promise.all(
+        columnNames.map(
+          async (reference) =>
+            await this.#createColumn.execute(
+              {
+                reference,
+                statementReferences: model.statementReferences,
+                tableId: table.id,
+                parentTableNames: parentNames
+              },
+              { organizationId: 'todo' }
+            )
+        )
+      );
 
+      if (!createColumnResults.some((result) => !result.success || !result.value))
+        throw new Error(createTableResult.error);
+
+      const columns = createColumnResults
+        .map((result) => result.value)
+        .filter(
+          (value): value is Column =>
+            value !== undefined && value.tableId === table.id
+        );
+
+      const lineage = Lineage.create({
+        table,
+        columns,
+      });
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');
 
-      // todo return table
-      return Result.ok(buildTableDto(table));
+      return Result.ok(buildLineageDto(lineage));
     } catch (error: unknown) {
       if (typeof error === 'string') return Result.fail(error);
       if (error instanceof Error) return Result.fail(error.message);
