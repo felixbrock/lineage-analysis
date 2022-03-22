@@ -1,11 +1,11 @@
+import { DependencyDto } from '../column/dependency-dto';
 import { Dependency } from '../value-types/dependency';
 
 export interface ColumnProperties {
   id: string;
   name: string;
   tableId: string;
-  upstreamDependencies: Dependency[];
-  downstreamDependencies: Dependency[];
+  dependencies: DependencyDto[];
 }
 
 export class Column {
@@ -15,8 +15,7 @@ export class Column {
 
   #tableId: string;
 
-  #upstreamDependencies: Dependency[];
-  #downstreamDependencies: Dependency[];
+  #dependencies: Dependency[];
 
   get id(): string {
     return this.#id;
@@ -30,20 +29,21 @@ export class Column {
     return this.#tableId;
   }
 
-  get upstreamDependencies(): Dependency[] {
-    return this.#upstreamDependencies;
-  }
-
-  get downstreamDependencies(): Dependency[] {
-    return this.#downstreamDependencies;
+  get dependencies(): Dependency[] {
+    return this.#dependencies;
   }
 
   private constructor(properties: ColumnProperties) {
     this.#id = properties.id;
     this.#name = properties.name;
     this.#tableId = properties.tableId;
-    this.#upstreamDependencies = properties.upstreamDependencies;
-    this.#downstreamDependencies = properties.downstreamDependencies;
+    this.#dependencies = properties.dependencies.map((dependency) =>
+      Dependency.create({
+        type: dependency.type,
+        columnId: dependency.columnId,
+        direction: dependency.direction,
+      })
+    );
   }
 
   static create(properties: ColumnProperties): Column {

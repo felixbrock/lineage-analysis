@@ -4,7 +4,7 @@ import { AccountDto } from '../../domain/account-api/account-dto';
 import { IAccountApiRepo } from '../../domain/account-api/i-account-api-repo';
 import getRoot from '../shared/api-root-builder';
 
-export default class AccountApiRepoImpl implements IAccountApiRepo {
+export default class AccountApiRepo implements IAccountApiRepo {
   #path = 'api/v1';
 
   #serviceName = 'account';

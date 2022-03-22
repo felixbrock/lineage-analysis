@@ -9,7 +9,7 @@ import { StatementReference } from '../entities/model';
 import { CreateColumn } from '../column/create-column';
 import { CreateTable } from '../table/create-table';
 import { buildLineageDto, LineageDto } from './lineage-dto';
-import { CreateModel, CreateModelResponse } from '../table/create-model';
+import { CreateModel, CreateModelResponse } from '../model/create-model';
 import { Lineage } from '../value-types/transient-types/lineage';
 import { Column } from '../entities/column';
 

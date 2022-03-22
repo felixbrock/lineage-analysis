@@ -8,19 +8,19 @@ import {
 import sanitize from 'mongo-sanitize';
 
 import { connect, close, createClient } from './db/mongo-db';
-import { IModelRepo } from '../../domain/model/i-model-repo';
-import { Model, ModelProperties } from '../../domain/entities/model';
+import { ITableRepo } from '../../domain/table/i-table-repo';
+import { Table, TableProperties } from '../../domain/entities/table';
 
-interface ModelPersistence {
+interface TablePersistence {
   _id: string;
-  sql: string;
-  statementReferences: [string, string][][];
+  name: string;
+  modelId: string;
 }
 
-const collectionName = 'model';
+const collectionName = 'table';
 
-export default class ModelRepo implements IModelRepo {
-  findOne = async (id: string): Promise<Model | null> => {
+export default class TableRepo implements ITableRepo {
+  findOne = async (id: string): Promise<Table | null> => {
     const client = createClient();
     try {
       const db = await connect(client);
@@ -40,7 +40,7 @@ export default class ModelRepo implements IModelRepo {
     }
   };
 
-  all = async (): Promise<Model[]> => {
+  all = async (): Promise<Table[]> => {
     const client = createClient();
     try {
       const db = await connect(client);
@@ -61,16 +61,16 @@ export default class ModelRepo implements IModelRepo {
     }
   };
 
-  insertOne = async (model: Model): Promise<string> => {
+  insertOne = async (table: Table): Promise<string> => {
     const client = createClient();
     try {
       const db = await connect(client);
       const result: InsertOneResult<Document> = await db
         .collection(collectionName)
-        .insertOne(this.#toPersistence(sanitize(model)));
+        .insertOne(this.#toPersistence(sanitize(table)));
 
       if (!result.acknowledged)
-        throw new Error('Model creation failed. Insert not acknowledged');
+        throw new Error('Table creation failed. Insert not acknowledged');
 
       close(client);
 
@@ -91,7 +91,7 @@ export default class ModelRepo implements IModelRepo {
         .deleteOne({ _id: new ObjectId(sanitize(id)) });
 
       if (!result.acknowledged)
-        throw new Error('Model delete failed. Delete not acknowledged');
+        throw new Error('Table delete failed. Delete not acknowledged');
 
       close(client);
 
@@ -103,19 +103,19 @@ export default class ModelRepo implements IModelRepo {
     }
   };
 
-  #toEntity = (modelProperties: ModelProperties): Model =>
-    Model.create(modelProperties);
+  #toEntity = (tableProperties: TableProperties): Table =>
+    Table.create(tableProperties);
 
-  #buildProperties = (model: ModelPersistence): ModelProperties => ({
+  #buildProperties = (table: TablePersistence): TableProperties => ({
     // eslint-disable-next-line no-underscore-dangle
-    id: model._id,
-    sql: model.sql,
-    statementReferences: model.statementReferences,
+    id: table._id,
+    name: table.name,
+    modelId: table.modelId,
   });
 
-  #toPersistence = (model: Model): Document => ({
-    _id: ObjectId.createFromHexString(model.id),
-    sql: model.sql,
-    statementReferences: model.statementReferences
+  #toPersistence = (table: Table): Document => ({
+    _id: ObjectId.createFromHexString(table.id),
+    name: table.name,
+    modelId: table.modelId,
   });
 }

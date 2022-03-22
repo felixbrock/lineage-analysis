@@ -7,6 +7,9 @@ import { SQLElement } from '../value-types/sql-element';
 import { ObjectId } from 'mongodb';
 import { StatementReference } from '../entities/model';
 import { request } from 'express';
+import { IColumnRepo } from './i-column-repo';
+import { ReadColumns } from './read-columns';
+import { ColumnDto } from './column-dto';
 
 export interface CreateColumnRequestDto {
   tableId: string;
@@ -29,7 +32,10 @@ export class CreateColumn
       CreateColumnAuthDto
     >
 {
-  #ColumnElement = {
+
+  #readColumns: ReadColumns;
+
+  #columnElement = {
     NAME: 'name',
 
     DEPENDENCY_TYPE: 'dependency_type',
@@ -59,54 +65,69 @@ export class CreateColumn
     );
   };
 
-  #findDependencyColumnId = (
-    dependency: StatementReference,
+  #findDependencyColumnId = async (
+    // dependency: StatementReference,
     statementReferences: StatementReference[],
     parentTableIds: string[]
-  ): TableDto => {
-    const columnName = dependency[1].includes('.')
-      ? dependency[1].split('.').slice(-1)[0]
-      : dependency[1];
-    const tableName = dependency[1].includes('.')
-      ? dependency[1].split('.').slice(0)[0]
-      : '';
+  ): Promise<Column[]> => {
 
-    // todo - columns where tableId and columnName
-// todo - output: potential columnIds
+  const columnNames = statementReferences.map(reference => reference[1]);
 
-    const potentialDependencyTables = parents.filter((table) =>
-      table.columns.includes(columnName)
+  const readColumnsResult = await this.#readColumns.execute({tableId: parentTableIds, name: columnNames}, {organizationId: 'todo'});
+
+  if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
+  if (!readColumnsResult.value)
+    throw new Error(`Reading of dependency columns failed`);
+
+  // const potentialDependencyTables = parents.filter((table) =>
+  //   table.columns.includes(columnName)
+  // );
+
+  const potentialSourceColumns = readColumnsResult.value;
+
+  const matchesPerName : [string, number][] = columnNames.map(name => [name, potentialSourceColumns.filter(column => column.name === name).length]);
+
+  if(matchesPerName.every(match => match[1] === 1))
+    return potentialSourceColumns;
+
+  // if (potentialSourceColumns.length === 1)
+  //   return potentialSourceColumns[0];
+  if (potentialSourceColumns.length === 0)
+    throw new ReferenceError(`No source columns found`);
+
+  const columnName = reference[1].includes('.')
+    ? reference[1].split('.').slice(-1)[0]
+    : reference[1];
+  const tableName = reference[1].includes('.')
+    ? reference[1].split('.').slice(0)[0]
+    : '';
+
+  if (tableName) {
+    const dependencyTableMatches = potentialDependencyTables.filter(
+      (table) => table.name === tableName
+    );
+    if (dependencyTableMatches.length === 1) return dependencyTableMatches[0];
+    throw new ReferenceError('Multiple parents with the same name exist');
+  }
+
+  if (dependency[0].includes(SQLElement.FROM_EXPRESSION_ELEMENT)) {
+    const potentialMatches = statementReferences.filter((element) =>
+      [SQLElement.FROM_EXPRESSION_ELEMENT, SQLElement.TABLE_REFERENCE].every(
+        (key) => element[0].includes(key)
+      )
     );
 
-    if (potentialDependencyTables.length === 1)
-      return potentialDependencyTables[0];
-    else if (potentialDependencyTables.length === 0)
-      throw new ReferenceError(`Table for column ${columnName} not found`);
+    const dependencyTableMatches = potentialDependencyTables.filter(
+      (element) =>
+        potentialMatches.map((match) => match[1]).includes(element.name)
+    );
+    if (dependencyTableMatches.length === 1) return dependencyTableMatches[0];
+    throw new ReferenceError('Multiple parents with the same name exist');
+  }
 
-    if (tableName) {
-      const dependencyTableMatches = potentialDependencyTables.filter(
-        (table) => table.name === tableName
-      );
-      if (dependencyTableMatches.length === 1) return dependencyTableMatches[0];
-      throw new ReferenceError('Multiple parents with the same name exist');
-    }
+  throw new ReferenceError(`Table for column ${columnName} not found`);
 
-    if (dependency[0].includes(SQLElement.FROM_EXPRESSION_ELEMENT)) {
-      const potentialMatches = statementReferences.filter((element) =>
-        [SQLElement.FROM_EXPRESSION_ELEMENT, SQLElement.TABLE_REFERENCE].every(
-          (key) => element[0].includes(key)
-        )
-      );
-
-      const dependencyTableMatches = potentialDependencyTables.filter(
-        (element) =>
-          potentialMatches.map((match) => match[1]).includes(element.name)
-      );
-      if (dependencyTableMatches.length === 1) return dependencyTableMatches[0];
-      throw new ReferenceError('Multiple parents with the same name exist');
-    }
-
-    throw new ReferenceError(`Table for column ${columnName} not found`);
+    
   };
 
   #analyzeDependency = (dependency: StatementReference, columnName: string) => {
@@ -116,17 +137,17 @@ export class CreateColumn
       : dependency[1];
 
     if (key.includes(SQLElement.SELECT_CLAUSE_ELEMENT) ) {
-      result[this.#ColumnElement.TABLE] = dependencyTableName;
-      result[this.#ColumnElement.TARGETS] = [value];
-      result[this.#ColumnElement.DEPENDENCY_TYPE] =
-        this.#ColumnElement.TYPE_SELECT;
+      result[this.#columnElement.TABLE] = dependencyTableName;
+      result[this.#columnElement.TARGETS] = [value];
+      result[this.#columnElement.DEPENDENCY_TYPE] =
+        this.#columnElement.TYPE_SELECT;
     } else if (key.includes(SQLElement.JOIN_ON_CONDITION)) {
-      result[this.#ColumnElement.TABLE] = dependencyTableName;
-      result[this.#ColumnElement.TARGETS] = [];
-      result[this.#ColumnElement.DEPENDENCY_TYPE] =
-        this.#ColumnElement.TYPE_JOIN_CONDITION;
+      result[this.#columnElement.TABLE] = dependencyTableName;
+      result[this.#columnElement.TARGETS] = [];
+      result[this.#columnElement.DEPENDENCY_TYPE] =
+        this.#columnElement.TYPE_JOIN_CONDITION;
     }
-    result[this.#ColumnElement.COLUMN] = value;
+    result[this.#columnElement.COLUMN] = value;
     return result;
   }
 
@@ -204,8 +225,8 @@ export class CreateColumn
 
   // }
 
-  constructor(createTable: CreateTable) {
-    this.#createTable = createTable;
+  constructor(readColumns: ReadColumns) {
+    this.#readColumns = readColumns;
   }
 
   async execute(
@@ -239,4 +260,25 @@ export class CreateColumn
       return Result.fail('Unknown error occured');
     }
   }
+
+  // #buildSelectorQueryDto = (
+  //   request: ReadSelectorsRequestDto,
+  //   organizationId: string
+  // ): SelectorQueryDto => {
+  //   const queryDto: SelectorQueryDto = {};
+
+  //   if (request.content) queryDto.content = request.content;
+  //   queryDto.organizationId = organizationId;
+  //   if (request.systemId) queryDto.systemId = request.systemId;
+  //   if (
+  //     request.alert &&
+  //     (request.alert.createdOnStart || request.alert.createdOnEnd)
+  //   )
+  //     queryDto.alert = request.alert;
+  //   if (request.modifiedOnStart)
+  //     queryDto.modifiedOnStart = request.modifiedOnStart;
+  //   if (request.modifiedOnEnd) queryDto.modifiedOnEnd = request.modifiedOnEnd;
+
+  //   return queryDto;
+  // };
 }

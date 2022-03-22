@@ -220,7 +220,8 @@ export class CreateDependencies
 
       const dependency = Dependency.create({
         type: 'todo',
-        columnId: 'todo'
+        columnId: 'todo',
+        direction: 'todo'
       });
 
       // if (auth.organizationId !== 'TODO')
