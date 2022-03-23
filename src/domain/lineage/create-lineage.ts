@@ -165,16 +165,16 @@ export class CreateLineage
         })
       );
 
-      const columnNames = this.#getTableColumnReferences(
+      const tableColumnReferences = this.#getTableColumnReferences(
         model.statementReferences
       );
       const createColumnResults = await Promise.all(
-        columnNames.map(
+        tableColumnReferences.map(
           async (reference) =>
             await this.#createColumn.execute(
               {
                 reference,
-                statementReferences: model.statementReferences,
+                statementSourceReferences: model.statementReferences,
                 tableId: table.id,
                 parentTableNames: parentNames,
               },
