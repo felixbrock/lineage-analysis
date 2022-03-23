@@ -137,7 +137,7 @@ export class CreateModel
       );
 
       if (!parseSQLResult.success) throw new Error(parseSQLResult.error);
-      if (!parseSQLResult.value) throw new Error(`Parsing of SQL logic failed`);
+      if (!parseSQLResult.value) throw new SyntaxError(`Parsing of SQL logic failed`);
 
       const statementReferences = this.#getstatementReferences(
         parseSQLResult.value.file

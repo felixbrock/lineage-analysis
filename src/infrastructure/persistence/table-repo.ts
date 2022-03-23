@@ -8,13 +8,18 @@ import {
 import sanitize from 'mongo-sanitize';
 
 import { connect, close, createClient } from './db/mongo-db';
-import { ITableRepo } from '../../domain/table/i-table-repo';
+import { ITableRepo, TableQueryDto } from '../../domain/table/i-table-repo';
 import { Table, TableProperties } from '../../domain/entities/table';
 
 interface TablePersistence {
   _id: string;
   name: string;
   modelId: string;
+}
+
+interface TableQueryFilter {
+  name?: string;
+  modelId?: string;
 }
 
 const collectionName = 'table';
@@ -38,6 +43,42 @@ export default class TableRepo implements ITableRepo {
       if (error instanceof Error) return Promise.reject(error.message);
       return Promise.reject(new Error('Unknown error occured'));
     }
+  };
+
+  findBy = async (tableQueryDto: TableQueryDto): Promise<Table[]> => {
+    try {
+      if (!Object.keys(tableQueryDto).length) return await this.all();
+
+      const client = createClient();
+
+      const db = await connect(client);
+      const result: FindCursor = await db
+        .collection(collectionName)
+        .find(this.#buildFilter(sanitize(tableQueryDto)));
+      const results = await result.toArray();
+
+      close(client);
+
+      if (!results || !results.length) return [];
+
+      return results.map((element: any) =>
+        this.#toEntity(this.#buildProperties(element))
+      );
+    } catch (error: unknown) {
+      if (typeof error === 'string') return Promise.reject(error);
+      if (error instanceof Error) return Promise.reject(error.message);
+      return Promise.reject(new Error('Unknown error occured'));
+    }
+  };
+
+  #buildFilter = (tableQueryDto: TableQueryDto): TableQueryFilter => {
+    const filter: { [key: string]: any } = {};
+
+    if (tableQueryDto.name) filter.name = tableQueryDto.name;
+
+    if (tableQueryDto.modelId) filter.modelId = tableQueryDto.modelId;
+
+    return filter;
   };
 
   all = async (): Promise<Table[]> => {

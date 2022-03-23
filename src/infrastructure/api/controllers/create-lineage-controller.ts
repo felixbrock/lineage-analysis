@@ -52,7 +52,7 @@ export default class CreateLineageController extends BaseController {
       //     getUserAccountInfoResult.error
       //   );
       // if (!getUserAccountInfoResult.value)
-      //   throw new Error('Authorization failed');
+      //   throw new ReferenceError('Authorization failed');
 
       const requestDto: CreateLineageRequestDto = this.#buildRequestDto(req);
       // const authDto: CreateLineageAuthDto = this.#buildAuthDto(

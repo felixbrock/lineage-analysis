@@ -60,7 +60,7 @@ export default class ColumnRepo implements IColumnRepo {
     }
   };
 
-  public findBy = async (columnQueryDto: ColumnQueryDto): Promise<Column[]> => {
+  findBy = async (columnQueryDto: ColumnQueryDto): Promise<Column[]> => {
     try {
       if (!Object.keys(columnQueryDto).length) return await this.all();
 

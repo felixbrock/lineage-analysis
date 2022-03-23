@@ -146,7 +146,7 @@ export class CreateDependencies
 
       // if (!createTableResult.success) throw new Error(createTableResult.error);
       // if (!createTableResult.value)
-      //   throw new Error(`Creation of table ${request.name} failed`);
+      //   throw new SyntaxError(`Creation of table ${request.name} failed`);
 
       // const createTableResults = await Promise.all(
       //   createTableResult.value.parentNames.map(
@@ -161,7 +161,7 @@ export class CreateDependencies
       // const parents: TableDto[] = [];
       // createTableResults.forEach((result) => {
       //   if (!result.success) throw new Error(result.error);
-      //   if (!result.value) throw new Error(`Creation of parent table failed`);
+      //   if (!result.value) throw new SyntaxError(`Creation of parent table failed`);
 
       //   parents.push(result.value);
 

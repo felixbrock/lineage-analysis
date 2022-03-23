@@ -60,9 +60,9 @@ export abstract class BaseController {
         );
 
       if (!getAccountsResult.value)
-        throw new Error(`No account found for ${authPayload.username}`);
+        throw new ReferenceError(`No account found for ${authPayload.username}`);
       if (!getAccountsResult.value.length)
-        throw new Error(`No account found for ${authPayload.username}`);
+        throw new ReferenceError(`No account found for ${authPayload.username}`);
 
       return Result.ok({
         userId: authPayload.username,

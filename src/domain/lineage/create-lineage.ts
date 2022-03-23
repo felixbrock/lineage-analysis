@@ -116,7 +116,7 @@ export class CreateLineage
 
       if (!createModelResult.success) throw new Error(createModelResult.error);
       if (!createModelResult.value)
-        throw new Error(
+        throw new SyntaxError(
           `Creation of model for table ${request.tableId} failed`
         );
 
@@ -134,7 +134,7 @@ export class CreateLineage
 
       if (!createTableResult.success) throw new Error(createTableResult.error);
       if (!createTableResult.value)
-        throw new Error(`Creation of table ${name} failed`);
+        throw new SyntaxError(`Creation of table ${name} failed`);
 
       const table = createTableResult.value;
 
@@ -151,7 +151,7 @@ export class CreateLineage
           // if (!createModelResult.success)
           //   throw new Error(createModelResult.error);
           // if (!createModelResult.value)
-          //   throw new Error(
+          //   throw new SyntaxError(
           //     `Creation of model for table ${request.tableId} failed`
           //   );
 
@@ -165,7 +165,9 @@ export class CreateLineage
         })
       );
 
-      const columnNames = this.#getTableColumnReferences(model.statementReferences);
+      const columnNames = this.#getTableColumnReferences(
+        model.statementReferences
+      );
       const createColumnResults = await Promise.all(
         columnNames.map(
           async (reference) =>
@@ -174,22 +176,26 @@ export class CreateLineage
                 reference,
                 statementReferences: model.statementReferences,
                 tableId: table.id,
-                parentTableNames: parentNames
+                parentTableNames: parentNames,
               },
               { organizationId: 'todo' }
             )
         )
       );
 
-      if (!createColumnResults.some((result) => !result.success || !result.value))
-        throw new Error(createTableResult.error);
+      createColumnResults.forEach((result) => {
+        if (!result.success) throw new Error(result.error);
+        if (!result.value) throw new SyntaxError(`Creation of column failed`);
+      });
 
-      const columns = createColumnResults
-        .map((result) => result.value)
-        .filter(
-          (value): value is Column =>
-            value !== undefined && value.tableId === table.id
-        );
+      if (!createModelResult.success) throw new Error(createModelResult.error);
+      if (!createModelResult.value)
+        const columns = createColumnResults
+          .map((result) => result.value)
+          .filter(
+            (value): value is Column =>
+              value !== undefined && value.tableId === table.id
+          );
 
       const lineage = Lineage.create({
         table,
