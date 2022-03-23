@@ -34,6 +34,8 @@ export class CreateColumn
       CreateColumnAuthDto
     >
 {
+  #columnRepo: IColumnRepo;
+
   #readColumns: ReadColumns;
   #readTables: ReadTables;
 
@@ -244,9 +246,14 @@ export class CreateColumn
     return dependencies;
   };
 
-  constructor(readColumns: ReadColumns, readTables: ReadTables) {
+  constructor(
+    readColumns: ReadColumns,
+    readTables: ReadTables,
+    columnRepo: IColumnRepo
+  ) {
     this.#readColumns = readColumns;
     this.#readTables = readTables;
+    this.#columnRepo = columnRepo;
   }
 
   async execute(
@@ -266,6 +273,25 @@ export class CreateColumn
         tableId: request.tableId,
         dependencies,
       });
+
+      const readColumnsResult = await this.#readColumns.execute(
+        {
+          name: request.selfReference[1],
+          tableId: request.tableId,
+        },
+        { organizationId: auth.organizationId }
+      );
+
+      if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
+      if (!readColumnsResult.value) throw new Error('Reading columns failed');
+      if (readColumnsResult.value.length)
+        throw new Error(
+          `Column for table already exists`
+        );
+
+      await this.#columnRepo.insertOne(column);
+
+      // todo-write to persistence
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');

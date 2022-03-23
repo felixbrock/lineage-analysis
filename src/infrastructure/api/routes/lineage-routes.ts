@@ -11,7 +11,7 @@ const createLineageController = new CreateLineageController(
   app.container.resolve('getAccounts'),
 );
 
-lineageRoutes.get('/:tableName', (req, res) =>
+lineageRoutes.get('/:tableId', (req, res) =>
   createLineageController.execute(req, res)
 );
 

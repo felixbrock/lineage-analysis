@@ -1,7 +1,8 @@
-export type StatementReference = [string,string];
+export type StatementReference = [string, string];
 
 export interface ModelProperties {
-  id: string
+  id: string;
+  location: string;
   sql: string;
   statementReferences: StatementReference[][];
 }
@@ -9,14 +10,19 @@ export interface ModelProperties {
 export class Model {
   #id: string;
 
+  #location: string;
+
   #sql: string;
 
   #statementReferences: StatementReference[][];
 
   get id(): string {
-    return this.#id
+    return this.#id;
   }
 
+  get location(): string {
+    return this.#location;
+  }
   get sql(): string {
     return this.#sql;
   }
@@ -27,6 +33,7 @@ export class Model {
 
   private constructor(properties: ModelProperties) {
     this.#id = properties.id;
+    this.#location = properties.location;
     this.#sql = properties.sql;
     this.#statementReferences = properties.statementReferences;
   }

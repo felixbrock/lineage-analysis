@@ -8,13 +8,18 @@ import {
 import sanitize from 'mongo-sanitize';
 
 import { connect, close, createClient } from './db/mongo-db';
-import { IModelRepo } from '../../domain/model/i-model-repo';
+import { IModelRepo, ModelQueryDto } from '../../domain/model/i-model-repo';
 import { Model, ModelProperties } from '../../domain/entities/model';
 
 interface ModelPersistence {
   _id: string;
+  location: string;
   sql: string;
   statementReferences: [string, string][][];
+}
+
+interface ModelQueryFilter {
+  location?: string;
 }
 
 const collectionName = 'model';
@@ -38,6 +43,40 @@ export default class ModelRepo implements IModelRepo {
       if (error instanceof Error) return Promise.reject(error.message);
       return Promise.reject(new Error('Unknown error occured'));
     }
+  };
+
+  findBy = async (modelQueryDto: ModelQueryDto): Promise<Model[]> => {
+    try {
+      if (!Object.keys(modelQueryDto).length) return await this.all();
+
+      const client = createClient();
+
+      const db = await connect(client);
+      const result: FindCursor = await db
+        .collection(collectionName)
+        .find(this.#buildFilter(sanitize(modelQueryDto)));
+      const results = await result.toArray();
+
+      close(client);
+
+      if (!results || !results.length) return [];
+
+      return results.map((element: any) =>
+        this.#toEntity(this.#buildProperties(element))
+      );
+    } catch (error: unknown) {
+      if (typeof error === 'string') return Promise.reject(error);
+      if (error instanceof Error) return Promise.reject(error.message);
+      return Promise.reject(new Error('Unknown error occured'));
+    }
+  };
+
+  #buildFilter = (modelQueryDto: ModelQueryDto): ModelQueryFilter => {
+    const filter: { [key: string]: any } = {};
+
+    if (modelQueryDto.location) filter.location = modelQueryDto.location;
+
+    return filter;
   };
 
   all = async (): Promise<Model[]> => {
@@ -109,6 +148,7 @@ export default class ModelRepo implements IModelRepo {
   #buildProperties = (model: ModelPersistence): ModelProperties => ({
     // eslint-disable-next-line no-underscore-dangle
     id: model._id,
+    location: model.location,
     sql: model.sql,
     statementReferences: model.statementReferences,
   });
@@ -116,6 +156,6 @@ export default class ModelRepo implements IModelRepo {
   #toPersistence = (model: Model): Document => ({
     _id: ObjectId.createFromHexString(model.id),
     sql: model.sql,
-    statementReferences: model.statementReferences
+    statementReferences: model.statementReferences,
   });
 }

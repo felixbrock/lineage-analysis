@@ -1,9 +1,10 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { buildTableDto, TableDto } from './table-dto';
 import { Table } from '../entities/table';
 // todo cleancode violation
 import { ObjectId } from 'mongodb';
+import { ReadTables } from './read-tables';
+import { ITableRepo } from './i-table-repo';
 
 export interface CreateTableRequestDto {
   name: string;
@@ -20,7 +21,14 @@ export class CreateTable
   implements
     IUseCase<CreateTableRequestDto, CreateTableResponseDto, CreateTableAuthDto>
 {
-  constructor() {}
+  #readTables: ReadTables;
+
+  #tableRepo: ITableRepo;
+
+  constructor(readTables: ReadTables, tableRepo: ITableRepo) {
+    this.#readTables = readTables;
+    this.#tableRepo = tableRepo;
+  }
 
   async execute(
     request: CreateTableRequestDto,
@@ -32,6 +40,21 @@ export class CreateTable
         name: request.name,
         modelId: request.modelId,
       });
+
+      const readTablesResult = await this.#readTables.execute(
+        {
+          modelId: request.modelId,
+          name: request.name
+        },
+        { organizationId: auth.organizationId }
+      );
+
+      if (!readTablesResult.success) throw new Error(readTablesResult.error);
+      if (!readTablesResult.value) throw new Error('Reading tables failed');
+      if (readTablesResult.value.length)
+        throw new Error(`Table already exists`);
+
+      await this.#tableRepo.insertOne(table);
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');

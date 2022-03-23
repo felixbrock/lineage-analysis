@@ -7,6 +7,8 @@ import { ParseSQL, ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
 import { SQLElement } from '../value-types/sql-element';
 // todo cleancode violation
 import { ObjectId } from 'mongodb';
+import { ReadModels } from './read-models';
+import { IModelRepo } from './i-model-repo';
 
 export interface CreateModelRequestDto {
   id: string;
@@ -23,9 +25,18 @@ export class CreateModel
     IUseCase<CreateModelRequestDto, CreateModelResponse, CreateModelAuthDto>
 {
   #parseSQL: ParseSQL;
+  #readModels: ReadModels;
 
-  constructor(parseSQL: ParseSQL) {
+  #modelRepo: IModelRepo;
+
+  constructor(
+    parseSQL: ParseSQL,
+    readModels: ReadModels,
+    modelRepo: IModelRepo
+  ) {
     this.#parseSQL = parseSQL;
+    this.#readModels = readModels;
+    this.#modelRepo = modelRepo;
   }
 
   #appendPath = (key: string, path: string): string => {
@@ -126,10 +137,8 @@ export class CreateModel
     auth: CreateModelAuthDto
   ): Promise<CreateModelResponse> {
     try {
-      const data = fs.readFileSync(
-        `C://Users/felix-pc/Desktop/Test/${request.id}.sql`,
-        'base64'
-      );
+      const location = `C://Users/felix-pc/Desktop/Test/${request.id}.sql`;
+      const data = fs.readFileSync(location, 'base64');
 
       const parseSQLResult: ParseSQLResponseDto = await this.#parseSQL.execute(
         { dialect: 'snowflake', sql: data },
@@ -137,7 +146,8 @@ export class CreateModel
       );
 
       if (!parseSQLResult.success) throw new Error(parseSQLResult.error);
-      if (!parseSQLResult.value) throw new SyntaxError(`Parsing of SQL logic failed`);
+      if (!parseSQLResult.value)
+        throw new SyntaxError(`Parsing of SQL logic failed`);
 
       const statementReferences = this.#getstatementReferences(
         parseSQLResult.value.file
@@ -145,9 +155,24 @@ export class CreateModel
 
       const model = Model.create({
         id: new ObjectId().toHexString(),
+        location,
         sql: parseSQLResult.value.file,
         statementReferences,
       });
+
+      const readModelsResult = await this.#readModels.execute(
+        {
+          location,
+        },
+        { organizationId: auth.organizationId }
+      );
+
+      if (!readModelsResult.success) throw new Error(readModelsResult.error);
+      if (!readModelsResult.value) throw new Error('Reading models failed');
+      if (readModelsResult.value.length)
+        throw new Error(`Model for location already exists`);
+
+      await this.#modelRepo.insertOne(model);
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');

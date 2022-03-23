@@ -1,7 +1,12 @@
 // TODO: Violation of control flow. DI for express instead
 import { Request, Response } from 'express';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
-import { CreateLineage, CreateLineageAuthDto, CreateLineageRequestDto, CreateLineageResponseDto } from '../../../domain/column/create-column';
+import {
+  CreateLineage,
+  CreateLineageAuthDto,
+  CreateLineageRequestDto,
+  CreateLineageResponseDto,
+} from '../../../domain/lineage/create-lineage';
 import { ParseSQL } from '../../../domain/sql-parser-api/parse-sql';
 
 import Result from '../../../domain/value-types/transient-types/result';
@@ -24,7 +29,7 @@ export default class CreateLineageController extends BaseController {
   }
 
   #buildRequestDto = (httpRequest: Request): CreateLineageRequestDto => ({
-    name: httpRequest.params.tableName
+    tableId: httpRequest.params.tableId,
   });
 
   #buildAuthDto = (userAccountInfo: UserAccountInfo): CreateLineageAuthDto => ({
@@ -32,13 +37,13 @@ export default class CreateLineageController extends BaseController {
   });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
-    try {      
+    try {
       // const authHeader = req.headers.authorization;
 
       // if (!authHeader)
       //   return CreateLineageController.unauthorized(res, 'Unauthorized');
 
-      // const jwt = authHeader.split(' ')[1];     
+      // const jwt = authHeader.split(' ')[1];
 
       // const getUserAccountInfoResult: Result<UserAccountInfo> =
       //   await CreateLineageInfoController.getUserAccountInfo(
@@ -60,7 +65,9 @@ export default class CreateLineageController extends BaseController {
       // );
 
       const useCaseResult: CreateLineageResponseDto =
-        await this.#createLineage.execute(requestDto, {organizationId:'todo'});
+        await this.#createLineage.execute(requestDto, {
+          organizationId: 'todo',
+        });
 
       if (!useCaseResult.success) {
         return CreateLineageController.badRequest(res, useCaseResult.error);

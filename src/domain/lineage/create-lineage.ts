@@ -14,8 +14,7 @@ import { Lineage } from '../value-types/transient-types/lineage';
 import { Column } from '../entities/column';
 
 export interface CreateLineageRequestDto {
-  tableId?: string;
-  columnId?: string;
+  tableId: string;
 }
 
 export interface CreateLineageAuthDto {
@@ -23,6 +22,11 @@ export interface CreateLineageAuthDto {
 }
 
 export type CreateLineageResponseDto = Result<LineageDto>;
+
+interface TableColumnReference {
+  selfColumnReference: StatementReference;
+  statementIndex: number;
+}
 
 export class CreateLineage
   implements
@@ -64,20 +68,24 @@ export class CreateLineage
 
   #getTableColumnReferences = (
     statementReferences: StatementReference[][]
-  ): StatementReference[] => {
+  ): TableColumnReference[] => {
     const columnSelfRefs = [
       `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
       `${SQLElement.COLUMN_DEFINITION}.${SQLElement.IDENTIFIER}`,
     ];
 
-    const tableColumnNames: StatementReference[] = [];
+    let statementIndex = 0;
+    const selfColumnRefs: TableColumnReference[] = [];
+    statementReferences.forEach((statement) => {
+      statement.forEach((element) => {
+        if (columnSelfRefs.some((ref) => element[0].includes(ref)))
+          selfColumnRefs.push({ selfColumnReference: element, statementIndex });
+      });
 
-    statementReferences.flat().forEach((element) => {
-      if (columnSelfRefs.some((ref) => element[0].includes(ref)))
-        tableColumnNames.push(element);
+      statementIndex++;
     });
 
-    return tableColumnNames;
+    return selfColumnRefs;
   };
 
   #getParentTableNames = (
@@ -169,18 +177,18 @@ export class CreateLineage
         model.statementReferences
       );
       const createColumnResults = await Promise.all(
-        tableColumnReferences.map(
-          async (reference) =>
-            await this.#createColumn.execute(
-              {
-                reference,
-                statementSourceReferences: model.statementReferences,
-                tableId: table.id,
-                parentTableNames: parentNames,
-              },
-              { organizationId: 'todo' }
-            )
-        )
+        tableColumnReferences.map(async (reference) => {
+          return await this.#createColumn.execute(
+            {
+              selfReference: reference.selfColumnReference,
+              statementSourceReferences:
+                model.statementReferences[reference.statementIndex],
+              tableId: table.id,
+              parentTableIds: parentNames,
+            },
+            { organizationId: 'todo' }
+          );
+        })
       );
 
       createColumnResults.forEach((result) => {
@@ -188,14 +196,12 @@ export class CreateLineage
         if (!result.value) throw new SyntaxError(`Creation of column failed`);
       });
 
-      if (!createModelResult.success) throw new Error(createModelResult.error);
-      if (!createModelResult.value)
-        const columns = createColumnResults
-          .map((result) => result.value)
-          .filter(
-            (value): value is Column =>
-              value !== undefined && value.tableId === table.id
-          );
+      const columns = createColumnResults
+        .map((result) => result.value)
+        .filter(
+          (value): value is Column =>
+            value !== undefined && value.tableId === table.id
+        );
 
       const lineage = Lineage.create({
         table,
