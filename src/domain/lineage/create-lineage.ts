@@ -5,7 +5,7 @@ import { Table } from '../entities/table';
 import { SQLElement } from '../value-types/sql-element';
 // todo cleancode violation
 import { ObjectId } from 'mongodb';
-import { StatementReference } from '../entities/model';
+import { Model, StatementReference } from '../entities/model';
 import { CreateColumn } from '../column/create-column';
 import { CreateTable } from '../table/create-table';
 import { buildLineageDto, LineageDto } from './lineage-dto';
@@ -13,6 +13,7 @@ import { CreateModel, CreateModelResponse } from '../model/create-model';
 import { Lineage } from '../value-types/transient-types/lineage';
 import { Column } from '../entities/column';
 import { ReadTables } from '../table/read-tables';
+import { ReadModels } from '../model/read-models';
 
 export interface CreateLineageRequestDto {
   tableId: string;
@@ -41,17 +42,20 @@ export class CreateLineage
   #createTable: CreateTable;
   #createColumn: CreateColumn;
   #readTables: ReadTables;
+  #readModels: ReadModels;
 
   constructor(
     createModel: CreateModel,
     createTable: CreateTable,
     createColumn: CreateColumn,
-    readTables: ReadTables
-  ) {
+    readTables: ReadTables,
+    readModels : ReadModels
+    ) {
     this.#createModel = createModel;
     this.#createTable = createTable;
     this.#createColumn = createColumn;
     this.#readTables = readTables;
+    this.#readModels = readModels;
   }
 
   #getTableName = (statementReferences: StatementReference[][]): string => {
@@ -105,15 +109,16 @@ export class CreateLineage
     statementReferences.flat().forEach((element) => {
       if (tableSelfRefs.some((ref) => element.includes(ref))) return;
 
-      if (element[0].includes(SQLElement.TABLE_REFERENCE)){
-        if(!parentTableNames.includes(element[1])) parentTableNames.push(element[1]);
-      }
-      else if (
+      if (element[0].includes(SQLElement.TABLE_REFERENCE)) {
+        if (!parentTableNames.includes(element[1]))
+          parentTableNames.push(element[1]);
+      } else if (
         element[0].includes(SQLElement.COLUMN_REFERENCE) &&
         element[1].includes('.')
-      ){
-        const tableName = element[1].split('.').slice(0)[0]
-        if(!parentTableNames.includes(tableName)) parentTableNames.push(tableName);
+      ) {
+        const tableName = element[1].split('.').slice(0)[0];
+        if (!parentTableNames.includes(tableName))
+          parentTableNames.push(tableName);
       }
     });
 
@@ -127,19 +132,41 @@ export class CreateLineage
     try {
       if (!request.tableId) throw new TypeError('No tableId provided');
 
-      const createModelResult: CreateModelResponse =
+      const location = `C://Users/felix-pc/Desktop/Test/${request.tableId}.sql`;
+
+      const readModelsResult = await this.#readModels.execute(
+        {
+          location,
+        },
+        { organizationId: auth.organizationId }
+      );
+
+      if (!readModelsResult.success) throw new Error(readModelsResult.error);
+      if (!readModelsResult.value) throw new Error('Reading models failed');
+
+      let model: Model;
+      if (readModelsResult.value.length){
+        await this.#updateModel.execute(
+          {}, {}
+        )
+
+      }
+      else {
+        const createModelResult: CreateModelResponse =
         await this.#createModel.execute(
-          { id: request.tableId },
+          { id: request.tableId, location },
           { organizationId: 'todo' }
         );
 
-      if (!createModelResult.success) throw new Error(createModelResult.error);
-      if (!createModelResult.value)
-        throw new SyntaxError(
-          `Creation of model for table ${request.tableId} failed`
-        );
+        if (!createModelResult.success) throw new Error(readModelsResult.error);
+        if (!createModelResult.value) throw new Error('Creation of model failed');
 
-      const model = createModelResult.value;
+        model = createModelResult.value;
+      }
+        
+
+
+      
 
       const name = this.#getTableName(model.statementReferences);
 

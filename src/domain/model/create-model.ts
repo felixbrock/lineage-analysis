@@ -7,11 +7,12 @@ import { ParseSQL, ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
 import { SQLElement } from '../value-types/sql-element';
 // todo cleancode violation
 import { ObjectId } from 'mongodb';
-import { ReadModels } from './read-models';
 import { IModelRepo } from './i-model-repo';
+import { ReadModels } from './read-models';
 
 export interface CreateModelRequestDto {
   id: string;
+  location: string;
 }
 
 export interface CreateModelAuthDto {
@@ -25,6 +26,7 @@ export class CreateModel
     IUseCase<CreateModelRequestDto, CreateModelResponse, CreateModelAuthDto>
 {
   #parseSQL: ParseSQL;
+
   #readModels: ReadModels;
 
   #modelRepo: IModelRepo;
@@ -137,8 +139,7 @@ export class CreateModel
     auth: CreateModelAuthDto
   ): Promise<CreateModelResponse> {
     try {
-      const location = `C://Users/felix-pc/Desktop/Test/${request.id}.sql`;
-      const data = fs.readFileSync(location, 'base64');
+      const data = fs.readFileSync(request.location, 'base64');
 
       const parseSQLResult: ParseSQLResponseDto = await this.#parseSQL.execute(
         { dialect: 'snowflake', sql: data },
@@ -155,14 +156,14 @@ export class CreateModel
 
       const model = Model.create({
         id: new ObjectId().toHexString(),
-        location,
+        location: request.location,
         sql: JSON.stringify(parseSQLResult.value.file),
         statementReferences,
       });
 
       const readModelsResult = await this.#readModels.execute(
         {
-          location,
+          location: request.location,
         },
         { organizationId: auth.organizationId }
       );
@@ -170,7 +171,7 @@ export class CreateModel
       if (!readModelsResult.success) throw new Error(readModelsResult.error);
       if (!readModelsResult.value) throw new Error('Reading models failed');
       if (readModelsResult.value.length)
-        throw new Error(`Model for location already exists`);
+        throw new ReferenceError('Model to be created already exists');
 
       await this.#modelRepo.insertOne(model);
 

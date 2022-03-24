@@ -1,7 +1,13 @@
-import { Model } from '../entities/model';
+import { Model, StatementReference } from '../entities/model';
 
 export interface ModelQueryDto {
   location?: string;
+}
+
+export interface ModelUpdateDto {
+  location?: string;
+  sql?: string;
+  statementReferences?: StatementReference[][];
 }
 
 export interface IModelRepo {
