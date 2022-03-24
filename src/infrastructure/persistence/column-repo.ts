@@ -19,7 +19,7 @@ interface DependencyPersistence {
 }
 
 interface ColumnPersistence {
-  _id: string;
+  _id: ObjectId;
   name: string;
   tableId: string;
   dependencies: DependencyPersistence[];
@@ -90,10 +90,10 @@ export default class ColumnRepo implements IColumnRepo {
     const filter: { [key: string]: any } = {};
 
     if (typeof columnQueryDto.name === 'string' && columnQueryDto.name) filter.name = columnQueryDto.name;
-    if (columnQueryDto.name instanceof Array) filter.name = {$all: columnQueryDto.name};
+    if (columnQueryDto.name instanceof Array) filter.name = {$in: columnQueryDto.name};
 
     if (typeof columnQueryDto.tableId === 'string' && columnQueryDto.tableId) filter.tableId = columnQueryDto.tableId;
-    if (columnQueryDto.tableId instanceof Array) filter.tableId = {$all: columnQueryDto.tableId};
+    if (columnQueryDto.tableId instanceof Array) filter.tableId = {$in: columnQueryDto.tableId};
 
     if (
       !columnQueryDto.dependency ||
@@ -179,7 +179,7 @@ export default class ColumnRepo implements IColumnRepo {
 
   #buildProperties = (column: ColumnPersistence): ColumnProperties => ({
     // eslint-disable-next-line no-underscore-dangle
-    id: column._id,
+    id: column._id.toHexString(),
     name: column.name,
     tableId: column.tableId,
     dependencies: column.dependencies.map((dependency) => ({

@@ -1,7 +1,7 @@
 import { Table } from "../entities/table";
 
 export interface TableQueryDto {
-  name?: string,
+  name?: string | string [],
   modelId?: string,
 }
 

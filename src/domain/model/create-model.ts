@@ -156,7 +156,7 @@ export class CreateModel
       const model = Model.create({
         id: new ObjectId().toHexString(),
         location,
-        sql: parseSQLResult.value.file,
+        sql: JSON.stringify(parseSQLResult.value.file),
         statementReferences,
       });
 

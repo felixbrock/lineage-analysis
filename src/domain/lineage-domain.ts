@@ -4,6 +4,7 @@ import { CreateLineage } from './lineage/create-lineage';
 import { CreateModel } from './model/create-model';
 import { ReadModels } from './model/read-models';
 import { CreateTable } from './table/create-table';
+import { ReadTable } from './table/read-table';
 import { ReadTables } from './table/read-tables';
 
 export default class LineageDomain {
@@ -11,6 +12,7 @@ export default class LineageDomain {
   #createModel: CreateModel;
   #createTable: CreateTable;
   #createColumn: CreateColumn;
+  #readTable: ReadTable;
   #readModels: ReadModels;
   #readTables: ReadTables;
   #readColumns: ReadColumns;
@@ -31,6 +33,10 @@ export default class LineageDomain {
     return this.#createColumn;
   }
 
+  get readTable(): ReadTable {
+    return this.#readTable;
+  }
+
   get readModels(): ReadModels {
     return this.#readModels;
   }
@@ -46,6 +52,7 @@ export default class LineageDomain {
     createModel: CreateModel,
     createTable: CreateTable,
     createColumn: CreateColumn,
+    readTable: ReadTable,
     readModels: ReadModels,
     readTables: ReadTables,
     readColumns: ReadColumns
@@ -54,6 +61,7 @@ export default class LineageDomain {
     this.#createModel = createModel;
     this.#createTable = createTable;
     this.#createColumn = createColumn;
+    this.#readTable = readTable;
     this.#readModels = readModels;
     this.#readTables = readTables;
     this.#readColumns = readColumns;

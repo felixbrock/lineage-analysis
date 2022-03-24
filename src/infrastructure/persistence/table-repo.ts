@@ -12,13 +12,13 @@ import { ITableRepo, TableQueryDto } from '../../domain/table/i-table-repo';
 import { Table, TableProperties } from '../../domain/entities/table';
 
 interface TablePersistence {
-  _id: string;
+  _id: ObjectId;
   name: string;
   modelId: string;
 }
 
 interface TableQueryFilter {
-  name?: string;
+  name?: string | string [];
   modelId?: string;
 }
 
@@ -74,7 +74,8 @@ export default class TableRepo implements ITableRepo {
   #buildFilter = (tableQueryDto: TableQueryDto): TableQueryFilter => {
     const filter: { [key: string]: any } = {};
 
-    if (tableQueryDto.name) filter.name = tableQueryDto.name;
+    if (typeof tableQueryDto.name === 'string' && tableQueryDto.name) filter.name = tableQueryDto.name;
+    if (tableQueryDto.name instanceof Array) filter.name = {$in: tableQueryDto.name};
 
     if (tableQueryDto.modelId) filter.modelId = tableQueryDto.modelId;
 
@@ -149,7 +150,7 @@ export default class TableRepo implements ITableRepo {
 
   #buildProperties = (table: TablePersistence): TableProperties => ({
     // eslint-disable-next-line no-underscore-dangle
-    id: table._id,
+    id: table._id.toHexString(),
     name: table.name,
     modelId: table.modelId,
   });

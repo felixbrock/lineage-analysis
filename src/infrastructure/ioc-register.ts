@@ -15,6 +15,7 @@ import { CreateModel } from '../domain/model/create-model';
 import { CreateColumn } from '../domain/column/create-column';
 import { ReadModels } from '../domain/model/read-models';
 import { ReadTables } from '../domain/table/read-tables';
+import { ReadTable } from '../domain/table/read-table';
 
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
@@ -25,6 +26,8 @@ iocRegister.register({
   createModel: asClass(CreateModel),
   createTable: asClass(CreateTable),
   createColumn: asClass(CreateColumn),
+
+  readTable: asClass(ReadTable),
 
   readModels: asClass(ReadModels),
   readTables: asClass(ReadTables),

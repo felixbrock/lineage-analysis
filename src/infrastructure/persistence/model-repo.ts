@@ -12,7 +12,7 @@ import { IModelRepo, ModelQueryDto } from '../../domain/model/i-model-repo';
 import { Model, ModelProperties } from '../../domain/entities/model';
 
 interface ModelPersistence {
-  _id: string;
+  _id: ObjectId;
   location: string;
   sql: string;
   statementReferences: [string, string][][];
@@ -147,7 +147,7 @@ export default class ModelRepo implements IModelRepo {
 
   #buildProperties = (model: ModelPersistence): ModelProperties => ({
     // eslint-disable-next-line no-underscore-dangle
-    id: model._id,
+    id: model._id.toHexString(),
     location: model.location,
     sql: model.sql,
     statementReferences: model.statementReferences,

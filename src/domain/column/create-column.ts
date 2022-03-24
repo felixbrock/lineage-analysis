@@ -12,6 +12,7 @@ import { ReadColumns } from './read-columns';
 import { ColumnDto } from './column-dto';
 import { ReadTables, ReadTablesRequestDto } from '../table/read-tables';
 import { Dependency, Direction } from '../value-types/dependency';
+import { Table } from '../entities/table';
 
 export interface CreateColumnRequestDto {
   tableId: string;
@@ -26,6 +27,14 @@ export interface CreateColumnAuthDto {
 
 export type CreateColumnResponseDto = Result<Column>;
 
+interface DependencyAnalysisResult {
+  path: string;
+  columnName: string;
+  tableName?: string;
+  isDependency: boolean;
+  type?: string;
+}
+
 export class CreateColumn
   implements
     IUseCase<
@@ -39,42 +48,73 @@ export class CreateColumn
   #readColumns: ReadColumns;
   #readTables: ReadTables;
 
-  #isStatementDependency = (key: string, columnReference: string): boolean => {
-    const lastKeyStatementIndex = key.lastIndexOf(SQLElement.STATEMENT);
+  #DependencyTypes = { SELECT: 'select', JOIN_CONDITION: 'join_condition' };
+
+  #analyzeStatementReference = (
+    potentialDependency: StatementReference,
+    selfReference: StatementReference
+  ): DependencyAnalysisResult => {
+    const selfReferencePath = selfReference[0];
+    const selfReferenceName = selfReference[1];
+
+    const dependencyPath = potentialDependency[0];
+    const dependencyName = potentialDependency[1].includes('.')
+      ? potentialDependency[1].split('.').slice(-1)[0]
+      : potentialDependency[1];
+    const dependencyTable = potentialDependency[1].includes('.')
+      ? potentialDependency[1].split('.').slice(0)[0]
+      : '';
+
+    const lastKeyStatementIndex = dependencyPath.lastIndexOf(
+      SQLElement.STATEMENT
+    );
     if (lastKeyStatementIndex === -1 || !lastKeyStatementIndex)
       throw new RangeError('Statement not found for column reference');
 
-    const keyStatement = key.slice(
+    const keyStatement = dependencyPath.slice(
       0,
       lastKeyStatementIndex + SQLElement.STATEMENT.length
     );
 
-    const lastRootStatementIndex = columnReference.lastIndexOf(
+    const lastRootStatementIndex = selfReferencePath.lastIndexOf(
       SQLElement.STATEMENT
     );
     if (lastRootStatementIndex === -1 || !lastRootStatementIndex)
       throw new RangeError('Statement not found for column root');
 
-    const rootStatement = key.slice(
+    const rootStatement = dependencyPath.slice(
       0,
       lastRootStatementIndex + SQLElement.STATEMENT.length
     );
 
-    return (
-      !key.includes(SQLElement.INSERT_STATEMENT) &&
-      !key.includes(SQLElement.COLUMN_DEFINITION) &&
+    const isStatementDependency =
+      !dependencyPath.includes(SQLElement.INSERT_STATEMENT) &&
+      !dependencyPath.includes(SQLElement.COLUMN_DEFINITION) &&
       keyStatement === rootStatement &&
-      key.includes(SQLElement.COLUMN_REFERENCE)
-    );
-  };
+      dependencyPath.includes(SQLElement.COLUMN_REFERENCE);
 
-  // #getDependencyType = (key: string) => {
-  //   if (key.includes(SQLElement.SELECT_CLAUSE_ELEMENT))
-  //     return 'select';
-  //   else if (key.includes(SQLElement.JOIN_ON_CONDITION))
-  //     return 'join_condition';
-  //   return 'unspecified';
-  // };
+    const result: DependencyAnalysisResult = {
+      path: dependencyPath,
+      columnName: dependencyName,
+      isDependency: false,
+    };
+    if (dependencyTable) result.tableName = dependencyTable;
+
+    if (!isStatementDependency) return result;
+
+    if (selfReferencePath.includes(SQLElement.SELECT_CLAUSE_ELEMENT)) {
+      if (
+        dependencyPath.includes(SQLElement.SELECT_CLAUSE_ELEMENT) &&
+        dependencyName === selfReferenceName
+      ) {
+        result.isDependency = true;
+        result.type = this.#DependencyTypes.SELECT;
+
+        return result;
+      }
+    }
+    return result;
+  };
 
   #getDependencySourceByTableRef = async (
     tableName: string,
@@ -124,18 +164,20 @@ export class CreateColumn
     statementReferences: StatementReference[],
     parentTableIds: string[]
   ): Promise<Dependency[]> => {
-    const statementColumnReferences = statementReferences.filter((reference) =>
-      this.#isStatementDependency(reference[0], selfColumnReference[0])
-    );
+    const dependencyReferences = statementReferences
+      .map((reference) =>
+        this.#analyzeStatementReference(reference, selfColumnReference)
+      )
+      .filter((result) => result.isDependency);
 
-    if (!statementColumnReferences.length) return [];
+    if (!dependencyReferences.length) return [];
 
-    const columnReferenceNames = statementColumnReferences.map(
-      (reference) => reference[1]
+    const dependencyNames = dependencyReferences.map(
+      (reference) => reference.columnName
     );
 
     const readColumnsResult = await this.#readColumns.execute(
-      { tableId: parentTableIds, name: columnReferenceNames },
+      { tableId: parentTableIds, name: dependencyNames },
       { organizationId: 'todo' }
     );
 
@@ -148,41 +190,51 @@ export class CreateColumn
     if (potentialSourceColumns.length === 0)
       throw new ReferenceError(`No source columns found`);
 
-    const matchesPerName: [StatementReference, number][] =
-      statementColumnReferences.map((reference) => [
+    const columnMatchesPerReference: [DependencyAnalysisResult, number][] =
+      dependencyReferences.map((reference) => [
         reference,
-        potentialSourceColumns.filter((column) => column.name === reference[1])
-          .length,
+        potentialSourceColumns.filter(
+          (column) => column.name === reference.columnName
+        ).length,
       ]);
 
-    if (matchesPerName.every((match) => match[1] === 1))
-      return potentialSourceColumns.map((column) =>
-        Dependency.create({
-          type: 'todo',
+    if (columnMatchesPerReference.every((match) => match[1] === 1))
+      return potentialSourceColumns.map((column) => {
+        const dependencyReference = dependencyReferences.filter(
+          (reference) => reference.columnName === column.name
+        );
+
+        if (dependencyReference.length !== 1)
+          throw new ReferenceError('Invalid column match-reference relation');
+
+        const type = dependencyReference[0].type;
+        if (!type) throw new ReferenceError('Dependency type not declared');
+
+        return Dependency.create({
+          type,
           columnId: column.id,
           direction: Direction.UPSTREAM,
-        })
-      );
+        });
+      });
 
-    if (matchesPerName.filter((match) => match[1] === 0).length)
+    if (columnMatchesPerReference.some((match) => match[1] === 0))
       throw new ReferenceError(
         'Referenced column does not exist along data warehouse tables'
       );
 
-    const matchesToClarify = matchesPerName.filter((match) => match[1] > 1);
+    const matchesToClarify = columnMatchesPerReference.filter(
+      (match) => match[1] > 1
+    );
     const columnsToClarify = potentialSourceColumns.filter(
       (column) =>
-        matchesToClarify.filter((match) => match[0][1] === column.name).length
+        matchesToClarify.filter((match) => match[0].columnName === column.name)
+          .length
     );
 
     const clarifiedMatches: Column[] = await Promise.all(
       matchesToClarify.map(async (match) => {
-        const columnName = match[0].includes('.')
-          ? match[0][1].split('.').slice(-1)[0]
-          : match[0][1];
-        const tableName = match[0].includes('.')
-          ? match[0][1].split('.').slice(0)[0]
-          : '';
+        const columnName = match[0].columnName;
+        const tableName = match[0].tableName;
 
         if (tableName) {
           const dependencySource = await this.#getDependencySourceByTableRef(
@@ -192,7 +244,7 @@ export class CreateColumn
           );
           if (dependencySource) return dependencySource;
         }
-        if (match[0][0].includes(SQLElement.FROM_EXPRESSION_ELEMENT)) {
+        if (match[0].path.includes(SQLElement.FROM_EXPRESSION_ELEMENT)) {
           const fromTables = statementReferences.filter((element) =>
             [
               SQLElement.FROM_EXPRESSION_ELEMENT,
@@ -219,28 +271,49 @@ export class CreateColumn
 
     const dependencies: Dependency[] = [];
 
-    const matches = matchesPerName.filter((match) => match[1] === 1);
+    const matches = columnMatchesPerReference.filter((match) => match[1] === 1);
     const matchedColumns = potentialSourceColumns.filter(
-      (column) => matches.filter((match) => match[0][1] === column.name).length
+      (column) =>
+        matches.filter((match) => match[0].columnName === column.name).length
     );
 
-    dependencies.concat(
-      matchedColumns.map((column) =>
-        Dependency.create({
-          type: 'todo',
+    const type = dependencies.push(
+      ...matchedColumns.map((column) => {
+        const dependencyReference = dependencyReferences.filter(
+          (reference) => reference.columnName === column.name
+        );
+
+        if (dependencyReference.length !== 1)
+          throw new ReferenceError('Invalid column match-reference relation');
+
+        const type = dependencyReference[0].type;
+        if (!type) throw new ReferenceError('Dependency type not declared');
+
+        return Dependency.create({
+          type,
           columnId: column.id,
           direction: Direction.UPSTREAM,
-        })
-      )
+        });
+      })
     );
-    dependencies.concat(
-      clarifiedMatches.map((column) =>
-        Dependency.create({
-          type: 'todo',
+    dependencies.push(
+      ...clarifiedMatches.map((column) => {
+        const dependencyReference = dependencyReferences.filter(
+          (reference) => reference.columnName === column.name
+        );
+
+        if (dependencyReference.length !== 1)
+          throw new ReferenceError('Invalid column match-reference relation');
+
+        const type = dependencyReference[0].type;
+        if (!type) throw new ReferenceError('Dependency type not declared');
+
+        return Dependency.create({
+          type,
           columnId: column.id,
           direction: Direction.UPSTREAM,
-        })
-      )
+        });
+      })
     );
 
     return dependencies;
@@ -285,9 +358,7 @@ export class CreateColumn
       if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
       if (!readColumnsResult.value) throw new Error('Reading columns failed');
       if (readColumnsResult.value.length)
-        throw new Error(
-          `Column for table already exists`
-        );
+        throw new Error(`Column for table already exists`);
 
       await this.#columnRepo.insertOne(column);
 

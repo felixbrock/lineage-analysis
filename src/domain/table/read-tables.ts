@@ -5,7 +5,7 @@ import { ITableRepo, TableQueryDto } from './i-table-repo';
 import { TableDto, buildTableDto } from './table-dto';
 
 export interface ReadTablesRequestDto {
-  name?: string;
+  name?: string | string[];
   modelId?: string;
 }
 
