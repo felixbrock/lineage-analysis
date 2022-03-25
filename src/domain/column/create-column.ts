@@ -5,20 +5,25 @@ import { Column } from '../entities/column';
 import { TableDto } from '../table/table-dto';
 import { SQLElement } from '../value-types/sql-element';
 import { ObjectId } from 'mongodb';
-import { StatementReference } from '../entities/model';
 import { request } from 'express';
 import { IColumnRepo } from './i-column-repo';
 import { ReadColumns } from './read-columns';
 import { ColumnDto } from './column-dto';
 import { ReadTables, ReadTablesRequestDto } from '../table/read-tables';
-import { Dependency, Direction } from '../value-types/dependency';
+import {
+  Dependency,
+  DependencyProperties,
+  Direction,
+} from '../value-types/dependency';
 import { Table } from '../entities/table';
+import { StatementReference } from '../value-types/logic';
 
 export interface CreateColumnRequestDto {
   tableId: string;
   selfReference: StatementReference;
   statementSourceReferences: StatementReference[];
   parentTableIds: string[];
+  lineageId: string;
 }
 
 export interface CreateColumnAuthDto {
@@ -159,11 +164,11 @@ export class CreateColumn
     return finalMatches[0];
   };
 
-  #getDependencies = async (
+  #getDependencyPrototypes = async (
     selfColumnReference: StatementReference,
     statementReferences: StatementReference[],
     parentTableIds: string[]
-  ): Promise<Dependency[]> => {
+  ): Promise<DependencyProperties[]> => {
     const dependencyReferences = statementReferences
       .map((reference) =>
         this.#analyzeStatementReference(reference, selfColumnReference)
@@ -210,11 +215,11 @@ export class CreateColumn
         const type = dependencyReference[0].type;
         if (!type) throw new ReferenceError('Dependency type not declared');
 
-        return Dependency.create({
+        return {
           type,
           columnId: column.id,
           direction: Direction.UPSTREAM,
-        });
+        };
       });
 
     if (columnMatchesPerReference.some((match) => match[1] === 0))
@@ -269,7 +274,7 @@ export class CreateColumn
       })
     );
 
-    const dependencies: Dependency[] = [];
+    const dependencyPropertyObjs: DependencyProperties[] = [];
 
     const matches = columnMatchesPerReference.filter((match) => match[1] === 1);
     const matchedColumns = potentialSourceColumns.filter(
@@ -277,7 +282,7 @@ export class CreateColumn
         matches.filter((match) => match[0].columnName === column.name).length
     );
 
-    const type = dependencies.push(
+    const type = dependencyPropertyObjs.push(
       ...matchedColumns.map((column) => {
         const dependencyReference = dependencyReferences.filter(
           (reference) => reference.columnName === column.name
@@ -289,14 +294,14 @@ export class CreateColumn
         const type = dependencyReference[0].type;
         if (!type) throw new ReferenceError('Dependency type not declared');
 
-        return Dependency.create({
+        return {
           type,
           columnId: column.id,
           direction: Direction.UPSTREAM,
-        });
+        };
       })
     );
-    dependencies.push(
+    dependencyPropertyObjs.push(
       ...clarifiedMatches.map((column) => {
         const dependencyReference = dependencyReferences.filter(
           (reference) => reference.columnName === column.name
@@ -308,15 +313,15 @@ export class CreateColumn
         const type = dependencyReference[0].type;
         if (!type) throw new ReferenceError('Dependency type not declared');
 
-        return Dependency.create({
+        return {
           type,
           columnId: column.id,
           direction: Direction.UPSTREAM,
-        });
+        };
       })
     );
 
-    return dependencies;
+    return dependencyPropertyObjs;
   };
 
   constructor(
@@ -334,7 +339,7 @@ export class CreateColumn
     auth: CreateColumnAuthDto
   ): Promise<CreateColumnResponseDto> {
     try {
-      const dependencies = await this.#getDependencies(
+      const dependencyPrototypes = await this.#getDependencyPrototypes(
         request.selfReference,
         request.statementSourceReferences,
         request.parentTableIds
@@ -344,7 +349,8 @@ export class CreateColumn
         id: new ObjectId().toHexString(),
         name: request.selfReference[1],
         tableId: request.tableId,
-        dependencies,
+        dependencyPrototypes,
+        lineageId: request.lineageId
       });
 
       const readColumnsResult = await this.#readColumns.execute(

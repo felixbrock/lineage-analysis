@@ -1,33 +1,25 @@
 import IUseCase from '../services/use-case';
-import { ModelDto } from './model-dto';
-import {
-  IModelRepo,
-  ModelUpdateDto,
-} from './i-model-repo';
+import { IModelRepo, ModelUpdateDto } from './i-model-repo';
 import Result from '../value-types/transient-types/result';
 import { ReadModels, ReadModelsResponseDto } from './read-models';
-import { StatementReference } from '../entities/model';
+import { Model } from '../entities/model';
+import { ReadModel } from './read-model';
 
 export interface UpdateModelRequestDto {
   id: string;
   location?: string;
-  sql?: string;
-  statementReferences?: StatementReference[][];
+  parsedLogic?: string;
 }
 
 export interface UpdateModelAuthDto {
   organizationId: string;
 }
 
-export type UpdateModelResponseDto = Result<ModelDto>;
+export type UpdateModelResponseDto = Result<Model>;
 
 export class UpdateModel
   implements
-    IUseCase<
-      UpdateModelRequestDto,
-      UpdateModelResponseDto,
-      UpdateModelAuthDto
-    >
+    IUseCase<UpdateModelRequestDto, UpdateModelResponseDto, UpdateModelAuthDto>
 {
   #modelRepo: IModelRepo;
 
@@ -55,8 +47,7 @@ export class UpdateModel
         { organizationId: auth.organizationId }
       );
 
-      if (!readModelResult.success)
-        throw new Error(readModelResult.error);
+      if (!readModelResult.success) throw new Error(readModelResult.error);
 
       if (!readModelResult.value)
         throw new Error(`Model with id ${request.id} does not exist`);
@@ -66,6 +57,7 @@ export class UpdateModel
 
       const updateDto = await this.#buildUpdateDto(
         request,
+        readModelResult.value,
         auth.organizationId
       );
 
@@ -81,34 +73,39 @@ export class UpdateModel
 
   #buildUpdateDto = async (
     request: UpdateModelRequestDto,
+    currentModel: Model,
     organizationId: string
   ): Promise<ModelUpdateDto> => {
     const updateDto: ModelUpdateDto = {};
 
-    if (request.content) {
+    if (request.location) {
       const readModelResult: ReadModelsResponseDto =
         await this.#readModels.execute(
           {
-            content: request.content,
+            location: request.location,
           },
           { organizationId }
         );
 
-      if (!readModelResult.success)
-        throw new Error(readModelResult.error);
-      if (!readModelResult.value)
-        throw new Error('Reading models failed');
+      if (!readModelResult.success) throw new Error(readModelResult.error);
+      if (!readModelResult.value) throw new Error('Reading models failed');
       if (readModelResult.value.length)
         throw new Error(
-          `Model ${readModelResult.value[0].content} is already registered under ${readModelResult.value[0].id}`
+          `Model with location to be updated is already registered`
         );
 
-      updateDto.content = request.content;
+      updateDto.location = request.location;
     }
+    if (request.parsedLogic) {
+      const newModel = Model.create({
+        id: request.id,
+        location: request.location || currentModel.location,
+        parsedLogic: request.parsedLogic,
+        lineageId: currentModel.lineageId
+      });
 
-    if (request.alert) updateDto.alert = Alert.create({});
-
-    updateDto.modifiedOn = Date.now();
+      updateDto.logic = newModel.logic;
+    }
 
     return updateDto;
   };

@@ -9,6 +9,7 @@ import { ITableRepo } from './i-table-repo';
 export interface CreateTableRequestDto {
   name: string;
   modelId: string;
+  lineageId: string;
 }
 
 export interface CreateTableAuthDto {
@@ -39,12 +40,13 @@ export class CreateTable
         id: new ObjectId().toHexString(),
         name: request.name,
         modelId: request.modelId,
+        lineageId: request.lineageId,
       });
 
       const readTablesResult = await this.#readTables.execute(
         {
           modelId: request.modelId,
-          name: request.name
+          name: request.name,
         },
         { organizationId: auth.organizationId }
       );

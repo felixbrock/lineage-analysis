@@ -9,8 +9,7 @@ import sanitize from 'mongo-sanitize';
 
 import { connect, close, createClient } from './db/mongo-db';
 import { ColumnQueryDto, IColumnRepo } from '../../domain/column/i-column-repo';
-import { Column, ColumnProperties } from '../../domain/entities/column';
-import { Dependency, Direction } from '../../domain/value-types/dependency';
+import { Column, ColumnPrototype} from '../../domain/entities/column';
 
 interface DependencyPersistence {
   type: string;
@@ -23,6 +22,7 @@ interface ColumnPersistence {
   name: string;
   tableId: string;
   dependencies: DependencyPersistence[];
+  lineageId: string;
 }
 
 interface DependenciesQueryFilter {
@@ -52,7 +52,7 @@ export default class ColumnRepo implements IColumnRepo {
 
       if (!result) return null;
 
-      return this.#toEntity(this.#buildProperties(result));
+      return this.#toEntity(this.#buildPrototype(result));
     } catch (error: unknown) {
       if (typeof error === 'string') return Promise.reject(error);
       if (error instanceof Error) return Promise.reject(error.message);
@@ -77,7 +77,7 @@ export default class ColumnRepo implements IColumnRepo {
       if (!results || !results.length) return [];
 
       return results.map((element: any) =>
-        this.#toEntity(this.#buildProperties(element))
+        this.#toEntity(this.#buildPrototype(element))
       );
     } catch (error: unknown) {
       if (typeof error === 'string') return Promise.reject(error);
@@ -123,7 +123,7 @@ export default class ColumnRepo implements IColumnRepo {
       if (!results || !results.length) return [];
 
       return results.map((element: any) =>
-        this.#toEntity(this.#buildProperties(element))
+        this.#toEntity(this.#buildPrototype(element))
       );
     } catch (error: unknown) {
       if (typeof error === 'string') return Promise.reject(error);
@@ -174,15 +174,16 @@ export default class ColumnRepo implements IColumnRepo {
     }
   };
 
-  #toEntity = (columnProperties: ColumnProperties): Column =>
-    Column.create(columnProperties);
+  #toEntity = (columnPrototype: ColumnPrototype): Column =>
+    Column.create(columnPrototype);
 
-  #buildProperties = (column: ColumnPersistence): ColumnProperties => ({
+  #buildPrototype = (column: ColumnPersistence): ColumnPrototype => ({
     // eslint-disable-next-line no-underscore-dangle
     id: column._id.toHexString(),
     name: column.name,
     tableId: column.tableId,
-    dependencies: column.dependencies.map((dependency) => ({
+    lineageId: column.lineageId,
+    dependencyPrototypes: column.dependencies.map((dependency) => ({
       type: dependency.type,
       columnId: dependency.columnId,
       direction: dependency.direction,
@@ -193,6 +194,7 @@ export default class ColumnRepo implements IColumnRepo {
     _id: ObjectId.createFromHexString(column.id),
     name: column.name,
     tableId: column.tableId,
+    lineageId: column.lineageId,
     dependencies: column.dependencies.map((dependency) => ({
       type: dependency.type,
       columnId: dependency.columnId,

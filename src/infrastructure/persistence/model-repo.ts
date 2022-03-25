@@ -4,22 +4,37 @@ import {
   FindCursor,
   InsertOneResult,
   ObjectId,
+  UpdateResult,
 } from 'mongodb';
 import sanitize from 'mongo-sanitize';
 
 import { connect, close, createClient } from './db/mongo-db';
-import { IModelRepo, ModelQueryDto } from '../../domain/model/i-model-repo';
-import { Model, ModelProperties } from '../../domain/entities/model';
+import {
+  IModelRepo,
+  ModelQueryDto,
+  ModelUpdateDto,
+} from '../../domain/model/i-model-repo';
+import { Model, ModelPrototype } from '../../domain/entities/model';
+
+interface LogicPersistence {
+  parsedLogic: string;
+  statementReferences: [string, string][][];
+}
 
 interface ModelPersistence {
   _id: ObjectId;
   location: string;
-  sql: string;
-  statementReferences: [string, string][][];
+  logic: LogicPersistence;
+  lineageId: string;
 }
 
 interface ModelQueryFilter {
   location?: string;
+  lineageId: string;
+}
+
+interface ModelUpdateFilter {
+  $set: { [key: string]: any };
 }
 
 const collectionName = 'model';
@@ -37,7 +52,7 @@ export default class ModelRepo implements IModelRepo {
 
       if (!result) return null;
 
-      return this.#toEntity(this.#buildProperties(result));
+      return this.#toEntity(this.#buildPrototype(result));
     } catch (error: unknown) {
       if (typeof error === 'string') return Promise.reject(error);
       if (error instanceof Error) return Promise.reject(error.message);
@@ -62,7 +77,7 @@ export default class ModelRepo implements IModelRepo {
       if (!results || !results.length) return [];
 
       return results.map((element: any) =>
-        this.#toEntity(this.#buildProperties(element))
+        this.#toEntity(this.#buildPrototype(element))
       );
     } catch (error: unknown) {
       if (typeof error === 'string') return Promise.reject(error);
@@ -91,13 +106,50 @@ export default class ModelRepo implements IModelRepo {
       if (!results || !results.length) return [];
 
       return results.map((element: any) =>
-        this.#toEntity(this.#buildProperties(element))
+        this.#toEntity(this.#buildPrototype(element))
       );
     } catch (error: unknown) {
       if (typeof error === 'string') return Promise.reject(error);
       if (error instanceof Error) return Promise.reject(error.message);
       return Promise.reject(new Error('Unknown error occured'));
     }
+  };
+
+  updateOne = async (
+    id: string,
+    updateDto: ModelUpdateDto
+  ): Promise<string> => {
+    const client = createClient();
+    try {
+      const db = await connect(client);
+
+      const result: Document | UpdateResult = await db
+        .collection(collectionName)
+        .updateOne(
+          { _id: new ObjectId(sanitize(id)) },
+          this.#buildUpdateFilter(sanitize(updateDto))
+        );
+
+      if (!result.acknowledged)
+        throw new Error('Model update failed. Update not acknowledged');
+
+      close(client);
+
+      return result.upsertedId;
+    } catch (error: unknown) {
+      if (typeof error === 'string') return Promise.reject(error);
+      if (error instanceof Error) return Promise.reject(error.message);
+      return Promise.reject(new Error('Unknown error occured'));
+    }
+  };
+
+  #buildUpdateFilter = (modelUpdateDto: ModelUpdateDto): ModelUpdateFilter => {
+    const setFilter: { [key: string]: any } = {};
+
+    if (modelUpdateDto.location) setFilter.location = modelUpdateDto.location;
+    if (modelUpdateDto.logic) setFilter.logic = modelUpdateDto.logic;
+
+    return { $set: setFilter };
   };
 
   insertOne = async (model: Model): Promise<string> => {
@@ -142,20 +194,25 @@ export default class ModelRepo implements IModelRepo {
     }
   };
 
-  #toEntity = (modelProperties: ModelProperties): Model =>
-    Model.create(modelProperties);
+  #toEntity = (modelPrototype: ModelPrototype): Model =>
+    Model.create(modelPrototype);
 
-  #buildProperties = (model: ModelPersistence): ModelProperties => ({
+  #buildPrototype = (model: ModelPersistence): ModelPrototype => ({
     // eslint-disable-next-line no-underscore-dangle
     id: model._id.toHexString(),
     location: model.location,
-    sql: model.sql,
-    statementReferences: model.statementReferences,
+    // todo - Doesnt make sense to generate logic object from scratch if it exists in persistence
+    parsedLogic: model.logic.parsedLogic,
+    lineageId: model.lineageId,
   });
 
   #toPersistence = (model: Model): Document => ({
     _id: ObjectId.createFromHexString(model.id),
-    sql: model.sql,
-    statementReferences: model.statementReferences,
+    location: model.location,
+    lineageId: model.lineageId,
+    logic: {
+      parsedLogic: model.logic.parsedLogic,
+      statementReferences: model.logic.statementReferences,
+    },
   });
 }

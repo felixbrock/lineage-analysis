@@ -1,10 +1,19 @@
-export type StatementReference = [string, string];
+import { ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
+import { ParsedSQLDto } from '../sql-parser-api/parsed-sql-dto';
+import { Logic } from '../value-types/logic';
 
-export interface ModelProperties {
+interface ModelProperties {
   id: string;
   location: string;
-  sql: string;
-  statementReferences: StatementReference[][];
+  logic: Logic;
+  lineageId: string;
+}
+
+export interface ModelPrototype {
+  id: string;
+  location: string;
+  parsedLogic: string;
+  lineageId: string;
 }
 
 export class Model {
@@ -12,9 +21,9 @@ export class Model {
 
   #location: string;
 
-  #sql: string;
+  #logic: Logic;
 
-  #statementReferences: StatementReference[][];
+  #lineageId: string;
 
   get id(): string {
     return this.#id;
@@ -23,23 +32,37 @@ export class Model {
   get location(): string {
     return this.#location;
   }
-  get sql(): string {
-    return this.#sql;
+
+  get logic(): Logic {
+    return this.#logic;
   }
 
-  get statementReferences(): StatementReference[][] {
-    return this.#statementReferences;
+  get lineageId(): string {
+    return this.#lineageId;
   }
 
   private constructor(properties: ModelProperties) {
     this.#id = properties.id;
     this.#location = properties.location;
-    this.#sql = properties.sql;
-    this.#statementReferences = properties.statementReferences;
+    this.#logic = properties.logic;
+    this.#lineageId = properties.lineageId;
   }
 
-  static create(properties: ModelProperties): Model {
-    const model = new Model(properties);
+  static create(prototype: ModelPrototype): Model {
+    if (!prototype.id) throw new TypeError('Model must have id');
+    if (!prototype.location) throw new TypeError('Model must have location');
+    if (!prototype.parsedLogic)
+      throw new TypeError('Model creation requires parsed SQL logic');
+    if (!prototype.lineageId) throw new TypeError('Model must have lineageId');
+
+    const logic = Logic.create({ parsedLogic: prototype.parsedLogic });
+
+    const model = new Model({
+      id: prototype.id,
+      location: prototype.location,
+      logic,
+      lineageId: prototype.lineageId,
+    });
 
     return model;
   }

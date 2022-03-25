@@ -8,26 +8,18 @@ import {
 import sanitize from 'mongo-sanitize';
 
 import { connect, close, createClient } from './db/mongo-db';
-import { ITableRepo, TableQueryDto } from '../../domain/table/i-table-repo';
-import { Table, TableProperties } from '../../domain/entities/table';
+import { ILineageRepo } from '../../domain/lineage/i-lineage-repo';
+import { Lineage, LineageProperties } from '../../domain/entities/lineage';
 
-interface TablePersistence {
+interface LineagePersistence {
   _id: ObjectId;
-  name: string;
-  modelId: string;
-  lineageId: string;
+  createdAt: number;
 }
 
-interface TableQueryFilter {
-  name?: string | string [];
-  modelId?: string;
-  lineageId: string;
-}
+const collectionName = 'lineage';
 
-const collectionName = 'table';
-
-export default class TableRepo implements ITableRepo {
-  findOne = async (id: string): Promise<Table | null> => {
+export default class LineageRepo implements ILineageRepo {
+  findOne = async (id: string): Promise<Lineage | null> => {
     const client = createClient();
     try {
       const db = await connect(client);
@@ -47,25 +39,22 @@ export default class TableRepo implements ITableRepo {
     }
   };
 
-  findBy = async (tableQueryDto: TableQueryDto): Promise<Table[]> => {
+  findCurrent = async (): Promise<Lineage | null> => {
+    const client = createClient();
     try {
-      if (!Object.keys(tableQueryDto).length) return await this.all();
-
-      const client = createClient();
-
       const db = await connect(client);
-      const result: FindCursor = await db
+      const result: any = await db
         .collection(collectionName)
-        .find(this.#buildFilter(sanitize(tableQueryDto)));
-      const results = await result.toArray();
-
+        // todo- index on createdAt
+        // .find({}, {createdAt: 1, _id:0}).sort({createdAt: -1}).limit(1);
+        .find()
+        .sort({ createdAt: -1 })
+        .limit(1);
       close(client);
 
-      if (!results || !results.length) return [];
+      if (!result) return null;
 
-      return results.map((element: any) =>
-        this.#toEntity(this.#buildProperties(element))
-      );
+      return this.#toEntity(this.#buildProperties(result));
     } catch (error: unknown) {
       if (typeof error === 'string') return Promise.reject(error);
       if (error instanceof Error) return Promise.reject(error.message);
@@ -73,18 +62,7 @@ export default class TableRepo implements ITableRepo {
     }
   };
 
-  #buildFilter = (tableQueryDto: TableQueryDto): TableQueryFilter => {
-    const filter: { [key: string]: any } = {};
-
-    if (typeof tableQueryDto.name === 'string' && tableQueryDto.name) filter.name = tableQueryDto.name;
-    if (tableQueryDto.name instanceof Array) filter.name = {$in: tableQueryDto.name};
-
-    if (tableQueryDto.modelId) filter.modelId = tableQueryDto.modelId;
-
-    return filter;
-  };
-
-  all = async (): Promise<Table[]> => {
+  all = async (): Promise<Lineage[]> => {
     const client = createClient();
     try {
       const db = await connect(client);
@@ -105,16 +83,16 @@ export default class TableRepo implements ITableRepo {
     }
   };
 
-  insertOne = async (table: Table): Promise<string> => {
+  insertOne = async (lineage: Lineage): Promise<string> => {
     const client = createClient();
     try {
       const db = await connect(client);
       const result: InsertOneResult<Document> = await db
         .collection(collectionName)
-        .insertOne(this.#toPersistence(sanitize(table)));
+        .insertOne(this.#toPersistence(sanitize(lineage)));
 
       if (!result.acknowledged)
-        throw new Error('Table creation failed. Insert not acknowledged');
+        throw new Error('Lineage creation failed. Insert not acknowledged');
 
       close(client);
 
@@ -135,7 +113,7 @@ export default class TableRepo implements ITableRepo {
         .deleteOne({ _id: new ObjectId(sanitize(id)) });
 
       if (!result.acknowledged)
-        throw new Error('Table delete failed. Delete not acknowledged');
+        throw new Error('Lineage delete failed. Delete not acknowledged');
 
       close(client);
 
@@ -147,21 +125,17 @@ export default class TableRepo implements ITableRepo {
     }
   };
 
-  #toEntity = (tableProperties: TableProperties): Table =>
-    Table.create(tableProperties);
+  #toEntity = (lineageProperties: LineageProperties): Lineage =>
+    Lineage.create(lineageProperties);
 
-  #buildProperties = (table: TablePersistence): TableProperties => ({
+  #buildProperties = (lineage: LineagePersistence): LineageProperties => ({
     // eslint-disable-next-line no-underscore-dangle
-    id: table._id.toHexString(),
-    name: table.name,
-    modelId: table.modelId,
-    lineageId: table.lineageId
+    id: lineage._id.toHexString(),
+    createdAt: lineage.createdAt,
   });
 
-  #toPersistence = (table: Table): Document => ({
-    _id: ObjectId.createFromHexString(table.id),
-    name: table.name,
-    modelId: table.modelId,
-    lineageId: table.lineageId
+  #toPersistence = (lineage: Lineage): Document => ({
+    _id: ObjectId.createFromHexString(lineage.id),
+    createdAt: lineage.createdAt,
   });
 }

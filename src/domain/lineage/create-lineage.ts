@@ -1,11 +1,9 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-// todo - Clean Code dependency violation. Fix
-import { Table } from '../entities/table';
+// todo - Clean Architecture dependency violation. Fix
+import fs from 'fs';
 import { SQLElement } from '../value-types/sql-element';
-// todo cleancode violation
-import { ObjectId } from 'mongodb';
-import { Model, StatementReference } from '../entities/model';
+import { Model } from '../entities/model';
 import { CreateColumn } from '../column/create-column';
 import { CreateTable } from '../table/create-table';
 import { buildLineageDto, LineageDto } from './lineage-dto';
@@ -14,6 +12,10 @@ import { Lineage } from '../value-types/transient-types/lineage';
 import { Column } from '../entities/column';
 import { ReadTables } from '../table/read-tables';
 import { ReadModels } from '../model/read-models';
+import { UpdateModel } from '../model/update-model';
+import { StatementReference } from '../value-types/logic';
+import { ParseSQL, ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
+import { Table } from '../entities/table';
 
 export interface CreateLineageRequestDto {
   tableId: string;
@@ -43,19 +45,25 @@ export class CreateLineage
   #createColumn: CreateColumn;
   #readTables: ReadTables;
   #readModels: ReadModels;
+  #updateModel: UpdateModel;
+  #parseSQL: ParseSQL;
 
   constructor(
     createModel: CreateModel,
     createTable: CreateTable,
     createColumn: CreateColumn,
     readTables: ReadTables,
-    readModels : ReadModels
-    ) {
+    readModels: ReadModels,
+    updateModel: UpdateModel,
+    parseSQL: ParseSQL
+  ) {
     this.#createModel = createModel;
     this.#createTable = createTable;
     this.#createColumn = createColumn;
     this.#readTables = readTables;
     this.#readModels = readModels;
+    this.#updateModel = updateModel;
+    this.#parseSQL = parseSQL;
   }
 
   #getTableName = (statementReferences: StatementReference[][]): string => {
@@ -134,41 +142,70 @@ export class CreateLineage
 
       const location = `C://Users/felix-pc/Desktop/Test/${request.tableId}.sql`;
 
-      const readModelsResult = await this.#readModels.execute(
-        {
-          location,
-        },
-        { organizationId: auth.organizationId }
+      const data = fs.readFileSync(location, 'base64');
+
+      const parseSQLResult: ParseSQLResponseDto = await this.#parseSQL.execute(
+        { dialect: 'snowflake', sql: data },
+        { jwt: 'XXX' }
       );
 
-      if (!readModelsResult.success) throw new Error(readModelsResult.error);
-      if (!readModelsResult.value) throw new Error('Reading models failed');
+      if (!parseSQLResult.success) throw new Error(parseSQLResult.error);
+      if (!parseSQLResult.value)
+        throw new SyntaxError(`Parsing of SQL logic failed`);
 
-      let model: Model;
-      if (readModelsResult.value.length){
-        await this.#updateModel.execute(
-          {}, {}
-        )
+      const newParsedLogic = JSON.stringify(parseSQLResult.value);
 
-      }
-      else {
-        const createModelResult: CreateModelResponse =
+      // const readModelsResult = await this.#readModels.execute(
+      //   {
+      //     location,
+      //   },
+      //   { organizationId: auth.organizationId }
+      // );
+
+      // if (!readModelsResult.success) throw new Error(readModelsResult.error);
+      // if (!readModelsResult.value) throw new Error('Reading models failed');
+
+      // let model: Model;
+      // if (readModelsResult.value.length) {
+      //   const currentModel = readModelsResult.value[0];
+
+      //   if (newParsedLogic !== currentModel.logic.parsedLogic) {
+      //     const updateModelResult = await this.#updateModel.execute(
+      //       { id: readModelsResult.value[0].id, parsedLogic: newParsedLogic },
+      //       { organizationId: 'todo' }
+      //     );
+
+      //     if (!updateModelResult.success)
+      //       throw new Error(readModelsResult.error);
+      //     if (!updateModelResult.value)
+      //       throw new Error('Update of model failed');
+
+      //     model = updateModelResult.value;
+      //   } else model = currentModel;
+      // } else {
+      const createModelResult: CreateModelResponse =
         await this.#createModel.execute(
-          { id: request.tableId, location },
+          { id: request.tableId, location, parsedLogic: newParsedLogic },
           { organizationId: 'todo' }
         );
 
-        if (!createModelResult.success) throw new Error(readModelsResult.error);
-        if (!createModelResult.value) throw new Error('Creation of model failed');
+      if (!createModelResult.success) throw new Error(createModelResult.error);
+      if (!createModelResult.value) throw new Error('Creation of model failed');
 
-        model = createModelResult.value;
-      }
-        
+      const model = createModelResult.value;
+      // }
 
+      const name = this.#getTableName(model.logic.statementReferences);
 
-      
+      // todo-Update logic only gets relevant once we provide real-time by checking dbt/Snowflake changelogs
 
-      const name = this.#getTableName(model.statementReferences);
+      // const readTablesResult = await this.#readTables.execute(
+      //   { modelId: model.id },
+      //   { organizationId: 'todo' }
+      // );
+
+      // if (!readTablesResult.success) throw new Error(readModelsResult.error);
+      // if (!readTablesResult.value) throw new Error('Reading tables failed');
 
       const createTableResult = await this.#createTable.execute(
         {
@@ -184,7 +221,9 @@ export class CreateLineage
 
       const table = createTableResult.value;
 
-      const parentNames = this.#getParentTableNames(model.statementReferences);
+      const parentNames = this.#getParentTableNames(
+        model.logic.statementReferences
+      );
 
       // todo - can this be async?
       // todo - lineage nowhere stored and not returned for display. But in the end it is only columns and table object
@@ -223,7 +262,7 @@ export class CreateLineage
       }
 
       const tableColumnReferences = this.#getTableColumnReferences(
-        model.statementReferences
+        model.logic.statementReferences
       );
       const createColumnResults = await Promise.all(
         tableColumnReferences.map(
@@ -232,7 +271,7 @@ export class CreateLineage
               {
                 selfReference: reference.selfColumnReference,
                 statementSourceReferences:
-                  model.statementReferences[reference.statementIndex],
+                  model.logic.statementReferences[reference.statementIndex],
                 tableId: table.id,
                 parentTableIds,
               },

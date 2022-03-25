@@ -1,13 +1,11 @@
-import { buildColumnDto, ColumnDto } from '../column/column-dto';
-import { buildTableDto, TableDto } from '../table/table-dto';
-import { Lineage } from '../value-types/transient-types/lineage';
+import { Lineage } from '../entities/lineage';
 
 export interface LineageDto {
-  table: TableDto;
-  columns: ColumnDto[];
+  id: string;
+  createdAt: number;
 }
 
 export const buildLineageDto = (lineage: Lineage): LineageDto => ({
-  table: buildTableDto(lineage.table),
-  columns: lineage.columns.map((column) => buildColumnDto(column)),
+  id: lineage.id,
+  createdAt: lineage.createdAt,
 });
