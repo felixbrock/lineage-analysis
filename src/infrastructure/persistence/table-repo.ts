@@ -21,7 +21,7 @@ interface TablePersistence {
 interface TableQueryFilter {
   name?: string | string [];
   modelId?: string;
-  lineageId: string;
+  lineageId?: string;
 }
 
 const collectionName = 'table';
@@ -80,6 +80,8 @@ export default class TableRepo implements ITableRepo {
     if (tableQueryDto.name instanceof Array) filter.name = {$in: tableQueryDto.name};
 
     if (tableQueryDto.modelId) filter.modelId = tableQueryDto.modelId;
+
+    if (tableQueryDto.lineageId) filter.lineageId = tableQueryDto.lineageId;
 
     return filter;
   };

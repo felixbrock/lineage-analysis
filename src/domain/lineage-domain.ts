@@ -9,12 +9,19 @@ import { ReadTables } from './table/read-tables';
 
 export default class LineageDomain {
   #createLineage: CreateLineage;
+
   #createModel: CreateModel;
+
   #createTable: CreateTable;
+
   #createColumn: CreateColumn;
+
   #readTable: ReadTable;
+
   #readModels: ReadModels;
+
   #readTables: ReadTables;
+
   #readColumns: ReadColumns;
 
   get createLineage(): CreateLineage {
@@ -40,9 +47,11 @@ export default class LineageDomain {
   get readModels(): ReadModels {
     return this.#readModels;
   }
+
   get readTables(): ReadTables {
     return this.#readTables;
   }
+
   get readColumns(): ReadColumns {
     return this.#readColumns;
   }

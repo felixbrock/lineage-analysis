@@ -1,8 +1,6 @@
 import axios, { AxiosRequestConfig } from 'axios';
 import { URLSearchParams } from 'url';
-import { ParsedSQLDto } from '../../domain/sql-parser-api/parsed-sql-dto';
 import { ISQLParserApiRepo } from '../../domain/sql-parser-api/i-sql-parser-api-repo';
-import getRoot from '../shared/api-root-builder';
 
 export default class SQLParserApiRepoImpl
   implements ISQLParserApiRepo

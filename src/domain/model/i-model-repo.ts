@@ -3,6 +3,7 @@ import { Logic } from '../value-types/logic';
 
 export interface ModelQueryDto {
   location?: string;
+  lineageId?: string;
 }
 
 export interface ModelUpdateDto {

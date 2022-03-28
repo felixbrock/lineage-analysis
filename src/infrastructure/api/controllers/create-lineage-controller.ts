@@ -7,9 +7,6 @@ import {
   CreateLineageRequestDto,
   CreateLineageResponseDto,
 } from '../../../domain/lineage/create-lineage';
-import { ParseSQL } from '../../../domain/sql-parser-api/parse-sql';
-
-import Result from '../../../domain/value-types/transient-types/result';
 
 import {
   BaseController,

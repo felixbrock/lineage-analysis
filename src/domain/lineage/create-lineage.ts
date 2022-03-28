@@ -1,21 +1,17 @@
-import Result from '../value-types/transient-types/result';
-import IUseCase from '../services/use-case';
 // todo - Clean Architecture dependency violation. Fix
 import fs from 'fs';
-import { SQLElement } from '../value-types/sql-element';
-import { Model } from '../entities/model';
+import { ObjectId } from 'mongodb';
+import Result from '../value-types/transient-types/result';
+import IUseCase from '../services/use-case';
+import SQLElement from '../value-types/sql-element';
 import { CreateColumn } from '../column/create-column';
 import { CreateTable } from '../table/create-table';
 import { buildLineageDto, LineageDto } from './lineage-dto';
 import { CreateModel, CreateModelResponse } from '../model/create-model';
-import { Lineage } from '../value-types/transient-types/lineage';
-import { Column } from '../entities/column';
 import { ReadTables } from '../table/read-tables';
-import { ReadModels } from '../model/read-models';
-import { UpdateModel } from '../model/update-model';
 import { StatementReference } from '../value-types/logic';
 import { ParseSQL, ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
-import { Table } from '../entities/table';
+import { Lineage } from '../entities/lineage';
 
 export interface CreateLineageRequestDto {
   tableId: string;
@@ -41,11 +37,13 @@ export class CreateLineage
     >
 {
   #createModel: CreateModel;
+
   #createTable: CreateTable;
+
   #createColumn: CreateColumn;
+
   #readTables: ReadTables;
-  #readModels: ReadModels;
-  #updateModel: UpdateModel;
+
   #parseSQL: ParseSQL;
 
   constructor(
@@ -53,16 +51,12 @@ export class CreateLineage
     createTable: CreateTable,
     createColumn: CreateColumn,
     readTables: ReadTables,
-    readModels: ReadModels,
-    updateModel: UpdateModel,
     parseSQL: ParseSQL
   ) {
     this.#createModel = createModel;
     this.#createTable = createTable;
     this.#createColumn = createColumn;
     this.#readTables = readTables;
-    this.#readModels = readModels;
-    this.#updateModel = updateModel;
     this.#parseSQL = parseSQL;
   }
 
@@ -98,7 +92,7 @@ export class CreateLineage
           selfColumnRefs.push({ selfColumnReference: element, statementIndex });
       });
 
-      statementIndex++;
+      statementIndex += 1;
     });
 
     return selfColumnRefs;
@@ -138,11 +132,16 @@ export class CreateLineage
     auth: CreateLineageAuthDto
   ): Promise<CreateLineageResponseDto> {
     try {
+      // todo-replace
+      console.log(auth);
+
       if (!request.tableId) throw new TypeError('No tableId provided');
+
+      const lineage = Lineage.create({ id: new ObjectId().toHexString() });
 
       const location = `C://Users/felix-pc/Desktop/Test/${request.tableId}.sql`;
 
-      const data = fs.readFileSync(location, 'base64');
+      const data = fs.readFileSync(location, 'utf-8');
 
       const parseSQLResult: ParseSQLResponseDto = await this.#parseSQL.execute(
         { dialect: 'snowflake', sql: data },
@@ -185,7 +184,12 @@ export class CreateLineage
       // } else {
       const createModelResult: CreateModelResponse =
         await this.#createModel.execute(
-          { id: request.tableId, location, parsedLogic: newParsedLogic },
+          {
+            id: request.tableId,
+            location,
+            parsedLogic: newParsedLogic,
+            lineageId: lineage.id,
+          },
           { organizationId: 'todo' }
         );
 
@@ -211,6 +215,7 @@ export class CreateLineage
         {
           name,
           modelId: model.id,
+          lineageId: lineage.id,
         },
         { organizationId: 'todo' }
       );
@@ -227,10 +232,9 @@ export class CreateLineage
 
       // todo - can this be async?
       // todo - lineage nowhere stored and not returned for display. But in the end it is only columns and table object
-      const parentTableLineage = await Promise.all(
-        parentNames.map(
-          async (name) =>
-            await this.execute({ tableId: name }, { organizationId: 'todo' })
+      await Promise.all(
+        parentNames.map(async (element) =>
+          this.execute({ tableId: element }, { organizationId: 'todo' })
         )
       );
 
@@ -249,7 +253,10 @@ export class CreateLineage
         const parentTables = readParentsResult.value;
 
         const tableMatches = parentNames.map(
-          (name) => parentTables.filter((table) => table.name === name).length
+          (nameElement) =>
+            parentTables.filter(
+              (tableElement) => tableElement.name === nameElement
+            ).length
         );
 
         if (tableMatches.some((matches) => matches > 1))
@@ -257,7 +264,7 @@ export class CreateLineage
         if (tableMatches.some((matches) => matches === 0))
           throw new ReferenceError('No table for parent name found');
 
-        const ids = parentTables.map((table) => table.id);
+        const ids = parentTables.map((tableElement) => tableElement.id);
         parentTableIds.push(...ids);
       }
 
@@ -265,36 +272,24 @@ export class CreateLineage
         model.logic.statementReferences
       );
       const createColumnResults = await Promise.all(
-        tableColumnReferences.map(
-          async (reference) =>
-            await this.#createColumn.execute(
-              {
-                selfReference: reference.selfColumnReference,
-                statementSourceReferences:
-                  model.logic.statementReferences[reference.statementIndex],
-                tableId: table.id,
-                parentTableIds,
-              },
-              { organizationId: 'todo' }
-            )
+        tableColumnReferences.map(async (reference) =>
+          this.#createColumn.execute(
+            {
+              selfReference: reference.selfColumnReference,
+              statementSourceReferences:
+                model.logic.statementReferences[reference.statementIndex],
+              tableId: table.id,
+              parentTableIds,
+              lineageId: lineage.id,
+            },
+            { organizationId: 'todo' }
+          )
         )
       );
 
       createColumnResults.forEach((result) => {
         if (!result.success) throw new Error(result.error);
         if (!result.value) throw new SyntaxError(`Creation of column failed`);
-      });
-
-      const columns = createColumnResults
-        .map((result) => result.value)
-        .filter(
-          (value): value is Column =>
-            value !== undefined && value.tableId === table.id
-        );
-
-      const lineage = Lineage.create({
-        table,
-        columns,
       });
 
       // if (auth.organizationId !== 'TODO')

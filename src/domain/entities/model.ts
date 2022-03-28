@@ -1,5 +1,3 @@
-import { ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
-import { ParsedSQLDto } from '../sql-parser-api/parsed-sql-dto';
 import { Logic } from '../value-types/logic';
 
 interface ModelProperties {

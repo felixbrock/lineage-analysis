@@ -46,7 +46,9 @@ iocRegister.register({
 
 const lineageMain = iocRegister.resolve<LineageDomain>('lineageDomain');
 
-export default {
+const register = {
   lineageMain,
   container: iocRegister,
 };
+
+export default register;

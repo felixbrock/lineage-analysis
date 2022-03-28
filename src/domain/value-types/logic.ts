@@ -1,4 +1,4 @@
-import { SQLElement } from './sql-element';
+import SQLElement from './sql-element';
 
 export type StatementReference = [string, string];
 
@@ -13,6 +13,7 @@ export interface LogicPrototype {
 
 export class Logic {
   #parsedLogic: string;
+
   #statementReferences: StatementReference[][];
 
   get parsedLogic(): string {
@@ -39,6 +40,7 @@ export class Logic {
     parsedSQL: { [key: string]: any },
     path = ''
   ): StatementReference[] => {
+    let referencePath = path;
     const statementReferencesObj: StatementReference[] = [];
 
     Object.entries(parsedSQL).forEach((element) => {
@@ -46,16 +48,16 @@ export class Logic {
       const value = element[1];
 
       if (key === targetKey)
-        statementReferencesObj.push([this.#appendPath(key, path), value]);
+        statementReferencesObj.push([this.#appendPath(key, referencePath), value]);
       else if (key === SQLElement.KEYWORD && value === SQLElement.KEYWORD_AS)
-        path = this.#appendPath(value, path);
+      referencePath = this.#appendPath(value, referencePath);
 
       // check if value is dictionary
       if (value.constructor === Object) {
         const dependencies = this.#extractstatementReferences(
           targetKey,
           value,
-          this.#appendPath(key, path)
+          this.#appendPath(key, referencePath)
         );
         dependencies.forEach((dependencyElement) =>
           statementReferencesObj.push(dependencyElement)
@@ -68,7 +70,7 @@ export class Logic {
             const dependencies = this.#extractstatementReferences(
               targetKey,
               valueElement,
-              this.#appendPath(key, path)
+              this.#appendPath(key, referencePath)
             );
             dependencies.forEach((dependencyElement: [string, string]) => {
               valuePath = this.#appendPath(dependencyElement[1], valuePath);
@@ -81,7 +83,7 @@ export class Logic {
             const dependencies = this.#extractstatementReferences(
               targetKey,
               valueElement,
-              this.#appendPath(key, path)
+              this.#appendPath(key, referencePath)
             );
             dependencies.forEach((dependencyElement) =>
               statementReferencesObj.push(dependencyElement)

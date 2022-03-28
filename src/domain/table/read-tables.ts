@@ -2,7 +2,6 @@ import { Table } from '../entities/table';
 import IUseCase from '../services/use-case';
 import Result from '../value-types/transient-types/result';
 import { ITableRepo, TableQueryDto } from './i-table-repo';
-import { TableDto, buildTableDto } from './table-dto';
 
 export interface ReadTablesRequestDto {
   name?: string | string[];
@@ -21,11 +20,11 @@ export class ReadTables
 {
   #tableRepo: ITableRepo;
 
-  public constructor(tableRepo: ITableRepo) {
+  constructor(tableRepo: ITableRepo) {
     this.#tableRepo = tableRepo;
   }
 
-  public async execute(
+  async execute(
     request: ReadTablesRequestDto,
     auth: ReadTablesAuthDto
   ): Promise<ReadTablesResponseDto> {
@@ -47,6 +46,8 @@ export class ReadTables
     request: ReadTablesRequestDto,
     organizationId: string
   ): TableQueryDto => {
+    console.log(organizationId);
+
     const queryDto: TableQueryDto = {};
 
     // todo - add organizationId

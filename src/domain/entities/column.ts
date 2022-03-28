@@ -1,4 +1,3 @@
-import { DependencyDto } from '../column/dependency-dto';
 import { Dependency, DependencyProperties } from '../value-types/dependency';
 
 interface ColumnProperties {
@@ -63,8 +62,8 @@ export class Column {
     if (!prototype.lineageId)
       throw new TypeError('Column must have lineage version');
 
-    const dependencies = prototype.dependencyPrototypes.map((prototype) =>
-      Dependency.create(prototype)
+    const dependencies = prototype.dependencyPrototypes.map((element) =>
+      Dependency.create(element)
     );
 
     const column = new Column({

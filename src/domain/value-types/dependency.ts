@@ -11,7 +11,9 @@ export enum Direction {
 
 export class Dependency {
   #type: string;
+
   #columnId: string;
+
   #direction: string;
 
   get type(): string {

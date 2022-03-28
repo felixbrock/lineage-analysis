@@ -15,26 +15,23 @@ export type ReadTableResponseDto = Result<TableDto>;
 
 export class ReadTable
   implements
-    IUseCase<
-      ReadTableRequestDto,
-      ReadTableResponseDto,
-      ReadTableAuthDto
-    >
+    IUseCase<ReadTableRequestDto, ReadTableResponseDto, ReadTableAuthDto>
 {
   #tableRepo: ITableRepo;
 
-  public constructor(tableRepo: ITableRepo) {
+  constructor(tableRepo: ITableRepo) {
     this.#tableRepo = tableRepo;
   }
 
-  public async execute(
+  async execute(
     request: ReadTableRequestDto,
     auth: ReadTableAuthDto
   ): Promise<ReadTableResponseDto> {
+    console.log(auth);
+
     try {
       const table = await this.#tableRepo.findOne(request.id);
-      if (!table)
-        throw new Error(`Table with id ${request.id} does not exist`);
+      if (!table) throw new Error(`Table with id ${request.id} does not exist`);
 
       // if (table.organizationId !== auth.organizationId)
       //   throw new Error('Not authorized to perform action');

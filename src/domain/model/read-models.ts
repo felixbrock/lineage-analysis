@@ -19,11 +19,11 @@ export class ReadModels
 {
   #modelRepo: IModelRepo;
 
-  public constructor(modelRepo: IModelRepo) {
+  constructor(modelRepo: IModelRepo) {
     this.#modelRepo = modelRepo;
   }
 
-  public async execute(
+  async execute(
     request: ReadModelsRequestDto,
     auth: ReadModelsAuthDto
   ): Promise<ReadModelsResponseDto> {
@@ -45,6 +45,8 @@ export class ReadModels
     request: ReadModelsRequestDto,
     organizationId: string
   ): ModelQueryDto => {
+    console.log(organizationId);
+
     const queryDto: ModelQueryDto = {};
 
     // todo - add organizationId

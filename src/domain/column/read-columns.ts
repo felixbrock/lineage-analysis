@@ -2,7 +2,6 @@ import { Column } from '../entities/column';
 import IUseCase from '../services/use-case';
 import Result from '../value-types/transient-types/result';
 import { IColumnRepo, ColumnQueryDto } from './i-column-repo';
-import { ColumnDto, buildColumnDto } from './column-dto';
 
 export interface ReadColumnsRequestDto {
   name?: string | string[];
@@ -22,11 +21,11 @@ export class ReadColumns
 {
   #columnRepo: IColumnRepo;
 
-  public constructor(columnRepo: IColumnRepo) {
+  constructor(columnRepo: IColumnRepo) {
     this.#columnRepo = columnRepo;
   }
 
-  public async execute(
+  async execute(
     request: ReadColumnsRequestDto,
     auth: ReadColumnsAuthDto
   ): Promise<ReadColumnsResponseDto> {
@@ -48,6 +47,8 @@ export class ReadColumns
     request: ReadColumnsRequestDto,
     organizationId: string
   ): ColumnQueryDto => {
+    console.log(organizationId);
+
     const queryDto: ColumnQueryDto = {};
 
     // todo - add organizationId

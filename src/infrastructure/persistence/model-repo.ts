@@ -30,7 +30,7 @@ interface ModelPersistence {
 
 interface ModelQueryFilter {
   location?: string;
-  lineageId: string;
+  lineageId?: string;
 }
 
 interface ModelUpdateFilter {
@@ -90,6 +90,8 @@ export default class ModelRepo implements IModelRepo {
     const filter: { [key: string]: any } = {};
 
     if (modelQueryDto.location) filter.location = modelQueryDto.location;
+
+    if (modelQueryDto.lineageId) filter.lineageId = modelQueryDto.lineageId;
 
     return filter;
   };

@@ -1,8 +1,9 @@
-import { Table } from "../entities/table";
+import { Table } from '../entities/table';
 
 export interface TableQueryDto {
-  name?: string | string [],
-  modelId?: string,
+  name?: string | string[];
+  modelId?: string;
+  lineageId?: string;
 }
 
 export interface ITableRepo {

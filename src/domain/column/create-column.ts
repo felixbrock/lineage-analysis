@@ -1,21 +1,12 @@
+import { ObjectId } from 'mongodb';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { CreateTable } from '../table/create-table';
 import { Column } from '../entities/column';
-import { TableDto } from '../table/table-dto';
-import { SQLElement } from '../value-types/sql-element';
-import { ObjectId } from 'mongodb';
-import { request } from 'express';
+import SQLElement from '../value-types/sql-element';
 import { IColumnRepo } from './i-column-repo';
 import { ReadColumns } from './read-columns';
-import { ColumnDto } from './column-dto';
-import { ReadTables, ReadTablesRequestDto } from '../table/read-tables';
-import {
-  Dependency,
-  DependencyProperties,
-  Direction,
-} from '../value-types/dependency';
-import { Table } from '../entities/table';
+import { ReadTables } from '../table/read-tables';
+import { DependencyProperties, Direction } from '../value-types/dependency';
 import { StatementReference } from '../value-types/logic';
 
 export interface CreateColumnRequestDto {
@@ -51,6 +42,7 @@ export class CreateColumn
   #columnRepo: IColumnRepo;
 
   #readColumns: ReadColumns;
+
   #readTables: ReadTables;
 
   #DependencyTypes = { SELECT: 'select', JOIN_CONDITION: 'join_condition' };
@@ -125,7 +117,7 @@ export class CreateColumn
     tableName: string,
     columnName: string,
     potentialDependencies: Column[]
-  ) => {
+  ): Promise<Column | null> => {
     const readTablesResult = await this.#readTables.execute(
       { name: tableName },
       { organizationId: 'todo' }
@@ -152,6 +144,7 @@ export class CreateColumn
           'Multiple columns with the same name found in the same table'
         );
       if (tableColumns.length === 1) return tableColumns[0];
+      return null;
     });
 
     if (!finalMatches.length)
@@ -212,7 +205,7 @@ export class CreateColumn
         if (dependencyReference.length !== 1)
           throw new ReferenceError('Invalid column match-reference relation');
 
-        const type = dependencyReference[0].type;
+        const { type } = dependencyReference[0];
         if (!type) throw new ReferenceError('Dependency type not declared');
 
         return {
@@ -238,8 +231,8 @@ export class CreateColumn
 
     const clarifiedMatches: Column[] = await Promise.all(
       matchesToClarify.map(async (match) => {
-        const columnName = match[0].columnName;
-        const tableName = match[0].tableName;
+        const { columnName } = match[0];
+        const { tableName } = match[0];
 
         if (tableName) {
           const dependencySource = await this.#getDependencySourceByTableRef(
@@ -282,7 +275,7 @@ export class CreateColumn
         matches.filter((match) => match[0].columnName === column.name).length
     );
 
-    const type = dependencyPropertyObjs.push(
+    dependencyPropertyObjs.push(
       ...matchedColumns.map((column) => {
         const dependencyReference = dependencyReferences.filter(
           (reference) => reference.columnName === column.name
@@ -291,7 +284,7 @@ export class CreateColumn
         if (dependencyReference.length !== 1)
           throw new ReferenceError('Invalid column match-reference relation');
 
-        const type = dependencyReference[0].type;
+        const { type } = dependencyReference[0];
         if (!type) throw new ReferenceError('Dependency type not declared');
 
         return {
@@ -310,7 +303,7 @@ export class CreateColumn
         if (dependencyReference.length !== 1)
           throw new ReferenceError('Invalid column match-reference relation');
 
-        const type = dependencyReference[0].type;
+        const { type } = dependencyReference[0];
         if (!type) throw new ReferenceError('Dependency type not declared');
 
         return {
@@ -350,7 +343,7 @@ export class CreateColumn
         name: request.selfReference[1],
         tableId: request.tableId,
         dependencyPrototypes,
-        lineageId: request.lineageId
+        lineageId: request.lineageId,
       });
 
       const readColumnsResult = await this.#readColumns.execute(

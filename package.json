@@ -8,7 +8,7 @@
     "lint": "npx eslint . --ext .js,.jsx,.ts,.tsx",
     "tsc": "tsc",
     "clean": "rimraf dist",
-    "build": "npm run clean && npm run tsc",
+    "build": "npm run clean && npm run tsc && npm run lint",
     "start": "npm run build && nodemon ./src/index.ts",
     "deploy": "@powershell -NoProfile -ExecutionPolicy Unrestricted -Command ./deploy.ps1 -serviceName selector",
     "debug": "npm run build && nodemon --inspect ./src/index.ts"
@@ -36,7 +36,6 @@
     "eslint-config-airbnb-typescript": "^16.1.0",
     "eslint-config-prettier": "^8.4.0",
     "eslint-plugin-import": "^2.25.2",
-    "mongodb": "^4.4.1",
     "nodemon": "^2.0.15",
     "prettier": "2.5.1",
     "ts-node": "^10.5.0",
@@ -48,6 +47,7 @@
     "dotenv": "^16.0.0",
     "express": "^4.17.3",
     "jsonwebtoken": "^8.5.1",
-    "mongo-sanitize": "^1.1.0"
+    "mongo-sanitize": "^1.1.0",
+    "mongodb": "^4.4.1"
   }
 }

@@ -27,7 +27,7 @@ export class UpdateModel
 
   #readModels: ReadModels;
 
-  public constructor(
+  constructor(
     modelRepo: IModelRepo,
     readModel: ReadModel,
     readModels: ReadModels
@@ -37,7 +37,7 @@ export class UpdateModel
     this.#readModels = readModels;
   }
 
-  public async execute(
+  async execute(
     request: UpdateModelRequestDto,
     auth: UpdateModelAuthDto
   ): Promise<UpdateModelResponseDto> {

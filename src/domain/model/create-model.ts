@@ -1,9 +1,8 @@
+// todo clean architecture violation
+import { ObjectId } from 'mongodb';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { Model } from '../entities/model';
-import { ParseSQL, ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
-// todo cleancode violation
-import { ObjectId } from 'mongodb';
 import { IModelRepo } from './i-model-repo';
 import { ReadModels } from './read-models';
 

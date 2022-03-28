@@ -1,8 +1,8 @@
+// todo - clean architecture violation
+import { ObjectId } from 'mongodb';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { Table } from '../entities/table';
-// todo cleancode violation
-import { ObjectId } from 'mongodb';
 import { ReadTables } from './read-tables';
 import { ITableRepo } from './i-table-repo';
 

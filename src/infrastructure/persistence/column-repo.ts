@@ -35,6 +35,7 @@ interface ColumnQueryFilter {
   name?: string | string[];
   tableId?: string | string[];
   dependencies?: DependenciesQueryFilter;
+  lineageId?: string;
 }
 
 const collectionName = 'column';
@@ -94,6 +95,8 @@ export default class ColumnRepo implements IColumnRepo {
 
     if (typeof columnQueryDto.tableId === 'string' && columnQueryDto.tableId) filter.tableId = columnQueryDto.tableId;
     if (columnQueryDto.tableId instanceof Array) filter.tableId = {$in: columnQueryDto.tableId};
+
+    if (columnQueryDto.lineageId) filter.lineageId = columnQueryDto.lineageId;
 
     if (
       !columnQueryDto.dependency ||

@@ -1,5 +1,4 @@
 import { Column } from '../entities/column';
-import { Dependency } from '../value-types/dependency';
 import { buildDependencyDto, DependencyDto } from './dependency-dto';
 
 export interface ColumnDto {
