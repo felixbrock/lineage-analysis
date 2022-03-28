@@ -7,6 +7,7 @@ export interface ReadColumnsRequestDto {
   name?: string | string[];
   tableId?: string | string[];
   dependency?: { type?: string; columnId?: string; direction?: string };
+  lineageId: string;
 }
 
 export interface ReadColumnsAuthDto {
@@ -49,7 +50,7 @@ export class ReadColumns
   ): ColumnQueryDto => {
     console.log(organizationId);
 
-    const queryDto: ColumnQueryDto = {};
+    const queryDto: ColumnQueryDto = { lineageId: request.lineageId };
 
     // todo - add organizationId
     // queryDto.organizationId = organizationId;

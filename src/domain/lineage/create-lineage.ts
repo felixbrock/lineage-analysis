@@ -12,9 +12,12 @@ import { ReadTables } from '../table/read-tables';
 import { StatementReference } from '../value-types/logic';
 import { ParseSQL, ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
 import { Lineage } from '../entities/lineage';
+import LineageRepo from '../../infrastructure/persistence/lineage-repo';
 
 export interface CreateLineageRequestDto {
   tableId: string;
+  lineageId?: string;
+  lineageCreatedAt?: number;
 }
 
 export interface CreateLineageAuthDto {
@@ -46,18 +49,22 @@ export class CreateLineage
 
   #parseSQL: ParseSQL;
 
+  #lineageRepo: LineageRepo;
+
   constructor(
     createModel: CreateModel,
     createTable: CreateTable,
     createColumn: CreateColumn,
     readTables: ReadTables,
-    parseSQL: ParseSQL
+    parseSQL: ParseSQL,
+    lineageRepo: LineageRepo
   ) {
     this.#createModel = createModel;
     this.#createTable = createTable;
     this.#createColumn = createColumn;
     this.#readTables = readTables;
     this.#parseSQL = parseSQL;
+    this.#lineageRepo = lineageRepo;
   }
 
   #getTableName = (statementReferences: StatementReference[][]): string => {
@@ -137,7 +144,14 @@ export class CreateLineage
 
       if (!request.tableId) throw new TypeError('No tableId provided');
 
-      const lineage = Lineage.create({ id: new ObjectId().toHexString() });
+      const lineage = request.lineageId && request.lineageCreatedAt
+        ? Lineage.create({
+            id: request.lineageId,
+            createdAt: request.lineageCreatedAt,
+          })
+        : Lineage.create({ id: new ObjectId().toHexString() });
+
+      if (!(request.lineageId && request.lineageCreatedAt)) await this.#lineageRepo.insertOne(lineage);
 
       const location = `C://Users/felix-pc/Desktop/Test/${request.tableId}.sql`;
 
@@ -145,7 +159,7 @@ export class CreateLineage
 
       const parseSQLResult: ParseSQLResponseDto = await this.#parseSQL.execute(
         { dialect: 'snowflake', sql: data },
-        { jwt: 'XXX' }
+        { jwt: 'todo' }
       );
 
       if (!parseSQLResult.success) throw new Error(parseSQLResult.error);
@@ -234,14 +248,21 @@ export class CreateLineage
       // todo - lineage nowhere stored and not returned for display. But in the end it is only columns and table object
       await Promise.all(
         parentNames.map(async (element) =>
-          this.execute({ tableId: element }, { organizationId: 'todo' })
+          this.execute(
+            {
+              tableId: element,
+              lineageId: lineage.id,
+              lineageCreatedAt: lineage.createdAt,
+            },
+            { organizationId: 'todo' }
+          )
         )
       );
 
       const parentTableIds: string[] = [];
       if (parentNames.length) {
         const readParentsResult = await this.#readTables.execute(
-          { name: parentNames },
+          { name: parentNames, lineageId: lineage.id },
           { organizationId: 'todo' }
         );
 

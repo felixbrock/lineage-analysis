@@ -23,15 +23,11 @@ export class CreateModel
   implements
     IUseCase<CreateModelRequestDto, CreateModelResponse, CreateModelAuthDto>
 {
-
   #readModels: ReadModels;
 
   #modelRepo: IModelRepo;
 
-  constructor(
-    readModels: ReadModels,
-    modelRepo: IModelRepo
-  ) {
+  constructor(readModels: ReadModels, modelRepo: IModelRepo) {
     this.#readModels = readModels;
     this.#modelRepo = modelRepo;
   }
@@ -45,12 +41,13 @@ export class CreateModel
         id: new ObjectId().toHexString(),
         location: request.location,
         parsedLogic: request.parsedLogic,
-        lineageId: request.lineageId
+        lineageId: request.lineageId,
       });
 
       const readModelsResult = await this.#readModels.execute(
         {
           location: request.location,
+          lineageId: request.lineageId,
         },
         { organizationId: auth.organizationId }
       );

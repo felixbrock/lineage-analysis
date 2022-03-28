@@ -116,10 +116,11 @@ export class CreateColumn
   #getDependencySourceByTableRef = async (
     tableName: string,
     columnName: string,
-    potentialDependencies: Column[]
+    potentialDependencies: Column[],
+    lineageId: string
   ): Promise<Column | null> => {
     const readTablesResult = await this.#readTables.execute(
-      { name: tableName },
+      { name: tableName, lineageId },
       { organizationId: 'todo' }
     );
 
@@ -160,7 +161,8 @@ export class CreateColumn
   #getDependencyPrototypes = async (
     selfColumnReference: StatementReference,
     statementReferences: StatementReference[],
-    parentTableIds: string[]
+    parentTableIds: string[],
+    lineageId: string
   ): Promise<DependencyProperties[]> => {
     const dependencyReferences = statementReferences
       .map((reference) =>
@@ -175,7 +177,7 @@ export class CreateColumn
     );
 
     const readColumnsResult = await this.#readColumns.execute(
-      { tableId: parentTableIds, name: dependencyNames },
+      { tableId: parentTableIds, name: dependencyNames, lineageId },
       { organizationId: 'todo' }
     );
 
@@ -238,7 +240,8 @@ export class CreateColumn
           const dependencySource = await this.#getDependencySourceByTableRef(
             tableName,
             columnName,
-            columnsToClarify
+            columnsToClarify,
+            lineageId
           );
           if (dependencySource) return dependencySource;
         }
@@ -258,7 +261,8 @@ export class CreateColumn
           const dependencySource = await this.#getDependencySourceByTableRef(
             fromTables[0][1],
             columnName,
-            columnsToClarify
+            columnsToClarify,
+            lineageId
           );
           if (dependencySource) return dependencySource;
         }
@@ -335,7 +339,8 @@ export class CreateColumn
       const dependencyPrototypes = await this.#getDependencyPrototypes(
         request.selfReference,
         request.statementSourceReferences,
-        request.parentTableIds
+        request.parentTableIds,
+        request.lineageId
       );
 
       const column = Column.create({
@@ -350,6 +355,7 @@ export class CreateColumn
         {
           name: request.selfReference[1],
           tableId: request.tableId,
+          lineageId: request.lineageId,
         },
         { organizationId: auth.organizationId }
       );

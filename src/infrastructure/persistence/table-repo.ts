@@ -19,9 +19,9 @@ interface TablePersistence {
 }
 
 interface TableQueryFilter {
-  name?: string | string [];
+  name?: string | { [key: string]: string[] };
   modelId?: string;
-  lineageId?: string;
+  lineageId: string;
 }
 
 const collectionName = 'table';
@@ -74,14 +74,14 @@ export default class TableRepo implements ITableRepo {
   };
 
   #buildFilter = (tableQueryDto: TableQueryDto): TableQueryFilter => {
-    const filter: { [key: string]: any } = {};
+    const filter: TableQueryFilter = { lineageId: tableQueryDto.lineageId };
 
-    if (typeof tableQueryDto.name === 'string' && tableQueryDto.name) filter.name = tableQueryDto.name;
-    if (tableQueryDto.name instanceof Array) filter.name = {$in: tableQueryDto.name};
+    if (typeof tableQueryDto.name === 'string' && tableQueryDto.name)
+      filter.name = tableQueryDto.name;
+    if (tableQueryDto.name instanceof Array)
+      filter.name = { $in: tableQueryDto.name };
 
     if (tableQueryDto.modelId) filter.modelId = tableQueryDto.modelId;
-
-    if (tableQueryDto.lineageId) filter.lineageId = tableQueryDto.lineageId;
 
     return filter;
   };
@@ -157,13 +157,13 @@ export default class TableRepo implements ITableRepo {
     id: table._id.toHexString(),
     name: table.name,
     modelId: table.modelId,
-    lineageId: table.lineageId
+    lineageId: table.lineageId,
   });
 
   #toPersistence = (table: Table): Document => ({
     _id: ObjectId.createFromHexString(table.id),
     name: table.name,
     modelId: table.modelId,
-    lineageId: table.lineageId
+    lineageId: table.lineageId,
   });
 }

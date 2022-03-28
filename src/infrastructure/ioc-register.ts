@@ -16,6 +16,7 @@ import { CreateColumn } from '../domain/column/create-column';
 import { ReadModels } from '../domain/model/read-models';
 import { ReadTables } from '../domain/table/read-tables';
 import { ReadTable } from '../domain/table/read-table';
+import LineageRepo from './persistence/lineage-repo';
 
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
@@ -39,6 +40,7 @@ iocRegister.register({
   modelRepo: asClass(ModelRepo),
   tableRepo: asClass(TableRepo),
   columnRepo: asClass(ColumnRepo),
+  lineageRepo: asClass(LineageRepo),
 
   accountApiRepo: asClass(AccountApiRepo),
   sqlParserApiRepo: asClass(SQLParserApiRepo),

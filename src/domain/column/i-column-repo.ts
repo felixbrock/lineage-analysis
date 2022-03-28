@@ -4,7 +4,7 @@ export interface ColumnQueryDto {
   name?: string | string[],
   tableId?: string | string[],
   dependency?: DependencyQueryDto;
-  lineageId?: string;
+  lineageId: string;
 }
 
 interface DependencyQueryDto {

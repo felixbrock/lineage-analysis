@@ -5,6 +5,7 @@ import { IModelRepo, ModelQueryDto } from './i-model-repo';
 
 export interface ReadModelsRequestDto {
   location?: string;
+  lineageId: string;
 }
 
 export interface ReadModelsAuthDto {
@@ -47,7 +48,7 @@ export class ReadModels
   ): ModelQueryDto => {
     console.log(organizationId);
 
-    const queryDto: ModelQueryDto = {};
+    const queryDto: ModelQueryDto = { lineageId: request.lineageId };
 
     // todo - add organizationId
     // queryDto.organizationId = organizationId;

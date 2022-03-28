@@ -9,7 +9,7 @@ import sanitize from 'mongo-sanitize';
 
 import { connect, close, createClient } from './db/mongo-db';
 import { ColumnQueryDto, IColumnRepo } from '../../domain/column/i-column-repo';
-import { Column, ColumnPrototype} from '../../domain/entities/column';
+import { Column, ColumnPrototype } from '../../domain/entities/column';
 
 interface DependencyPersistence {
   type: string;
@@ -32,10 +32,10 @@ interface DependenciesQueryFilter {
 }
 
 interface ColumnQueryFilter {
-  name?: string | string[];
-  tableId?: string | string[];
+  name?: string | { [key: string]: string[] };
+  tableId?: string | { [key: string]: string[] };
   dependencies?: DependenciesQueryFilter;
-  lineageId?: string;
+  lineageId: string;
 }
 
 const collectionName = 'column';
@@ -88,15 +88,17 @@ export default class ColumnRepo implements IColumnRepo {
   };
 
   #buildFilter = (columnQueryDto: ColumnQueryDto): ColumnQueryFilter => {
-    const filter: { [key: string]: any } = {};
+    const filter: ColumnQueryFilter = { lineageId: columnQueryDto.lineageId };
 
-    if (typeof columnQueryDto.name === 'string' && columnQueryDto.name) filter.name = columnQueryDto.name;
-    if (columnQueryDto.name instanceof Array) filter.name = {$in: columnQueryDto.name};
+    if (typeof columnQueryDto.name === 'string' && columnQueryDto.name)
+      filter.name = columnQueryDto.name;
+    if (columnQueryDto.name instanceof Array)
+      filter.name = { $in: columnQueryDto.name };
 
-    if (typeof columnQueryDto.tableId === 'string' && columnQueryDto.tableId) filter.tableId = columnQueryDto.tableId;
-    if (columnQueryDto.tableId instanceof Array) filter.tableId = {$in: columnQueryDto.tableId};
-
-    if (columnQueryDto.lineageId) filter.lineageId = columnQueryDto.lineageId;
+    if (typeof columnQueryDto.tableId === 'string' && columnQueryDto.tableId)
+      filter.tableId = columnQueryDto.tableId;
+    if (columnQueryDto.tableId instanceof Array)
+      filter.tableId = { $in: columnQueryDto.tableId };
 
     if (
       !columnQueryDto.dependency ||
@@ -104,12 +106,16 @@ export default class ColumnRepo implements IColumnRepo {
     )
       return filter;
 
+    const dependenciesFilter: DependenciesQueryFilter = {};
+
     if (columnQueryDto.dependency.type)
-      filter['dependencies.type'] = columnQueryDto.dependency.type;
+      dependenciesFilter.type = columnQueryDto.dependency.type;
     if (columnQueryDto.dependency.columnId)
-      filter['dependencies.columnId'] = columnQueryDto.dependency.columnId;
+      dependenciesFilter.columnId = columnQueryDto.dependency.columnId;
     if (columnQueryDto.dependency.direction)
-      filter['dependencies.direction'] = columnQueryDto.dependency.direction;
+      dependenciesFilter.direction = columnQueryDto.dependency.direction;
+
+    filter.dependencies = dependenciesFilter;
 
     return filter;
   };

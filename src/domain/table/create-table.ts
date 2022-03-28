@@ -47,6 +47,7 @@ export class CreateTable
         {
           modelId: request.modelId,
           name: request.name,
+          lineageId: request.lineageId
         },
         { organizationId: auth.organizationId }
       );

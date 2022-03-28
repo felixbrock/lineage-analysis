@@ -6,6 +6,7 @@ import { ITableRepo, TableQueryDto } from './i-table-repo';
 export interface ReadTablesRequestDto {
   name?: string | string[];
   modelId?: string;
+  lineageId: string;
 }
 
 export interface ReadTablesAuthDto {
@@ -48,7 +49,7 @@ export class ReadTables
   ): TableQueryDto => {
     console.log(organizationId);
 
-    const queryDto: TableQueryDto = {};
+    const queryDto: TableQueryDto = {lineageId: request.lineageId};
 
     // todo - add organizationId
     // queryDto.organizationId = organizationId;

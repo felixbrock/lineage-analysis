@@ -9,6 +9,7 @@ export interface UpdateModelRequestDto {
   id: string;
   location?: string;
   parsedLogic?: string;
+  lineageId: string;
 }
 
 export interface UpdateModelAuthDto {
@@ -83,6 +84,7 @@ export class UpdateModel
         await this.#readModels.execute(
           {
             location: request.location,
+            lineageId: request.lineageId
           },
           { organizationId }
         );
