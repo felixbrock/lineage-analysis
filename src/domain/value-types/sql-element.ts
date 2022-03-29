@@ -1,29 +1,40 @@
 export default class SQLElement {
-    static FILE= 'file';
+  static FILE = 'file';
 
-    static STATEMENT= 'statement';
+  static STATEMENT = 'statement';
 
-    static CREATE_TABLE_STATEMENT= `create_table_${this.STATEMENT}`;
+  static CREATE_TABLE_STATEMENT = `create_table_statement`;
 
-    static INSERT_STATEMENT= `insert_${this.STATEMENT}`;
+  static INSERT_STATEMENT = `insert_statement`;
 
-    static JOIN_CLAUSE= 'join_clause';
 
-    static SELECT_CLAUSE_ELEMENT= 'select_clause_element';
+  static JOIN_CLAUSE = 'join_clause';
 
-    static FROM_EXPRESSION_ELEMENT= 'from_expression_element';
+  static SELECT_CLAUSE_ELEMENT = 'select_clause_element';
 
-    static JOIN_ON_CONDITION= 'join_on_condition';
+  static FROM_EXPRESSION_ELEMENT = 'from_expression_element';
 
-    static TABLE_REFERENCE= 'table_reference';
+  static JOIN_ON_CONDITION = 'join_on_condition';
 
-    static COLUMN_REFERENCE= 'column_reference';
+  static TABLE_REFERENCE = 'table_reference';
 
-    static COLUMN_DEFINITION= 'column_definition';
+  static COLUMN_REFERENCE = 'column_reference';
 
-    static IDENTIFIER= 'identifier';
+  static COLUMN_DEFINITION = 'column_definition';
 
-    static KEYWORD = 'keyword';
+  static IDENTIFIER = 'identifier';
 
-    static KEYWORD_AS = 'as';
+  static WILDCARD_EXPRESSION = 'wildcard_expression';
+  
+  static WILDCARD_IDENTIFIER = 'wildcard_identifier';
+
+  static WILDCARD_IDENTIFIER_DOT = 'dot';
+
+  static WILDCARD_IDENTIFIER_IDENTIFIER = 'identifier';
+
+  static WILDCARD_IDENTIFIER_STAR = 'star';
+
+  static KEYWORD = 'keyword';
+
+  static KEYWORD_AS = 'as';
 }

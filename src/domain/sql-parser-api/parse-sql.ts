@@ -30,7 +30,10 @@ export class ParseSQL
   ): Promise<ParseSQLResponseDto> {
     console.log(auth);
 
-    const base64SQL = Buffer.from(request.sql).toString('base64');
+    const base64SQL =
+      Buffer.from(request.sql, 'base64').toString('base64') === request.sql
+        ? request.sql
+        : Buffer.from(request.sql).toString('base64');
 
     try {
       const parseSQLResponse: ParsedSQLDto =

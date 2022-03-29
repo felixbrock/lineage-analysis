@@ -43,25 +43,53 @@ export class Logic {
     let referencePath = path;
     const statementReferencesObj: StatementReference[] = [];
 
-    Object.entries(parsedSQL).forEach((element) => {
-      const key = element[0];
-      const value = element[1];
+    Object.entries(parsedSQL).forEach((parsedSQLElement) => {
+      const key = parsedSQLElement[0];
+      const value = parsedSQLElement[1];
 
       if (key === targetKey)
-        statementReferencesObj.push([this.#appendPath(key, referencePath), value]);
+        statementReferencesObj.push([
+          this.#appendPath(key, referencePath),
+          value,
+        ]);
       else if (key === SQLElement.KEYWORD && value === SQLElement.KEYWORD_AS)
-      referencePath = this.#appendPath(value, referencePath);
+        referencePath = this.#appendPath(value, referencePath);
 
       // check if value is dictionary
       if (value.constructor === Object) {
-        const dependencies = this.#extractstatementReferences(
-          targetKey,
-          value,
-          this.#appendPath(key, referencePath)
-        );
-        dependencies.forEach((dependencyElement) =>
-          statementReferencesObj.push(dependencyElement)
-        );
+        if (key === SQLElement.WILDCARD_IDENTIFIER) {
+          const wildcardElementKeys = Object.keys(value);
+
+          const isDotNoation = [
+            SQLElement.WILDCARD_IDENTIFIER_DOT,
+              SQLElement.WILDCARD_IDENTIFIER_IDENTIFIER,
+              SQLElement.WILDCARD_IDENTIFIER_STAR,
+          ].every((wildcardElementKey) => wildcardElementKeys.includes(wildcardElementKey));
+          if (isDotNoation)
+            statementReferencesObj.push([
+              this.#appendPath(key, referencePath),
+              `${value[SQLElement.WILDCARD_IDENTIFIER_IDENTIFIER]}${
+                value[SQLElement.WILDCARD_IDENTIFIER_DOT]
+              }${value[SQLElement.WILDCARD_IDENTIFIER_STAR]}`,
+            ]);
+          else if (
+            wildcardElementKeys.length === 1 &&
+            wildcardElementKeys.includes(SQLElement.WILDCARD_IDENTIFIER_STAR)
+          )
+            statementReferencesObj.push([
+              this.#appendPath(key, referencePath),
+              value[SQLElement.WILDCARD_IDENTIFIER_STAR],
+            ]);
+        } else {
+          const dependencies = this.#extractstatementReferences(
+            targetKey,
+            value,
+            this.#appendPath(key, referencePath)
+          );
+          dependencies.forEach((dependencyElement) =>
+            statementReferencesObj.push(dependencyElement)
+          );
+        }
       } else if (Object.prototype.toString.call(value) === '[object Array]') {
         if (key === SQLElement.COLUMN_REFERENCE) {
           let valuePath = '';
@@ -129,7 +157,9 @@ export class Logic {
 
     const parsedLogicObj = JSON.parse(prototype.parsedLogic);
 
-    const statementReferences = this.#getstatementReferences(parsedLogicObj.file);
+    const statementReferences = this.#getstatementReferences(
+      parsedLogicObj.file
+    );
 
     const logic = new Logic({
       parsedLogic: prototype.parsedLogic,

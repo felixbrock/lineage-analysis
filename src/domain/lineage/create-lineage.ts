@@ -13,6 +13,7 @@ import { StatementReference } from '../value-types/logic';
 import { ParseSQL, ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
 import { Lineage } from '../entities/lineage';
 import LineageRepo from '../../infrastructure/persistence/lineage-repo';
+import { ReadColumns } from '../column/read-columns';
 
 export interface CreateLineageRequestDto {
   tableId: string;
@@ -47,6 +48,8 @@ export class CreateLineage
 
   #readTables: ReadTables;
 
+  #readColumns: ReadColumns;
+
   #parseSQL: ParseSQL;
 
   #lineageRepo: LineageRepo;
@@ -56,6 +59,7 @@ export class CreateLineage
     createTable: CreateTable,
     createColumn: CreateColumn,
     readTables: ReadTables,
+    readColumns: ReadColumns,
     parseSQL: ParseSQL,
     lineageRepo: LineageRepo
   ) {
@@ -63,6 +67,7 @@ export class CreateLineage
     this.#createTable = createTable;
     this.#createColumn = createColumn;
     this.#readTables = readTables;
+    this.#readColumns = readColumns;
     this.#parseSQL = parseSQL;
     this.#lineageRepo = lineageRepo;
   }
@@ -89,6 +94,7 @@ export class CreateLineage
     const columnSelfRefs = [
       `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
       `${SQLElement.COLUMN_DEFINITION}.${SQLElement.IDENTIFIER}`,
+      `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.WILDCARD_EXPRESSION}.${SQLElement.WILDCARD_IDENTIFIER}`,
     ];
 
     let statementIndex = 0;
@@ -292,9 +298,21 @@ export class CreateLineage
       const tableColumnReferences = this.#getTableColumnReferences(
         model.logic.statementReferences
       );
+
+
+
       const createColumnResults = await Promise.all(
-        tableColumnReferences.map(async (reference) =>
-          this.#createColumn.execute(
+        tableColumnReferences.map(async (reference) =>{
+        if(reference.selfColumnReference[0].includes(SQLElement.WILDCARD_IDENTIFIER)){
+          if(parentTableIds.length !== 1) throw new ReferenceError('Wildcard - parent table mismatch');
+          const readColumnsResult = await this.#readColumns.execute({tableId: parentTableIds[0], lineageId: lineage.id}, {organizationId: 'todo'});
+
+          if (!readColumnsResult.success)
+          throw new Error(readColumnsResult.error);
+        if (!readColumnsResult.value)
+          throw new SyntaxError(`Creation of table ${name} failed`);
+
+          return Promise.all(readColumnsResult.value.map(column => this.#createColumn.execute(
             {
               selfReference: reference.selfColumnReference,
               statementSourceReferences:
@@ -304,7 +322,22 @@ export class CreateLineage
               lineageId: lineage.id,
             },
             { organizationId: 'todo' }
-          )
+          )));
+
+        }
+        
+        return this.#createColumn.execute(
+          {
+            selfReference: reference.selfColumnReference,
+            statementSourceReferences:
+              model.logic.statementReferences[reference.statementIndex],
+            tableId: table.id,
+            parentTableIds,
+            lineageId: lineage.id,
+          },
+          { organizationId: 'todo' }
+        );
+        }
         )
       );
 
