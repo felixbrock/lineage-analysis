@@ -31,6 +31,11 @@ interface DependencyAnalysisResult {
   type?: string;
 }
 
+interface Match {
+  analysisResult: DependencyAnalysisResult;
+  referenceColumnRatio: number;
+}
+
 export class CreateColumn
   implements
     IUseCase<
@@ -45,7 +50,19 @@ export class CreateColumn
 
   readonly #readTables: ReadTables;
 
-  readonly #dependencyTypes = { SELECT: 'select', JOIN_CONDITION: 'join_condition' };
+  readonly #dependencyTypes = {
+    SELECT: 'select',
+    JOIN_CONDITION: 'join_condition',
+  };
+
+  #getStatementRoot = (path: string): string => {
+    const lastIndexStatementRoot = path.lastIndexOf(SQLElement.STATEMENT);
+    if (lastIndexStatementRoot === -1 || !lastIndexStatementRoot)
+      // todo - inconsistent usage of Error types. Sometimes Range and sometimes Reference
+      throw new RangeError('Statement root not found for column reference');
+
+    return path.slice(0, lastIndexStatementRoot + SQLElement.STATEMENT.length);
+  };
 
   #analyzeStatementReference = (
     potentialDependency: StatementReference,
@@ -62,58 +79,41 @@ export class CreateColumn
       ? potentialDependency[1].split('.').slice(0)[0]
       : '';
 
-    const lastKeyStatementIndex = dependencyPath.lastIndexOf(
-      SQLElement.STATEMENT
-    );
-    if (lastKeyStatementIndex === -1 || !lastKeyStatementIndex)
-      throw new RangeError('Statement not found for column reference');
-
-    const keyStatement = dependencyPath.slice(
-      0,
-      lastKeyStatementIndex + SQLElement.STATEMENT.length
-    );
-
-    const lastRootStatementIndex = selfReferencePath.lastIndexOf(
-      SQLElement.STATEMENT
-    );
-    if (lastRootStatementIndex === -1 || !lastRootStatementIndex)
-      throw new RangeError('Statement not found for column root');
-
-    const rootStatement = dependencyPath.slice(
-      0,
-      lastRootStatementIndex + SQLElement.STATEMENT.length
-    );
+    const dependencyStatementRoot = this.#getStatementRoot(dependencyPath);
+    const selfStatementRoot = this.#getStatementRoot(selfReferencePath);
 
     const isStatementDependency =
       !dependencyPath.includes(SQLElement.INSERT_STATEMENT) &&
       !dependencyPath.includes(SQLElement.COLUMN_DEFINITION) &&
-      keyStatement === rootStatement &&
+      dependencyStatementRoot === selfStatementRoot &&
       dependencyPath.includes(SQLElement.COLUMN_REFERENCE);
 
-    const result: DependencyAnalysisResult = {
+    const resultObj: DependencyAnalysisResult = {
       path: dependencyPath,
       columnName: dependencyName,
       isDependency: false,
     };
-    if (dependencyTable) result.tableName = dependencyTable;
 
-    if (!isStatementDependency) return result;
+    if (!isStatementDependency) return resultObj;
+
+    if (dependencyTable) resultObj.tableName = dependencyTable;
 
     if (selfReferencePath.includes(SQLElement.SELECT_CLAUSE_ELEMENT)) {
+      // todo - future use-cases will be added
       if (
         dependencyPath.includes(SQLElement.SELECT_CLAUSE_ELEMENT) &&
         dependencyName === selfReferenceName
       ) {
-        result.isDependency = true;
-        result.type = this.#dependencyTypes.SELECT;
+        resultObj.isDependency = true;
+        resultObj.type = this.#dependencyTypes.SELECT;
 
-        return result;
+        return resultObj;
       }
     }
-    return result;
+    return resultObj;
   };
 
-  #getDependencySourceByTableRef = async (
+  #getColumnSourceOfTable = async (
     tableName: string,
     columnName: string,
     potentialDependencies: Column[],
@@ -133,29 +133,104 @@ export class CreateColumn
     if (tables.length === 0)
       throw new ReferenceError('Requested table not found');
 
-    const columnMatchesPerTable = tables.map((table) =>
-      potentialDependencies.filter(
-        (column) => column.name === columnName && column.tableId === table.id
-      )
+    // todo - Assumption correct that table names have to be unique across data warehouse?
+    const potentialColumnSources = potentialDependencies.filter(
+      (column) => column.name === columnName && column.tableId === tables[0].id
     );
 
-    const finalMatches = columnMatchesPerTable.map((tableColumns) => {
-      if (tableColumns.length > 2)
-        throw new ReferenceError(
-          'Multiple columns with the same name found in the same table'
-        );
-      if (tableColumns.length === 1) return tableColumns[0];
-      return null;
-    });
-
-    if (!finalMatches.length)
+    if (!potentialColumnSources.length)
       throw new ReferenceError('Failed to identify referenced column');
-    if (finalMatches.length > 1)
+    if (potentialColumnSources.length > 1)
       throw new ReferenceError(
-        'The same table-column exist multiple times in Data Warehouse'
+        'The same table-column combination exist multiple times in Data Warehouse'
       );
 
-    return finalMatches[0];
+    return potentialColumnSources[0];
+  };
+
+  #getPotentialColumnDependencies = async (
+    parentTableIds: string[],
+    lineageId: string,
+    columnDependencyNames: string[]
+  ): Promise<Column[]> => {
+    // Read those columns
+    const readColumnsResult = await this.#readColumns.execute(
+      { tableId: parentTableIds, name: columnDependencyNames, lineageId },
+      { organizationId: 'todo' }
+    );
+
+    if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
+    if (!readColumnsResult.value)
+      throw new ReferenceError(`Reading of dependency columns failed`);
+
+    if (readColumnsResult.value.length === 0)
+      throw new ReferenceError(`No source columns found`);
+
+    return readColumnsResult.value;
+  };
+
+  #buildDependencyPrototype = (
+    dependencyReferences: DependencyAnalysisResult[],
+    column: Column
+  ): DependencyProperties => {
+    const dependencyReference = dependencyReferences.filter(
+      (reference) => reference.columnName === column.name
+    );
+
+    if (dependencyReference.length !== 1)
+      throw new ReferenceError('Invalid column match-reference relation');
+
+    const { type } = dependencyReference[0];
+    if (!type) throw new ReferenceError('Dependency type not declared');
+
+    return {
+      type,
+      columnId: column.id,
+      direction: Direction.UPSTREAM,
+    };
+  };
+
+  #getClarifiedMatchedColumn = async (
+    lineageId: string,
+    match: Match,
+    columnsToClarify: Column[],
+    statementReferences: StatementReference[]
+  ): Promise<Column> => {
+    const { columnName, tableName } = match.analysisResult;
+
+    if (tableName) {
+      const dependencySource = await this.#getColumnSourceOfTable(
+        tableName,
+        columnName,
+        columnsToClarify,
+        lineageId
+      );
+      if (dependencySource) return dependencySource;
+    }
+    if (
+      match.analysisResult.path.includes(SQLElement.FROM_EXPRESSION_ELEMENT)
+    ) {
+      const fromTables = statementReferences.filter((element) =>
+        [SQLElement.FROM_EXPRESSION_ELEMENT, SQLElement.TABLE_REFERENCE].every(
+          (key) => element[0].includes(key)
+        )
+      );
+
+      if (fromTables.length > 1)
+        throw new ReferenceError("Multiple 'from' tables identified");
+      if (!fromTables.length)
+        throw new ReferenceError("'From' table not found");
+
+      const dependencySource = await this.#getColumnSourceOfTable(
+        fromTables[0][1],
+        columnName,
+        columnsToClarify,
+        lineageId
+      );
+      if (dependencySource) return dependencySource;
+    }
+
+    throw new ReferenceError(`Table for column ${columnName} not found`);
   };
 
   #getDependencyPrototypes = async (
@@ -172,150 +247,72 @@ export class CreateColumn
 
     if (!dependencyReferences.length) return [];
 
-    const dependencyNames = dependencyReferences.map(
+    const columnDependencyNames = dependencyReferences.map(
       (reference) => reference.columnName
     );
 
-    const readColumnsResult = await this.#readColumns.execute(
-      { tableId: parentTableIds, name: dependencyNames, lineageId },
-      { organizationId: 'todo' }
-    );
+    const potentialColumnDependencies =
+      await this.#getPotentialColumnDependencies(
+        parentTableIds,
+        lineageId,
+        columnDependencyNames
+      );
 
-    if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
-    if (!readColumnsResult.value)
-      throw new ReferenceError(`Reading of dependency columns failed`);
+    const matches: Match[] = dependencyReferences.map((reference) => ({
+      analysisResult: reference,
+      referenceColumnRatio: potentialColumnDependencies.filter(
+        (column) => column.name === reference.columnName
+      ).length,
+    }));
 
-    const potentialSourceColumns = readColumnsResult.value;
+    if (matches.every((match) => match.referenceColumnRatio === 1))
+      return potentialColumnDependencies.map((column) =>
+        this.#buildDependencyPrototype(dependencyReferences, column)
+      );
 
-    if (potentialSourceColumns.length === 0)
-      throw new ReferenceError(`No source columns found`);
-
-    const columnMatchesPerReference: [DependencyAnalysisResult, number][] =
-      dependencyReferences.map((reference) => [
-        reference,
-        potentialSourceColumns.filter(
-          (column) => column.name === reference.columnName
-        ).length,
-      ]);
-
-    if (columnMatchesPerReference.every((match) => match[1] === 1))
-      return potentialSourceColumns.map((column) => {
-        const dependencyReference = dependencyReferences.filter(
-          (reference) => reference.columnName === column.name
-        );
-
-        if (dependencyReference.length !== 1)
-          throw new ReferenceError('Invalid column match-reference relation');
-
-        const { type } = dependencyReference[0];
-        if (!type) throw new ReferenceError('Dependency type not declared');
-
-        return {
-          type,
-          columnId: column.id,
-          direction: Direction.UPSTREAM,
-        };
-      });
-
-    if (columnMatchesPerReference.some((match) => match[1] === 0))
+    if (matches.some((match) => match.referenceColumnRatio === 0))
       throw new ReferenceError(
         'Referenced column does not exist along data warehouse tables'
       );
 
-    const matchesToClarify = columnMatchesPerReference.filter(
-      (match) => match[1] > 1
+    const matchesToClarify: Match[] = matches.filter(
+      (match) => match.referenceColumnRatio > 1
     );
-    const columnsToClarify = potentialSourceColumns.filter(
+    const columnsToClarify = potentialColumnDependencies.filter(
       (column) =>
-        matchesToClarify.filter((match) => match[0].columnName === column.name)
-          .length
+        matchesToClarify.filter(
+          (match) => match.analysisResult.columnName === column.name
+        ).length
     );
 
-    const clarifiedMatches: Column[] = await Promise.all(
-      matchesToClarify.map(async (match) => {
-        const { columnName } = match[0];
-        const { tableName } = match[0];
+    const clarifiedColumns: Column[] = await Promise.all(
+      matchesToClarify.map(async (match) =>
+        this.#getClarifiedMatchedColumn(
+          lineageId,
+          match,
+          columnsToClarify,
+          statementReferences
+        )
+      )
+    );
 
-        if (tableName) {
-          const dependencySource = await this.#getDependencySourceByTableRef(
-            tableName,
-            columnName,
-            columnsToClarify,
-            lineageId
-          );
-          if (dependencySource) return dependencySource;
-        }
-        if (match[0].path.includes(SQLElement.FROM_EXPRESSION_ELEMENT)) {
-          const fromTables = statementReferences.filter((element) =>
-            [
-              SQLElement.FROM_EXPRESSION_ELEMENT,
-              SQLElement.TABLE_REFERENCE,
-            ].every((key) => element[0].includes(key))
-          );
-
-          if (fromTables.length > 1)
-            throw new ReferenceError("Multiple 'from' tables identified");
-          if (!fromTables.length)
-            throw new ReferenceError("'From' table not found");
-
-          const dependencySource = await this.#getDependencySourceByTableRef(
-            fromTables[0][1],
-            columnName,
-            columnsToClarify,
-            lineageId
-          );
-          if (dependencySource) return dependencySource;
-        }
-
-        throw new ReferenceError(`Table for column ${columnName} not found`);
-      })
+    const finalMatches = matches.filter((match) => match.referenceColumnRatio === 1);
+    const matchedColumns = potentialColumnDependencies.filter(
+      (column) =>
+        finalMatches.filter((match) => match.analysisResult.columnName === column.name).length
     );
 
     const dependencyPropertyObjs: DependencyProperties[] = [];
 
-    const matches = columnMatchesPerReference.filter((match) => match[1] === 1);
-    const matchedColumns = potentialSourceColumns.filter(
-      (column) =>
-        matches.filter((match) => match[0].columnName === column.name).length
-    );
-
     dependencyPropertyObjs.push(
-      ...matchedColumns.map((column) => {
-        const dependencyReference = dependencyReferences.filter(
-          (reference) => reference.columnName === column.name
-        );
-
-        if (dependencyReference.length !== 1)
-          throw new ReferenceError('Invalid column match-reference relation');
-
-        const { type } = dependencyReference[0];
-        if (!type) throw new ReferenceError('Dependency type not declared');
-
-        return {
-          type,
-          columnId: column.id,
-          direction: Direction.UPSTREAM,
-        };
-      })
+      ...matchedColumns.map((column) =>
+        this.#buildDependencyPrototype(dependencyReferences, column)
+      )
     );
     dependencyPropertyObjs.push(
-      ...clarifiedMatches.map((column) => {
-        const dependencyReference = dependencyReferences.filter(
-          (reference) => reference.columnName === column.name
-        );
-
-        if (dependencyReference.length !== 1)
-          throw new ReferenceError('Invalid column match-reference relation');
-
-        const { type } = dependencyReference[0];
-        if (!type) throw new ReferenceError('Dependency type not declared');
-
-        return {
-          type,
-          columnId: column.id,
-          direction: Direction.UPSTREAM,
-        };
-      })
+      ...clarifiedColumns.map((column) =>
+        this.#buildDependencyPrototype(dependencyReferences, column)
+      )
     );
 
     return dependencyPropertyObjs;
