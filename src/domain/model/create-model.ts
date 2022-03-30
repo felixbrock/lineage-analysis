@@ -23,9 +23,9 @@ export class CreateModel
   implements
     IUseCase<CreateModelRequestDto, CreateModelResponse, CreateModelAuthDto>
 {
-  #readModels: ReadModels;
+  readonly #readModels: ReadModels;
 
-  #modelRepo: IModelRepo;
+  readonly #modelRepo: IModelRepo;
 
   constructor(readModels: ReadModels, modelRepo: IModelRepo) {
     this.#readModels = readModels;

@@ -17,7 +17,7 @@ export class ReadTable
   implements
     IUseCase<ReadTableRequestDto, ReadTableResponseDto, ReadTableAuthDto>
 {
-  #tableRepo: ITableRepo;
+  readonly #tableRepo: ITableRepo;
 
   constructor(tableRepo: ITableRepo) {
     this.#tableRepo = tableRepo;

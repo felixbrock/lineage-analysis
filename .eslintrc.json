@@ -33,7 +33,8 @@
             "accessibility": "no-public",
             "overrides": { "properties": "off" }
           }
-        ]
+        ],
+        "@typescript-eslint/no-non-null-assertion": "error"
       }
     }
   ]

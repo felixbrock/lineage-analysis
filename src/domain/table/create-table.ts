@@ -22,9 +22,9 @@ export class CreateTable
   implements
     IUseCase<CreateTableRequestDto, CreateTableResponseDto, CreateTableAuthDto>
 {
-  #readTables: ReadTables;
+  readonly #readTables: ReadTables;
 
-  #tableRepo: ITableRepo;
+  readonly #tableRepo: ITableRepo;
 
   constructor(readTables: ReadTables, tableRepo: ITableRepo) {
     this.#readTables = readTables;
@@ -45,7 +45,6 @@ export class CreateTable
 
       const readTablesResult = await this.#readTables.execute(
         {
-          modelId: request.modelId,
           name: request.name,
           lineageId: request.lineageId
         },

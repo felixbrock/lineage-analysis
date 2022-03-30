@@ -4,7 +4,7 @@ import { ObjectId } from 'mongodb';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import SQLElement from '../value-types/sql-element';
-import { CreateColumn } from '../column/create-column';
+import { CreateColumn, CreateColumnResponseDto } from '../column/create-column';
 import { CreateTable } from '../table/create-table';
 import { buildLineageDto, LineageDto } from './lineage-dto';
 import { CreateModel, CreateModelResponse } from '../model/create-model';
@@ -14,6 +14,9 @@ import { ParseSQL, ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
 import { Lineage } from '../entities/lineage';
 import LineageRepo from '../../infrastructure/persistence/lineage-repo';
 import { ReadColumns } from '../column/read-columns';
+import { Model } from '../entities/model';
+import { Table } from '../entities/table';
+import { Column } from '../entities/column';
 
 export interface CreateLineageRequestDto {
   tableId: string;
@@ -40,19 +43,27 @@ export class CreateLineage
       CreateLineageAuthDto
     >
 {
-  #createModel: CreateModel;
+  readonly #createModel: CreateModel;
 
-  #createTable: CreateTable;
+  readonly #createTable: CreateTable;
 
-  #createColumn: CreateColumn;
+  readonly #createColumn: CreateColumn;
 
-  #readTables: ReadTables;
+  readonly #readTables: ReadTables;
 
-  #readColumns: ReadColumns;
+  readonly #readColumns: ReadColumns;
 
-  #parseSQL: ParseSQL;
+  readonly #parseSQL: ParseSQL;
 
-  #lineageRepo: LineageRepo;
+  readonly #lineageRepo: LineageRepo;
+
+  #lineage?: Lineage;
+
+  #model?: Model;
+
+  #table?: Table;
+
+  #columns: Column[] = [];
 
   constructor(
     createModel: CreateModel,
@@ -72,11 +83,13 @@ export class CreateLineage
     this.#lineageRepo = lineageRepo;
   }
 
-  #getTableName = (statementReferences: StatementReference[][]): string => {
+  #getTableName = (): string => {
     const tableSelfRef = `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
 
     const tableSelfSearchRes: string[] = [];
-    statementReferences.flat().forEach((element) => {
+    if (!this.#model) throw new ReferenceError('Model property is undefined');
+
+    this.#model.logic.statementReferences.flat().forEach((element) => {
       if (element.includes(tableSelfRef)) tableSelfSearchRes.push(element[1]);
     });
 
@@ -88,7 +101,7 @@ export class CreateLineage
     return tableSelfSearchRes[0];
   };
 
-  #getTableColumnReferences = (
+  #getSelfColumnReferences = (
     statementReferences: StatementReference[][]
   ): TableColumnReference[] => {
     const columnSelfRefs = [
@@ -140,6 +153,205 @@ export class CreateLineage
     return parentTableNames;
   };
 
+  #setLineage = async (
+    lineageId?: string,
+    lineageCreatedAt?: number
+  ): Promise<void> => {
+    this.#lineage =
+      lineageId && lineageCreatedAt
+        ? Lineage.create({
+            id: lineageId,
+            createdAt: lineageCreatedAt,
+          })
+        : Lineage.create({ id: new ObjectId().toHexString() });
+
+    if (!(lineageId && lineageCreatedAt))
+      await this.#lineageRepo.insertOne(this.#lineage);
+  };
+
+  #parseLogic = async (location: string): Promise<string> => {
+    const data = fs.readFileSync(location, 'utf-8');
+
+    const parseSQLResult: ParseSQLResponseDto = await this.#parseSQL.execute(
+      { dialect: 'snowflake', sql: data },
+      { jwt: 'todo' }
+    );
+
+    if (!parseSQLResult.success) throw new Error(parseSQLResult.error);
+    if (!parseSQLResult.value)
+      throw new SyntaxError(`Parsing of SQL logic failed`);
+
+    return JSON.stringify(parseSQLResult.value);
+  };
+
+  #setModel = async (tableId: string): Promise<void> => {
+    if (!this.#lineage)
+      throw new ReferenceError('Lineage property is undefined');
+
+    const location = `C://Users/felix-pc/Desktop/Test/${tableId}.sql`;
+
+    const parsedLogic = await this.#parseLogic(location);
+
+    const createModelResult: CreateModelResponse =
+      await this.#createModel.execute(
+        {
+          id: tableId,
+          location,
+          parsedLogic,
+          lineageId: this.#lineage.id,
+        },
+        { organizationId: 'todo' }
+      );
+
+    if (!createModelResult.success) throw new Error(createModelResult.error);
+    if (!createModelResult.value) throw new Error('Creation of model failed');
+
+    this.#model = createModelResult.value;
+  };
+
+  #setTable = async (): Promise<void> => {
+    if (!this.#lineage)
+      throw new ReferenceError('Lineage property is undefined');
+    if (!this.#model) throw new ReferenceError('Model property is undefined');
+
+    const name = this.#getTableName();
+
+    const createTableResult = await this.#createTable.execute(
+      {
+        name,
+        modelId: this.#model.id,
+        lineageId: this.#lineage.id,
+      },
+      { organizationId: 'todo' }
+    );
+
+    if (!createTableResult.success) throw new Error(createTableResult.error);
+    if (!createTableResult.value)
+      throw new SyntaxError(`Creation of table ${name} failed`);
+
+    this.#table = createTableResult.value;
+  };
+
+  #createParents = async (parentNames: string[]): Promise<void> => {
+    // todo - can this be async?
+    // todo - lineage nowhere stored and not returned for display. But in the end it is only columns and table object
+    await Promise.all(
+      parentNames.map(async (element) => {
+        if (!this.#lineage)
+          throw new ReferenceError('Lineage property is undefined');
+
+        return this.execute(
+          {
+            tableId: element,
+            lineageId: this.#lineage.id,
+            lineageCreatedAt: this.#lineage.createdAt,
+          },
+          { organizationId: 'todo' }
+        );
+      })
+    );
+  };
+
+  #getParentTables = async (parentNames: string[]): Promise<Table[]> => {
+    if (!this.#lineage)
+      throw new ReferenceError('Lineage property is undefined');
+
+    const readParentsResult = await this.#readTables.execute(
+      { name: parentNames, lineageId: this.#lineage.id },
+      { organizationId: 'todo' }
+    );
+
+    if (!readParentsResult.success) throw new Error(readParentsResult.error);
+    if (!readParentsResult.value)
+      throw new SyntaxError(`Reading parent tables failed`);
+
+    return readParentsResult.value;
+  };
+
+  #createSelfColumns = async (
+    reference: TableColumnReference,
+    parentTableIds: string[]
+  ): Promise<CreateColumnResponseDto | CreateColumnResponseDto[]> => {
+    if (!this.#lineage)
+      throw new ReferenceError('Lineage property is undefined');
+    if (!this.#model) throw new ReferenceError('Model property is undefined');
+    if (!this.#table) throw new ReferenceError('Table property is undefined');
+
+    if (
+      !reference.selfColumnReference[0].includes(SQLElement.WILDCARD_IDENTIFIER)
+    )
+      return this.#createColumn.execute(
+        {
+          selfReference: reference.selfColumnReference,
+          statementSourceReferences:
+            this.#model.logic.statementReferences[reference.statementIndex],
+          tableId: this.#table.id,
+          parentTableIds,
+          lineageId: this.#lineage.id,
+        },
+        { organizationId: 'todo' }
+      );
+
+    if (parentTableIds.length !== 1)
+      throw new ReferenceError('Wildcard - parent-table mismatch');
+    const readColumnsResult = await this.#readColumns.execute(
+      { tableId: parentTableIds[0], lineageId: this.#lineage.id },
+      { organizationId: 'todo' }
+    );
+
+    if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
+    if (!readColumnsResult.value)
+      throw new SyntaxError(`Readinng of parent-table columns failed`);
+
+    const createColumnResults = await Promise.all(
+      readColumnsResult.value.map((column) => {
+        if (!this.#lineage)
+          throw new ReferenceError('Lineage property is undefined');
+        if (!this.#model)
+          throw new ReferenceError('Model property is undefined');
+        if (!this.#table)
+          throw new ReferenceError('Table property is undefined');
+
+        return this.#createColumn.execute(
+          {
+            selfReference: [reference.selfColumnReference[0], column.name],
+            statementSourceReferences:
+              this.#model.logic.statementReferences[reference.statementIndex],
+            tableId: this.#table.id,
+            parentTableIds,
+            lineageId: this.#lineage.id,
+          },
+          { organizationId: 'todo' }
+        );
+      })
+    );
+
+    return createColumnResults;
+  };
+
+  #setColumns = async (parentTableIds: string[]): Promise<void> => {
+    if (!this.#model) throw new ReferenceError('Model property is undefined');
+
+    const selfColumnReferences = this.#getSelfColumnReferences(
+      this.#model.logic.statementReferences
+    );
+
+    const createColumnResults = (
+      await Promise.all(
+        selfColumnReferences.map(async (reference) =>
+          this.#createSelfColumns(reference, parentTableIds)
+        )
+      )
+    ).flat();
+
+    createColumnResults.forEach((result) => {
+      if (!result.success) throw new Error(result.error);
+      if (!result.value) throw new SyntaxError(`Creation of column failed`);
+
+      this.#columns.push(result.value);
+    });
+  };
+
   async execute(
     request: CreateLineageRequestDto,
     auth: CreateLineageAuthDto
@@ -150,76 +362,9 @@ export class CreateLineage
 
       if (!request.tableId) throw new TypeError('No tableId provided');
 
-      const lineage = request.lineageId && request.lineageCreatedAt
-        ? Lineage.create({
-            id: request.lineageId,
-            createdAt: request.lineageCreatedAt,
-          })
-        : Lineage.create({ id: new ObjectId().toHexString() });
+      await this.#setLineage();
 
-      if (!(request.lineageId && request.lineageCreatedAt)) await this.#lineageRepo.insertOne(lineage);
-
-      const location = `C://Users/felix-pc/Desktop/Test/${request.tableId}.sql`;
-
-      const data = fs.readFileSync(location, 'utf-8');
-
-      const parseSQLResult: ParseSQLResponseDto = await this.#parseSQL.execute(
-        { dialect: 'snowflake', sql: data },
-        { jwt: 'todo' }
-      );
-
-      if (!parseSQLResult.success) throw new Error(parseSQLResult.error);
-      if (!parseSQLResult.value)
-        throw new SyntaxError(`Parsing of SQL logic failed`);
-
-      const newParsedLogic = JSON.stringify(parseSQLResult.value);
-
-      // const readModelsResult = await this.#readModels.execute(
-      //   {
-      //     location,
-      //   },
-      //   { organizationId: auth.organizationId }
-      // );
-
-      // if (!readModelsResult.success) throw new Error(readModelsResult.error);
-      // if (!readModelsResult.value) throw new Error('Reading models failed');
-
-      // let model: Model;
-      // if (readModelsResult.value.length) {
-      //   const currentModel = readModelsResult.value[0];
-
-      //   if (newParsedLogic !== currentModel.logic.parsedLogic) {
-      //     const updateModelResult = await this.#updateModel.execute(
-      //       { id: readModelsResult.value[0].id, parsedLogic: newParsedLogic },
-      //       { organizationId: 'todo' }
-      //     );
-
-      //     if (!updateModelResult.success)
-      //       throw new Error(readModelsResult.error);
-      //     if (!updateModelResult.value)
-      //       throw new Error('Update of model failed');
-
-      //     model = updateModelResult.value;
-      //   } else model = currentModel;
-      // } else {
-      const createModelResult: CreateModelResponse =
-        await this.#createModel.execute(
-          {
-            id: request.tableId,
-            location,
-            parsedLogic: newParsedLogic,
-            lineageId: lineage.id,
-          },
-          { organizationId: 'todo' }
-        );
-
-      if (!createModelResult.success) throw new Error(createModelResult.error);
-      if (!createModelResult.value) throw new Error('Creation of model failed');
-
-      const model = createModelResult.value;
-      // }
-
-      const name = this.#getTableName(model.logic.statementReferences);
+      await this.#setModel(request.tableId);
 
       // todo-Update logic only gets relevant once we provide real-time by checking dbt/Snowflake changelogs
 
@@ -231,125 +376,33 @@ export class CreateLineage
       // if (!readTablesResult.success) throw new Error(readModelsResult.error);
       // if (!readTablesResult.value) throw new Error('Reading tables failed');
 
-      const createTableResult = await this.#createTable.execute(
-        {
-          name,
-          modelId: model.id,
-          lineageId: lineage.id,
-        },
-        { organizationId: 'todo' }
-      );
+      await this.#setTable();
 
-      if (!createTableResult.success) throw new Error(createTableResult.error);
-      if (!createTableResult.value)
-        throw new SyntaxError(`Creation of table ${name} failed`);
-
-      const table = createTableResult.value;
+      if (!this.#model) throw new ReferenceError('Model property is undefined');
 
       const parentNames = this.#getParentTableNames(
-        model.logic.statementReferences
-      );
-
-      // todo - can this be async?
-      // todo - lineage nowhere stored and not returned for display. But in the end it is only columns and table object
-      await Promise.all(
-        parentNames.map(async (element) =>
-          this.execute(
-            {
-              tableId: element,
-              lineageId: lineage.id,
-              lineageCreatedAt: lineage.createdAt,
-            },
-            { organizationId: 'todo' }
-          )
-        )
+        this.#model.logic.statementReferences
       );
 
       const parentTableIds: string[] = [];
       if (parentNames.length) {
-        const readParentsResult = await this.#readTables.execute(
-          { name: parentNames, lineageId: lineage.id },
-          { organizationId: 'todo' }
-        );
+        await this.#createParents(parentNames);
 
-        if (!readParentsResult.success)
-          throw new Error(readParentsResult.error);
-        if (!readParentsResult.value)
-          throw new SyntaxError(`Creation of table ${name} failed`);
-
-        const parentTables = readParentsResult.value;
-
-        const tableMatches = parentNames.map(
-          (nameElement) =>
-            parentTables.filter(
-              (tableElement) => tableElement.name === nameElement
-            ).length
-        );
-
-        if (tableMatches.some((matches) => matches > 1))
-          throw new ReferenceError('Multiple tables for parent name found');
-        if (tableMatches.some((matches) => matches === 0))
-          throw new ReferenceError('No table for parent name found');
+        const parentTables = await this.#getParentTables(parentNames);
 
         const ids = parentTables.map((tableElement) => tableElement.id);
         parentTableIds.push(...ids);
       }
 
-      const tableColumnReferences = this.#getTableColumnReferences(
-        model.logic.statementReferences
-      );
-
-
-
-      const createColumnResults = await Promise.all(
-        tableColumnReferences.map(async (reference) =>{
-        if(reference.selfColumnReference[0].includes(SQLElement.WILDCARD_IDENTIFIER)){
-          if(parentTableIds.length !== 1) throw new ReferenceError('Wildcard - parent table mismatch');
-          const readColumnsResult = await this.#readColumns.execute({tableId: parentTableIds[0], lineageId: lineage.id}, {organizationId: 'todo'});
-
-          if (!readColumnsResult.success)
-          throw new Error(readColumnsResult.error);
-        if (!readColumnsResult.value)
-          throw new SyntaxError(`Creation of table ${name} failed`);
-
-          return Promise.all(readColumnsResult.value.map(column => this.#createColumn.execute(
-            {
-              selfReference: reference.selfColumnReference,
-              statementSourceReferences:
-                model.logic.statementReferences[reference.statementIndex],
-              tableId: table.id,
-              parentTableIds,
-              lineageId: lineage.id,
-            },
-            { organizationId: 'todo' }
-          )));
-
-        }
-        
-        return this.#createColumn.execute(
-          {
-            selfReference: reference.selfColumnReference,
-            statementSourceReferences:
-              model.logic.statementReferences[reference.statementIndex],
-            tableId: table.id,
-            parentTableIds,
-            lineageId: lineage.id,
-          },
-          { organizationId: 'todo' }
-        );
-        }
-        )
-      );
-
-      createColumnResults.forEach((result) => {
-        if (!result.success) throw new Error(result.error);
-        if (!result.value) throw new SyntaxError(`Creation of column failed`);
-      });
+      await this.#setColumns(parentTableIds);
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');
 
-      return Result.ok(buildLineageDto(lineage));
+      // todo - how to avoid checking if property exists. A sub-method created the property
+      if (!this.#lineage) throw new ReferenceError('Model property is undefined');
+
+      return Result.ok(buildLineageDto(this.#lineage));
     } catch (error: unknown) {
       if (typeof error === 'string') return Result.fail(error);
       if (error instanceof Error) return Result.fail(error.message);

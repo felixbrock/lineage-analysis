@@ -39,13 +39,13 @@ export class CreateColumn
       CreateColumnAuthDto
     >
 {
-  #columnRepo: IColumnRepo;
+  readonly #columnRepo: IColumnRepo;
 
-  #readColumns: ReadColumns;
+  readonly #readColumns: ReadColumns;
 
-  #readTables: ReadTables;
+  readonly #readTables: ReadTables;
 
-  #DependencyTypes = { SELECT: 'select', JOIN_CONDITION: 'join_condition' };
+  readonly #dependencyTypes = { SELECT: 'select', JOIN_CONDITION: 'join_condition' };
 
   #analyzeStatementReference = (
     potentialDependency: StatementReference,
@@ -105,7 +105,7 @@ export class CreateColumn
         dependencyName === selfReferenceName
       ) {
         result.isDependency = true;
-        result.type = this.#DependencyTypes.SELECT;
+        result.type = this.#dependencyTypes.SELECT;
 
         return result;
       }

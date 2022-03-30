@@ -17,7 +17,7 @@ export class ReadModel
   implements
     IUseCase<ReadModelRequestDto, ReadModelResponseDto, ReadModelAuthDto>
 {
-  #modelRepo: IModelRepo;
+  readonly #modelRepo: IModelRepo;
 
   constructor(modelRepo: IModelRepo) {
     this.#modelRepo = modelRepo;

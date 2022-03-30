@@ -22,11 +22,11 @@ export class UpdateModel
   implements
     IUseCase<UpdateModelRequestDto, UpdateModelResponseDto, UpdateModelAuthDto>
 {
-  #modelRepo: IModelRepo;
+  readonly #modelRepo: IModelRepo;
 
-  #readModel: ReadModel;
+  readonly #readModel: ReadModel;
 
-  #readModels: ReadModels;
+  readonly #readModels: ReadModels;
 
   constructor(
     modelRepo: IModelRepo,

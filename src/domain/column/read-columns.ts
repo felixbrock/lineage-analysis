@@ -20,7 +20,7 @@ export class ReadColumns
   implements
     IUseCase<ReadColumnsRequestDto, ReadColumnsResponseDto, ReadColumnsAuthDto>
 {
-  #columnRepo: IColumnRepo;
+  readonly #columnRepo: IColumnRepo;
 
   constructor(columnRepo: IColumnRepo) {
     this.#columnRepo = columnRepo;

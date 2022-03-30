@@ -15,9 +15,9 @@ import {
 } from '../../shared/base-controller';
 
 export default class CreateLineageController extends BaseController {
-  #createLineage: CreateLineage;
+  readonly #createLineage: CreateLineage;
 
-  #getAccounts: GetAccounts;
+  readonly #getAccounts: GetAccounts;
 
   constructor(createLineage: CreateLineage, getAccounts: GetAccounts) {
     super();

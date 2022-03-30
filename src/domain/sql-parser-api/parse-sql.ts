@@ -18,7 +18,7 @@ export type ParseSQLResponseDto = Result<ParsedSQLDto>;
 export class ParseSQL
   implements IUseCase<ParseSQLRequestDto, ParseSQLResponseDto, ParseSQLAuthDto>
 {
-  #sqlParserApiRepo: ISQLParserApiRepo;
+  readonly #sqlParserApiRepo: ISQLParserApiRepo;
 
   constructor(sqlParserApiRepo: ISQLParserApiRepo) {
     this.#sqlParserApiRepo = sqlParserApiRepo;

@@ -18,7 +18,7 @@ export class GetAccounts
   implements
     IUseCase<GetAccountsRequestDto, GetAccountsResponseDto, GetAccountsAuthDto>
 {
-  #accountApiRepo: IAccountApiRepo;
+  readonly #accountApiRepo: IAccountApiRepo;
 
   constructor(accountApiRepo: IAccountApiRepo) {
     this.#accountApiRepo = accountApiRepo;
