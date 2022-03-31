@@ -4,7 +4,11 @@ import { ObjectId } from 'mongodb';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import SQLElement from '../value-types/sql-element';
-import { CreateColumn, CreateColumnResponseDto, SelfColumnReference } from '../column/create-column';
+import {
+  CreateColumn,
+  CreateColumnResponseDto,
+  SelfColumnDefinition,
+} from '../column/create-column';
 import { CreateTable } from '../table/create-table';
 import { buildLineageDto, LineageDto } from './lineage-dto';
 import { CreateModel, CreateModelResponse } from '../model/create-model';
@@ -29,6 +33,10 @@ export interface CreateLineageAuthDto {
 }
 
 export type CreateLineageResponseDto = Result<LineageDto>;
+
+interface SelfColumnDefinitionStatement extends SelfColumnDefinition {
+  statementIndex: number;
+}
 
 export class CreateLineage
   implements
@@ -85,7 +93,8 @@ export class CreateLineage
     if (!this.#model) throw new ReferenceError('Model property is undefined');
 
     this.#model.logic.statementReferences.flat().forEach((element) => {
-      if (element.includes(tableSelfRef)) tableSelfSearchRes.push(element[1]);
+      if (element.path.includes(tableSelfRef))
+        tableSelfSearchRes.push(element.name);
     });
 
     if (tableSelfSearchRes.length > 1)
@@ -96,9 +105,9 @@ export class CreateLineage
     return tableSelfSearchRes[0];
   };
 
-  #getSelfColumnReferences = (
+  #getSelfColumnDefinitions = (
     statementReferences: StatementReference[][]
-  ): SelfColumnReference[] => {
+  ): SelfColumnDefinitionStatement[] => {
     const columnSelfRefs = [
       `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
       `${SQLElement.COLUMN_DEFINITION}.${SQLElement.IDENTIFIER}`,
@@ -106,23 +115,31 @@ export class CreateLineage
     ];
 
     let statementIndex = 0;
-    const selfColumnRefs: SelfColumnReference[] = [];
+    const selfColumnDefinition: SelfColumnDefinitionStatement[] = [];
     statementReferences.forEach((statement) => {
       statement.forEach((element) => {
-        const selfReferenceName = selfReference.name.includes('.')
-        ? selfReference.name.split('.').slice(-1)[0]
-        : selfReference.name;
-      const selfReferenceTable = selfReference.name.includes('.')
-        ? selfReference.name.split('.').slice(0)[0]
-        : '';
-        if (columnSelfRefs.some((ref) => element.path.includes(ref)))
-          selfColumnRefs.push({ selfColumnReference: element, statementIndex });
+        const selfReferenceName = element.name.includes('.')
+          ? element.name.split('.').slice(-1)[0]
+          : element.name;
+        const parentTableName = element.name.includes('.')
+          ? element.name.split('.').slice(0)[0]
+          : '';
+
+        if (columnSelfRefs.some((ref) => element.path.includes(ref))) {
+          const selfColumnRef: SelfColumnDefinitionStatement = {
+            name: selfReferenceName,
+            path: element.path,
+            statementIndex,
+          };
+          if (parentTableName) selfColumnRef.parentTableName = parentTableName;
+          selfColumnDefinition.push(selfColumnRef);
+        }
       });
 
       statementIndex += 1;
     });
 
-    return selfColumnRefs;
+    return selfColumnDefinition;
   };
 
   #getParentTableNames = (
@@ -136,7 +153,7 @@ export class CreateLineage
 
     const parentTableNames: string[] = [];
     statementReferences.flat().forEach((element) => {
-      if (tableSelfRefs.some((ref) => element.includes(ref))) return;
+      if (tableSelfRefs.some((ref) => element.path.includes(ref))) return;
 
       if (element.path.includes(SQLElement.TABLE_REFERENCE)) {
         if (!parentTableNames.includes(element.name))
@@ -279,7 +296,7 @@ export class CreateLineage
   };
 
   #createSelfColumns = async (
-    reference: SelfColumnReference,
+    definition: SelfColumnDefinitionStatement,
     parentTableIds: string[]
   ): Promise<CreateColumnResponseDto | CreateColumnResponseDto[]> => {
     if (!this.#lineage)
@@ -287,14 +304,12 @@ export class CreateLineage
     if (!this.#model) throw new ReferenceError('Model property is undefined');
     if (!this.#table) throw new ReferenceError('Table property is undefined');
 
-    if (
-      !reference.path.includes(SQLElement.WILDCARD_IDENTIFIER)
-    )
+    if (!definition.path.includes(SQLElement.WILDCARD_IDENTIFIER))
       return this.#createColumn.execute(
         {
-          selfReference: reference,
+          definition,
           statementSourceReferences:
-            this.#model.logic.statementReferences[reference.statementIndex],
+            this.#model.logic.statementReferences[definition.statementIndex],
           tableId: this.#table.id,
           parentTableIds,
           lineageId: this.#lineage.id,
@@ -324,9 +339,13 @@ export class CreateLineage
 
         return this.#createColumn.execute(
           {
-            selfReference: [reference.path, column.name],
+            definition: {
+              name: column.name,
+              path: definition.path,
+              parentTableName: definition.parentTableName,
+            },
             statementSourceReferences:
-              this.#model.logic.statementReferences[reference.statementIndex],
+              this.#model.logic.statementReferences[definition.statementIndex],
             tableId: this.#table.id,
             parentTableIds,
             lineageId: this.#lineage.id,
@@ -342,7 +361,7 @@ export class CreateLineage
   #setColumns = async (parentTableIds: string[]): Promise<void> => {
     if (!this.#model) throw new ReferenceError('Model property is undefined');
 
-    const selfColumnReferences = this.#getSelfColumnReferences(
+    const selfColumnReferences = this.#getSelfColumnDefinitions(
       this.#model.logic.statementReferences
     );
 

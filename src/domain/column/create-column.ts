@@ -10,8 +10,8 @@ import { DependencyProperties, Direction } from '../value-types/dependency';
 import { StatementReference } from '../value-types/logic';
 
 export interface CreateColumnRequestDto {
+  definition: SelfColumnDefinition,
   tableId: string;
-  selfReference: SelfColumnReference;
   statementSourceReferences: StatementReference[];
   parentTableIds: string[];
   lineageId: string;
@@ -21,14 +21,12 @@ export interface CreateColumnAuthDto {
   organizationId: string;
 }
 
-export interface SelfColumnReference {
-  columnName: string;
-  tableName?: string;
-  path: string;
-  statementIndex: number;
-}
-
 export type CreateColumnResponseDto = Result<Column>;
+
+export interface SelfColumnDefinition extends StatementReference {
+  parentTableName?: string;
+  path: string;
+}
 
 interface DependencyAnalysisResult {
   path: string;
@@ -59,6 +57,7 @@ export class CreateColumn
 
   readonly #dependencyTypes = {
     SELECT: 'select',
+    SELECT_WILDCARD: 'select_wildcard',
     JOIN_CONDITION: 'join_condition',
   };
 
@@ -73,15 +72,8 @@ export class CreateColumn
 
   #analyzeStatementReference = (
     potentialDependency: StatementReference,
-    selfReference: StatementReference
+    selfDefinition: SelfColumnDefinition
   ): DependencyAnalysisResult => {
-    const selfReferencePath = selfReference.path;
-    // const selfReferenceName = selfReference.name.includes('.')
-    //   ? selfReference.name.split('.').slice(-1)[0]
-    //   : selfReference.name;
-    // const selfReferenceTable = selfReference.name.includes('.')
-    //   ? selfReference.name.split('.').slice(0)[0]
-    //   : '';
 
     const dependencyPath = potentialDependency.path;
     const dependencyName = potentialDependency.name.includes('.')
@@ -92,7 +84,7 @@ export class CreateColumn
       : '';
 
     const dependencyStatementRoot = this.#getStatementRoot(dependencyPath);
-    const selfStatementRoot = this.#getStatementRoot(selfReferencePath);
+    const selfStatementRoot = this.#getStatementRoot(selfDefinition.path);
 
     const isStatementDependency =
       !dependencyPath.includes(SQLElement.INSERT_STATEMENT) &&
@@ -108,14 +100,16 @@ export class CreateColumn
 
     if (!isStatementDependency) return resultObj;
 
-    if (selfReferenceTable) resultObj.tableName = dependencyTable;
+    if (selfDefinition.parentTableName) resultObj.tableName = dependencyTable;
     else if (dependencyTable) resultObj.tableName = dependencyTable;
 
-    if (selfReferencePath.includes(SQLElement.SELECT_CLAUSE_ELEMENT)) {
+   if (selfDefinition.path.includes(SQLElement.SELECT_CLAUSE_ELEMENT)) {
       // todo - future use-cases will be added
+
+      xxxxxxxxxxxxxxxxxxxxxxxxx
       if (
         dependencyPath.includes(SQLElement.SELECT_CLAUSE_ELEMENT) &&
-        dependencyName === selfReferenceName
+        dependencyName === selfDefinition.name
       ) {
         resultObj.isDependency = true;
         resultObj.type = this.#dependencyTypes.SELECT;
@@ -247,14 +241,14 @@ export class CreateColumn
   };
 
   #getDependencyPrototypes = async (
-    selfColumnReference: StatementReference,
+    defninition: SelfColumnDefinition,
     statementReferences: StatementReference[],
     parentTableIds: string[],
     lineageId: string
   ): Promise<DependencyProperties[]> => {
     const dependencyReferences = statementReferences
       .map((reference) =>
-        this.#analyzeStatementReference(reference, selfColumnReference)
+        this.#analyzeStatementReference(reference, defninition)
       )
       .filter((result) => result.isDependency);
 
@@ -351,7 +345,7 @@ export class CreateColumn
   ): Promise<CreateColumnResponseDto> {
     try {
       const dependencyPrototypes = await this.#getDependencyPrototypes(
-        request.selfReference,
+        request.definition,
         request.statementSourceReferences,
         request.parentTableIds,
         request.lineageId
@@ -359,7 +353,7 @@ export class CreateColumn
 
       const column = Column.create({
         id: new ObjectId().toHexString(),
-        name: request.selfReference.columnName,
+        name: request.definition.name,
         tableId: request.tableId,
         dependencyPrototypes,
         lineageId: request.lineageId,
@@ -367,7 +361,7 @@ export class CreateColumn
 
       const readColumnsResult = await this.#readColumns.execute(
         {
-          name: request.selfReference.columnName,
+          name: request.definition.name,
           tableId: request.tableId,
           lineageId: request.lineageId,
         },
