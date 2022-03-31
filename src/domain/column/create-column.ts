@@ -11,7 +11,7 @@ import { StatementReference } from '../value-types/logic';
 
 export interface CreateColumnRequestDto {
   tableId: string;
-  selfReference: StatementReference;
+  selfReference: SelfColumnReference;
   statementSourceReferences: StatementReference[];
   parentTableIds: string[];
   lineageId: string;
@@ -19,6 +19,13 @@ export interface CreateColumnRequestDto {
 
 export interface CreateColumnAuthDto {
   organizationId: string;
+}
+
+export interface SelfColumnReference {
+  columnName: string;
+  tableName?: string;
+  path: string;
+  statementIndex: number;
 }
 
 export type CreateColumnResponseDto = Result<Column>;
@@ -68,15 +75,20 @@ export class CreateColumn
     potentialDependency: StatementReference,
     selfReference: StatementReference
   ): DependencyAnalysisResult => {
-    const selfReferencePath = selfReference[0];
-    const selfReferenceName = selfReference[1];
+    const selfReferencePath = selfReference.path;
+    // const selfReferenceName = selfReference.name.includes('.')
+    //   ? selfReference.name.split('.').slice(-1)[0]
+    //   : selfReference.name;
+    // const selfReferenceTable = selfReference.name.includes('.')
+    //   ? selfReference.name.split('.').slice(0)[0]
+    //   : '';
 
-    const dependencyPath = potentialDependency[0];
-    const dependencyName = potentialDependency[1].includes('.')
-      ? potentialDependency[1].split('.').slice(-1)[0]
-      : potentialDependency[1];
-    const dependencyTable = potentialDependency[1].includes('.')
-      ? potentialDependency[1].split('.').slice(0)[0]
+    const dependencyPath = potentialDependency.path;
+    const dependencyName = potentialDependency.name.includes('.')
+      ? potentialDependency.name.split('.').slice(-1)[0]
+      : potentialDependency.name;
+    const dependencyTable = potentialDependency.name.includes('.')
+      ? potentialDependency.name.split('.').slice(0)[0]
       : '';
 
     const dependencyStatementRoot = this.#getStatementRoot(dependencyPath);
@@ -96,7 +108,8 @@ export class CreateColumn
 
     if (!isStatementDependency) return resultObj;
 
-    if (dependencyTable) resultObj.tableName = dependencyTable;
+    if (selfReferenceTable) resultObj.tableName = dependencyTable;
+    else if (dependencyTable) resultObj.tableName = dependencyTable;
 
     if (selfReferencePath.includes(SQLElement.SELECT_CLAUSE_ELEMENT)) {
       // todo - future use-cases will be added
@@ -212,7 +225,7 @@ export class CreateColumn
     ) {
       const fromTables = statementReferences.filter((element) =>
         [SQLElement.FROM_EXPRESSION_ELEMENT, SQLElement.TABLE_REFERENCE].every(
-          (key) => element[0].includes(key)
+          (key) => element.path.includes(key)
         )
       );
 
@@ -222,7 +235,7 @@ export class CreateColumn
         throw new ReferenceError("'From' table not found");
 
       const dependencySource = await this.#getColumnSourceOfTable(
-        fromTables[0][1],
+        fromTables[0].name,
         columnName,
         columnsToClarify,
         lineageId
@@ -296,10 +309,14 @@ export class CreateColumn
       )
     );
 
-    const finalMatches = matches.filter((match) => match.referenceColumnRatio === 1);
+    const finalMatches = matches.filter(
+      (match) => match.referenceColumnRatio === 1
+    );
     const matchedColumns = potentialColumnDependencies.filter(
       (column) =>
-        finalMatches.filter((match) => match.analysisResult.columnName === column.name).length
+        finalMatches.filter(
+          (match) => match.analysisResult.columnName === column.name
+        ).length
     );
 
     const dependencyPropertyObjs: DependencyProperties[] = [];
@@ -342,7 +359,7 @@ export class CreateColumn
 
       const column = Column.create({
         id: new ObjectId().toHexString(),
-        name: request.selfReference[1],
+        name: request.selfReference.columnName,
         tableId: request.tableId,
         dependencyPrototypes,
         lineageId: request.lineageId,
@@ -350,7 +367,7 @@ export class CreateColumn
 
       const readColumnsResult = await this.#readColumns.execute(
         {
-          name: request.selfReference[1],
+          name: request.selfReference.columnName,
           tableId: request.tableId,
           lineageId: request.lineageId,
         },

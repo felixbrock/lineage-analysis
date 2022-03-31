@@ -1,6 +1,9 @@
 import SQLElement from './sql-element';
 
-export type StatementReference = [string, string];
+export interface StatementReference {
+  path: string;
+  name: string;
+}
 
 interface LogicProperties {
   parsedLogic: string;
@@ -35,51 +38,87 @@ export class Logic {
     return newPath;
   };
 
+  static #handleWildCard = (
+    key: string,
+    value: { [key: string]: any },
+    referencePath: string
+  ): StatementReference => {
+    const wildcardElementKeys = Object.keys(value);
+
+    const isDotNoation = [
+      SQLElement.WILDCARD_IDENTIFIER_DOT,
+      SQLElement.WILDCARD_IDENTIFIER_IDENTIFIER,
+      SQLElement.WILDCARD_IDENTIFIER_STAR,
+    ].every((wildcardElementKey) =>
+      wildcardElementKeys.includes(wildcardElementKey)
+    );
+
+    if (isDotNoation)
+      return {
+        path: this.#appendPath(key, referencePath),
+        name: `${value[SQLElement.WILDCARD_IDENTIFIER_IDENTIFIER]}${
+          value[SQLElement.WILDCARD_IDENTIFIER_DOT]
+        }${value[SQLElement.WILDCARD_IDENTIFIER_STAR]}`,
+      };
+    if (
+      wildcardElementKeys.length === 1 &&
+      wildcardElementKeys.includes(SQLElement.WILDCARD_IDENTIFIER_STAR)
+    )
+      return {
+        path: this.#appendPath(key, referencePath),
+        name: value[SQLElement.WILDCARD_IDENTIFIER_STAR],
+      };
+    throw new SyntaxError('Unhandled wildcard-dict use-case');
+  };
+
+  static #handleColumn = (
+    key: string,
+    value: { [key: string]: any }[],
+    referencePath: string,
+    targetKey: string
+  ): StatementReference => {
+    let valuePath = '';
+    let keyPath = '';
+    value.forEach((valueElement: { [key: string]: any }) => {
+      const dependencies = this.#extractstatementReferences(
+        targetKey,
+        valueElement,
+        this.#appendPath(key, referencePath)
+      );
+      dependencies.forEach((dependencyElement) => {
+        valuePath = this.#appendPath(dependencyElement.name, valuePath);
+        keyPath = dependencyElement.path;
+      });
+    });
+    return { path: keyPath, name: valuePath };
+  };
+
   static #extractstatementReferences = (
     targetKey: string,
     parsedSQL: { [key: string]: any },
     path = ''
   ): StatementReference[] => {
     let referencePath = path;
-    const statementReferencesObj: StatementReference[] = [];
+    const statementReferences: StatementReference[] = [];
 
     Object.entries(parsedSQL).forEach((parsedSQLElement) => {
       const key = parsedSQLElement[0];
       const value = parsedSQLElement[1];
 
       if (key === targetKey)
-        statementReferencesObj.push([
-          this.#appendPath(key, referencePath),
-          value,
-        ]);
+        statementReferences.push({
+          path: this.#appendPath(key, referencePath),
+          name: value,
+        });
       else if (key === SQLElement.KEYWORD && value === SQLElement.KEYWORD_AS)
         referencePath = this.#appendPath(value, referencePath);
 
       // check if value is dictionary
       if (value.constructor === Object) {
         if (key === SQLElement.WILDCARD_IDENTIFIER) {
-          const wildcardElementKeys = Object.keys(value);
-
-          const isDotNoation = [
-            SQLElement.WILDCARD_IDENTIFIER_DOT,
-              SQLElement.WILDCARD_IDENTIFIER_IDENTIFIER,
-              SQLElement.WILDCARD_IDENTIFIER_STAR,
-          ].every((wildcardElementKey) => wildcardElementKeys.includes(wildcardElementKey));
-          if (isDotNoation)
-            statementReferencesObj.push([
-              this.#appendPath(key, referencePath),
-              `${value[SQLElement.WILDCARD_IDENTIFIER_IDENTIFIER]}${
-                value[SQLElement.WILDCARD_IDENTIFIER_DOT]
-              }${value[SQLElement.WILDCARD_IDENTIFIER_STAR]}`,
-            ]);
-          else if (
-            wildcardElementKeys.length === 1 &&
-            wildcardElementKeys.includes(SQLElement.WILDCARD_IDENTIFIER_STAR)
-          )
-            statementReferencesObj.push([
-              this.#appendPath(key, referencePath),
-              value[SQLElement.WILDCARD_IDENTIFIER_STAR],
-            ]);
+          statementReferences.push(
+            this.#handleWildCard(key, value, referencePath)
+          );
         } else {
           const dependencies = this.#extractstatementReferences(
             targetKey,
@@ -87,25 +126,14 @@ export class Logic {
             this.#appendPath(key, referencePath)
           );
           dependencies.forEach((dependencyElement) =>
-            statementReferencesObj.push(dependencyElement)
+            statementReferences.push(dependencyElement)
           );
         }
       } else if (Object.prototype.toString.call(value) === '[object Array]') {
         if (key === SQLElement.COLUMN_REFERENCE) {
-          let valuePath = '';
-          let keyPath = '';
-          value.forEach((valueElement: { [key: string]: any }) => {
-            const dependencies = this.#extractstatementReferences(
-              targetKey,
-              valueElement,
-              this.#appendPath(key, referencePath)
-            );
-            dependencies.forEach((dependencyElement: [string, string]) => {
-              valuePath = this.#appendPath(dependencyElement[1], valuePath);
-              [keyPath] = dependencyElement;
-            });
-          });
-          statementReferencesObj.push([keyPath, valuePath]);
+          statementReferences.push(
+            this.#handleColumn(key, value, referencePath, targetKey)
+          );
         } else {
           value.forEach((valueElement: { [key: string]: any }) => {
             const dependencies = this.#extractstatementReferences(
@@ -114,14 +142,14 @@ export class Logic {
               this.#appendPath(key, referencePath)
             );
             dependencies.forEach((dependencyElement) =>
-              statementReferencesObj.push(dependencyElement)
+              statementReferences.push(dependencyElement)
             );
           });
         }
       }
     });
 
-    return statementReferencesObj;
+    return statementReferences;
   };
 
   static #getstatementReferences = (fileObj: any): StatementReference[][] => {
