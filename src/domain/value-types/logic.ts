@@ -1,8 +1,16 @@
 import SQLElement from './sql-element';
 
+export enum ReferenceType {
+  TABLE = 'TABLE',
+  COLUMN = 'COLUMN',
+  WILDCARD = 'WILDCARD',
+}
+
 export interface StatementReference {
   path: string;
-  name: string;
+  type: ReferenceType;
+  columnName?: string;
+  tableName?: string;
 }
 
 interface LogicProperties {
@@ -12,6 +20,12 @@ interface LogicProperties {
 
 export interface LogicPrototype {
   parsedLogic: string;
+}
+
+interface HandlerProperties<T> {
+  key: string;
+  value: T;
+  referencePath: string;
 }
 
 export class Logic {
@@ -38,12 +52,34 @@ export class Logic {
     return newPath;
   };
 
-  static #handleWildCard = (
-    key: string,
-    value: { [key: string]: any },
-    referencePath: string
+  static #handleIdentifierRef = (
+    props: HandlerProperties<string>
   ): StatementReference => {
-    const wildcardElementKeys = Object.keys(value);
+    const type = props.referencePath.includes(SQLElement.TABLE_REFERENCE)
+      ? ReferenceType.TABLE
+      : ReferenceType.COLUMN;
+
+    const columnValueReference =
+      type === ReferenceType.COLUMN
+        ? this.#getColumnValueReference(props.value)
+        : undefined;
+
+    return {
+      path: this.#appendPath(props.key, props.referencePath),
+      type,
+      columnName: columnValueReference
+        ? columnValueReference.columnName
+        : props.value,
+      tableName: columnValueReference
+        ? columnValueReference.tableName
+        : props.value,
+    };
+  };
+
+  static #handleWildCardRef = (
+    props: HandlerProperties<{ [key: string]: any }>
+  ): StatementReference => {
+    const wildcardElementKeys = Object.keys(props.value);
 
     const isDotNoation = [
       SQLElement.WILDCARD_IDENTIFIER_DOT,
@@ -55,7 +91,7 @@ export class Logic {
 
     if (isDotNoation)
       return {
-        path: this.#appendPath(key, referencePath),
+        path: this.#appendPath(props.key, props.referencePath),
         name: `${value[SQLElement.WILDCARD_IDENTIFIER_IDENTIFIER]}${
           value[SQLElement.WILDCARD_IDENTIFIER_DOT]
         }${value[SQLElement.WILDCARD_IDENTIFIER_STAR]}`,
@@ -65,27 +101,23 @@ export class Logic {
       wildcardElementKeys.includes(SQLElement.WILDCARD_IDENTIFIER_STAR)
     )
       return {
-        path: this.#appendPath(key, referencePath),
+        path: this.#appendPath(props.key, props.referencePath),
         name: value[SQLElement.WILDCARD_IDENTIFIER_STAR],
       };
     throw new SyntaxError('Unhandled wildcard-dict use-case');
   };
 
-  static #handleColumn = (
-    key: string,
-    value: { [key: string]: any }[],
-    referencePath: string,
-    targetKey: string
+  static #handleColumnRef = (
+    props: HandlerProperties<{ [key: string]: any }[]>
   ): StatementReference => {
     let valuePath = '';
     let keyPath = '';
-    value.forEach((valueElement: { [key: string]: any }) => {
-      const dependencies = this.#extractstatementReferences(
-        targetKey,
+    props.value.forEach((valueElement) => {
+      const subStatementReferences = this.#extractstatementReferences(
         valueElement,
-        this.#appendPath(key, referencePath)
+        this.#appendPath(props.key, props.referencePath)
       );
-      dependencies.forEach((dependencyElement) => {
+      subStatementReferences.forEach((dependencyElement) => {
         valuePath = this.#appendPath(dependencyElement.name, valuePath);
         keyPath = dependencyElement.path;
       });
@@ -93,8 +125,20 @@ export class Logic {
     return { path: keyPath, name: valuePath };
   };
 
+  static #getColumnValueReference = (
+    columnValue: string
+  ): { columnName?: string; tableName?: string } => {
+    const columnName = columnValue.includes('.')
+      ? columnValue.split('.').slice(-1)[0]
+      : columnValue;
+    const tableName = columnValue.includes('.')
+      ? columnValue.split('.').slice(0)[0]
+      : '';
+
+    return { columnName, tableName };
+  };
+
   static #extractstatementReferences = (
-    targetKey: string,
     parsedSQL: { [key: string]: any },
     path = ''
   ): StatementReference[] => {
@@ -105,50 +149,44 @@ export class Logic {
       const key = parsedSQLElement[0];
       const value = parsedSQLElement[1];
 
-      if (key === targetKey)
-        statementReferences.push({
-          path: this.#appendPath(key, referencePath),
-          name: value,
-        });
-      else if (key === SQLElement.KEYWORD && value === SQLElement.KEYWORD_AS)
-        referencePath = this.#appendPath(value, referencePath);
+      referencePath =
+        key === SQLElement.KEYWORD && value === SQLElement.KEYWORD_AS
+          ? this.#appendPath(value, referencePath)
+          : referencePath;
 
-      // check if value is dictionary
-      if (value.constructor === Object) {
-        if (key === SQLElement.WILDCARD_IDENTIFIER) {
+      if (key === SQLElement.IDENTIFIER)
+        statementReferences.push(
+          this.#handleIdentifierRef({ key, value, referencePath })
+        );
+      else if (key === SQLElement.WILDCARD_IDENTIFIER)
+        statementReferences.push(
+          this.#handleWildCardRef({ key, value, referencePath })
+        );
+      else if (key === SQLElement.COLUMN_REFERENCE) {
+        if (Object.prototype.toString.call(value) === '[object Array]')
           statementReferences.push(
-            this.#handleWildCard(key, value, referencePath)
+            this.#handleColumnRef({ key, value, referencePath })
           );
-        } else {
-          const dependencies = this.#extractstatementReferences(
-            targetKey,
-            value,
+      } else if (value.constructor === Object) {
+        const subStatementReferences = this.#extractstatementReferences(
+          value,
+          this.#appendPath(key, referencePath)
+        );
+        subStatementReferences.forEach((dependencyElement) =>
+          statementReferences.push(dependencyElement)
+        );
+      } else if (Object.prototype.toString.call(value) === '[object Array]') {
+        value.forEach((valueElement: { [key: string]: any }) => {
+          const subStatementReferences = this.#extractstatementReferences(
+            valueElement,
             this.#appendPath(key, referencePath)
           );
-          dependencies.forEach((dependencyElement) =>
+          subStatementReferences.forEach((dependencyElement) =>
             statementReferences.push(dependencyElement)
           );
-        }
-      } else if (Object.prototype.toString.call(value) === '[object Array]') {
-        if (key === SQLElement.COLUMN_REFERENCE) {
-          statementReferences.push(
-            this.#handleColumn(key, value, referencePath, targetKey)
-          );
-        } else {
-          value.forEach((valueElement: { [key: string]: any }) => {
-            const dependencies = this.#extractstatementReferences(
-              targetKey,
-              valueElement,
-              this.#appendPath(key, referencePath)
-            );
-            dependencies.forEach((dependencyElement) =>
-              statementReferences.push(dependencyElement)
-            );
-          });
-        }
+        });
       }
     });
-
     return statementReferences;
   };
 

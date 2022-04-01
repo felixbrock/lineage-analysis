@@ -23,10 +23,9 @@ export interface CreateColumnAuthDto {
 
 export type CreateColumnResponseDto = Result<Column>;
 
-export interface SelfColumnDefinition extends StatementReference {
-  parentTableName?: string;
-  path: string;
-}
+// export interface SelfColumnDefinition extends StatementReference {
+//   parentTableName?: string;
+// }
 
 interface DependencyAnalysisResult {
   path: string;
