@@ -22,9 +22,9 @@ export interface LogicPrototype {
   parsedLogic: string;
 }
 
-interface HandlerProperties<T> {
+interface HandlerProperties<ValueType> {
   key: string;
-  value: T;
+  value: ValueType;
   referencePath: string;
 }
 
@@ -92,9 +92,8 @@ export class Logic {
     if (isDotNoation)
       return {
         path: this.#appendPath(props.key, props.referencePath),
-        name: `${value[SQLElement.WILDCARD_IDENTIFIER_IDENTIFIER]}${
-          value[SQLElement.WILDCARD_IDENTIFIER_DOT]
-        }${value[SQLElement.WILDCARD_IDENTIFIER_STAR]}`,
+        type: ReferenceType.WILDCARD,
+        tableName: props.value[SQLElement.WILDCARD_IDENTIFIER_STAR],
       };
     if (
       wildcardElementKeys.length === 1 &&
@@ -102,27 +101,37 @@ export class Logic {
     )
       return {
         path: this.#appendPath(props.key, props.referencePath),
-        name: value[SQLElement.WILDCARD_IDENTIFIER_STAR],
+        type: ReferenceType.WILDCARD,
       };
     throw new SyntaxError('Unhandled wildcard-dict use-case');
   };
 
   static #handleColumnRef = (
-    props: HandlerProperties<{ [key: string]: any }[]>
+    props: HandlerProperties<{ [key: string]: string }[]>
   ): StatementReference => {
-    let valuePath = '';
-    let keyPath = '';
-    props.value.forEach((valueElement) => {
-      const subStatementReferences = this.#extractstatementReferences(
-        valueElement,
-        this.#appendPath(props.key, props.referencePath)
+    const subStatementReferences = props.value
+      .map((valueElement) =>
+        this.#extractstatementReferences(
+          valueElement,
+          this.#appendPath(props.key, props.referencePath)
+        )
+      )
+      .flat();
+
+    if (!subStatementReferences.length)
+      throw new RangeError(
+        'Array based column statement does not have any elements'
       );
-      subStatementReferences.forEach((dependencyElement) => {
-        valuePath = this.#appendPath(dependencyElement.name, valuePath);
-        keyPath = dependencyElement.path;
-      });
-    });
-    return { path: keyPath, name: valuePath };
+
+    const elements = subStatementReferences.map(
+      (statement) => statement.columnName
+    );
+
+    return {
+      path: subStatementReferences[0].path,
+      type: ReferenceType.COLUMN,
+      columnName: elements.join('.'),
+    };
   };
 
   static #getColumnValueReference = (
@@ -198,7 +207,6 @@ export class Logic {
       fileObj[SQLElement.STATEMENT] !== undefined
     ) {
       const statementReferencesObj = this.#extractstatementReferences(
-        SQLElement.IDENTIFIER,
         fileObj[SQLElement.STATEMENT]
       );
       statementReferences.push(statementReferencesObj);
@@ -207,7 +215,6 @@ export class Logic {
         .filter((statement: any) => SQLElement.STATEMENT in statement)
         .forEach((statement: any) => {
           const statementReferencesObj = this.#extractstatementReferences(
-            SQLElement.IDENTIFIER,
             statement[SQLElement.STATEMENT]
           );
           statementReferences.push(statementReferencesObj);
