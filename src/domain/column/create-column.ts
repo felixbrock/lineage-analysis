@@ -10,7 +10,7 @@ import { DependencyProperties, Direction } from '../value-types/dependency';
 import { StatementReference } from '../value-types/logic';
 
 export interface CreateColumnRequestDto {
-  definition: SelfColumnDefinition,
+  selfRef: StatementReference;
   tableId: string;
   statementSourceReferences: StatementReference[];
   parentTableIds: string[];
@@ -27,12 +27,8 @@ export type CreateColumnResponseDto = Result<Column>;
 //   parentTableName?: string;
 // }
 
-interface DependencyAnalysisResult {
-  path: string;
-  columnName: string;
-  tableName?: string;
+interface DependencyAnalysisResult extends StatementReference {
   isDependency: boolean;
-  type?: string;
 }
 
 interface Match {
@@ -54,12 +50,6 @@ export class CreateColumn
 
   readonly #readTables: ReadTables;
 
-  readonly #dependencyTypes = {
-    SELECT: 'select',
-    SELECT_WILDCARD: 'select_wildcard',
-    JOIN_CONDITION: 'join_condition',
-  };
-
   #getStatementRoot = (path: string): string => {
     const lastIndexStatementRoot = path.lastIndexOf(SQLElement.STATEMENT);
     if (lastIndexStatementRoot === -1 || !lastIndexStatementRoot)
@@ -71,48 +61,37 @@ export class CreateColumn
 
   #analyzeStatementReference = (
     potentialDependency: StatementReference,
-    selfDefinition: SelfColumnDefinition
+    selfRef: StatementReference
   ): DependencyAnalysisResult => {
-
-    const dependencyPath = potentialDependency.path;
-    const dependencyName = potentialDependency.name.includes('.')
-      ? potentialDependency.name.split('.').slice(-1)[0]
-      : potentialDependency.name;
-    const dependencyTable = potentialDependency.name.includes('.')
-      ? potentialDependency.name.split('.').slice(0)[0]
-      : '';
-
-    const dependencyStatementRoot = this.#getStatementRoot(dependencyPath);
-    const selfStatementRoot = this.#getStatementRoot(selfDefinition.path);
+    const dependencyStatementRoot = this.#getStatementRoot(
+      potentialDependency.path
+    );
+    const selfStatementRoot = this.#getStatementRoot(selfRef.path);
 
     const isStatementDependency =
-      !dependencyPath.includes(SQLElement.INSERT_STATEMENT) &&
-      !dependencyPath.includes(SQLElement.COLUMN_DEFINITION) &&
+      !potentialDependency.path.includes(SQLElement.INSERT_STATEMENT) &&
+      !potentialDependency.path.includes(SQLElement.COLUMN_DEFINITION) &&
       dependencyStatementRoot === selfStatementRoot &&
-      dependencyPath.includes(SQLElement.COLUMN_REFERENCE);
+      potentialDependency.path.includes(SQLElement.COLUMN_REFERENCE);
 
     const resultObj: DependencyAnalysisResult = {
-      path: dependencyPath,
-      columnName: dependencyName,
+      ...potentialDependency,
       isDependency: false,
     };
 
     if (!isStatementDependency) return resultObj;
 
-    if (selfDefinition.parentTableName) resultObj.tableName = dependencyTable;
-    else if (dependencyTable) resultObj.tableName = dependencyTable;
+    if (!resultObj.tableName && selfRef.tableName)
+      resultObj.tableName = selfRef.tableName;
 
-   if (selfDefinition.path.includes(SQLElement.SELECT_CLAUSE_ELEMENT)) {
+    if (selfRef.path.includes(SQLElement.SELECT_CLAUSE_ELEMENT)) {
       // todo - future use-cases will be added
-
-      xxxxxxxxxxxxxxxxxxxxxxxxx
       if (
-        dependencyPath.includes(SQLElement.SELECT_CLAUSE_ELEMENT) &&
-        dependencyName === selfDefinition.name
+        potentialDependency.path.includes(SQLElement.SELECT_CLAUSE_ELEMENT) &&
+        selfRef.columnName &&
+        selfRef.columnName === potentialDependency.columnName
       ) {
         resultObj.isDependency = true;
-        resultObj.type = this.#dependencyTypes.SELECT;
-
         return resultObj;
       }
     }
@@ -204,6 +183,8 @@ export class CreateColumn
   ): Promise<Column> => {
     const { columnName, tableName } = match.analysisResult;
 
+    if (!columnName) throw new ReferenceError('Name of column to be clarified');
+
     if (tableName) {
       const dependencySource = await this.#getColumnSourceOfTable(
         tableName,
@@ -226,9 +207,13 @@ export class CreateColumn
         throw new ReferenceError("Multiple 'from' tables identified");
       if (!fromTables.length)
         throw new ReferenceError("'From' table not found");
+      if (!fromTables[0].tableName)
+        throw new ReferenceError(
+          'table name of TABLE reference does not exist'
+        );
 
       const dependencySource = await this.#getColumnSourceOfTable(
-        fromTables[0].name,
+        fromTables[0].tableName,
         columnName,
         columnsToClarify,
         lineageId
@@ -240,22 +225,22 @@ export class CreateColumn
   };
 
   #getDependencyPrototypes = async (
-    defninition: SelfColumnDefinition,
+    selfRef: StatementReference,
     statementReferences: StatementReference[],
     parentTableIds: string[],
     lineageId: string
   ): Promise<DependencyProperties[]> => {
     const dependencyReferences = statementReferences
-      .map((reference) =>
-        this.#analyzeStatementReference(reference, defninition)
-      )
+      .map((reference) => this.#analyzeStatementReference(reference, selfRef))
       .filter((result) => result.isDependency);
 
     if (!dependencyReferences.length) return [];
 
-    const columnDependencyNames = dependencyReferences.map(
-      (reference) => reference.columnName
-    );
+    const columnDependencyNames = dependencyReferences.map((reference) => {
+      if (!reference.columnName)
+        throw new ReferenceError('COLUMN reference is missing name');
+      return reference.columnName;
+    });
 
     const potentialColumnDependencies =
       await this.#getPotentialColumnDependencies(
@@ -344,15 +329,18 @@ export class CreateColumn
   ): Promise<CreateColumnResponseDto> {
     try {
       const dependencyPrototypes = await this.#getDependencyPrototypes(
-        request.definition,
+        request.selfRef,
         request.statementSourceReferences,
         request.parentTableIds,
         request.lineageId
       );
 
+      if (!request.selfRef.columnName)
+        throw new ReferenceError('Name of column to be created is undefined');
+
       const column = Column.create({
         id: new ObjectId().toHexString(),
-        name: request.definition.name,
+        name: request.selfRef.columnName,
         tableId: request.tableId,
         dependencyPrototypes,
         lineageId: request.lineageId,
@@ -360,7 +348,7 @@ export class CreateColumn
 
       const readColumnsResult = await this.#readColumns.execute(
         {
-          name: request.definition.name,
+          name: request.selfRef.columnName,
           tableId: request.tableId,
           lineageId: request.lineageId,
         },
@@ -373,8 +361,6 @@ export class CreateColumn
         throw new Error(`Column for table already exists`);
 
       await this.#columnRepo.insertOne(column);
-
-      // todo-write to persistence
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');

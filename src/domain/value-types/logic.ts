@@ -64,15 +64,19 @@ export class Logic {
         ? this.#getColumnValueReference(props.value)
         : undefined;
 
+    let columnName;
+    if (columnValueReference) columnName = columnValueReference.columnName;
+    else if (type === ReferenceType.COLUMN) columnName = props.value;
+
+    let tableName;
+    if (columnValueReference) tableName = columnValueReference.tableName;
+    else if (type === ReferenceType.TABLE) tableName = props.value;
+
     return {
       path: this.#appendPath(props.key, props.referencePath),
       type,
-      columnName: columnValueReference
-        ? columnValueReference.columnName
-        : props.value,
-      tableName: columnValueReference
-        ? columnValueReference.tableName
-        : props.value,
+      columnName,
+      tableName,
     };
   };
 
@@ -127,10 +131,14 @@ export class Logic {
       (statement) => statement.columnName
     );
 
+    if (!elements.length)
+      throw new RangeError('Column reference value elements not found');
+
     return {
       path: subStatementReferences[0].path,
       type: ReferenceType.COLUMN,
-      columnName: elements.join('.'),
+      tableName: elements.length > 1 ? elements[0] : undefined,
+      columnName: elements.length > 1 ? elements[1] : elements[0],
     };
   };
 
@@ -171,29 +179,30 @@ export class Logic {
         statementReferences.push(
           this.#handleWildCardRef({ key, value, referencePath })
         );
-      else if (key === SQLElement.COLUMN_REFERENCE) {
-        if (Object.prototype.toString.call(value) === '[object Array]')
-          statementReferences.push(
-            this.#handleColumnRef({ key, value, referencePath })
-          );
-      } else if (value.constructor === Object) {
+
+      if (value.constructor === Object) {
         const subStatementReferences = this.#extractstatementReferences(
           value,
           this.#appendPath(key, referencePath)
         );
-        subStatementReferences.forEach((dependencyElement) =>
-          statementReferences.push(dependencyElement)
+        subStatementReferences.forEach((reference) =>
+          statementReferences.push(reference)
         );
       } else if (Object.prototype.toString.call(value) === '[object Array]') {
-        value.forEach((valueElement: { [key: string]: any }) => {
-          const subStatementReferences = this.#extractstatementReferences(
-            valueElement,
-            this.#appendPath(key, referencePath)
+        if (key === SQLElement.COLUMN_REFERENCE)
+          statementReferences.push(
+            this.#handleColumnRef({ key, value, referencePath })
           );
-          subStatementReferences.forEach((dependencyElement) =>
-            statementReferences.push(dependencyElement)
-          );
-        });
+        else
+          value.forEach((valueElement: { [key: string]: any }) => {
+            const subStatementReferences = this.#extractstatementReferences(
+              valueElement,
+              this.#appendPath(key, referencePath)
+            );
+            subStatementReferences.forEach((reference) =>
+              statementReferences.push(reference)
+            );
+          });
       }
     });
     return statementReferences;

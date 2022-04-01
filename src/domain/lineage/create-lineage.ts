@@ -304,7 +304,12 @@ export class CreateLineage
     if (!reference.path.includes(SQLElement.WILDCARD_IDENTIFIER))
       return this.#createColumn.execute(
         {
-          definition: reference,
+          selfRef: {
+            columnName: reference.columnName,
+            tableName: reference.tableName,
+            path: reference.path,
+            type: reference.type,
+          },
           statementSourceReferences:
             this.#model.logic.statementReferences[reference.statementIndex],
           tableId: this.#table.id,
@@ -336,10 +341,11 @@ export class CreateLineage
 
         return this.#createColumn.execute(
           {
-            definition: {
-              name: column.name,
+            selfRef: {
+              columnName: column.name,
+              tableName: reference.tableName,
               path: reference.path,
-              parentTableName: reference.tableName,
+              type: ReferenceType.COLUMN,
             },
             statementSourceReferences:
               this.#model.logic.statementReferences[reference.statementIndex],
