@@ -4,16 +4,12 @@ import { ObjectId } from 'mongodb';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import SQLElement from '../value-types/sql-element';
-import {
-  CreateColumn,
-  CreateColumnResponseDto,
-  SelfColumnDefinition,
-} from '../column/create-column';
+import { CreateColumn, CreateColumnResponseDto } from '../column/create-column';
 import { CreateTable } from '../table/create-table';
 import { buildLineageDto, LineageDto } from './lineage-dto';
 import { CreateModel, CreateModelResponse } from '../model/create-model';
 import { ReadTables } from '../table/read-tables';
-import { StatementReference } from '../value-types/logic';
+import { ReferenceType, StatementReference } from '../value-types/logic';
 import { ParseSQL, ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
 import { Lineage } from '../entities/lineage';
 import LineageRepo from '../../infrastructure/persistence/lineage-repo';
@@ -34,7 +30,7 @@ export interface CreateLineageAuthDto {
 
 export type CreateLineageResponseDto = Result<LineageDto>;
 
-interface SelfColumnDefinitionStatement extends SelfColumnDefinition {
+interface ContextualStatementReference extends StatementReference {
   statementIndex: number;
 }
 
@@ -93,8 +89,13 @@ export class CreateLineage
     if (!this.#model) throw new ReferenceError('Model property is undefined');
 
     this.#model.logic.statementReferences.flat().forEach((element) => {
-      if (element.path.includes(tableSelfRef))
-        tableSelfSearchRes.push(element.name);
+      if (element.path.includes(tableSelfRef)) {
+        if (!element.tableName)
+          throw new ReferenceError(
+            'tableName of TABLE references does not exist'
+          );
+        tableSelfSearchRes.push(element.tableName);
+      }
     });
 
     if (tableSelfSearchRes.length > 1)
@@ -107,7 +108,7 @@ export class CreateLineage
 
   #getSelfColumnDefinitions = (
     statementReferences: StatementReference[][]
-  ): SelfColumnDefinitionStatement[] => {
+  ): ContextualStatementReference[] => {
     const columnSelfRefs = [
       `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
       `${SQLElement.COLUMN_DEFINITION}.${SQLElement.IDENTIFIER}`,
@@ -115,31 +116,22 @@ export class CreateLineage
     ];
 
     let statementIndex = 0;
-    const selfColumnDefinition: SelfColumnDefinitionStatement[] = [];
+    const selfColumnRefs: ContextualStatementReference[] = [];
     statementReferences.forEach((statement) => {
       statement.forEach((element) => {
-        const selfReferenceName = element.name.includes('.')
-          ? element.name.split('.').slice(-1)[0]
-          : element.name;
-        const parentTableName = element.name.includes('.')
-          ? element.name.split('.').slice(0)[0]
-          : '';
-
         if (columnSelfRefs.some((ref) => element.path.includes(ref))) {
-          const selfColumnRef: SelfColumnDefinitionStatement = {
-            name: selfReferenceName,
-            path: element.path,
+          const selfColumnRef: ContextualStatementReference = {
+            ...element,
             statementIndex,
           };
-          if (parentTableName) selfColumnRef.parentTableName = parentTableName;
-          selfColumnDefinition.push(selfColumnRef);
+          selfColumnRefs.push(selfColumnRef);
         }
       });
 
       statementIndex += 1;
     });
 
-    return selfColumnDefinition;
+    return selfColumnRefs;
   };
 
   #getParentTableNames = (
@@ -152,19 +144,24 @@ export class CreateLineage
     ];
 
     const parentTableNames: string[] = [];
+
     statementReferences.flat().forEach((element) => {
       if (tableSelfRefs.some((ref) => element.path.includes(ref))) return;
 
-      if (element.path.includes(SQLElement.TABLE_REFERENCE)) {
-        if (!parentTableNames.includes(element.name))
-          parentTableNames.push(element.name);
-      } else if (
-        element.path.includes(SQLElement.COLUMN_REFERENCE) &&
-        element.name.includes('.')
-      ) {
-        const tableName = element.name.split('.').slice(0)[0];
-        if (!parentTableNames.includes(tableName))
-          parentTableNames.push(tableName);
+      if (element.type === ReferenceType.TABLE) {
+        if (!element.tableName)
+          throw new ReferenceError(
+            'tableName of TABLE references does not exist'
+          );
+        if (!parentTableNames.includes(element.tableName))
+          parentTableNames.push(element.tableName);
+      } else if (element.type === ReferenceType.COLUMN) {
+        if (!element.columnName)
+          throw new ReferenceError(
+            'columnName of COLUMN references does not exist'
+          );
+        if (element.tableName && !parentTableNames.includes(element.tableName))
+          parentTableNames.push(element.tableName);
       }
     });
 
@@ -296,7 +293,7 @@ export class CreateLineage
   };
 
   #createSelfColumns = async (
-    definition: SelfColumnDefinitionStatement,
+    reference: ContextualStatementReference,
     parentTableIds: string[]
   ): Promise<CreateColumnResponseDto | CreateColumnResponseDto[]> => {
     if (!this.#lineage)
@@ -304,12 +301,12 @@ export class CreateLineage
     if (!this.#model) throw new ReferenceError('Model property is undefined');
     if (!this.#table) throw new ReferenceError('Table property is undefined');
 
-    if (!definition.path.includes(SQLElement.WILDCARD_IDENTIFIER))
+    if (!reference.path.includes(SQLElement.WILDCARD_IDENTIFIER))
       return this.#createColumn.execute(
         {
-          definition,
+          definition: reference,
           statementSourceReferences:
-            this.#model.logic.statementReferences[definition.statementIndex],
+            this.#model.logic.statementReferences[reference.statementIndex],
           tableId: this.#table.id,
           parentTableIds,
           lineageId: this.#lineage.id,
@@ -341,11 +338,11 @@ export class CreateLineage
           {
             definition: {
               name: column.name,
-              path: definition.path,
-              parentTableName: definition.parentTableName,
+              path: reference.path,
+              parentTableName: reference.tableName,
             },
             statementSourceReferences:
-              this.#model.logic.statementReferences[definition.statementIndex],
+              this.#model.logic.statementReferences[reference.statementIndex],
             tableId: this.#table.id,
             parentTableIds,
             lineageId: this.#lineage.id,
