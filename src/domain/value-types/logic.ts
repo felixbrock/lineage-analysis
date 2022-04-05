@@ -97,7 +97,7 @@ export class Logic {
       return {
         path: this.#appendPath(props.key, props.referencePath),
         type: ReferenceType.WILDCARD,
-        tableName: props.value[SQLElement.WILDCARD_IDENTIFIER_STAR],
+        tableName: props.value[SQLElement.WILDCARD_IDENTIFIER_IDENTIFIER],
       };
     if (
       wildcardElementKeys.length === 1 &&
@@ -175,12 +175,12 @@ export class Logic {
         statementReferences.push(
           this.#handleIdentifierRef({ key, value, referencePath })
         );
-      else if (key === SQLElement.WILDCARD_IDENTIFIER)
+      else if (key === SQLElement.WILDCARD_IDENTIFIER){
         statementReferences.push(
           this.#handleWildCardRef({ key, value, referencePath })
         );
-
-      if (value.constructor === Object) {
+      }
+      else if (value.constructor === Object) {
         const subStatementReferences = this.#extractstatementReferences(
           value,
           this.#appendPath(key, referencePath)

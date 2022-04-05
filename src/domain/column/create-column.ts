@@ -7,7 +7,7 @@ import { IColumnRepo } from './i-column-repo';
 import { ReadColumns } from './read-columns';
 import { ReadTables } from '../table/read-tables';
 import { DependencyProperties, Direction } from '../value-types/dependency';
-import { StatementReference } from '../value-types/logic';
+import { ReferenceType, StatementReference } from '../value-types/logic';
 
 export interface CreateColumnRequestDto {
   selfRef: StatementReference;
@@ -72,7 +72,8 @@ export class CreateColumn
       !potentialDependency.path.includes(SQLElement.INSERT_STATEMENT) &&
       !potentialDependency.path.includes(SQLElement.COLUMN_DEFINITION) &&
       dependencyStatementRoot === selfStatementRoot &&
-      potentialDependency.path.includes(SQLElement.COLUMN_REFERENCE);
+      (potentialDependency.path.includes(SQLElement.COLUMN_REFERENCE) ||
+        potentialDependency.path.includes(SQLElement.WILDCARD_IDENTIFIER));
 
     const resultObj: DependencyAnalysisResult = {
       ...potentialDependency,
@@ -84,16 +85,16 @@ export class CreateColumn
     if (!resultObj.tableName && selfRef.tableName)
       resultObj.tableName = selfRef.tableName;
 
-    if (selfRef.path.includes(SQLElement.SELECT_CLAUSE_ELEMENT)) {
-      // todo - future use-cases will be added
-      if (
-        potentialDependency.path.includes(SQLElement.SELECT_CLAUSE_ELEMENT) &&
+    if (selfStatementRoot.includes(SQLElement.SELECT_STATEMENT)) {
+      if (potentialDependency.type === ReferenceType.WILDCARD){
+        resultObj.columnName = selfRef.columnName;
+        resultObj.isDependency = true;
+      }
+      else if (
         selfRef.columnName &&
         selfRef.columnName === potentialDependency.columnName
-      ) {
+      )
         resultObj.isDependency = true;
-        return resultObj;
-      }
     }
     return resultObj;
   };
