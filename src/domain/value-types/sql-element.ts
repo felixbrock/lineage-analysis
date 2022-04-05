@@ -17,6 +17,8 @@ export default class SQLElement {
 
   static JOIN_ON_CONDITION = 'join_on_condition';
 
+  static TABLE_EXPRESSION = 'table_expression';
+
   static TABLE_REFERENCE = 'table_reference';
 
   static COLUMN_REFERENCE = 'column_reference';

@@ -84,11 +84,14 @@ export class CreateLineage
 
   #getTableName = (): string => {
     const tableSelfRef = `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
+    const selectRef = `${SQLElement.FROM_EXPRESSION_ELEMENT}.${SQLElement.TABLE_EXPRESSION}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
 
     const tableSelfSearchRes: string[] = [];
+    const tableSelectRes: string[] = [];
     if (!this.#model) throw new ReferenceError('Model property is undefined');
 
     this.#model.logic.statementReferences.flat().forEach((element) => {
+
       if (element.path.includes(tableSelfRef)) {
         if (!element.tableName)
           throw new ReferenceError(
@@ -96,13 +99,27 @@ export class CreateLineage
           );
         tableSelfSearchRes.push(element.tableName);
       }
+      
+      else if(element.path.includes(selectRef)){
+        if (!element.tableName)
+          throw new ReferenceError(
+            'tableName of TABLE references does not exist'
+          );
+          tableSelectRes.push(`${element.tableName}_view`);
+      }
     });
 
     if (tableSelfSearchRes.length > 1)
       throw new ReferenceError(`Multiple instances of ${tableSelfRef} found`);
-    if (tableSelfSearchRes.length < 1)
-      throw new ReferenceError(`${tableSelfRef} not found`);
-
+    if (tableSelfSearchRes.length < 1){
+      if (tableSelectRes.length < 1){
+        throw new ReferenceError(`${tableSelfRef} or ${tableSelectRes} not found`);
+      }
+      if (tableSelectRes.length > 1){
+        throw new ReferenceError(`Multiple instances of ${tableSelectRes} found`);
+      }
+      return tableSelectRes[0];
+    }
     return tableSelfSearchRes[0];
   };
 
@@ -203,7 +220,8 @@ export class CreateLineage
     if (!this.#lineage)
       throw new ReferenceError('Lineage property is undefined');
 
-    const location = `C://Users/felix-pc/Desktop/Test/${tableId}.sql`;
+    // const location = `C://Users/felix-pc/Desktop/Test/${tableId}.sql`;
+    const location = `C://Users/nasir/OneDrive/Desktop/sql_files/${tableId}.sql`;
 
     const parsedLogic = await this.#parseLogic(location);
 
