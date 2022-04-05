@@ -1,5 +1,0 @@
-covering:
-snowflake_select_clause_modifiers
-
-
-covered:
