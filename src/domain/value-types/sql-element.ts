@@ -3,10 +3,11 @@ export default class SQLElement {
 
   static STATEMENT = 'statement';
 
-  static CREATE_TABLE_STATEMENT = `create_table_statement`;
+  static CREATE_TABLE_STATEMENT = 'create_table_statement';
 
-  static INSERT_STATEMENT = `insert_statement`;
+  static INSERT_STATEMENT = 'insert_statement';
 
+  static SELECT_STATEMENT = 'select_statement';
 
   static JOIN_CLAUSE = 'join_clause';
 
