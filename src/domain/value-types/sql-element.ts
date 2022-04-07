@@ -40,4 +40,6 @@ export default class SQLElement {
   static KEYWORD = 'keyword';
 
   static KEYWORD_AS = 'as';
+
+  static SET_EXPRESSION = 'set_expression';
 }

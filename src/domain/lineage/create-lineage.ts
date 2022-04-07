@@ -85,12 +85,18 @@ export class CreateLineage
   #getTableName = (): string => {
     const tableSelfRef = `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
     const selectRef = `${SQLElement.FROM_EXPRESSION_ELEMENT}.${SQLElement.TABLE_EXPRESSION}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
+    // const setExpr = `${SQLElement.SET_EXPRESSION}`;
+    // let isASet = false;
 
     const tableSelfSearchRes: string[] = [];
     const tableSelectRes: string[] = [];
     if (!this.#model) throw new ReferenceError('Model property is undefined');
 
     this.#model.logic.statementReferences.flat().forEach((element) => {
+
+      // if(element.path.includes(setExpr)){
+      //   isASet = true;
+      // }
 
       if (element.path.includes(tableSelfRef)) {
         if (!element.tableName)
@@ -109,14 +115,18 @@ export class CreateLineage
       }
     });
 
-    if (tableSelfSearchRes.length > 1)
+    if (tableSelfSearchRes.length > 1){
       throw new ReferenceError(`Multiple instances of ${tableSelfRef} found`);
+    }
     if (tableSelfSearchRes.length < 1){
       if (tableSelectRes.length < 1){
-        throw new ReferenceError(`${tableSelfRef} or ${tableSelectRes} not found`);
+        throw new ReferenceError(`${tableSelfRef} or ${selectRef} not found`);
       }
       if (tableSelectRes.length > 1){
-        throw new ReferenceError(`Multiple instances of ${tableSelectRes} found`);
+        // if(!isASet){
+          throw new ReferenceError(`Multiple instances of ${selectRef} found`);
+        // } else {
+          // return tableSelectRes[0];
       }
       return tableSelectRes[0];
     }
@@ -248,21 +258,26 @@ export class CreateLineage
     if (!this.#model) throw new ReferenceError('Model property is undefined');
 
     const name = this.#getTableName();
-
+   
     const createTableResult = await this.#createTable.execute(
-      {
-        name,
-        modelId: this.#model.id,
-        lineageId: this.#lineage.id,
-      },
-      { organizationId: 'todo' }
-    );
+        {
+          name,
+          modelId: this.#model.id,
+          lineageId: this.#lineage.id,
+        },
+        { organizationId: 'todo' }
+      );
 
-    if (!createTableResult.success) throw new Error(createTableResult.error);
-    if (!createTableResult.value)
-      throw new SyntaxError(`Creation of table ${name} failed`);
+      if (!createTableResult.success) throw new Error(createTableResult.error);
+      if (!createTableResult.value)
+        throw new SyntaxError(`Creation of table ${name} failed`);
+      this.#table = createTableResult.value;
+    
 
-    this.#table = createTableResult.value;
+    // createTableResults.forEach(result => {
+      
+    // });
+
   };
 
   #createParents = async (parentNames: string[]): Promise<void> => {
