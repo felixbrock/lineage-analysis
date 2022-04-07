@@ -112,12 +112,10 @@ export class CreateLineage
     if (tableSelfSearchRes.length > 1)
       throw new ReferenceError(`Multiple instances of ${tableSelfRef} found`);
     if (tableSelfSearchRes.length < 1){
-      if (tableSelectRes.length < 1){
-        throw new ReferenceError(`${tableSelfRef} or ${tableSelectRes} not found`);
-      }
-      if (tableSelectRes.length > 1){
-        throw new ReferenceError(`Multiple instances of ${tableSelectRes} found`);
-      }
+      if (tableSelectRes.length < 1)
+        throw new ReferenceError(`${tableSelfRef} or ${selectRef} not found`);
+      if (tableSelectRes.length > 1)
+          throw new ReferenceError(`Multiple instances of ${selectRef} found`);
       return tableSelectRes[0];
     }
     return tableSelfSearchRes[0];
@@ -248,21 +246,21 @@ export class CreateLineage
     if (!this.#model) throw new ReferenceError('Model property is undefined');
 
     const name = this.#getTableName();
-
+   
     const createTableResult = await this.#createTable.execute(
-      {
-        name,
-        modelId: this.#model.id,
-        lineageId: this.#lineage.id,
-      },
-      { organizationId: 'todo' }
-    );
+        {
+          name,
+          modelId: this.#model.id,
+          lineageId: this.#lineage.id,
+        },
+        { organizationId: 'todo' }
+      );
 
-    if (!createTableResult.success) throw new Error(createTableResult.error);
-    if (!createTableResult.value)
-      throw new SyntaxError(`Creation of table ${name} failed`);
+      if (!createTableResult.success) throw new Error(createTableResult.error);
+      if (!createTableResult.value)
+        throw new SyntaxError(`Creation of table ${name} failed`);
+      this.#table = createTableResult.value;
 
-    this.#table = createTableResult.value;
   };
 
   #createParents = async (parentNames: string[]): Promise<void> => {
@@ -382,9 +380,19 @@ export class CreateLineage
   #setColumns = async (parentTableIds: string[]): Promise<void> => {
     if (!this.#model) throw new ReferenceError('Model property is undefined');
 
-    const selfColumnReferences = this.#getSelfColumnDefinitions(
+    let selfColumnReferences = this.#getSelfColumnDefinitions(
       this.#model.logic.statementReferences
     );
+
+    const setColumnRefs = selfColumnReferences.filter((ref) => ref.path.includes(SQLElement.SET_EXPRESSION));
+    const columnRefs = selfColumnReferences.filter((ref) => !ref.path.includes(SQLElement.SET_EXPRESSION));
+    
+    const uniqueSetColumnRefs = setColumnRefs.filter((value, index, self) =>
+    index === self.findIndex((t) => (
+    t.columnName === value.columnName && t.path === value.path && t.type === value.type))
+    );
+
+    selfColumnReferences = uniqueSetColumnRefs.concat(columnRefs); 
 
     const createColumnResults = (
       await Promise.all(

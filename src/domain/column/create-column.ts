@@ -163,7 +163,7 @@ export class CreateColumn
       (reference) => reference.columnName === column.name
     );
 
-    if (dependencyReference.length !== 1)
+    if (dependencyReference.length === 0)
       throw new ReferenceError('Invalid column match-reference relation');
 
     const { type } = dependencyReference[0];
@@ -267,29 +267,29 @@ export class CreateColumn
         'Referenced column does not exist along data warehouse tables'
       );
 
-    const matchesToClarify: Match[] = matches.filter(
-      (match) => match.referenceColumnRatio > 1
-    );
-    const columnsToClarify = potentialColumnDependencies.filter(
-      (column) =>
-        matchesToClarify.filter(
-          (match) => match.analysisResult.columnName === column.name
-        ).length
-    );
+    // const matchesToClarify: Match[] = matches.filter(
+    //   (match) => match.referenceColumnRatio > 1
+    // );
+    // const columnsToClarify = potentialColumnDependencies.filter(
+    //   (column) =>
+    //     matchesToClarify.filter(
+    //       (match) => match.analysisResult.columnName === column.name
+    //     ).length
+    // );
 
-    const clarifiedColumns: Column[] = await Promise.all(
-      matchesToClarify.map(async (match) =>
-        this.#getClarifiedMatchedColumn(
-          lineageId,
-          match,
-          columnsToClarify,
-          statementReferences
-        )
-      )
-    );
+    // const clarifiedColumns: Column[] = await Promise.all(
+    //   matchesToClarify.map(async (match) =>
+    //     this.#getClarifiedMatchedColumn(
+    //       lineageId,
+    //       match,
+    //       columnsToClarify,
+    //       statementReferences
+    //     )
+    //   )
+    // );
 
     const finalMatches = matches.filter(
-      (match) => match.referenceColumnRatio === 1
+      (match) => match.referenceColumnRatio > 1
     );
     const matchedColumns = potentialColumnDependencies.filter(
       (column) =>
@@ -305,11 +305,11 @@ export class CreateColumn
         this.#buildDependencyPrototype(dependencyReferences, column)
       )
     );
-    dependencyPropertyObjs.push(
-      ...clarifiedColumns.map((column) =>
-        this.#buildDependencyPrototype(dependencyReferences, column)
-      )
-    );
+    // dependencyPropertyObjs.push(
+    //   ...clarifiedColumns.map((column) =>
+    //     this.#buildDependencyPrototype(dependencyReferences, column)
+    //   )
+    // );
 
     return dependencyPropertyObjs;
   };
