@@ -401,9 +401,22 @@ export class CreateLineage
       this.#model.logic.statementReferences
     );
 
+    const setColumnRefs = selfColumnReferences.filter((ref) => ref.path.includes(SQLElement.SET_EXPRESSION));
+    const columnRefs = selfColumnReferences.filter((ref) => !ref.path.includes(SQLElement.SET_EXPRESSION));
+  
+    // const uniqueSetColumnRefs = setColumnRefs.filter((value, index) => index === setColumnRefs.indexOf(value));
+    
+    const uniqueSetColumnRefs = setColumnRefs.filter((value, index, self) =>
+    index === self.findIndex((t) => (
+    t.columnName === value.columnName && t.path === value.path && t.type === value.type))
+    );
+
+
+    const columnReferences = uniqueSetColumnRefs.concat(columnRefs); 
+
     const createColumnResults = (
       await Promise.all(
-        selfColumnReferences.map(async (reference) =>
+        columnReferences.map(async (reference) =>
           this.#createSelfColumns(reference, parentTableIds)
         )
       )
