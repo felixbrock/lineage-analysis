@@ -85,18 +85,12 @@ export class CreateLineage
   #getTableName = (): string => {
     const tableSelfRef = `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
     const selectRef = `${SQLElement.FROM_EXPRESSION_ELEMENT}.${SQLElement.TABLE_EXPRESSION}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
-    // const setExpr = `${SQLElement.SET_EXPRESSION}`;
-    // let isASet = false;
 
     const tableSelfSearchRes: string[] = [];
     const tableSelectRes: string[] = [];
     if (!this.#model) throw new ReferenceError('Model property is undefined');
 
     this.#model.logic.statementReferences.flat().forEach((element) => {
-
-      // if(element.path.includes(setExpr)){
-      //   isASet = true;
-      // }
 
       if (element.path.includes(tableSelfRef)) {
         if (!element.tableName)
@@ -123,10 +117,7 @@ export class CreateLineage
         throw new ReferenceError(`${tableSelfRef} or ${selectRef} not found`);
       }
       if (tableSelectRes.length > 1){
-        // if(!isASet){
           throw new ReferenceError(`Multiple instances of ${selectRef} found`);
-        // } else {
-          // return tableSelectRes[0];
       }
       return tableSelectRes[0];
     }
@@ -272,11 +263,6 @@ export class CreateLineage
       if (!createTableResult.value)
         throw new SyntaxError(`Creation of table ${name} failed`);
       this.#table = createTableResult.value;
-    
-
-    // createTableResults.forEach(result => {
-      
-    // });
 
   };
 
@@ -403,14 +389,11 @@ export class CreateLineage
 
     const setColumnRefs = selfColumnReferences.filter((ref) => ref.path.includes(SQLElement.SET_EXPRESSION));
     const columnRefs = selfColumnReferences.filter((ref) => !ref.path.includes(SQLElement.SET_EXPRESSION));
-  
-    // const uniqueSetColumnRefs = setColumnRefs.filter((value, index) => index === setColumnRefs.indexOf(value));
     
     const uniqueSetColumnRefs = setColumnRefs.filter((value, index, self) =>
     index === self.findIndex((t) => (
     t.columnName === value.columnName && t.path === value.path && t.type === value.type))
     );
-
 
     const columnReferences = uniqueSetColumnRefs.concat(columnRefs); 
 
