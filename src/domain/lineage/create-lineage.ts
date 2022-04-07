@@ -109,16 +109,13 @@ export class CreateLineage
       }
     });
 
-    if (tableSelfSearchRes.length > 1){
+    if (tableSelfSearchRes.length > 1)
       throw new ReferenceError(`Multiple instances of ${tableSelfRef} found`);
-    }
     if (tableSelfSearchRes.length < 1){
-      if (tableSelectRes.length < 1){
+      if (tableSelectRes.length < 1)
         throw new ReferenceError(`${tableSelfRef} or ${selectRef} not found`);
-      }
-      if (tableSelectRes.length > 1){
+      if (tableSelectRes.length > 1)
           throw new ReferenceError(`Multiple instances of ${selectRef} found`);
-      }
       return tableSelectRes[0];
     }
     return tableSelfSearchRes[0];
@@ -383,7 +380,7 @@ export class CreateLineage
   #setColumns = async (parentTableIds: string[]): Promise<void> => {
     if (!this.#model) throw new ReferenceError('Model property is undefined');
 
-    const selfColumnReferences = this.#getSelfColumnDefinitions(
+    let selfColumnReferences = this.#getSelfColumnDefinitions(
       this.#model.logic.statementReferences
     );
 
@@ -395,11 +392,11 @@ export class CreateLineage
     t.columnName === value.columnName && t.path === value.path && t.type === value.type))
     );
 
-    const columnReferences = uniqueSetColumnRefs.concat(columnRefs); 
+    selfColumnReferences = uniqueSetColumnRefs.concat(columnRefs); 
 
     const createColumnResults = (
       await Promise.all(
-        columnReferences.map(async (reference) =>
+        selfColumnReferences.map(async (reference) =>
           this.#createSelfColumns(reference, parentTableIds)
         )
       )

@@ -257,8 +257,6 @@ export class CreateColumn
       ).length,
     }));
 
-    // a dependancy can come from many places?
-
     if (matches.every((match) => match.referenceColumnRatio === 1))
       return potentialColumnDependencies.map((column) =>
         this.#buildDependencyPrototype(dependencyReferences, column)
@@ -312,12 +310,6 @@ export class CreateColumn
     //     this.#buildDependencyPrototype(dependencyReferences, column)
     //   )
     // );
-
-    // const dependencyPropertyObjs: DependencyProperties[] = [];
-
-    // dependencyPropertyObjs.push(
-    //   ...matches.map((column)=>this.#buildDependencyPrototype(dependencyReferences,column)))
-
 
     return dependencyPropertyObjs;
   };
