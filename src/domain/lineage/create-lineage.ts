@@ -85,9 +85,12 @@ export class CreateLineage
   #getTableName = (): string => {
     const tableSelfRef = `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
     const selectRef = `${SQLElement.FROM_EXPRESSION_ELEMENT}.${SQLElement.TABLE_EXPRESSION}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
+    const withRef = `${SQLElement.COMMON_TABLE_EXPRESSION}`;
+    // "with_compound_statement.common_table_expression.bracketed.select_statement.from_clause.from_expression.from_expression_element.table_expression.table_reference.identifier"
 
     const tableSelfSearchRes: string[] = [];
     const tableSelectRes: string[] = [];
+    const withTableRes: string[] = [];
     if (!this.#model) throw new ReferenceError('Model property is undefined');
 
     this.#model.logic.statementReferences.flat().forEach((element) => {
@@ -99,21 +102,33 @@ export class CreateLineage
           );
         tableSelfSearchRes.push(element.tableName);
       }
-      
+
+      else if(element.path.includes(selectRef) && element.path.includes(withRef)){
+        if (!element.tableName)
+          throw new ReferenceError(
+            'tableName of TABLE references does not exist'
+          );
+          withTableRes.push(`${element.tableName}`);
+      }
+
       else if(element.path.includes(selectRef)){
         if (!element.tableName)
           throw new ReferenceError(
             'tableName of TABLE references does not exist'
           );
           tableSelectRes.push(`${element.tableName}_view`);
+          
       }
     });
 
     if (tableSelfSearchRes.length > 1)
       throw new ReferenceError(`Multiple instances of ${tableSelfRef} found`);
     if (tableSelfSearchRes.length < 1){
-      if (tableSelectRes.length < 1)
-        throw new ReferenceError(`${tableSelfRef} or ${selectRef} not found`);
+      if (tableSelectRes.length < 1){
+        if (withTableRes.length < 1)
+          throw new ReferenceError(`${tableSelfRef} or ${selectRef} or ${withRef} not found`);
+        return withTableRes[0];  
+      }
       if (tableSelectRes.length > 1)
           throw new ReferenceError(`Multiple instances of ${selectRef} found`);
       return tableSelectRes[0];
@@ -157,26 +172,44 @@ export class CreateLineage
       `${SQLElement.CREATE_TABLE_STATEMENT}.${tableRef}`,
       `${SQLElement.INSERT_STATEMENT}.${tableRef}`,
     ];
+    const withRef = `${SQLElement.COMMON_TABLE_EXPRESSION}`;
+    const withComp = `${SQLElement.WITH_COMPOUND_STATEMENT}`;
+    const identifier = `${SQLElement.IDENTIFIER}`;
 
     const parentTableNames: string[] = [];
 
     statementReferences.flat().forEach((element) => {
       if (tableSelfRefs.some((ref) => element.path.includes(ref))) return;
 
+      const withStatement = element.path.includes(withComp);
+
       if (element.type === ReferenceType.TABLE) {
         if (!element.tableName)
           throw new ReferenceError(
             'tableName of TABLE references does not exist'
           );
-        if (!parentTableNames.includes(element.tableName))
-          parentTableNames.push(element.tableName);
+
+        if (withStatement){
+          if(element.path.includes(withRef)){
+            if (!parentTableNames.includes(element.tableName))
+              parentTableNames.push(element.tableName);
+            }
+        }else if(!parentTableNames.includes(element.tableName))
+            parentTableNames.push(element.tableName);
+
       } else if (element.type === ReferenceType.COLUMN) {
         if (!element.columnName)
           throw new ReferenceError(
             'columnName of COLUMN references does not exist'
           );
-        if (element.tableName && !parentTableNames.includes(element.tableName))
-          parentTableNames.push(element.tableName);
+
+        if (withStatement){
+          if(!element.path.includes(`${withRef}.${identifier}`)){
+            if (element.tableName && !parentTableNames.includes(element.tableName))
+              parentTableNames.push(element.tableName);
+          }
+        }else if (element.tableName && !parentTableNames.includes(element.tableName))
+            parentTableNames.push(element.tableName);
       }
     });
 
@@ -392,7 +425,13 @@ export class CreateLineage
     t.columnName === value.columnName && t.path === value.path && t.type === value.type))
     );
 
-    selfColumnReferences = uniqueSetColumnRefs.concat(columnRefs); 
+    selfColumnReferences = uniqueSetColumnRefs.concat(columnRefs);
+    
+    const withColumnRefs = selfColumnReferences.filter((ref) => ref.path.includes(SQLElement.WITH_COMPOUND_STATEMENT));
+    const notWithColumnRefs = selfColumnReferences.filter((ref) => !ref.path.includes(SQLElement.WITH_COMPOUND_STATEMENT));
+    const withColumnRefsNoCommon = withColumnRefs.filter((ref) => !ref.path.includes(SQLElement.COMMON_TABLE_EXPRESSION));
+    
+    selfColumnReferences = withColumnRefsNoCommon.concat(notWithColumnRefs);
 
     const createColumnResults = (
       await Promise.all(

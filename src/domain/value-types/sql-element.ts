@@ -42,4 +42,8 @@ export default class SQLElement {
   static KEYWORD_AS = 'as';
 
   static SET_EXPRESSION = 'set_expression';
+
+  static COMMON_TABLE_EXPRESSION = 'common_table_expression';
+  
+  static WITH_COMPOUND_STATEMENT = 'with_compound_statement';
 }
