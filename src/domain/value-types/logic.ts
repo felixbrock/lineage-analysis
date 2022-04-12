@@ -11,6 +11,7 @@ export interface StatementReference {
   type: ReferenceType;
   columnName?: string;
   tableName?: string;
+  aliasName?: string;
 }
 
 interface LogicProperties {

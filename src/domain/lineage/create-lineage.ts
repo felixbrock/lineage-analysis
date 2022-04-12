@@ -86,7 +86,7 @@ export class CreateLineage
     const tableSelfRef = `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
     const selectRef = `${SQLElement.FROM_EXPRESSION_ELEMENT}.${SQLElement.TABLE_EXPRESSION}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
     const withRef = `${SQLElement.COMMON_TABLE_EXPRESSION}`;
-    
+
     const tableSelfSearchRes: string[] = [];
     const tableSelectRes: string[] = [];
     const withTableRes: string[] = [];
@@ -142,6 +142,9 @@ export class CreateLineage
       `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
       `${SQLElement.COLUMN_DEFINITION}.${SQLElement.IDENTIFIER}`,
       `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.WILDCARD_EXPRESSION}.${SQLElement.WILDCARD_IDENTIFIER}`,
+      `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.ALIAS_EXPRESSION}.${SQLElement.IDENTIFIER}`,
+
+      'function.bracketed.expression.column_reference.identifier',
     ];
 
     let statementIndex = 0;
@@ -348,7 +351,7 @@ export class CreateLineage
       throw new ReferenceError('Lineage property is undefined');
     if (!this.#model) throw new ReferenceError('Model property is undefined');
     if (!this.#table) throw new ReferenceError('Table property is undefined');
-
+ 
     if (!reference.path.includes(SQLElement.WILDCARD_IDENTIFIER))
       return this.#createColumn.execute(
         {
@@ -357,6 +360,7 @@ export class CreateLineage
             tableName: reference.tableName,
             path: reference.path,
             type: reference.type,
+            aliasName: reference.aliasName,
           },
           statementSourceReferences:
             this.#model.logic.statementReferences[reference.statementIndex],
@@ -431,6 +435,13 @@ export class CreateLineage
     const innerWithColumnRefs = withColumnRefs.filter((ref) => !ref.path.includes(SQLElement.COMMON_TABLE_EXPRESSION));
     
     selfColumnReferences = innerWithColumnRefs.concat(columnRefs);
+
+    selfColumnReferences.forEach((curr, index) => {
+      if(curr.path.includes(`${SQLElement.ALIAS_EXPRESSION}.${SQLElement.IDENTIFIER}`)){
+        selfColumnReferences[index+1].aliasName = curr.columnName;
+        selfColumnReferences.splice(index, 1);
+      }
+    });
 
     const createColumnResults = (
       await Promise.all(

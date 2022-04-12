@@ -46,4 +46,6 @@ export default class SQLElement {
   static COMMON_TABLE_EXPRESSION = 'common_table_expression';
   
   static WITH_COMPOUND_STATEMENT = 'with_compound_statement';
+
+  static ALIAS_EXPRESSION = 'alias_expression';
 }
