@@ -86,8 +86,7 @@ export class CreateLineage
     const tableSelfRef = `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
     const selectRef = `${SQLElement.FROM_EXPRESSION_ELEMENT}.${SQLElement.TABLE_EXPRESSION}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
     const withRef = `${SQLElement.COMMON_TABLE_EXPRESSION}`;
-    // "with_compound_statement.common_table_expression.bracketed.select_statement.from_clause.from_expression.from_expression_element.table_expression.table_reference.identifier"
-
+    
     const tableSelfSearchRes: string[] = [];
     const tableSelectRes: string[] = [];
     const withTableRes: string[] = [];
@@ -418,7 +417,7 @@ export class CreateLineage
     );
 
     const setColumnRefs = selfColumnReferences.filter((ref) => ref.path.includes(SQLElement.SET_EXPRESSION));
-    const columnRefs = selfColumnReferences.filter((ref) => !ref.path.includes(SQLElement.SET_EXPRESSION));
+    let columnRefs = selfColumnReferences.filter((ref) => !ref.path.includes(SQLElement.SET_EXPRESSION));
     
     const uniqueSetColumnRefs = setColumnRefs.filter((value, index, self) =>
     index === self.findIndex((t) => (
@@ -428,10 +427,10 @@ export class CreateLineage
     selfColumnReferences = uniqueSetColumnRefs.concat(columnRefs);
     
     const withColumnRefs = selfColumnReferences.filter((ref) => ref.path.includes(SQLElement.WITH_COMPOUND_STATEMENT));
-    const notWithColumnRefs = selfColumnReferences.filter((ref) => !ref.path.includes(SQLElement.WITH_COMPOUND_STATEMENT));
-    const withColumnRefsNoCommon = withColumnRefs.filter((ref) => !ref.path.includes(SQLElement.COMMON_TABLE_EXPRESSION));
+    columnRefs = selfColumnReferences.filter((ref) => !ref.path.includes(SQLElement.WITH_COMPOUND_STATEMENT));
+    const innerWithColumnRefs = withColumnRefs.filter((ref) => !ref.path.includes(SQLElement.COMMON_TABLE_EXPRESSION));
     
-    selfColumnReferences = withColumnRefsNoCommon.concat(notWithColumnRefs);
+    selfColumnReferences = innerWithColumnRefs.concat(columnRefs);
 
     const createColumnResults = (
       await Promise.all(
