@@ -128,7 +128,7 @@ export default class TableRepo implements ITableRepo {
     }
   };
 
-  public deleteOne = async (id: string): Promise<string> => {
+  deleteOne = async (id: string): Promise<string> => {
     const client = createClient();
     try {
       const db = await connect(client);

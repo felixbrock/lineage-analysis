@@ -6,7 +6,6 @@ import { IColumnRepo, ColumnQueryDto } from './i-column-repo';
 export interface ReadColumnsRequestDto {
   name?: string | string[];
   tableId?: string | string[];
-  dependency?: { type?: string; columnId?: string; direction?: string };
   lineageId: string;
 }
 
@@ -56,14 +55,7 @@ export class ReadColumns
     // queryDto.organizationId = organizationId;
     if (request.name) queryDto.name = request.name;
     if (request.tableId) queryDto.tableId = request.tableId;
-    if (
-      request.dependency &&
-      (request.dependency.type ||
-        request.dependency.columnId ||
-        request.dependency.direction)
-    )
-      queryDto.dependency = request.dependency;
-
+   
     return queryDto;
   };
 }
