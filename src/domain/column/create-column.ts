@@ -95,6 +95,12 @@ export class CreateColumn
         selfRef.columnName === potentialDependency.columnName
       )
         resultObj.isDependency = true;
+      
+      if(potentialDependency.path.includes(SQLElement.GROUPBY_CLAUSE) &&
+         selfRef.columnName !== potentialDependency.columnName)
+         resultObj.isDependency = true;
+      
+
     }
     return resultObj;
   };
@@ -343,7 +349,7 @@ export class CreateColumn
 
       const column = Column.create({
         id: new ObjectId().toHexString(),
-        name: name,
+        name,
         tableId: request.tableId,
         dependencyPrototypes,
         lineageId: request.lineageId,
@@ -351,7 +357,7 @@ export class CreateColumn
 
       const readColumnsResult = await this.#readColumns.execute(
         {
-          name: name,
+          name,
           tableId: request.tableId,
           lineageId: request.lineageId,
         },

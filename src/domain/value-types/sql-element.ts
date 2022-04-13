@@ -48,4 +48,6 @@ export default class SQLElement {
   static WITH_COMPOUND_STATEMENT = 'with_compound_statement';
 
   static ALIAS_EXPRESSION = 'alias_expression';
+
+  static GROUPBY_CLAUSE = 'groupby_clause';
 }
