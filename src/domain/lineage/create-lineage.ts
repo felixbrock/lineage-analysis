@@ -85,9 +85,11 @@ export class CreateLineage
   #getTableName = (): string => {
     const tableSelfRef = `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
     const selectRef = `${SQLElement.FROM_EXPRESSION_ELEMENT}.${SQLElement.TABLE_EXPRESSION}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
+    const withRef = `${SQLElement.COMMON_TABLE_EXPRESSION}`;
 
     const tableSelfSearchRes: string[] = [];
     const tableSelectRes: string[] = [];
+    const withTableRes: string[] = [];
     if (!this.#model) throw new ReferenceError('Model property is undefined');
 
     this.#model.logic.statementReferences.flat().forEach((element) => {
@@ -99,25 +101,40 @@ export class CreateLineage
           );
         tableSelfSearchRes.push(element.tableName);
       }
-      
+
+      else if(element.path.includes(selectRef) && element.path.includes(withRef)){
+        if (!element.tableName)
+          throw new ReferenceError(
+            'tableName of TABLE references does not exist'
+          );
+          withTableRes.push(`${element.tableName}`);
+      }
+
       else if(element.path.includes(selectRef)){
         if (!element.tableName)
           throw new ReferenceError(
             'tableName of TABLE references does not exist'
           );
           tableSelectRes.push(`${element.tableName}_view`);
+          
       }
     });
 
     if (tableSelfSearchRes.length > 1)
       throw new ReferenceError(`Multiple instances of ${tableSelfRef} found`);
-    if (tableSelfSearchRes.length < 1){
-      if (tableSelectRes.length < 1)
-        throw new ReferenceError(`${tableSelfRef} or ${selectRef} not found`);
-      if (tableSelectRes.length > 1)
-          throw new ReferenceError(`Multiple instances of ${selectRef} found`);
+
+    if (tableSelfSearchRes.length < 1 && tableSelectRes.length < 1 && withTableRes.length < 1)
+      throw new ReferenceError(`${tableSelfRef} or ${selectRef} or ${withRef} not found`);
+
+    if(tableSelfSearchRes.length < 1 && tableSelectRes.length < 1 && withTableRes.length >= 1)
+      return withTableRes[0];
+
+    if(tableSelfSearchRes.length < 1 && tableSelectRes.length > 1)
+      throw new ReferenceError(`Multiple instances of ${selectRef} found`);
+    
+    if(tableSelfSearchRes.length < 1 && tableSelectRes.length)
       return tableSelectRes[0];
-    }
+
     return tableSelfSearchRes[0];
   };
 
@@ -128,6 +145,8 @@ export class CreateLineage
       `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
       `${SQLElement.COLUMN_DEFINITION}.${SQLElement.IDENTIFIER}`,
       `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.WILDCARD_EXPRESSION}.${SQLElement.WILDCARD_IDENTIFIER}`,
+      `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.ALIAS_EXPRESSION}.${SQLElement.IDENTIFIER}`,
+      `${SQLElement.FUNCTION}.${SQLElement.BRACKETED}.${SQLElement.EXPRESSION}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`
     ];
 
     let statementIndex = 0;
@@ -163,20 +182,34 @@ export class CreateLineage
     statementReferences.flat().forEach((element) => {
       if (tableSelfRefs.some((ref) => element.path.includes(ref))) return;
 
+      const isWithStatement = element.path.includes(SQLElement.WITH_COMPOUND_STATEMENT);
+
       if (element.type === ReferenceType.TABLE) {
         if (!element.tableName)
           throw new ReferenceError(
             'tableName of TABLE references does not exist'
           );
-        if (!parentTableNames.includes(element.tableName))
-          parentTableNames.push(element.tableName);
+
+        if (isWithStatement){
+          if(element.path.includes(SQLElement.COMMON_TABLE_EXPRESSION) && !parentTableNames.includes(element.tableName))
+            parentTableNames.push(element.tableName);
+        
+          }else if(!parentTableNames.includes(element.tableName))
+            parentTableNames.push(element.tableName);
+
       } else if (element.type === ReferenceType.COLUMN) {
         if (!element.columnName)
           throw new ReferenceError(
             'columnName of COLUMN references does not exist'
           );
-        if (element.tableName && !parentTableNames.includes(element.tableName))
-          parentTableNames.push(element.tableName);
+
+        if (isWithStatement){
+          if(!element.path.includes(`${SQLElement.COMMON_TABLE_EXPRESSION}.${SQLElement.IDENTIFIER}`) && 
+              element.tableName && !parentTableNames.includes(element.tableName))
+              parentTableNames.push(element.tableName);
+          
+        }else if (element.tableName && !parentTableNames.includes(element.tableName))
+            parentTableNames.push(element.tableName);
       }
     });
 
@@ -316,7 +349,7 @@ export class CreateLineage
       throw new ReferenceError('Lineage property is undefined');
     if (!this.#model) throw new ReferenceError('Model property is undefined');
     if (!this.#table) throw new ReferenceError('Table property is undefined');
-
+ 
     if (!reference.path.includes(SQLElement.WILDCARD_IDENTIFIER))
       return this.#createColumn.execute(
         {
@@ -325,6 +358,7 @@ export class CreateLineage
             tableName: reference.tableName,
             path: reference.path,
             type: reference.type,
+            aliasName: reference.aliasName,
           },
           statementSourceReferences:
             this.#model.logic.statementReferences[reference.statementIndex],
@@ -385,14 +419,27 @@ export class CreateLineage
     );
 
     const setColumnRefs = selfColumnReferences.filter((ref) => ref.path.includes(SQLElement.SET_EXPRESSION));
-    const columnRefs = selfColumnReferences.filter((ref) => !ref.path.includes(SQLElement.SET_EXPRESSION));
+    let columnRefs = selfColumnReferences.filter((ref) => !ref.path.includes(SQLElement.SET_EXPRESSION));
     
     const uniqueSetColumnRefs = setColumnRefs.filter((value, index, self) =>
     index === self.findIndex((t) => (
     t.columnName === value.columnName && t.path === value.path && t.type === value.type))
     );
 
-    selfColumnReferences = uniqueSetColumnRefs.concat(columnRefs); 
+    selfColumnReferences = uniqueSetColumnRefs.concat(columnRefs);
+    
+    const withColumnRefs = selfColumnReferences.filter((ref) => ref.path.includes(SQLElement.WITH_COMPOUND_STATEMENT));
+    columnRefs = selfColumnReferences.filter((ref) => !ref.path.includes(SQLElement.WITH_COMPOUND_STATEMENT));
+    const innerWithColumnRefs = withColumnRefs.filter((ref) => !ref.path.includes(SQLElement.COMMON_TABLE_EXPRESSION));
+    
+    selfColumnReferences = innerWithColumnRefs.concat(columnRefs);
+
+    selfColumnReferences.forEach((element, index) => {
+      if(element.path.includes(`${SQLElement.ALIAS_EXPRESSION}.${SQLElement.IDENTIFIER}`)){
+        selfColumnReferences[index+1].aliasName = element.columnName;
+        selfColumnReferences.splice(index, 1);
+      }
+    });
 
     const createColumnResults = (
       await Promise.all(
