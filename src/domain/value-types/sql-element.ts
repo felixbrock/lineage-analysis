@@ -50,4 +50,10 @@ export default class SQLElement {
   static ALIAS_EXPRESSION = 'alias_expression';
 
   static GROUPBY_CLAUSE = 'groupby_clause';
+
+  static FUNCTION = 'function';
+  
+  static BRACKETED = 'bracketed';
+  
+  static EXPRESSION = 'expression';
 }

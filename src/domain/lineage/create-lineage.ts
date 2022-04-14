@@ -122,16 +122,19 @@ export class CreateLineage
 
     if (tableSelfSearchRes.length > 1)
       throw new ReferenceError(`Multiple instances of ${tableSelfRef} found`);
-    if (tableSelfSearchRes.length < 1){
-      if (tableSelectRes.length < 1){
-        if (withTableRes.length < 1)
-          throw new ReferenceError(`${tableSelfRef} or ${selectRef} or ${withRef} not found`);
-        return withTableRes[0];  
-      }
-      if (tableSelectRes.length > 1)
-          throw new ReferenceError(`Multiple instances of ${selectRef} found`);
+
+    if (tableSelfSearchRes.length < 1 && tableSelectRes.length < 1 && withTableRes.length < 1)
+      throw new ReferenceError(`${tableSelfRef} or ${selectRef} or ${withRef} not found`);
+
+    if(tableSelfSearchRes.length < 1 && tableSelectRes.length < 1 && withTableRes.length >= 1)
+      return withTableRes[0];
+
+    if(tableSelfSearchRes.length < 1 && tableSelectRes.length > 1)
+      throw new ReferenceError(`Multiple instances of ${selectRef} found`);
+    
+    if(tableSelfSearchRes.length < 1 && tableSelectRes.length)
       return tableSelectRes[0];
-    }
+
     return tableSelfSearchRes[0];
   };
 
@@ -143,8 +146,7 @@ export class CreateLineage
       `${SQLElement.COLUMN_DEFINITION}.${SQLElement.IDENTIFIER}`,
       `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.WILDCARD_EXPRESSION}.${SQLElement.WILDCARD_IDENTIFIER}`,
       `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.ALIAS_EXPRESSION}.${SQLElement.IDENTIFIER}`,
-
-      'function.bracketed.expression.column_reference.identifier',
+      `${SQLElement.FUNCTION}.${SQLElement.BRACKETED}.${SQLElement.EXPRESSION}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`
     ];
 
     let statementIndex = 0;
@@ -174,16 +176,13 @@ export class CreateLineage
       `${SQLElement.CREATE_TABLE_STATEMENT}.${tableRef}`,
       `${SQLElement.INSERT_STATEMENT}.${tableRef}`,
     ];
-    const withRef = `${SQLElement.COMMON_TABLE_EXPRESSION}`;
-    const withComp = `${SQLElement.WITH_COMPOUND_STATEMENT}`;
-    const identifier = `${SQLElement.IDENTIFIER}`;
 
     const parentTableNames: string[] = [];
 
     statementReferences.flat().forEach((element) => {
       if (tableSelfRefs.some((ref) => element.path.includes(ref))) return;
 
-      const withStatement = element.path.includes(withComp);
+      const isWithStatement = element.path.includes(SQLElement.WITH_COMPOUND_STATEMENT);
 
       if (element.type === ReferenceType.TABLE) {
         if (!element.tableName)
@@ -191,12 +190,11 @@ export class CreateLineage
             'tableName of TABLE references does not exist'
           );
 
-        if (withStatement){
-          if(element.path.includes(withRef)){
-            if (!parentTableNames.includes(element.tableName))
-              parentTableNames.push(element.tableName);
-            }
-        }else if(!parentTableNames.includes(element.tableName))
+        if (isWithStatement){
+          if(element.path.includes(SQLElement.COMMON_TABLE_EXPRESSION) && !parentTableNames.includes(element.tableName))
+            parentTableNames.push(element.tableName);
+        
+          }else if(!parentTableNames.includes(element.tableName))
             parentTableNames.push(element.tableName);
 
       } else if (element.type === ReferenceType.COLUMN) {
@@ -205,11 +203,11 @@ export class CreateLineage
             'columnName of COLUMN references does not exist'
           );
 
-        if (withStatement){
-          if(!element.path.includes(`${withRef}.${identifier}`)){
-            if (element.tableName && !parentTableNames.includes(element.tableName))
+        if (isWithStatement){
+          if(!element.path.includes(`${SQLElement.COMMON_TABLE_EXPRESSION}.${SQLElement.IDENTIFIER}`) && 
+              element.tableName && !parentTableNames.includes(element.tableName))
               parentTableNames.push(element.tableName);
-          }
+          
         }else if (element.tableName && !parentTableNames.includes(element.tableName))
             parentTableNames.push(element.tableName);
       }
@@ -436,9 +434,9 @@ export class CreateLineage
     
     selfColumnReferences = innerWithColumnRefs.concat(columnRefs);
 
-    selfColumnReferences.forEach((curr, index) => {
-      if(curr.path.includes(`${SQLElement.ALIAS_EXPRESSION}.${SQLElement.IDENTIFIER}`)){
-        selfColumnReferences[index+1].aliasName = curr.columnName;
+    selfColumnReferences.forEach((element, index) => {
+      if(element.path.includes(`${SQLElement.ALIAS_EXPRESSION}.${SQLElement.IDENTIFIER}`)){
+        selfColumnReferences[index+1].aliasName = element.columnName;
         selfColumnReferences.splice(index, 1);
       }
     });
