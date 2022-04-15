@@ -309,9 +309,11 @@ export class CreateLineage
         const table = createTableResult.value;
 
         await Promise.all(
-          dbtModel.columns.map(async (column: any) => {
+          Object.keys(dbtModel.columns).map(async (columnKey) => {
             if (!this.#lineage)
               throw new ReferenceError('Lineage property is undefined');
+
+            const column = dbtModel.columns[columnKey];
 
             // todo - add additional properties like index
             const createColumnResult = await this.#createColumn.execute(

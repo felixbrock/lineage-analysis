@@ -78,6 +78,7 @@ export default class TableRepo implements ITableRepo {
   #buildFilter = (tableQueryDto: TableQueryDto): TableQueryFilter => {
     const filter: TableQueryFilter = { lineageId: tableQueryDto.lineageId };
 
+    if (tableQueryDto.dbtModelId) filter.dbtModelId = tableQueryDto.dbtModelId;
     if (typeof tableQueryDto.name === 'string' && tableQueryDto.name)
       filter.name = tableQueryDto.name;
     if (tableQueryDto.name instanceof Array)
