@@ -18,18 +18,18 @@ import { Model, ModelPrototype } from '../../domain/entities/model';
 
 interface LogicPersistence {
   parsedLogic: string;
-  statementReferences: [string, string][][];
+  statementRefs: [string, string][][];
 }
 
 interface ModelPersistence {
   _id: ObjectId;
-  location: string;
+  dbtModelId: string;
   logic: LogicPersistence;
   lineageId: string;
 }
 
 interface ModelQueryFilter {
-  location?: string;
+  dbtModelId?: string;
   lineageId: string;
 }
 
@@ -89,7 +89,7 @@ export default class ModelRepo implements IModelRepo {
   #buildFilter = (modelQueryDto: ModelQueryDto): ModelQueryFilter => {
     const filter: ModelQueryFilter = {lineageId: modelQueryDto.lineageId};
 
-    if (modelQueryDto.location) filter.location = modelQueryDto.location;
+    if (modelQueryDto.dbtModelId) filter.dbtModelId = modelQueryDto.dbtModelId;
 
     return filter;
   };
@@ -146,7 +146,7 @@ export default class ModelRepo implements IModelRepo {
   #buildUpdateFilter = (modelUpdateDto: ModelUpdateDto): ModelUpdateFilter => {
     const setFilter: { [key: string]: any } = {};
 
-    if (modelUpdateDto.location) setFilter.location = modelUpdateDto.location;
+    if (modelUpdateDto.dbtModelId) setFilter.dbtModelId = modelUpdateDto.dbtModelId;
     if (modelUpdateDto.logic) setFilter.logic = modelUpdateDto.logic;
 
     return { $set: setFilter };
@@ -200,7 +200,7 @@ export default class ModelRepo implements IModelRepo {
   #buildPrototype = (model: ModelPersistence): ModelPrototype => ({
     // eslint-disable-next-line no-underscore-dangle
     id: model._id.toHexString(),
-    location: model.location,
+    dbtModelId: model.dbtModelId,
     // todo - Doesnt make sense to generate logic object from scratch if it exists in persistence
     parsedLogic: model.logic.parsedLogic,
     lineageId: model.lineageId,
@@ -208,11 +208,11 @@ export default class ModelRepo implements IModelRepo {
 
   #toPersistence = (model: Model): Document => ({
     _id: ObjectId.createFromHexString(model.id),
-    location: model.location,
+    dbtModelId: model.dbtModelId,
     lineageId: model.lineageId,
     logic: {
       parsedLogic: model.logic.parsedLogic,
-      statementReferences: model.logic.statementReferences,
+      statementRefs: model.logic.statementRefs,
     },
   });
 }

@@ -4,6 +4,7 @@ import Result from '../value-types/transient-types/result';
 import { IColumnRepo, ColumnQueryDto } from './i-column-repo';
 
 export interface ReadColumnsRequestDto {
+  dbtModelId?: string,
   name?: string | string[];
   tableId?: string | string[];
   lineageId: string;
@@ -53,6 +54,7 @@ export class ReadColumns
 
     // todo - add organizationId
     // queryDto.organizationId = organizationId;
+    if (request.dbtModelId) queryDto.dbtModelId = request.dbtModelId;
     if (request.name) queryDto.name = request.name;
     if (request.tableId) queryDto.tableId = request.tableId;
    

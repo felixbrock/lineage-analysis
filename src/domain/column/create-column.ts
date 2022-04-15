@@ -7,6 +7,7 @@ import { IColumnRepo } from './i-column-repo';
 
 export interface CreateColumnRequestDto {
   name: string;
+  dbtModelId: string;
   tableId: string;
   lineageId: string;
 }
@@ -41,6 +42,7 @@ export class CreateColumn
     try {
       const column = Column.create({
         id: new ObjectId().toHexString(),
+        dbtModelId: request.dbtModelId,
         name: request.name,
         tableId: request.tableId,
         lineageId: request.lineageId,

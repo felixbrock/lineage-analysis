@@ -19,6 +19,7 @@ import { ReadTable } from '../domain/table/read-table';
 import LineageRepo from './persistence/lineage-repo';
 import { ReadDependencies } from '../domain/dependency/read-dependencies';
 import DependencyRepo from './persistence/dependency-repo';
+import { CreateDependency } from '../domain/dependency/create-dependency';
 
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
@@ -29,6 +30,7 @@ iocRegister.register({
   createModel: asClass(CreateModel),
   createTable: asClass(CreateTable),
   createColumn: asClass(CreateColumn),
+  createDependency: asClass(CreateDependency),
 
   readTable: asClass(ReadTable),
 

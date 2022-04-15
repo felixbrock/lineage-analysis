@@ -13,12 +13,14 @@ import { Table, TableProperties } from '../../domain/entities/table';
 
 interface TablePersistence {
   _id: ObjectId;
+  dbtModelId: string;
   name: string;
   modelId: string;
   lineageId: string;
 }
 
 interface TableQueryFilter {
+  dbtModelId?: string;
   name?: string | { [key: string]: string[] };
   modelId?: string;
   lineageId: string;
@@ -155,6 +157,7 @@ export default class TableRepo implements ITableRepo {
   #buildProperties = (table: TablePersistence): TableProperties => ({
     // eslint-disable-next-line no-underscore-dangle
     id: table._id.toHexString(),
+    dbtModelId: table.dbtModelId,
     name: table.name,
     modelId: table.modelId,
     lineageId: table.lineageId,
@@ -162,6 +165,7 @@ export default class TableRepo implements ITableRepo {
 
   #toPersistence = (table: Table): Document => ({
     _id: ObjectId.createFromHexString(table.id),
+    dbtModelId: table.dbtModelId,
     name: table.name,
     modelId: table.modelId,
     lineageId: table.lineageId,

@@ -7,6 +7,7 @@ import { ReadTables } from './read-tables';
 import { ITableRepo } from './i-table-repo';
 
 export interface CreateTableRequestDto {
+  dbtModelId: string, 
   name: string;
   modelId: string;
   lineageId: string;
@@ -38,6 +39,7 @@ export class CreateTable
     try {
       const table = Table.create({
         id: new ObjectId().toHexString(),
+        dbtModelId: request.dbtModelId,
         name: request.name,
         modelId: request.modelId,
         lineageId: request.lineageId,
@@ -45,7 +47,7 @@ export class CreateTable
 
       const readTablesResult = await this.#readTables.execute(
         {
-          name: request.name,
+          dbtModelId: request.dbtModelId,
           lineageId: request.lineageId
         },
         { organizationId: auth.organizationId }

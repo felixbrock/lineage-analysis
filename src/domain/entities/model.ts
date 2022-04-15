@@ -2,14 +2,14 @@ import { Logic } from '../value-types/logic';
 
 interface ModelProperties {
   id: string;
-  location: string;
+  dbtModelId: string;
   logic: Logic;
   lineageId: string;
 }
 
 export interface ModelPrototype {
   id: string;
-  location: string;
+  dbtModelId: string;
   parsedLogic: string;
   lineageId: string;
 }
@@ -17,7 +17,7 @@ export interface ModelPrototype {
 export class Model {
   #id: string;
 
-  #location: string;
+  #dbtModelId: string;
 
   #logic: Logic;
 
@@ -27,8 +27,8 @@ export class Model {
     return this.#id;
   }
 
-  get location(): string {
-    return this.#location;
+  get dbtModelId(): string {
+    return this.#dbtModelId;
   }
 
   get logic(): Logic {
@@ -41,14 +41,14 @@ export class Model {
 
   private constructor(properties: ModelProperties) {
     this.#id = properties.id;
-    this.#location = properties.location;
+    this.#dbtModelId = properties.dbtModelId;
     this.#logic = properties.logic;
     this.#lineageId = properties.lineageId;
   }
 
   static create(prototype: ModelPrototype): Model {
     if (!prototype.id) throw new TypeError('Model must have id');
-    if (!prototype.location) throw new TypeError('Model must have location');
+    if (!prototype.dbtModelId) throw new TypeError('Model must have dbtModelId');
     if (!prototype.parsedLogic)
       throw new TypeError('Model creation requires parsed SQL logic');
     if (!prototype.lineageId) throw new TypeError('Model must have lineageId');
@@ -57,7 +57,7 @@ export class Model {
 
     const model = new Model({
       id: prototype.id,
-      location: prototype.location,
+      dbtModelId: prototype.dbtModelId,
       logic,
       lineageId: prototype.lineageId,
     });

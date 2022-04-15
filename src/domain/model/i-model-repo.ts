@@ -2,12 +2,12 @@ import { Model } from '../entities/model';
 import { Logic } from '../value-types/logic';
 
 export interface ModelQueryDto {
-  location?: string;
+  dbtModelId?: string;
   lineageId: string;
 }
 
 export interface ModelUpdateDto {
-  location?: string;
+  dbtModelId?: string;
   logic?: Logic;
 }
 

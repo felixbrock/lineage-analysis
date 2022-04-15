@@ -1,6 +1,7 @@
 import { Table } from '../entities/table';
 
 export interface TableQueryDto {
+  dbtModelId?: string;
   name?: string | string[];
   modelId?: string;
   lineageId: string;

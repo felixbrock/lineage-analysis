@@ -11,9 +11,9 @@ interface Ref {
   isSelfRef: boolean;
 }
 
-type TableRef = Ref;
+export type TableRef = Ref;
 
-interface ColumnRef extends Ref {
+export interface ColumnRef extends Ref {
   isWildcardRef: boolean;
   tableName?: string;
 }
@@ -26,7 +26,7 @@ export interface Refs {
 
 interface LogicProperties {
   parsedLogic: string;
-  statementReferences: Refs[];
+  statementRefs: Refs[];
 }
 
 export interface LogicPrototype {
@@ -36,25 +36,25 @@ export interface LogicPrototype {
 interface HandlerProperties<ValueType> {
   key: string;
   value: ValueType;
-  referencePath: string;
+  refPath: string;
 }
 
 export class Logic {
   #parsedLogic: string;
 
-  #statementReferences: Refs[];
+  #statementRefs: Refs[];
 
   get parsedLogic(): string {
     return this.#parsedLogic;
   }
 
-  get statementReferences(): Refs[] {
-    return this.#statementReferences;
+  get statementRefs(): Refs[] {
+    return this.#statementRefs;
   }
 
   private constructor(properties: LogicProperties) {
     this.#parsedLogic = properties.parsedLogic;
-    this.#statementReferences = properties.statementReferences;
+    this.#statementRefs = properties.statementRefs;
   }
 
   static #appendPath = (key: string, path: string): string => {
@@ -63,7 +63,7 @@ export class Logic {
     return newPath;
   };
 
-  // Checks if reference is a self reference and, hence, defines the target column and table itself
+  // Checks if ref is a self ref and, hence, defines the target column and table itself
   static #isSelfRef = (path: string, refType: RefType): boolean => {
     const columnSelfRefs =
       refType === RefType.TABLE
@@ -80,12 +80,12 @@ export class Logic {
     return columnSelfRefs.some((ref) => path.includes(ref));
   };
 
-  // Handles any column reference
+  // Handles any column ref
   static #handleColumnIdentifierRef = (
     props: HandlerProperties<string>
   ): ColumnRef => {
-    const columnValueRef = this.#getColumnValueReference(props.value);
-    const path = this.#appendPath(props.key, props.referencePath);
+    const columnValueRef = this.#getColumnValueRef(props.value);
+    const path = this.#appendPath(props.key, props.refPath);
 
     return {
       isSelfRef: this.#isSelfRef(path, RefType.COLUMN),
@@ -96,11 +96,11 @@ export class Logic {
     };
   };
 
-  // Handles any table reference
+  // Handles any table ref
   static #handleTableIdentifierRef = (
     props: HandlerProperties<string>
   ): TableRef => {
-    const path = this.#appendPath(props.key, props.referencePath);
+    const path = this.#appendPath(props.key, props.refPath);
 
     return {
       isSelfRef: this.#isSelfRef(path, RefType.TABLE),
@@ -109,7 +109,7 @@ export class Logic {
     };
   };
 
-  // Handles any case of * (wildcard) references
+  // Handles any case of * (wildcard) refs
   static #handleWildCardRef = (
     props: HandlerProperties<{ [key: string]: any }>
   ): ColumnRef => {
@@ -123,7 +123,7 @@ export class Logic {
       wildcardElementKeys.includes(wildcardElementKey)
     );
 
-    const path = this.#appendPath(props.key, props.referencePath);
+    const path = this.#appendPath(props.key, props.refPath);
 
     if (isDotNoation)
       return {
@@ -147,9 +147,9 @@ export class Logic {
   };
 
   // Splits up table.column notation
-  static #getColumnValueReference = (
+  static #getColumnValueRef = (
     columnValue: string
-  ): { columnName: string; tableName?: string } => {
+  ): { columnName: string; tableName?: string; } => {
     const columnName = columnValue.includes('.')
       ? columnValue.split('.').slice(-1)[0]
       : columnValue;
@@ -161,11 +161,11 @@ export class Logic {
   };
 
   // Runs through parse SQL logic (JSON object) and check for potential dependencies. Return those dependencies.
-  static #extractReferences = (
+  static #extractRefs = (
     parsedSQL: { [key: string]: any },
     path = ''
   ): Refs => {
-    let referencePath = path;
+    let refPath = path;
     const refs: Refs = {
       columns: [],
       tables: [],
@@ -176,21 +176,21 @@ export class Logic {
       const key = parsedSQLElement[0];
       const value = parsedSQLElement[1];
 
-      referencePath =
+      refPath =
         key === SQLElement.KEYWORD && value === SQLElement.KEYWORD_AS
-          ? this.#appendPath(value, referencePath)
-          : referencePath;
+          ? this.#appendPath(value, refPath)
+          : refPath;
 
-      if (key === SQLElement.IDENTIFIER)
+      if (key === SQLElement.IDENTIFIER) {
         if (path.includes(SQLElement.COLUMN_REFERENCE))
           refs.columns.push(
-            this.#handleColumnIdentifierRef({ key, value, referencePath })
+            this.#handleColumnIdentifierRef({ key, value, refPath })
           );
         else if (path.includes(SQLElement.TABLE_REFERENCE)) {
           const ref = this.#handleTableIdentifierRef({
             key,
             value,
-            referencePath,
+            refPath,
           });
 
           if (
@@ -198,74 +198,71 @@ export class Logic {
             refs.tables.filter((table) => table.isSelfRef).length
           )
             throw new RangeError(
-              'Multiple self references of model materialization found'
+              'Multiple self refs of model materialization found'
             );
 
           refs.tables.push(ref);
-        } else if (key === SQLElement.WILDCARD_IDENTIFIER)
-          refs.wildcards.push(
-            this.#handleWildCardRef({ key, value, referencePath })
-          );
-        else if (value.constructor === Object) {
-          const subRefs = this.#extractReferences(
-            value,
-            this.#appendPath(key, referencePath)
-          );
-
-          refs.columns.push(...subRefs.columns);
-          refs.tables.push(...subRefs.tables);
-          refs.wildcards.push(...subRefs.wildcards);
-        } else if (Object.prototype.toString.call(value) === '[object Array]') {
-          if (key === SQLElement.COLUMN_REFERENCE)
-            refs.columns.push(
-              this.#handleColumnIdentifierRef({
-                key,
-                value: value.join(''),
-                referencePath,
-              })
-            );
-          else
-            value.forEach((element: { [key: string]: any }) => {
-              const subRefs = this.#extractReferences(
-                element,
-                this.#appendPath(key, referencePath)
-              );
-
-              refs.columns.push(...subRefs.columns);
-              refs.tables.push(...subRefs.tables);
-              refs.wildcards.push(...subRefs.wildcards);
-            });
         }
+      } else if (key === SQLElement.WILDCARD_IDENTIFIER)
+        refs.wildcards.push(this.#handleWildCardRef({ key, value, refPath }));
+      else if (value.constructor === Object) {
+        const subRefs = this.#extractRefs(
+          value,
+          this.#appendPath(key, refPath)
+        );
+
+        refs.columns.push(...subRefs.columns);
+        refs.tables.push(...subRefs.tables);
+        refs.wildcards.push(...subRefs.wildcards);
+      } else if (Object.prototype.toString.call(value) === '[object Array]') {
+        if (key === SQLElement.COLUMN_REFERENCE)
+          refs.columns.push(
+            this.#handleColumnIdentifierRef({
+              key,
+              value: value.join(''),
+              refPath,
+            })
+          );
+        else
+          value.forEach((element: { [key: string]: any }) => {
+            const subRefs = this.#extractRefs(
+              element,
+              this.#appendPath(key, refPath)
+            );
+
+            refs.columns.push(...subRefs.columns);
+            refs.tables.push(...subRefs.tables);
+            refs.wildcards.push(...subRefs.wildcards);
+          });
+      }
     });
     return refs;
   };
 
-  // Runs through tree of parsed logic and extract all references of tables and columns (self and parent tables)
-  static #getStatementReferences = (fileObj: any): Refs[] => {
-    const statementReferences: Refs[] = [];
+  // Runs through tree of parsed logic and extract all refs of tables and columns (self and parent tables)
+  static #getStatementRefs = (fileObj: any): Refs[] => {
+    const statementRefs: Refs[] = [];
 
     if (
       fileObj.constructor === Object &&
       fileObj[SQLElement.STATEMENT] !== undefined
     ) {
-      const statementReferencesObj = this.#extractReferences(
-        fileObj[SQLElement.STATEMENT]
-      );
-      statementReferences.push(statementReferencesObj);
+      const statementRefsObj = this.#extractRefs(fileObj[SQLElement.STATEMENT]);
+      statementRefs.push(statementRefsObj);
     } else if (Object.prototype.toString.call(fileObj) === '[object Array]') {
       const statementObjects = fileObj.filter(
         (statement: any) => SQLElement.STATEMENT in statement
       );
 
       statementObjects.forEach((statement: any) => {
-        const statementReferencesObj = this.#extractReferences(
+        const statementRefsObj = this.#extractRefs(
           statement[SQLElement.STATEMENT]
         );
-        statementReferences.push(statementReferencesObj);
+        statementRefs.push(statementRefsObj);
       });
     }
 
-    return statementReferences;
+    return statementRefs;
   };
 
   static create(prototype: LogicPrototype): Logic {
@@ -274,13 +271,11 @@ export class Logic {
 
     const parsedLogicObj = JSON.parse(prototype.parsedLogic);
 
-    const statementReferences = this.#getStatementReferences(
-      parsedLogicObj.file
-    );
+    const statementRefs = this.#getStatementRefs(parsedLogicObj.file);
 
     const logic = new Logic({
       parsedLogic: prototype.parsedLogic,
-      statementReferences,
+      statementRefs,
     });
 
     return logic;

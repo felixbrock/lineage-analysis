@@ -4,6 +4,7 @@ import Result from '../value-types/transient-types/result';
 import { ITableRepo, TableQueryDto } from './i-table-repo';
 
 export interface ReadTablesRequestDto {
+  dbtModelId?: string;
   name?: string | string[];
   modelId?: string;
   lineageId: string;
@@ -53,6 +54,7 @@ export class ReadTables
 
     // todo - add organizationId
     // queryDto.organizationId = organizationId;
+    if (request.dbtModelId) queryDto.dbtModelId = request.dbtModelId;
     if (request.name) queryDto.name = request.name;
     if (request.modelId) queryDto.modelId = request.modelId;
 

@@ -7,8 +7,7 @@ import { IModelRepo } from './i-model-repo';
 import { ReadModels } from './read-models';
 
 export interface CreateModelRequestDto {
-  id: string;
-  location: string;
+  dbtModelId: string;
   parsedLogic: string;
   lineageId: string;
 }
@@ -39,14 +38,14 @@ export class CreateModel
     try {
       const model = Model.create({
         id: new ObjectId().toHexString(),
-        location: request.location,
+        dbtModelId: request.dbtModelId,
         parsedLogic: request.parsedLogic,
         lineageId: request.lineageId,
       });
 
       const readModelsResult = await this.#readModels.execute(
         {
-          location: request.location,
+          dbtModelId: request.dbtModelId,
           lineageId: request.lineageId,
         },
         { organizationId: auth.organizationId }

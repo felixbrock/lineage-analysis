@@ -13,12 +13,14 @@ import { Column, ColumnProperties } from '../../domain/entities/column';
 
 interface ColumnPersistence {
   _id: ObjectId;
+  dbtModelId: string;
   name: string;
   tableId: string;
   lineageId: string;
 }
 
 interface ColumnQueryFilter {
+  dbtModelId?: string;
   name?: string | { [key: string]: string[] };
   tableId?: string | { [key: string]: string[] };
   lineageId: string;
@@ -76,6 +78,8 @@ export default class ColumnRepo implements IColumnRepo {
   #buildFilter = (columnQueryDto: ColumnQueryDto): ColumnQueryFilter => {
     const filter: ColumnQueryFilter = { lineageId: columnQueryDto.lineageId };
 
+    if (columnQueryDto.dbtModelId)
+      filter.dbtModelId = columnQueryDto.dbtModelId;
     if (typeof columnQueryDto.name === 'string' && columnQueryDto.name)
       filter.name = columnQueryDto.name;
     if (columnQueryDto.name instanceof Array)
@@ -158,6 +162,7 @@ export default class ColumnRepo implements IColumnRepo {
   #buildPrototype = (column: ColumnPersistence): ColumnProperties => ({
     // eslint-disable-next-line no-underscore-dangle
     id: column._id.toHexString(),
+    dbtModelId: column.dbtModelId,
     name: column.name,
     tableId: column.tableId,
     lineageId: column.lineageId,
@@ -165,6 +170,7 @@ export default class ColumnRepo implements IColumnRepo {
 
   #toPersistence = (column: Column): Document => ({
     _id: ObjectId.createFromHexString(column.id),
+    dbtModelId: column.dbtModelId,
     name: column.name,
     tableId: column.tableId,
     lineageId: column.lineageId,

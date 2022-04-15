@@ -4,7 +4,7 @@ import Result from '../value-types/transient-types/result';
 import { IModelRepo, ModelQueryDto } from './i-model-repo';
 
 export interface ReadModelsRequestDto {
-  location?: string;
+  dbtModelId?: string;
   lineageId: string;
 }
 
@@ -52,7 +52,7 @@ export class ReadModels
 
     // todo - add organizationId
     // queryDto.organizationId = organizationId;
-    if (request.location) queryDto.location = request.location;
+    if (request.dbtModelId) queryDto.dbtModelId = request.dbtModelId;
 
     return queryDto;
   };

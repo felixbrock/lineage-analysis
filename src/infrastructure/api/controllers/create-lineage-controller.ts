@@ -26,7 +26,7 @@ export default class CreateLineageController extends BaseController {
   }
 
   #buildRequestDto = (httpRequest: Request): CreateLineageRequestDto => ({
-    tableId: httpRequest.params.tableId,
+    lineageId: httpRequest.params.lineageCreatedAt
   });
 
   #buildAuthDto = (userAccountInfo: UserAccountInfo): CreateLineageAuthDto => ({

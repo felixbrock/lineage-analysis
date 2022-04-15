@@ -1,6 +1,7 @@
 import { Column } from '../entities/column';
 
 export interface ColumnQueryDto {
+  dbtModelId?: string;
   name?: string | string[];
   tableId?: string | string[];
   lineageId: string;
