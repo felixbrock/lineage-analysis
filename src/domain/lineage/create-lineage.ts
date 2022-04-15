@@ -567,6 +567,7 @@ export class CreateLineage
 
       this.#models.forEach((model) => {
         model.logic.statementRefs.forEach((refs) => {
+          // handle Wildcard
           let selfRefs = refs.columns.filter((column) => column.isSelfRef);
 
           const setColumnRefs = selfRefs.filter((ref) =>
