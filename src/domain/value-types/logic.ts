@@ -9,6 +9,9 @@ interface Ref {
   path: string;
   name: string;
   isSelfRef: boolean;
+  schemaName?: string;
+  databaseName?: string;
+  warehouseName?: string;
 }
 
 export type TableRef = Ref;
@@ -80,11 +83,23 @@ export class Logic {
     return columnSelfRefs.some((ref) => path.includes(ref));
   };
 
+  static #joinArrayValue = (value: [{ [key: string]: string }]): string => {
+    const valueElements = value.map((element) => {
+      const identifierKey = 'identifier';
+      const dotKey = 'dot';
+      if (identifierKey in element) return element[identifierKey];
+      if (dotKey in element) return element[dotKey];
+      throw new RangeError('Unhandled value chaining error');
+    });
+
+    return valueElements.join('');
+  };
+
   // Handles any column ref
   static #handleColumnIdentifierRef = (
     props: HandlerProperties<string>
   ): ColumnRef => {
-    const columnValueRef = this.#getColumnValueRef(props.value);
+    const columnValueRef = this.#splitColumnValue(props.value);
     const path = this.#appendPath(props.key, props.refPath);
 
     return {
@@ -92,6 +107,9 @@ export class Logic {
       path,
       name: columnValueRef.columnName,
       tableName: columnValueRef.tableName,
+      schemaName: columnValueRef.schemaName,
+      databaseName: columnValueRef.databaseName,
+      warehouseName: columnValueRef.warehouseName,
       isWildcardRef: false,
     };
   };
@@ -100,12 +118,16 @@ export class Logic {
   static #handleTableIdentifierRef = (
     props: HandlerProperties<string>
   ): TableRef => {
+    const tableValueRef = this.#splitTableValue(props.value);
     const path = this.#appendPath(props.key, props.refPath);
 
     return {
       isSelfRef: this.#isSelfRef(path, RefType.TABLE),
       path,
-      name: props.value,
+      name: tableValueRef.tableName,
+      schemaName: tableValueRef.schemaName,
+      databaseName: tableValueRef.databaseName,
+      warehouseName: tableValueRef.warehouseName,
     };
   };
 
@@ -146,18 +168,46 @@ export class Logic {
     throw new SyntaxError('Unhandled wildcard-dict use-case');
   };
 
-  // Splits up table.column notation
-  static #getColumnValueRef = (
-    columnValue: string
-  ): { columnName: string; tableName?: string; } => {
-    const columnName = columnValue.includes('.')
-      ? columnValue.split('.').slice(-1)[0]
-      : columnValue;
-    const tableName = columnValue.includes('.')
-      ? columnValue.split('.').slice(0)[0]
-      : undefined;
+  // todo - Will probably fail, e.g. when 'use schema' is used
+  // Splits up warehouse.database.schema.table notation
+  static #splitTableValue = (
+    value: string
+  ): {
+    tableName: string;
+    schemaName?: string;
+    databaseName?: string;
+    warehouseName?: string;
+  } => {
+    const valueElements = value.split('.').reverse();
 
-    return { columnName, tableName };
+    return {
+      tableName: valueElements[0],
+      schemaName: valueElements[1],
+      databaseName: valueElements[2],
+      warehouseName: valueElements[3],
+    };
+  };
+
+  // todo - Will probably fail, e.g. when 'use schema' is used
+  // Splits up warehouse.database.schema.table.column notation
+  static #splitColumnValue = (
+    value: string
+  ): {
+    columnName: string;
+    tableName?: string;
+    schemaName?: string;
+    databaseName?: string;
+    warehouseName?: string;
+  } => {
+    const valueElements = value.split('.').reverse();
+
+    return {
+      columnName: valueElements[0],
+      tableName: valueElements[1],
+      schemaName: valueElements[2],
+      databaseName: valueElements[3],
+      warehouseName: valueElements[4],
+    };
   };
 
   // Runs through parse SQL logic (JSON object) and check for potential dependencies. Return those dependencies.
@@ -219,7 +269,15 @@ export class Logic {
           refs.columns.push(
             this.#handleColumnIdentifierRef({
               key,
-              value: value.join(''),
+              value: this.#joinArrayValue(value),
+              refPath,
+            })
+          );
+        else if (key === SQLElement.TABLE_REFERENCE)
+          refs.tables.push(
+            this.#handleTableIdentifierRef({
+              key,
+              value: this.#joinArrayValue(value),
               refPath,
             })
           );
