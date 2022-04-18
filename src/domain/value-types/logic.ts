@@ -4,6 +4,7 @@ import SQLElement from './sql-element';
 interface Ref {
   path: string;
   name: string;
+  alias?: string;
   schemaName?: string;
   databaseName?: string;
   warehouseName?: string;
@@ -37,6 +38,7 @@ export interface LogicPrototype {
 interface HandlerProperties<ValueType> {
   key: string;
   value: ValueType;
+  alias?: string;
   refPath: string;
 }
 
@@ -69,6 +71,7 @@ export class Logic {
     const selfElements = [
       `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`,
       `${SQLElement.FROM_EXPRESSION_ELEMENT}.${SQLElement.TABLE_EXPRESSION}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`,
+      `${SQLElement.COMMON_TABLE_EXPRESSION}`,
     ];
 
     return selfElements.some((element) => path.includes(element));
@@ -82,10 +85,12 @@ export class Logic {
     const dataDependencyElements = [
       `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
       `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.WILDCARD_EXPRESSION}.${SQLElement.WILDCARD_IDENTIFIER}`,
+      `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.ALIAS_EXPRESSION}.${SQLElement.IDENTIFIER}`,
+      `${SQLElement.FUNCTION}.${SQLElement.BRACKETED}.${SQLElement.EXPRESSION}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
     ];
 
     if (definitionElements.some((element) => path.includes(element)))
-      return DependencyType.DATA;
+      return DependencyType.DEFINITION;
     if (dataDependencyElements.some((element) => path.includes(element)))
       return DependencyType.DATA;
     return DependencyType.QUERY;
@@ -113,6 +118,7 @@ export class Logic {
     return {
       dependencyType: this.#getColumnDependencyType(path),
       path,
+      alias: props.alias,
       name: columnValueRef.columnName,
       tableName: columnValueRef.tableName,
       schemaName: columnValueRef.schemaName,
@@ -132,6 +138,7 @@ export class Logic {
     return {
       isSelfRef: this.#isSelfRef(path),
       path,
+      alias: props.alias,
       name: tableValueRef.tableName,
       schemaName: tableValueRef.schemaName,
       databaseName: tableValueRef.databaseName,
@@ -230,6 +237,7 @@ export class Logic {
       wildcards: [],
     };
 
+    let alias: string;
     Object.entries(parsedSQL).forEach((parsedSQLElement) => {
       const key = parsedSQLElement[0];
       const value = parsedSQLElement[1];
@@ -240,16 +248,27 @@ export class Logic {
           : refPath;
 
       if (key === SQLElement.IDENTIFIER) {
-        if (path.includes(SQLElement.COLUMN_REFERENCE))
+        if (path.includes(SQLElement.ALIAS_EXPRESSION))
+            alias = value;
+        else if (path.includes(SQLElement.COLUMN_REFERENCE)){
           refs.columns.push(
-            this.#handleColumnIdentifierRef({ key, value, refPath })
+            this.#handleColumnIdentifierRef({ key, value, refPath, alias })
           );
-        else if (path.includes(SQLElement.TABLE_REFERENCE)) {
+
+          alias = '';
+        }
+        else if (
+          path.includes(SQLElement.TABLE_REFERENCE) ||
+          path.includes(SQLElement.WITH_COMPOUND_STATEMENT)
+        ) {
           const ref = this.#handleTableIdentifierRef({
             key,
             value,
             refPath,
+            alias
           });
+
+          alias = '';
 
           if (
             ref.isSelfRef &&
@@ -281,7 +300,10 @@ export class Logic {
               refPath,
             })
           );
-        else if (key === SQLElement.TABLE_REFERENCE)
+        else if (
+          key === SQLElement.TABLE_REFERENCE ||
+          key === SQLElement.COMMON_TABLE_EXPRESSION
+        )
           refs.tables.push(
             this.#handleTableIdentifierRef({
               key,
@@ -359,6 +381,9 @@ export class Logic {
         );
 
         columnToFix.tableName = tableRef.name;
+        columnToFix.schemaName = tableRef.schemaName;
+        columnToFix.databaseName = tableRef.databaseName;
+        columnToFix.warehouseName = tableRef.warehouseName;
 
         return columnToFix;
       });
@@ -374,6 +399,9 @@ export class Logic {
         );
 
         wildcardToFix.tableName = tableRef.name;
+        wildcardToFix.schemaName = tableRef.schemaName;
+        wildcardToFix.databaseName = tableRef.databaseName;
+        wildcardToFix.warehouseName = tableRef.warehouseName;
 
         return wildcardToFix;
       });

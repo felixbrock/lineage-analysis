@@ -15,7 +15,7 @@ import LineageRepo from '../../infrastructure/persistence/lineage-repo';
 import { ReadColumns } from '../column/read-columns';
 import { Model } from '../entities/model';
 import { CreateDependency } from '../dependency/create-dependency';
-import { ColumnRef} from '../value-types/logic';
+import { ColumnRef } from '../value-types/logic';
 import { DependencyType } from '../entities/dependency';
 
 export interface CreateLineageRequestDto {
@@ -545,12 +545,19 @@ export class CreateLineage
 
     if (!isStatementDependency) return false;
 
-    if (
-      (selfStatementRoot.includes(SQLElement.SELECT_STATEMENT) &&
-        potentialDependency.isWildcardRef) ||
-      selfRef.name === potentialDependency.name
-    )
-      return true;
+    const isSelfSelectStatement = selfStatementRoot.includes(
+      SQLElement.SELECT_STATEMENT
+    );
+
+    const isWildcardRef =
+      isSelfSelectStatement && potentialDependency.isWildcardRef;
+    const isSameName =
+      isSelfSelectStatement && selfRef.name === potentialDependency.name;
+    const isGroupBy =
+      potentialDependency.path.includes(SQLElement.GROUPBY_CLAUSE) &&
+      selfRef.name !== potentialDependency.name;
+
+    if (isWildcardRef || isSameName || isGroupBy) return true;
 
     throw new RangeError(
       'Unhandled case when checking if is dependency of target'
@@ -590,11 +597,22 @@ export class CreateLineage
               )
           );
 
-          const columnRefs = dataDependencyRefs.filter(
+          let columnRefs = dataDependencyRefs.filter(
             (ref) => !ref.path.includes(SQLElement.SET_EXPRESSION)
           );
 
           dataDependencyRefs = uniqueSetColumnRefs.concat(columnRefs);
+
+          const withColumnRefs = dataDependencyRefs.filter(
+            (ref) =>
+              ref.path.includes(SQLElement.WITH_COMPOUND_STATEMENT) &&
+              !ref.path.includes(SQLElement.COMMON_TABLE_EXPRESSION)
+          );
+          columnRefs = dataDependencyRefs.filter(
+            (ref) => !ref.path.includes(SQLElement.WITH_COMPOUND_STATEMENT)
+          );
+
+          dataDependencyRefs = withColumnRefs.concat(columnRefs);
 
           const isColumnRef = (
             item: ColumnRef | undefined
@@ -615,7 +633,7 @@ export class CreateLineage
             dependencies.forEach((dependency) => {
               if (!this.#lineage)
                 throw new ReferenceError('Lineage property is undefined');
-              // this.#createDependency({selfRef, dependency, refs, model.id, parentTableIds} )
+
               this.#createDependency.execute(
                 {
                   selfRef,
