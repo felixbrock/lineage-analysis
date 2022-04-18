@@ -1,22 +1,25 @@
 import SQLElement from './sql-element';
 
-enum RefType {
-  TABLE = 'TABLE',
-  COLUMN = 'COLUMN',
+export enum DependencyType {
+  DATA = 'DATA',
+  QUERY = 'QUERY',
+  DEFINITION = 'DEFINITION',
 }
 
 interface Ref {
   path: string;
   name: string;
-  isSelfRef: boolean;
   schemaName?: string;
   databaseName?: string;
   warehouseName?: string;
 }
 
-export type TableRef = Ref;
+export interface TableRef extends Ref {
+  isSelfRef: boolean;
+}
 
 export interface ColumnRef extends Ref {
+  dependencyType: DependencyType;
   isWildcardRef: boolean;
   tableName?: string;
 }
@@ -67,20 +70,30 @@ export class Logic {
   };
 
   // Checks if ref is a self ref and, hence, defines the target column and table itself
-  static #isSelfRef = (path: string, refType: RefType): boolean => {
-    const columnSelfRefs =
-      refType === RefType.TABLE
-        ? [
-            `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`,
-            `${SQLElement.FROM_EXPRESSION_ELEMENT}.${SQLElement.TABLE_EXPRESSION}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`,
-          ]
-        : [
-            `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
-            `${SQLElement.COLUMN_DEFINITION}.${SQLElement.IDENTIFIER}`,
-            `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.WILDCARD_EXPRESSION}.${SQLElement.WILDCARD_IDENTIFIER}`,
-          ];
+  static #isSelfRef = (path: string): boolean => {
+    const selfElements = [
+      `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`,
+      `${SQLElement.FROM_EXPRESSION_ELEMENT}.${SQLElement.TABLE_EXPRESSION}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`,
+    ];
 
-    return columnSelfRefs.some((ref) => path.includes(ref));
+    return selfElements.some((element) => path.includes(element));
+  };
+
+  static #getDependencyType = (path: string): DependencyType => {
+    const definitionElements = [
+      `${SQLElement.COLUMN_DEFINITION}.${SQLElement.IDENTIFIER}`,
+    ];
+
+    const dataDependencyElements = [
+      `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
+      `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.WILDCARD_EXPRESSION}.${SQLElement.WILDCARD_IDENTIFIER}`,
+    ];
+
+    if (definitionElements.some((element) => path.includes(element)))
+      return DependencyType.DATA;
+    if (dataDependencyElements.some((element) => path.includes(element)))
+      return DependencyType.DATA;
+    return DependencyType.QUERY;
   };
 
   static #joinArrayValue = (value: [{ [key: string]: string }]): string => {
@@ -103,7 +116,7 @@ export class Logic {
     const path = this.#appendPath(props.key, props.refPath);
 
     return {
-      isSelfRef: this.#isSelfRef(path, RefType.COLUMN),
+      dependencyType: this.#getDependencyType(path),
       path,
       name: columnValueRef.columnName,
       tableName: columnValueRef.tableName,
@@ -122,7 +135,7 @@ export class Logic {
     const path = this.#appendPath(props.key, props.refPath);
 
     return {
-      isSelfRef: this.#isSelfRef(path, RefType.TABLE),
+      isSelfRef: this.#isSelfRef(path),
       path,
       name: tableValueRef.tableName,
       schemaName: tableValueRef.schemaName,
@@ -149,7 +162,7 @@ export class Logic {
 
     if (isDotNoation)
       return {
-        isSelfRef: true,
+        dependencyType: this.#getDependencyType(path),
         path,
         name: SQLElement.WILDCARD_IDENTIFIER_STAR,
         tableName: props.value[SQLElement.WILDCARD_IDENTIFIER_IDENTIFIER],
@@ -160,7 +173,7 @@ export class Logic {
       wildcardElementKeys.includes(SQLElement.WILDCARD_IDENTIFIER_STAR)
     )
       return {
-        isSelfRef: true,
+        dependencyType: this.#getDependencyType(path),
         path,
         name: SQLElement.WILDCARD_IDENTIFIER_STAR,
         isWildcardRef: true,
@@ -297,9 +310,88 @@ export class Logic {
     return refs;
   };
 
+  static #hasMissingTableRefs = (statementRefs: Refs[]): boolean =>
+    statementRefs.some(
+      (element) =>
+        element.columns.some((column) => !column.tableName) ||
+        element.wildcards.some((wildcard) => !wildcard.tableName)
+    );
+
+  static #getBestMatchingTable = (
+    columnPath: string,
+    tables: TableRef[]
+  ): TableRef => {
+    const columnPathElements = columnPath.split('.');
+
+    let bestMatch: { ref: TableRef; matchingPoints: number } | undefined;
+    tables.forEach((table) => {
+      const tablePathElements = table.path.split('.');
+
+      let matchingPoints = 0;
+      let differenceFound: boolean;
+      columnPathElements.forEach((element, index) => {
+        if (differenceFound) return;
+        if (element === tablePathElements[index]) matchingPoints += 1;
+        else differenceFound = true;
+      });
+
+      if (!bestMatch || matchingPoints > bestMatch.matchingPoints)
+        bestMatch = { ref: table, matchingPoints };
+      else if (bestMatch.matchingPoints === matchingPoints)
+        throw new RangeError(
+          'More than one potential table match found for column reference'
+        );
+    });
+
+    if (!bestMatch)
+      throw new ReferenceError('No table match for column reference found');
+
+    return bestMatch.ref;
+  };
+
+  static #addColumnTableInfo = (statementRefs: Refs[]): Refs[] => {
+    const fixedStatementRefs: Refs[] = statementRefs.map((element) => {
+      const parentTables = element.tables.filter((table) => !table.isSelfRef);
+
+      const columns = element.columns.map((column) => {
+        if (column.tableName) return column;
+
+        const columnToFix = column;
+
+        const tableRef = this.#getBestMatchingTable(
+          columnToFix.path,
+          parentTables
+        );
+
+        columnToFix.tableName = tableRef.name;
+
+        return columnToFix;
+      });
+
+      const wildcards = element.wildcards.map((wildcard) => {
+        if (wildcard.tableName) return wildcard;
+
+        const wildcardToFix = wildcard;
+
+        const tableRef = this.#getBestMatchingTable(
+          wildcardToFix.path,
+          parentTables
+        );
+
+        wildcardToFix.tableName = tableRef.name;
+
+        return wildcardToFix;
+      });
+
+      return { tables: element.tables, columns, wildcards };
+    });
+
+    return fixedStatementRefs;
+  };
+
   // Runs through tree of parsed logic and extract all refs of tables and columns (self and parent tables)
   static #getStatementRefs = (fileObj: any): Refs[] => {
-    const statementRefs: Refs[] = [];
+    let statementRefs: Refs[] = [];
 
     if (
       fileObj.constructor === Object &&
@@ -319,6 +411,12 @@ export class Logic {
         statementRefs.push(statementRefsObj);
       });
     }
+
+    if (this.#hasMissingTableRefs(statementRefs))
+      statementRefs = this.#addColumnTableInfo(statementRefs);
+
+    if (this.#hasMissingTableRefs(statementRefs))
+      throw new ReferenceError('Missing table for column reference');
 
     return statementRefs;
   };

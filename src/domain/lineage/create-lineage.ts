@@ -15,7 +15,7 @@ import LineageRepo from '../../infrastructure/persistence/lineage-repo';
 import { ReadColumns } from '../column/read-columns';
 import { Model } from '../entities/model';
 import { CreateDependency } from '../dependency/create-dependency';
-import { ColumnRef } from '../value-types/logic';
+import { ColumnRef, DependencyType } from '../value-types/logic';
 
 export interface CreateLineageRequestDto {
   lineageId?: string;
@@ -526,7 +526,7 @@ export class CreateLineage
   };
 
   // Checks if parent dependency can be mapped on the provided self column or to another column of the self table.
-  #isTargetRefDependency = (
+  #isDependencyOfTarget = (
     potentialDependency: ColumnRef,
     selfRef: ColumnRef
   ): boolean => {
@@ -551,7 +551,9 @@ export class CreateLineage
     )
       return true;
 
-    throw new RangeError('Unhandled isTargetRefDependency');
+    throw new RangeError(
+      'Unhandled case when checking if is dependency of target'
+    );
   };
 
   async execute(
@@ -567,10 +569,12 @@ export class CreateLineage
 
       this.#models.forEach((model) => {
         model.logic.statementRefs.forEach((refs) => {
-          // handle Wildcard
-          let selfRefs = refs.columns.filter((column) => column.isSelfRef);
+          let dataDependencyRefs = refs.columns.filter(
+            (column) => column.dependencyType === DependencyType.DATA
+          );
+          dataDependencyRefs.push(...refs.wildcards);
 
-          const setColumnRefs = selfRefs.filter((ref) =>
+          const setColumnRefs = dataDependencyRefs.filter((ref) =>
             ref.path.includes(SQLElement.SET_EXPRESSION)
           );
 
@@ -585,20 +589,20 @@ export class CreateLineage
               )
           );
 
-          const columnRefs = selfRefs.filter(
+          const columnRefs = dataDependencyRefs.filter(
             (ref) => !ref.path.includes(SQLElement.SET_EXPRESSION)
           );
 
-          selfRefs = uniqueSetColumnRefs.concat(columnRefs);
+          dataDependencyRefs = uniqueSetColumnRefs.concat(columnRefs);
 
           const isColumnRef = (
             item: ColumnRef | undefined
           ): item is ColumnRef => !!item;
 
-          selfRefs.forEach((selfRef) => {
+          dataDependencyRefs.forEach((selfRef) => {
             const dependencies: ColumnRef[] = refs.columns
               .map((columnRef) => {
-                const isDependency = this.#isTargetRefDependency(
+                const isDependency = this.#isDependencyOfTarget(
                   columnRef,
                   selfRef
                 );
