@@ -1,6 +1,11 @@
+export enum DependencyType {
+  DATA = 'DATA',
+  QUERY = 'QUERY',
+}
+
 export interface DependencyProperties {
   id: string,
-  type: string,
+  type: DependencyType,
   headColumnId: string,
   tailColumnId: string,
   lineageId: string
@@ -9,7 +14,7 @@ export interface DependencyProperties {
 export class Dependency {
   #id: string;
 
-  #type: string;
+  #type: DependencyType;
 
   #headColumnId: string;
 
@@ -21,7 +26,7 @@ export class Dependency {
     return this.#id;
   }
 
-  get type(): string {
+  get type(): DependencyType {
     return this.#type;
   }
 

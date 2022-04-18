@@ -15,18 +15,19 @@ import {
 import {
   Dependency,
   DependencyProperties,
+  DependencyType,
 } from '../../domain/entities/dependency';
 
 interface DependencyPersistence {
   _id: ObjectId;
-  type: string;
+  type: DependencyType;
   headColumnId: string;
   tailColumnId: string;
   lineageId: string;
 }
 
 interface DependencyQueryFilter {
-  type?: string;
+  type?: DependencyType;
   headColumnId?: string;
   tailColumnId?: string;
   lineageId: string;

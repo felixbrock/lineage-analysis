@@ -15,7 +15,8 @@ import LineageRepo from '../../infrastructure/persistence/lineage-repo';
 import { ReadColumns } from '../column/read-columns';
 import { Model } from '../entities/model';
 import { CreateDependency } from '../dependency/create-dependency';
-import { ColumnRef, DependencyType } from '../value-types/logic';
+import { ColumnRef} from '../value-types/logic';
+import { DependencyType } from '../entities/dependency';
 
 export interface CreateLineageRequestDto {
   lineageId?: string;

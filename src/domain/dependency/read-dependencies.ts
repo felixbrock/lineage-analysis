@@ -1,10 +1,10 @@
-import { Dependency } from '../entities/dependency';
+import { Dependency, DependencyType } from '../entities/dependency';
 import IUseCase from '../services/use-case';
 import Result from '../value-types/transient-types/result';
 import { IDependencyRepo, DependencyQueryDto } from './i-dependency-repo';
 
 export interface ReadDependenciesRequestDto {
-  type?: string;
+  type?: DependencyType;
   headColumnId?: string;
   tailColumnId?: string;
   lineageId: string;

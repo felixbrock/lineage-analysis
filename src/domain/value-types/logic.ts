@@ -1,10 +1,5 @@
+import { DependencyType } from '../entities/dependency';
 import SQLElement from './sql-element';
-
-export enum DependencyType {
-  DATA = 'DATA',
-  QUERY = 'QUERY',
-  DEFINITION = 'DEFINITION',
-}
 
 interface Ref {
   path: string;
@@ -79,7 +74,7 @@ export class Logic {
     return selfElements.some((element) => path.includes(element));
   };
 
-  static #getDependencyType = (path: string): DependencyType => {
+  static #getColumnDependencyType = (path: string): DependencyType => {
     const definitionElements = [
       `${SQLElement.COLUMN_DEFINITION}.${SQLElement.IDENTIFIER}`,
     ];
@@ -116,7 +111,7 @@ export class Logic {
     const path = this.#appendPath(props.key, props.refPath);
 
     return {
-      dependencyType: this.#getDependencyType(path),
+      dependencyType: this.#getColumnDependencyType(path),
       path,
       name: columnValueRef.columnName,
       tableName: columnValueRef.tableName,
@@ -162,7 +157,7 @@ export class Logic {
 
     if (isDotNoation)
       return {
-        dependencyType: this.#getDependencyType(path),
+        dependencyType: this.#getColumnDependencyType(path),
         path,
         name: SQLElement.WILDCARD_IDENTIFIER_STAR,
         tableName: props.value[SQLElement.WILDCARD_IDENTIFIER_IDENTIFIER],
@@ -173,7 +168,7 @@ export class Logic {
       wildcardElementKeys.includes(SQLElement.WILDCARD_IDENTIFIER_STAR)
     )
       return {
-        dependencyType: this.#getDependencyType(path),
+        dependencyType: this.#getColumnDependencyType(path),
         path,
         name: SQLElement.WILDCARD_IDENTIFIER_STAR,
         isWildcardRef: true,

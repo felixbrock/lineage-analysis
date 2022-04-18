@@ -8,11 +8,6 @@ import { ReadDependencies } from './read-dependencies';
 import { ColumnRef } from '../value-types/logic';
 import { ReadColumns } from '../column/read-columns';
 
-enum DependencyType {
-  DATA = 'DATA',
-  QUERY = 'QUERY',
-}
-
 export interface CreateDependencyRequestDto {
   selfRef: ColumnRef;
   selfModelId: string;
@@ -228,7 +223,7 @@ export class CreateDependency
 
       const dependency = Dependency.create({
         id: new ObjectId().toHexString(),
-        type: DependencyType.DATA,
+        type: request.selfRef.dependencyType,
         headColumnId: selfColumn.id,
         tailColumnId: parentId,
         lineageId: request.lineageId,
@@ -236,7 +231,7 @@ export class CreateDependency
 
       const readColumnsResult = await this.#readDependencies.execute(
         {
-          type: DependencyType.DATA,
+          type: request.selfRef.dependencyType,
           headColumnId: selfColumn.id,
           tailColumnId: parentId,
           lineageId: request.lineageId,

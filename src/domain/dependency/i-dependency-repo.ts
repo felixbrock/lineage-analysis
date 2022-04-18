@@ -1,7 +1,7 @@
-import { Dependency } from '../entities/dependency';
+import { Dependency, DependencyType } from '../entities/dependency';
 
 export interface DependencyQueryDto {
-  type?: string;
+  type?: DependencyType;
   headColumnId?: string;
   tailColumnId?: string;
   lineageId: string;
