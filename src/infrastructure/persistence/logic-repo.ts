@@ -4,43 +4,41 @@ import {
   FindCursor,
   InsertOneResult,
   ObjectId,
-  UpdateResult,
 } from 'mongodb';
 import sanitize from 'mongo-sanitize';
 
 import { connect, close, createClient } from './db/mongo-db';
+import { ILogicRepo, LogicQueryDto } from '../../domain/logic/i-logic-repo';
 import {
-  IModelRepo,
-  ModelQueryDto,
-  ModelUpdateDto,
-} from '../../domain/model/i-model-repo';
-import { Model, ModelPrototype } from '../../domain/entities/model';
+  ColumnRef,
+  Logic,
+  LogicProperties,
+  LogicPrototype,
+  Refs,
+  MaterializationRef,
+} from '../../domain/entities/logic';
+
+type PersistenceStatementRefs = {
+  [key: string]: { [key: string]: any }[];
+}[];
 
 interface LogicPersistence {
-  parsedLogic: string;
-  statementRefs: [string, string][][];
-}
-
-interface ModelPersistence {
   _id: ObjectId;
   dbtModelId: string;
-  logic: LogicPersistence;
+  parsedLogic: string;
+  statementRefs: PersistenceStatementRefs;
   lineageId: string;
 }
 
-interface ModelQueryFilter {
+interface LogicQueryFilter {
   dbtModelId?: string;
   lineageId: string;
 }
 
-interface ModelUpdateFilter {
-  $set: { [key: string]: any };
-}
+const collectionName = 'logic';
 
-const collectionName = 'model';
-
-export default class ModelRepo implements IModelRepo {
-  findOne = async (id: string): Promise<Model | null> => {
+export default class LogicRepo implements ILogicRepo {
+  findOne = async (id: string): Promise<Logic | null> => {
     const client = createClient();
     try {
       const db = await connect(client);
@@ -60,16 +58,16 @@ export default class ModelRepo implements IModelRepo {
     }
   };
 
-  findBy = async (modelQueryDto: ModelQueryDto): Promise<Model[]> => {
+  findBy = async (logicQueryDto: LogicQueryDto): Promise<Logic[]> => {
     try {
-      if (!Object.keys(modelQueryDto).length) return await this.all();
+      if (!Object.keys(logicQueryDto).length) return await this.all();
 
       const client = createClient();
 
       const db = await connect(client);
       const result: FindCursor = await db
         .collection(collectionName)
-        .find(this.#buildFilter(sanitize(modelQueryDto)));
+        .find(this.#buildFilter(sanitize(logicQueryDto)));
       const results = await result.toArray();
 
       close(client);
@@ -86,15 +84,15 @@ export default class ModelRepo implements IModelRepo {
     }
   };
 
-  #buildFilter = (modelQueryDto: ModelQueryDto): ModelQueryFilter => {
-    const filter: ModelQueryFilter = {lineageId: modelQueryDto.lineageId};
+  #buildFilter = (logicQueryDto: LogicQueryDto): LogicQueryFilter => {
+    const filter: LogicQueryFilter = { lineageId: logicQueryDto.lineageId };
 
-    if (modelQueryDto.dbtModelId) filter.dbtModelId = modelQueryDto.dbtModelId;
+    if (logicQueryDto.dbtModelId) filter.dbtModelId = logicQueryDto.dbtModelId;
 
     return filter;
   };
 
-  all = async (): Promise<Model[]> => {
+  all = async (): Promise<Logic[]> => {
     const client = createClient();
     try {
       const db = await connect(client);
@@ -115,53 +113,16 @@ export default class ModelRepo implements IModelRepo {
     }
   };
 
-  updateOne = async (
-    id: string,
-    updateDto: ModelUpdateDto
-  ): Promise<string> => {
-    const client = createClient();
-    try {
-      const db = await connect(client);
-
-      const result: Document | UpdateResult = await db
-        .collection(collectionName)
-        .updateOne(
-          { _id: new ObjectId(sanitize(id)) },
-          this.#buildUpdateFilter(sanitize(updateDto))
-        );
-
-      if (!result.acknowledged)
-        throw new Error('Model update failed. Update not acknowledged');
-
-      close(client);
-
-      return result.upsertedId;
-    } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.message);
-      return Promise.reject(new Error('Unknown error occured'));
-    }
-  };
-
-  #buildUpdateFilter = (modelUpdateDto: ModelUpdateDto): ModelUpdateFilter => {
-    const setFilter: { [key: string]: any } = {};
-
-    if (modelUpdateDto.dbtModelId) setFilter.dbtModelId = modelUpdateDto.dbtModelId;
-    if (modelUpdateDto.logic) setFilter.logic = modelUpdateDto.logic;
-
-    return { $set: setFilter };
-  };
-
-  insertOne = async (model: Model): Promise<string> => {
+  insertOne = async (logic: Logic): Promise<string> => {
     const client = createClient();
     try {
       const db = await connect(client);
       const result: InsertOneResult<Document> = await db
         .collection(collectionName)
-        .insertOne(this.#toPersistence(sanitize(model)));
+        .insertOne(this.#toPersistence(sanitize(logic)));
 
       if (!result.acknowledged)
-        throw new Error('Model creation failed. Insert not acknowledged');
+        throw new Error('Logic creation failed. Insert not acknowledged');
 
       close(client);
 
@@ -182,7 +143,7 @@ export default class ModelRepo implements IModelRepo {
         .deleteOne({ _id: new ObjectId(sanitize(id)) });
 
       if (!result.acknowledged)
-        throw new Error('Model delete failed. Delete not acknowledged');
+        throw new Error('Logic delete failed. Delete not acknowledged');
 
       close(client);
 
@@ -194,25 +155,62 @@ export default class ModelRepo implements IModelRepo {
     }
   };
 
-  #toEntity = (modelPrototype: ModelPrototype): Model =>
-    Model.create(modelPrototype);
+  #toEntity = (logicPrototype: LogicPrototype): Logic =>
+    Logic.create(logicPrototype);
 
-  #buildPrototype = (model: ModelPersistence): ModelPrototype => ({
+  #buildStatementRefs = (statementRefs: PersistenceStatementRefs): Refs[] =>
+    statementRefs.map((ref) => {
+      const materializations: MaterializationRef[] = ref.materializations.map((materialization) => ({
+        path: materialization.path,
+        name: materialization.name,
+        alias: materialization.alias,
+        schemaName: materialization.schemaName,
+        databaseName: materialization.databaseName,
+        warehouseName: materialization.warehouseName,
+        isSelfRef: materialization.isSelfRef,
+      }));
+
+      const columns: ColumnRef[] = ref.columns.map((column) => ({
+        path: column.path,
+        name: column.name,
+        alias: column.alias,
+        schemaName: column.schemaName,
+        databaseName: column.databaseName,
+        warehouseName: column.warehouseName,
+        dependencyType: column.dependencyType,
+        isWildcardRef: column.isWildcardRef,
+        materializationName: column.materializationName,
+      }));
+
+      const wildcards: ColumnRef[] = ref.wildcards.map((wildcard) => ({
+        path: wildcard.path,
+        name: wildcard.name,
+        alias: wildcard.alias,
+        schemaName: wildcard.schemaName,
+        databaseName: wildcard.databaseName,
+        warehouseName: wildcard.warehouseName,
+        dependencyType: wildcard.dependencyType,
+        isWildcardRef: wildcard.isWildcardRef,
+        materializationName: wildcard.materializationName,
+      }));
+
+      return { materializations, columns, wildcards };
+    });
+
+  #buildPrototype = (logic: LogicPersistence): LogicProperties => ({
     // eslint-disable-next-line no-underscore-dangle
-    id: model._id.toHexString(),
-    dbtModelId: model.dbtModelId,
-    // todo - Doesnt make sense to generate logic object from scratch if it exists in persistence
-    parsedLogic: model.logic.parsedLogic,
-    lineageId: model.lineageId,
+    id: logic._id.toHexString(),
+    dbtModelId: logic.dbtModelId,
+    parsedLogic: logic.parsedLogic,
+    statementRefs: this.#buildStatementRefs(logic.statementRefs),
+    lineageId: logic.lineageId,
   });
 
-  #toPersistence = (model: Model): Document => ({
-    _id: ObjectId.createFromHexString(model.id),
-    dbtModelId: model.dbtModelId,
-    lineageId: model.lineageId,
-    logic: {
-      parsedLogic: model.logic.parsedLogic,
-      statementRefs: model.logic.statementRefs,
-    },
+  #toPersistence = (logic: Logic): Document => ({
+    _id: ObjectId.createFromHexString(logic.id),
+    dbtModelId: logic.dbtModelId,
+    parsedLogic: logic.parsedLogic,
+    statementRefs: logic.statementRefs,
+    lineageId: logic.lineageId,
   });
 }

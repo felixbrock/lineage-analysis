@@ -3,7 +3,7 @@ import { Column } from '../entities/column';
 export interface ColumnQueryDto {
   dbtModelId?: string;
   name?: string | string[];
-  tableId?: string | string[];
+  materializationId?: string | string[];
   lineageId: string;
 }
 

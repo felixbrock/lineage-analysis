@@ -2,6 +2,6 @@ export interface ColumnDto {
   id: string;
   dbtModelId: string;
   name: string;
-  tableId: string;
+  materializationId: string;
   lineageId: string;
 }

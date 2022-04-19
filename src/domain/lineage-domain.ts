@@ -3,28 +3,28 @@ import { ReadColumns } from './column/read-columns';
 import { CreateDependency } from './dependency/create-dependency';
 import { ReadDependencies } from './dependency/read-dependencies';
 import { CreateLineage } from './lineage/create-lineage';
-import { CreateModel } from './model/create-model';
-import { ReadModels } from './model/read-models';
-import { CreateTable } from './table/create-table';
-import { ReadTable } from './table/read-table';
-import { ReadTables } from './table/read-tables';
+import { CreateLogic } from './logic/create-logic';
+import { ReadLogics } from './logic/read-logics';
+import { CreateMaterialization } from './materialization/create-materialization';
+import { ReadMaterialization } from './materialization/read-materialization';
+import { ReadMaterializations } from './materialization/read-materializations';
 
 export default class LineageDomain {
   #createLineage: CreateLineage;
 
-  #createModel: CreateModel;
+  #createLogic: CreateLogic;
 
-  #createTable: CreateTable;
+  #createMaterialization: CreateMaterialization;
 
   #createColumn: CreateColumn;
 
   #createDependency: CreateDependency;
 
-  #readTable: ReadTable;
+  #readMaterialization: ReadMaterialization;
 
-  #readModels: ReadModels;
+  #readLogics: ReadLogics;
 
-  #readTables: ReadTables;
+  #readMaterializations: ReadMaterializations;
 
   #readColumns: ReadColumns;
 
@@ -34,12 +34,12 @@ export default class LineageDomain {
     return this.#createLineage;
   }
 
-  get createModel(): CreateModel {
-    return this.#createModel;
+  get createLogic(): CreateLogic {
+    return this.#createLogic;
   }
 
-  get createTable(): CreateTable {
-    return this.#createTable;
+  get createMaterialization(): CreateMaterialization {
+    return this.#createMaterialization;
   }
 
   get createColumn(): CreateColumn {
@@ -50,16 +50,16 @@ export default class LineageDomain {
     return this.#createDependency;
   }
 
-  get readTable(): ReadTable {
-    return this.#readTable;
+  get readMaterialization(): ReadMaterialization {
+    return this.#readMaterialization;
   }
 
-  get readModels(): ReadModels {
-    return this.#readModels;
+  get readLogics(): ReadLogics {
+    return this.#readLogics;
   }
 
-  get readTables(): ReadTables {
-    return this.#readTables;
+  get readMaterializations(): ReadMaterializations {
+    return this.#readMaterializations;
   }
 
   get readColumns(): ReadColumns {
@@ -72,24 +72,24 @@ export default class LineageDomain {
 
   constructor(
     createLineage: CreateLineage,
-    createModel: CreateModel,
-    createTable: CreateTable,
+    createLogic: CreateLogic,
+    createMaterialization: CreateMaterialization,
     createColumn: CreateColumn,
     createDependency: CreateDependency,
-    readTable: ReadTable,
-    readModels: ReadModels,
-    readTables: ReadTables,
+    readMaterialization: ReadMaterialization,
+    readLogics: ReadLogics,
+    readMaterializations: ReadMaterializations,
     readColumns: ReadColumns,
     readDependencies: ReadDependencies
   ) {
     this.#createLineage = createLineage;
-    this.#createModel = createModel;
-    this.#createTable = createTable;
+    this.#createLogic = createLogic;
+    this.#createMaterialization = createMaterialization;
     this.#createColumn = createColumn;
     this.#createDependency = createDependency;
-    this.#readTable = readTable;
-    this.#readModels = readModels;
-    this.#readTables = readTables;
+    this.#readMaterialization = readMaterialization;
+    this.#readLogics = readLogics;
+    this.#readMaterializations = readMaterializations;
     this.#readColumns = readColumns;
     this.#readDependencies = readDependencies;
   }
