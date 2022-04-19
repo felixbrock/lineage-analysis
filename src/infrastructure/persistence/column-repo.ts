@@ -9,32 +9,20 @@ import sanitize from 'mongo-sanitize';
 
 import { connect, close, createClient } from './db/mongo-db';
 import { ColumnQueryDto, IColumnRepo } from '../../domain/column/i-column-repo';
-import { Column, ColumnPrototype } from '../../domain/entities/column';
-
-interface DependencyPersistence {
-  type: string;
-  columnId: string;
-  direction: string;
-}
+import { Column, ColumnProperties } from '../../domain/entities/column';
 
 interface ColumnPersistence {
   _id: ObjectId;
+  dbtModelId: string;
   name: string;
   tableId: string;
-  dependencies: DependencyPersistence[];
   lineageId: string;
 }
 
-interface DependenciesQueryFilter {
-  type?: string;
-  columnId?: string;
-  direction?: string;
-}
-
 interface ColumnQueryFilter {
+  dbtModelId?: string;
   name?: string | { [key: string]: string[] };
   tableId?: string | { [key: string]: string[] };
-  dependencies?: DependenciesQueryFilter;
   lineageId: string;
 }
 
@@ -90,6 +78,8 @@ export default class ColumnRepo implements IColumnRepo {
   #buildFilter = (columnQueryDto: ColumnQueryDto): ColumnQueryFilter => {
     const filter: ColumnQueryFilter = { lineageId: columnQueryDto.lineageId };
 
+    if (columnQueryDto.dbtModelId)
+      filter.dbtModelId = columnQueryDto.dbtModelId;
     if (typeof columnQueryDto.name === 'string' && columnQueryDto.name)
       filter.name = columnQueryDto.name;
     if (columnQueryDto.name instanceof Array)
@@ -99,23 +89,6 @@ export default class ColumnRepo implements IColumnRepo {
       filter.tableId = columnQueryDto.tableId;
     if (columnQueryDto.tableId instanceof Array)
       filter.tableId = { $in: columnQueryDto.tableId };
-
-    if (
-      !columnQueryDto.dependency ||
-      !Object.keys(columnQueryDto.dependency).length
-    )
-      return filter;
-
-    const dependenciesFilter: DependenciesQueryFilter = {};
-
-    if (columnQueryDto.dependency.type)
-      dependenciesFilter.type = columnQueryDto.dependency.type;
-    if (columnQueryDto.dependency.columnId)
-      dependenciesFilter.columnId = columnQueryDto.dependency.columnId;
-    if (columnQueryDto.dependency.direction)
-      dependenciesFilter.direction = columnQueryDto.dependency.direction;
-
-    filter.dependencies = dependenciesFilter;
 
     return filter;
   };
@@ -162,7 +135,7 @@ export default class ColumnRepo implements IColumnRepo {
     }
   };
 
-  public deleteOne = async (id: string): Promise<string> => {
+  deleteOne = async (id: string): Promise<string> => {
     const client = createClient();
     try {
       const db = await connect(client);
@@ -183,31 +156,23 @@ export default class ColumnRepo implements IColumnRepo {
     }
   };
 
-  #toEntity = (columnPrototype: ColumnPrototype): Column =>
-    Column.create(columnPrototype);
+  #toEntity = (properties: ColumnProperties): Column =>
+    Column.create(properties);
 
-  #buildPrototype = (column: ColumnPersistence): ColumnPrototype => ({
+  #buildPrototype = (column: ColumnPersistence): ColumnProperties => ({
     // eslint-disable-next-line no-underscore-dangle
     id: column._id.toHexString(),
+    dbtModelId: column.dbtModelId,
     name: column.name,
     tableId: column.tableId,
     lineageId: column.lineageId,
-    dependencyPrototypes: column.dependencies.map((dependency) => ({
-      type: dependency.type,
-      columnId: dependency.columnId,
-      direction: dependency.direction,
-    })),
   });
 
   #toPersistence = (column: Column): Document => ({
     _id: ObjectId.createFromHexString(column.id),
+    dbtModelId: column.dbtModelId,
     name: column.name,
     tableId: column.tableId,
     lineageId: column.lineageId,
-    dependencies: column.dependencies.map((dependency) => ({
-      type: dependency.type,
-      columnId: dependency.columnId,
-      direction: dependency.direction,
-    })),
   });
 }

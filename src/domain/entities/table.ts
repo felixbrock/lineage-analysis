@@ -1,5 +1,6 @@
 export interface TableProperties {
   id: string;
+  dbtModelId: string,
   name: string;
   modelId: string;
   lineageId: string;
@@ -7,6 +8,8 @@ export interface TableProperties {
 
 export class Table {
   #id: string;
+
+  #dbtModelId: string;
 
   #name: string;
 
@@ -16,6 +19,10 @@ export class Table {
 
   get id(): string {
     return this.#id;
+  }
+
+  get dbtModelId(): string {
+    return this.#dbtModelId;
   }
 
   get name(): string {
@@ -32,6 +39,7 @@ export class Table {
 
   private constructor(properties: TableProperties) {
     this.#id = properties.id;
+    this.#dbtModelId = properties.dbtModelId;
     this.#name = properties.name;
     this.#modelId = properties.modelId;
     this.#lineageId = properties.lineageId;
@@ -39,6 +47,7 @@ export class Table {
 
   static create(properties: TableProperties): Table {
     if (!properties.id) throw new TypeError('Table must have id');
+    if(!properties.dbtModelId) throw new TypeError('Table must have dbtModelId');
     if (!properties.name) throw new TypeError('Table must have name');
     if (!properties.modelId) throw new TypeError('Table must have modelId');
     if (!properties.lineageId) throw new TypeError('Table must have lineageId');

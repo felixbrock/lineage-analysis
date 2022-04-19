@@ -7,7 +7,7 @@ import { ReadModel } from './read-model';
 
 export interface UpdateModelRequestDto {
   id: string;
-  location?: string;
+  dbtModelId?: string;
   parsedLogic?: string;
   lineageId: string;
 }
@@ -43,6 +43,7 @@ export class UpdateModel
     auth: UpdateModelAuthDto
   ): Promise<UpdateModelResponseDto> {
     try {
+      // todo - Needs to be checked before usage. Unclear impact of replacing location with dbtModelId
       const readModelResult = await this.#readModel.execute(
         { id: request.id },
         { organizationId: auth.organizationId }
@@ -79,11 +80,11 @@ export class UpdateModel
   ): Promise<ModelUpdateDto> => {
     const updateDto: ModelUpdateDto = {};
 
-    if (request.location) {
+    if (request.dbtModelId) {
       const readModelResult: ReadModelsResponseDto =
         await this.#readModels.execute(
           {
-            location: request.location,
+            dbtModelId: request.dbtModelId,
             lineageId: request.lineageId
           },
           { organizationId }
@@ -93,15 +94,15 @@ export class UpdateModel
       if (!readModelResult.value) throw new Error('Reading models failed');
       if (readModelResult.value.length)
         throw new Error(
-          `Model with location to be updated is already registered`
+          `Model with dbtModelId to be updated is already registered`
         );
 
-      updateDto.location = request.location;
+      updateDto.dbtModelId = request.dbtModelId;
     }
     if (request.parsedLogic) {
       const newModel = Model.create({
         id: request.id,
-        location: request.location || currentModel.location,
+        dbtModelId: request.dbtModelId || currentModel.dbtModelId,
         parsedLogic: request.parsedLogic,
         lineageId: currentModel.lineageId
       });

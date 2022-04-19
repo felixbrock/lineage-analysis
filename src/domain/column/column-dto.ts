@@ -1,16 +1,7 @@
-import { Column } from '../entities/column';
-import { buildDependencyDto, DependencyDto } from './dependency-dto';
-
 export interface ColumnDto {
   id: string;
+  dbtModelId: string;
   name: string;
   tableId: string;
-  dependencies: DependencyDto[];
+  lineageId: string;
 }
-
-export const buildColumnDto = (column: Column): ColumnDto => ({
-  id: column.id,
-  name: column.name,
-  tableId: column.tableId,
-  dependencies: column.dependencies.map(dependency => buildDependencyDto(dependency)),
-});

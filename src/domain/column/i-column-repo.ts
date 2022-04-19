@@ -1,16 +1,10 @@
-import { Column } from "../entities/column";
+import { Column } from '../entities/column';
 
 export interface ColumnQueryDto {
-  name?: string | string[],
-  tableId?: string | string[],
-  dependency?: DependencyQueryDto;
+  dbtModelId?: string;
+  name?: string | string[];
+  tableId?: string | string[];
   lineageId: string;
-}
-
-interface DependencyQueryDto {
-  type?: string,
-  columnId?: string,
-  direction?: string,
 }
 
 export interface IColumnRepo {

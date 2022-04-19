@@ -44,7 +44,7 @@ export default class SQLElement {
   static SET_EXPRESSION = 'set_expression';
 
   static COMMON_TABLE_EXPRESSION = 'common_table_expression';
-  
+
   static WITH_COMPOUND_STATEMENT = 'with_compound_statement';
 
   static ALIAS_EXPRESSION = 'alias_expression';
@@ -52,8 +52,8 @@ export default class SQLElement {
   static GROUPBY_CLAUSE = 'groupby_clause';
 
   static FUNCTION = 'function';
-  
+
   static BRACKETED = 'bracketed';
-  
+
   static EXPRESSION = 'expression';
 }
