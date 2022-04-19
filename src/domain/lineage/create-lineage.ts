@@ -8,11 +8,9 @@ import { CreateColumn } from '../column/create-column';
 import { CreateTable } from '../table/create-table';
 import { buildLineageDto, LineageDto } from './lineage-dto';
 import { CreateModel } from '../model/create-model';
-import { ReadTables } from '../table/read-tables';
 import { ParseSQL, ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
 import { Lineage } from '../entities/lineage';
 import LineageRepo from '../../infrastructure/persistence/lineage-repo';
-import { ReadColumns } from '../column/read-columns';
 import { Model } from '../entities/model';
 import { CreateDependency } from '../dependency/create-dependency';
 import { ColumnRef } from '../value-types/logic';
@@ -28,10 +26,6 @@ export interface CreateLineageAuthDto {
 }
 
 export type CreateLineageResponseDto = Result<LineageDto>;
-
-// interface ContextualStatementReference extends StatementReference {
-//   statementIndex: number;
-// }
 
 export class CreateLineage
   implements
@@ -49,10 +43,6 @@ export class CreateLineage
 
   readonly #createDependency: CreateDependency;
 
-  readonly #readTables: ReadTables;
-
-  readonly #readColumns: ReadColumns;
-
   readonly #parseSQL: ParseSQL;
 
   readonly #lineageRepo: LineageRepo;
@@ -61,17 +51,11 @@ export class CreateLineage
 
   #models: Model[] = [];
 
-  // #table?: Table;
-
-  // #columns: Column[] = [];
-
   constructor(
     createModel: CreateModel,
     createTable: CreateTable,
     createColumn: CreateColumn,
     createDependency: CreateDependency,
-    readTables: ReadTables,
-    readColumns: ReadColumns,
     parseSQL: ParseSQL,
     lineageRepo: LineageRepo
   ) {
@@ -79,112 +63,9 @@ export class CreateLineage
     this.#createTable = createTable;
     this.#createColumn = createColumn;
     this.#createDependency = createDependency;
-    this.#readTables = readTables;
-    this.#readColumns = readColumns;
     this.#parseSQL = parseSQL;
     this.#lineageRepo = lineageRepo;
   }
-
-  // #getTableName = (): string => {
-  //   const tableSelfRef = `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
-  //   const selectRef = `${SQLElement.FROM_EXPRESSION_ELEMENT}.${SQLElement.TABLE_EXPRESSION}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
-
-  //   const tableSelfSearchRes: string[] = [];
-  //   const tableSelectRes: string[] = [];
-  //   if (!this.#model) throw new ReferenceError('Model property is undefined');
-
-  //   this.#model.logic.statementRefs.flat().forEach((element) => {
-
-  //     if (element.path.includes(tableSelfRef)) {
-  //       if (!element.tableName)
-  //         throw new ReferenceError(
-  //           'tableName of TABLE references does not exist'
-  //         );
-  //       tableSelfSearchRes.push(element.tableName);
-  //     }
-
-  //     else if(element.path.includes(selectRef)){
-  //       if (!element.tableName)
-  //         throw new ReferenceError(
-  //           'tableName of TABLE references does not exist'
-  //         );
-  //         tableSelectRes.push(`${element.tableName}_view`);
-  //     }
-  //   });
-
-  //   if (tableSelfSearchRes.length > 1)
-  //     throw new ReferenceError(`Multiple instances of ${tableSelfRef} found`);
-  //   if (tableSelfSearchRes.length < 1){
-  //     if (tableSelectRes.length < 1)
-  //       throw new ReferenceError(`${tableSelfRef} or ${selectRef} not found`);
-  //     if (tableSelectRes.length > 1)
-  //         throw new ReferenceError(`Multiple instances of ${selectRef} found`);
-  //     return tableSelectRes[0];
-  //   }
-  //   return tableSelfSearchRes[0];
-  // };
-
-  // #getSelfColumnDefinitions = (
-  //   statementRefs: StatementReference[][]
-  // ): ContextualStatementReference[] => {
-  //   const columnSelfRefs = [
-  //     `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
-  //     `${SQLElement.COLUMN_DEFINITION}.${SQLElement.IDENTIFIER}`,
-  //     `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.WILDCARD_EXPRESSION}.${SQLElement.WILDCARD_IDENTIFIER}`,
-  //   ];
-
-  //   let statementIndex = 0;
-  //   const selfColumnRefs: ContextualStatementReference[] = [];
-  //   statementRefs.forEach((statement) => {
-  //     statement.forEach((element) => {
-  //       if (columnSelfRefs.some((ref) => element.path.includes(ref))) {
-  //         const selfColumnRef: ContextualStatementReference = {
-  //           ...element,
-  //           statementIndex,
-  //         };
-  //         selfColumnRefs.push(selfColumnRef);
-  //       }
-  //     });
-
-  //     statementIndex += 1;
-  //   });
-
-  //   return selfColumnRefs;
-  // };
-
-  // #getParentTableNames = (
-  //   statementRefs: StatementReference[][]
-  // ): string[] => {
-  //   const tableRef = `${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`;
-  //   const tableSelfRefs = [
-  //     `${SQLElement.CREATE_TABLE_STATEMENT}.${tableRef}`,
-  //     `${SQLElement.INSERT_STATEMENT}.${tableRef}`,
-  //   ];
-
-  //   const parentTableNames: string[] = [];
-
-  //   statementRefs.flat().forEach((element) => {
-  //     if (tableSelfRefs.some((ref) => element.path.includes(ref))) return;
-
-  //     if (element.type === ReferenceType.TABLE) {
-  //       if (!element.tableName)
-  //         throw new ReferenceError(
-  //           'tableName of TABLE references does not exist'
-  //         );
-  //       if (!parentTableNames.includes(element.tableName))
-  //         parentTableNames.push(element.tableName);
-  //     } else if (element.type === ReferenceType.COLUMN) {
-  //       if (!element.columnName)
-  //         throw new ReferenceError(
-  //           'columnName of COLUMN references does not exist'
-  //         );
-  //       if (element.tableName && !parentTableNames.includes(element.tableName))
-  //         parentTableNames.push(element.tableName);
-  //     }
-  //   });
-
-  //   return parentTableNames;
-  // };
 
   #setLineage = async (
     lineageId?: string,
@@ -225,32 +106,6 @@ export class CreateLineage
 
     return catalog.nodes;
   };
-
-  // #setModel = async (tableId: string): Promise<void> => {
-  //   if (!this.#lineage)
-  //     throw new ReferenceError('Lineage property is undefined');
-
-  //   // const location = `C://Users/felix-pc/Desktop/Test/${tableId}.sql`;
-  //   const location = `C://Users/nasir/OneDrive/Desktop/sql_files/${tableId}.sql`;
-
-  //   const parsedLogic = await this.#parseLogic(location);
-
-  //   const createModelResult: CreateModelResponse =
-  //     await this.#createModel.execute(
-  //       {
-  //         id: tableId,
-  //         location,
-  //         parsedLogic,
-  //         lineageId: this.#lineage.id,
-  //       },
-  //       { organizationId: 'todo' }
-  //     );
-
-  //   if (!createModelResult.success) throw new Error(createModelResult.error);
-  //   if (!createModelResult.value) throw new Error('Creation of model failed');
-
-  //   this.#model = createModelResult.value;
-  // };
 
   #generateWarehouseResources = async (): Promise<void> => {
     const dbtCatalogNodes = this.#getDbtNodes(
@@ -336,185 +191,6 @@ export class CreateLineage
       })
     );
   };
-
-  // #setTable = async (): Promise<void> => {
-  //   if (!this.#lineage)
-  //     throw new ReferenceError('Lineage property is undefined');
-  //   if (!this.#model) throw new ReferenceError('Model property is undefined');
-
-  //   const name = this.#getTableName();
-
-  //   const createTableResult = await this.#createTable.execute(
-  //     {
-  //       name,
-  //       modelId: this.#model.id,
-  //       lineageId: this.#lineage.id,
-  //     },
-  //     { organizationId: 'todo' }
-  //   );
-
-  //   if (!createTableResult.success) throw new Error(createTableResult.error);
-  //   if (!createTableResult.value)
-  //     throw new SyntaxError(`Creation of table ${name} failed`);
-  //   this.#table = createTableResult.value;
-  // };
-
-  // #createParents = async (parentNames: string[]): Promise<void> => {
-  //   // todo - can this be async?
-  //   // todo - lineage nowhere stored and not returned for display. But in the end it is only columns and table object
-  //   await Promise.all(
-  //     parentNames.map(async (element) => {
-  //       if (!this.#lineage)
-  //         throw new ReferenceError('Lineage property is undefined');
-
-  //       // todo - Check if best practice for ioc registry / awilix
-  //       return new CreateLineage(
-  //         this.#createModel,
-  //         this.#createTable,
-  //         this.#createColumn,
-  //         this.#readTables,
-  //         this.#readColumns,
-  //         this.#parseSQL,
-  //         this.#lineageRepo
-  //       ).execute(
-  //         {
-  //           tableId: element,
-  //           lineageId: this.#lineage.id,
-  //           lineageCreatedAt: this.#lineage.createdAt,
-  //         },
-  //         { organizationId: 'todo' }
-  //       );
-  //     })
-  //   );
-  // };
-
-  // #getParentTables = async (parentNames: string[]): Promise<Table[]> => {
-  //   if (!this.#lineage)
-  //     throw new ReferenceError('Lineage property is undefined');
-
-  //   const readParentsResult = await this.#readTables.execute(
-  //     { name: parentNames, lineageId: this.#lineage.id },
-  //     { organizationId: 'todo' }
-  //   );
-
-  //   if (!readParentsResult.success) throw new Error(readParentsResult.error);
-  //   if (!readParentsResult.value)
-  //     throw new SyntaxError(`Reading parent tables failed`);
-
-  //   return readParentsResult.value;
-  // };
-
-  // #createSelfColumns = async (
-  //   reference: ContextualStatementReference,
-  //   parentTableIds: string[]
-  // ): Promise<CreateColumnResponseDto | CreateColumnResponseDto[]> => {
-  //   if (!this.#lineage)
-  //     throw new ReferenceError('Lineage property is undefined');
-  //   if (!this.#model) throw new ReferenceError('Model property is undefined');
-  //   if (!this.#table) throw new ReferenceError('Table property is undefined');
-
-  //   if (!reference.path.includes(SQLElement.WILDCARD_IDENTIFIER))
-  //     return this.#createColumn.execute(
-  //       {
-  //         selfRef: {
-  //           columnName: reference.columnName,
-  //           tableName: reference.tableName,
-  //           path: reference.path,
-  //           type: reference.type,
-  //         },
-  //         statementSourceReferences:
-  //           this.#model.logic.statementRefs[reference.statementIndex],
-  //         tableId: this.#table.id,
-  //         parentTableIds,
-  //         lineageId: this.#lineage.id,
-  //       },
-  //       { organizationId: 'todo' }
-  //     );
-
-  //   if (parentTableIds.length !== 1)
-  //     throw new ReferenceError('Wildcard - parent-table mismatch');
-  //   const readColumnsResult = await this.#readColumns.execute(
-  //     { tableId: parentTableIds[0], lineageId: this.#lineage.id },
-  //     { organizationId: 'todo' }
-  //   );
-
-  //   if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
-  //   if (!readColumnsResult.value)
-  //     throw new SyntaxError(`Readinng of parent-table columns failed`);
-
-  //   const createColumnResults = await Promise.all(
-  //     readColumnsResult.value.map((column) => {
-  //       if (!this.#lineage)
-  //         throw new ReferenceError('Lineage property is undefined');
-  //       if (!this.#model)
-  //         throw new ReferenceError('Model property is undefined');
-  //       if (!this.#table)
-  //         throw new ReferenceError('Table property is undefined');
-
-  //       return this.#createColumn.execute(
-  //         {
-  //           selfRef: {
-  //             columnName: column.name,
-  //             tableName: reference.tableName,
-  //             path: reference.path,
-  //             type: ReferenceType.COLUMN,
-  //           },
-  //           statementSourceReferences:
-  //             this.#model.logic.statementRefs[reference.statementIndex],
-  //           tableId: this.#table.id,
-  //           parentTableIds,
-  //           lineageId: this.#lineage.id,
-  //         },
-  //         { organizationId: 'todo' }
-  //       );
-  //     })
-  //   );
-
-  //   return createColumnResults;
-  // };
-
-  // #setColumns = async (parentTableIds: string[]): Promise<void> => {
-  //   if (!this.#model) throw new ReferenceError('Model property is undefined');
-
-  //   let selfColumnReferences = this.#getSelfColumnDefinitions(
-  //     this.#model.logic.statementRefs
-  //   );
-
-  //   const setColumnRefs = selfColumnReferences.filter((ref) =>
-  //     ref.path.includes(SQLElement.SET_EXPRESSION)
-  //   );
-  //   const columnRefs = selfColumnReferences.filter(
-  //     (ref) => !ref.path.includes(SQLElement.SET_EXPRESSION)
-  //   );
-
-  //   const uniqueSetColumnRefs = setColumnRefs.filter(
-  //     (value, index, self) =>
-  //       index ===
-  //       self.findIndex(
-  //         (t) =>
-  //           t.columnName === value.columnName &&
-  //           t.path === value.path &&
-  //           t.type === value.type
-  //       )
-  //   );
-
-  //   selfColumnReferences = uniqueSetColumnRefs.concat(columnRefs);
-
-  //   const createColumnResults = (
-  //     await Promise.all(
-  //       selfColumnReferences.map(async (reference) =>
-  //         this.#createSelfColumns(reference, parentTableIds)
-  //       )
-  //     )
-  //   ).flat();
-
-  //   createColumnResults.forEach((result) => {
-  //     if (!result.success) throw new Error(result.error);
-  //     if (!result.value) throw new SyntaxError(`Creation of column failed`);
-
-  //     this.#columns.push(result.value);
-  //   });
-  // };
 
   // Identifies the statement root (e.g. create_table_statement.select_statement) of a specific reference path
   #getStatementRoot = (path: string): string => {
@@ -650,28 +326,6 @@ export class CreateLineage
           });
         });
       });
-
-      // await this.#setModel(request.tableId);
-
-      // await this.#setTable();
-
-      // if (!this.#model) throw new ReferenceError('Model property is undefined');
-
-      // const parentNames = this.#getParentTableNames(
-      //   this.#model.logic.statementRefs
-      // );
-
-      // const parentTableIds: string[] = [];
-      // if (parentNames.length) {
-      //   await this.#createParents(parentNames);
-
-      //   const parentTables = await this.#getParentTables(parentNames);
-
-      //   const ids = parentTables.map((tableElement) => tableElement.id);
-      //   parentTableIds.push(...ids);
-      // }
-
-      // await this.#setColumns(parentTableIds);
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');
