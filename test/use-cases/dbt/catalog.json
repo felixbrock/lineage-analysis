@@ -1,1 +1,80 @@
-{"metadata": {"dbt_schema_version": "https://schemas.getdbt.com/dbt/catalog/v1.json", "dbt_version": "1.0.4", "generated_at": "2022-04-15T15:40:24.265433Z", "invocation_id": "d4cfa2cd-4ccc-4893-b473-cfd01eb81a58", "env": {}}, "nodes": {"model.dbt_demo.my_first_dbt_model": {"metadata": {"type": "BASE TABLE", "schema": "PUBLIC", "name": "MY_FIRST_DBT_MODEL", "database": "TEST", "comment": null, "owner": "ACCOUNTADMIN"}, "columns": {"ID": {"type": "NUMBER", "index": 1, "name": "ID", "comment": null}}, "stats": {"last_modified": {"id": "last_modified", "label": "Last Modified", "value": "2022-04-11 14:56UTC", "include": true, "description": "The timestamp for last update/change"}, "row_count": {"id": "row_count", "label": "Row Count", "value": 2.0, "include": true, "description": "An approximate count of rows in this table"}, "bytes": {"id": "bytes", "label": "Approximate Size", "value": 1024.0, "include": true, "description": "Approximate size of the table as reported by Snowflake"}, "has_stats": {"id": "has_stats", "label": "Has Stats?", "value": true, "include": false, "description": "Indicates whether there are statistics for this table"}}, "unique_id": "model.dbt_demo.my_first_dbt_model"}, "model.dbt_demo.my_second_dbt_model": {"metadata": {"type": "VIEW", "schema": "PUBLIC", "name": "MY_SECOND_DBT_MODEL", "database": "TEST", "comment": null, "owner": "ACCOUNTADMIN"}, "columns": {"ID": {"type": "NUMBER", "index": 1, "name": "ID", "comment": null}}, "stats": {"has_stats": {"id": "has_stats", "label": "Has Stats?", "value": false, "include": false, "description": "Indicates whether there are statistics for this table"}}, "unique_id": "model.dbt_demo.my_second_dbt_model"}}, "sources": {}, "errors": null}
+{
+  "metadata": {
+    "dbt_schema_version": "https://schemas.getdbt.com/dbt/catalog/v1.json",
+    "dbt_version": "1.0.4",
+    "generated_at": "2022-04-15T15:40:24.265433Z",
+    "invocation_id": "d4cfa2cd-4ccc-4893-b473-cfd01eb81a58",
+    "env": {}
+  },
+  "nodes": {
+    "model.dbt_demo.my_first_dbt_model": {
+      "metadata": {
+        "type": "BASE TABLE",
+        "schema": "PUBLIC",
+        "name": "MY_FIRST_DBT_MODEL",
+        "database": "TEST",
+        "comment": null,
+        "owner": "ACCOUNTADMIN"
+      },
+      "columns": {
+        "ID": { "type": "NUMBER", "index": 1, "name": "ID", "comment": null }
+      },
+      "stats": {
+        "last_modified": {
+          "id": "last_modified",
+          "label": "Last Modified",
+          "value": "2022-04-11 14:56UTC",
+          "include": true,
+          "description": "The timestamp for last update/change"
+        },
+        "row_count": {
+          "id": "row_count",
+          "label": "Row Count",
+          "value": 2.0,
+          "include": true,
+          "description": "An approximate count of rows in this table"
+        },
+        "bytes": {
+          "id": "bytes",
+          "label": "Approximate Size",
+          "value": 1024.0,
+          "include": true,
+          "description": "Approximate size of the table as reported by Snowflake"
+        },
+        "has_stats": {
+          "id": "has_stats",
+          "label": "Has Stats?",
+          "value": true,
+          "include": false,
+          "description": "Indicates whether there are statistics for this table"
+        }
+      },
+      "unique_id": "model.dbt_demo.my_first_dbt_model"
+    },
+    "model.dbt_demo.my_second_dbt_model": {
+      "metadata": {
+        "type": "VIEW",
+        "schema": "PUBLIC",
+        "name": "MY_SECOND_DBT_MODEL",
+        "database": "TEST",
+        "comment": null,
+        "owner": "ACCOUNTADMIN"
+      },
+      "columns": {
+        "ID": { "type": "NUMBER", "index": 1, "name": "ID", "comment": null }
+      },
+      "stats": {
+        "has_stats": {
+          "id": "has_stats",
+          "label": "Has Stats?",
+          "value": false,
+          "include": false,
+          "description": "Indicates whether there are statistics for this table"
+        }
+      },
+      "unique_id": "model.dbt_demo.my_second_dbt_model"
+    }
+  },
+  "sources": {},
+  "errors": null
+}

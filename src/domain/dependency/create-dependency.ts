@@ -5,14 +5,14 @@ import IUseCase from '../services/use-case';
 import { Dependency } from '../entities/dependency';
 import { IDependencyRepo } from './i-dependency-repo';
 import { ReadDependencies } from './read-dependencies';
-import { ColumnRef } from '../value-types/logic';
+import { ColumnRef } from '../entities/logic';
 import { ReadColumns } from '../column/read-columns';
 
 export interface CreateDependencyRequestDto {
   selfRef: ColumnRef;
-  selfModelId: string;
+  selfDbtModelId: string;
   parentRef: ColumnRef;
-  parentModelDbtIds: string[];
+  parentDbtModelIds: string[];
   lineageId: string;
 }
 
@@ -37,12 +37,12 @@ export class CreateDependency
   readonly #dependencyRepo: IDependencyRepo;
 
   #getParentId = async (
-    parentModelDbtIds: string[],
+    parentDbtModelIds: string[],
     parentName: string,
     lineageId: string
   ): Promise<string> => {
     const readColumnsResult = await this.#readColumns.execute(
-      { tableId: parentModelDbtIds, name: parentName, lineageId },
+      { materializationId: parentDbtModelIds, name: parentName, lineageId },
       { organizationId: 'todo' }
     );
 
@@ -79,7 +79,7 @@ export class CreateDependency
 
     try {
       const readSelfColumnResult = await this.#readColumns.execute(
-        { dbtModelId: request.selfModelId, lineageId: request.lineageId },
+        { dbtModelId: request.selfDbtModelId, lineageId: request.lineageId },
         { organizationId: 'todo' }
       );
 
@@ -89,10 +89,10 @@ export class CreateDependency
 
       const [selfColumn] = readSelfColumnResult.value;
 
-      const parentId = request.parentRef.tableName
-        ? request.parentRef.tableName
+      const parentId = request.parentRef.materializationName
+        ? request.parentRef.materializationName
         : await this.#getParentId(
-            request.parentModelDbtIds,
+            request.parentDbtModelIds,
             request.parentRef.name,
             request.lineageId
           );
@@ -118,7 +118,7 @@ export class CreateDependency
       if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
       if (!readColumnsResult.value) throw new Error('Reading columns failed');
       if (readColumnsResult.value.length)
-        throw new Error(`Column for table already exists`);
+        throw new Error(`Column for materialization already exists`);
 
       await this.#dependencyRepo.insertOne(dependency);
 

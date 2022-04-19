@@ -8,28 +8,38 @@ import {
 import sanitize from 'mongo-sanitize';
 
 import { connect, close, createClient } from './db/mongo-db';
-import { ITableRepo, TableQueryDto } from '../../domain/table/i-table-repo';
-import { Table, TableProperties } from '../../domain/entities/table';
+import { IMaterializationRepo, MaterializationQueryDto } from '../../domain/materialization/i-materialization-repo';
+import {
+  MaterializationType,
+  Materialization,
+  MaterializationProperties,
+} from '../../domain/entities/materialization';
 
-interface TablePersistence {
+interface MaterializationPersistence {
   _id: ObjectId;
+  materializationType: MaterializationType;
   dbtModelId: string;
   name: string;
-  modelId: string;
+  schemaName: string;
+  databaseName: string;
+  logicId: string;
   lineageId: string;
 }
 
-interface TableQueryFilter {
+interface MaterializationQueryFilter {
+  materializationType?: MaterializationType;
   dbtModelId?: string;
   name?: string | { [key: string]: string[] };
-  modelId?: string;
+  schemaName?: string;
+  databaseName?: string;
+  logicId?: string;
   lineageId: string;
 }
 
-const collectionName = 'table';
+const collectionName = 'materialization';
 
-export default class TableRepo implements ITableRepo {
-  findOne = async (id: string): Promise<Table | null> => {
+export default class MaterializationRepo implements IMaterializationRepo {
+  findOne = async (id: string): Promise<Materialization | null> => {
     const client = createClient();
     try {
       const db = await connect(client);
@@ -49,16 +59,16 @@ export default class TableRepo implements ITableRepo {
     }
   };
 
-  findBy = async (tableQueryDto: TableQueryDto): Promise<Table[]> => {
+  findBy = async (materializationQueryDto: MaterializationQueryDto): Promise<Materialization[]> => {
     try {
-      if (!Object.keys(tableQueryDto).length) return await this.all();
+      if (!Object.keys(materializationQueryDto).length) return await this.all();
 
       const client = createClient();
 
       const db = await connect(client);
       const result: FindCursor = await db
         .collection(collectionName)
-        .find(this.#buildFilter(sanitize(tableQueryDto)));
+        .find(this.#buildFilter(sanitize(materializationQueryDto)));
       const results = await result.toArray();
 
       close(client);
@@ -75,21 +85,27 @@ export default class TableRepo implements ITableRepo {
     }
   };
 
-  #buildFilter = (tableQueryDto: TableQueryDto): TableQueryFilter => {
-    const filter: TableQueryFilter = { lineageId: tableQueryDto.lineageId };
+  #buildFilter = (materializationQueryDto: MaterializationQueryDto): MaterializationQueryFilter => {
+    const filter: MaterializationQueryFilter = { lineageId: materializationQueryDto.lineageId };
 
-    if (tableQueryDto.dbtModelId) filter.dbtModelId = tableQueryDto.dbtModelId;
-    if (typeof tableQueryDto.name === 'string' && tableQueryDto.name)
-      filter.name = tableQueryDto.name;
-    if (tableQueryDto.name instanceof Array)
-      filter.name = { $in: tableQueryDto.name };
+    if (materializationQueryDto.materializationType)
+      filter.materializationType = materializationQueryDto.materializationType;
+    if (materializationQueryDto.dbtModelId) filter.dbtModelId = materializationQueryDto.dbtModelId;
 
-    if (tableQueryDto.modelId) filter.modelId = tableQueryDto.modelId;
+    if (typeof materializationQueryDto.name === 'string' && materializationQueryDto.name)
+      filter.name = materializationQueryDto.name;
+    if (materializationQueryDto.name instanceof Array)
+      filter.name = { $in: materializationQueryDto.name };
+
+    if (materializationQueryDto.schemaName) filter.schemaName = materializationQueryDto.schemaName;
+    if (materializationQueryDto.databaseName)
+      filter.databaseName = materializationQueryDto.databaseName;
+    if (materializationQueryDto.logicId) filter.logicId = materializationQueryDto.logicId;
 
     return filter;
   };
 
-  all = async (): Promise<Table[]> => {
+  all = async (): Promise<Materialization[]> => {
     const client = createClient();
     try {
       const db = await connect(client);
@@ -110,16 +126,16 @@ export default class TableRepo implements ITableRepo {
     }
   };
 
-  insertOne = async (table: Table): Promise<string> => {
+  insertOne = async (materialization: Materialization): Promise<string> => {
     const client = createClient();
     try {
       const db = await connect(client);
       const result: InsertOneResult<Document> = await db
         .collection(collectionName)
-        .insertOne(this.#toPersistence(sanitize(table)));
+        .insertOne(this.#toPersistence(sanitize(materialization)));
 
       if (!result.acknowledged)
-        throw new Error('Table creation failed. Insert not acknowledged');
+        throw new Error('Materialization creation failed. Insert not acknowledged');
 
       close(client);
 
@@ -140,7 +156,7 @@ export default class TableRepo implements ITableRepo {
         .deleteOne({ _id: new ObjectId(sanitize(id)) });
 
       if (!result.acknowledged)
-        throw new Error('Table delete failed. Delete not acknowledged');
+        throw new Error('Materialization delete failed. Delete not acknowledged');
 
       close(client);
 
@@ -152,23 +168,29 @@ export default class TableRepo implements ITableRepo {
     }
   };
 
-  #toEntity = (tableProperties: TableProperties): Table =>
-    Table.create(tableProperties);
+  #toEntity = (materializationProperties: MaterializationProperties): Materialization =>
+    Materialization.create(materializationProperties);
 
-  #buildProperties = (table: TablePersistence): TableProperties => ({
+  #buildProperties = (materialization: MaterializationPersistence): MaterializationProperties => ({
     // eslint-disable-next-line no-underscore-dangle
-    id: table._id.toHexString(),
-    dbtModelId: table.dbtModelId,
-    name: table.name,
-    modelId: table.modelId,
-    lineageId: table.lineageId,
+    id: materialization._id.toHexString(),
+    materializationType: materialization.materializationType,
+    dbtModelId: materialization.dbtModelId,
+    name: materialization.name,
+    schemaName: materialization.schemaName,
+    databaseName: materialization.databaseName,
+    logicId: materialization.logicId,
+    lineageId: materialization.lineageId,
   });
 
-  #toPersistence = (table: Table): Document => ({
-    _id: ObjectId.createFromHexString(table.id),
-    dbtModelId: table.dbtModelId,
-    name: table.name,
-    modelId: table.modelId,
-    lineageId: table.lineageId,
+  #toPersistence = (materialization: Materialization): Document => ({
+    _id: ObjectId.createFromHexString(materialization.id),
+    materializationType: materialization.materializationType,
+    dbtModelId: materialization.dbtModelId,
+    name: materialization.name,
+    schemaName: materialization.schemaName,
+    databaseName: materialization.databaseName,
+    logicId: materialization.logicId,
+    lineageId: materialization.lineageId,
   });
 }

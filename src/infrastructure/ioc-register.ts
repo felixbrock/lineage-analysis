@@ -6,16 +6,16 @@ import AccountApiRepo from './persistence/account-api-repo';
 import { GetAccounts } from '../domain/account-api/get-accounts';
 import { ParseSQL } from '../domain/sql-parser-api/parse-sql';
 import SQLParserApiRepo from './persistence/sql-parser-api-repo';
-import { CreateTable } from '../domain/table/create-table';
-import ModelRepo from './persistence/model-repo';
-import TableRepo from './persistence/table-repo';
+import { CreateMaterialization } from '../domain/materialization/create-materialization';
+import LogicRepo from './persistence/logic-repo';
+import MaterializationRepo from './persistence/materialization-repo';
 import ColumnRepo from './persistence/column-repo';
 import { ReadColumns } from '../domain/column/read-columns';
-import { CreateModel } from '../domain/model/create-model';
+import { CreateLogic } from '../domain/logic/create-logic';
 import { CreateColumn } from '../domain/column/create-column';
-import { ReadModels } from '../domain/model/read-models';
-import { ReadTables } from '../domain/table/read-tables';
-import { ReadTable } from '../domain/table/read-table';
+import { ReadLogics } from '../domain/logic/read-logics';
+import { ReadMaterializations } from '../domain/materialization/read-materializations';
+import { ReadMaterialization } from '../domain/materialization/read-materialization';
 import LineageRepo from './persistence/lineage-repo';
 import { ReadDependencies } from '../domain/dependency/read-dependencies';
 import DependencyRepo from './persistence/dependency-repo';
@@ -27,23 +27,23 @@ iocRegister.register({
   lineageDomain: asClass(LineageDomain),
 
   createLineage: asClass(CreateLineage),
-  createModel: asClass(CreateModel),
-  createTable: asClass(CreateTable),
+  createLogic: asClass(CreateLogic),
+  createMaterialization: asClass(CreateMaterialization),
   createColumn: asClass(CreateColumn),
   createDependency: asClass(CreateDependency),
 
-  readTable: asClass(ReadTable),
+  readMaterialization: asClass(ReadMaterialization),
 
-  readModels: asClass(ReadModels),
-  readTables: asClass(ReadTables),
+  readLogics: asClass(ReadLogics),
+  readMaterializations: asClass(ReadMaterializations),
   readColumns: asClass(ReadColumns),
   readDependencies: asClass(ReadDependencies),
 
   parseSQL: asClass(ParseSQL),
   getAccounts: asClass(GetAccounts),
 
-  modelRepo: asClass(ModelRepo),
-  tableRepo: asClass(TableRepo),
+  logicRepo: asClass(LogicRepo),
+  materializationRepo: asClass(MaterializationRepo),
   columnRepo: asClass(ColumnRepo),
   dependencyRepo: asClass(DependencyRepo),
   lineageRepo: asClass(LineageRepo),

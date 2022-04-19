@@ -5,15 +5,14 @@ import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import SQLElement from '../value-types/sql-element';
 import { CreateColumn } from '../column/create-column';
-import { CreateTable } from '../table/create-table';
+import { CreateMaterialization } from '../materialization/create-materialization';
 import { buildLineageDto, LineageDto } from './lineage-dto';
-import { CreateModel } from '../model/create-model';
+import { CreateLogic } from '../logic/create-logic';
 import { ParseSQL, ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
 import { Lineage } from '../entities/lineage';
 import LineageRepo from '../../infrastructure/persistence/lineage-repo';
-import { Model } from '../entities/model';
+import { Logic, ColumnRef} from '../entities/logic';
 import { CreateDependency } from '../dependency/create-dependency';
-import { ColumnRef } from '../value-types/logic';
 import { DependencyType } from '../entities/dependency';
 
 export interface CreateLineageRequestDto {
@@ -35,9 +34,9 @@ export class CreateLineage
       CreateLineageAuthDto
     >
 {
-  readonly #createModel: CreateModel;
+  readonly #createLogic: CreateLogic;
 
-  readonly #createTable: CreateTable;
+  readonly #createMaterialization: CreateMaterialization;
 
   readonly #createColumn: CreateColumn;
 
@@ -49,18 +48,18 @@ export class CreateLineage
 
   #lineage?: Lineage;
 
-  #models: Model[] = [];
+  #logics: Logic[] = [];
 
   constructor(
-    createModel: CreateModel,
-    createTable: CreateTable,
+    createLogic: CreateLogic,
+    createMaterialization: CreateMaterialization,
     createColumn: CreateColumn,
     createDependency: CreateDependency,
     parseSQL: ParseSQL,
     lineageRepo: LineageRepo
   ) {
-    this.#createModel = createModel;
-    this.#createTable = createTable;
+    this.#createLogic = createLogic;
+    this.#createMaterialization = createMaterialization;
     this.#createColumn = createColumn;
     this.#createDependency = createDependency;
     this.#parseSQL = parseSQL;
@@ -129,7 +128,7 @@ export class CreateLineage
 
         const parsedLogic = await this.#parseLogic(manifest.compiled_sql);
 
-        const createModelResult = await this.#createModel.execute(
+        const createLogicResult = await this.#createLogic.execute(
           {
             dbtModelId: dbtModel.unique_id,
             lineageId: this.#lineage.id,
@@ -138,31 +137,34 @@ export class CreateLineage
           { organizationId: 'todo' }
         );
 
-        if (!createModelResult.success)
-          throw new Error(createModelResult.error);
-        if (!createModelResult.value)
-          throw new SyntaxError(`Creation of model failed`);
+        if (!createLogicResult.success)
+          throw new Error(createLogicResult.error);
+        if (!createLogicResult.value)
+          throw new SyntaxError(`Creation of logic failed`);
 
-        const model = createModelResult.value;
+        const logic = createLogicResult.value;
 
-        this.#models.push(model);
+        this.#logics.push(logic);
 
-        const createTableResult = await this.#createTable.execute(
+        const createMaterializationResult = await this.#createMaterialization.execute(
           {
+            materializationType: dbtModel.metadata.type,
             name: dbtModel.metadata.name,
             dbtModelId: dbtModel.unique_id,
-            modelId: model.id,
+            schemaName: dbtModel.metadata.schema,
+            databaseName: dbtModel.metadata.database,
+            logicId: logic.id,
             lineageId: this.#lineage.id,
           },
           { organizationId: 'todo' }
         );
 
-        if (!createTableResult.success)
-          throw new Error(createTableResult.error);
-        if (!createTableResult.value)
-          throw new SyntaxError(`Creation of table failed`);
+        if (!createMaterializationResult.success)
+          throw new Error(createMaterializationResult.error);
+        if (!createMaterializationResult.value)
+          throw new SyntaxError(`Creation of materialization failed`);
 
-        const table = createTableResult.value;
+        const materialization = createMaterializationResult.value;
 
         await Promise.all(
           Object.keys(dbtModel.columns).map(async (columnKey) => {
@@ -175,8 +177,8 @@ export class CreateLineage
             const createColumnResult = await this.#createColumn.execute(
               {
                 name: column.name,
-                tableId: table.id,
-                dbtModelId: table.dbtModelId,
+                materializationId: materialization.id,
+                dbtModelId: materialization.dbtModelId,
                 lineageId: this.#lineage.id,
               },
               { organizationId: 'todo' }
@@ -192,7 +194,7 @@ export class CreateLineage
     );
   };
 
-  // Identifies the statement root (e.g. create_table_statement.select_statement) of a specific reference path
+  // Identifies the statement root (e.g. create_materialization_statement.select_statement) of a specific reference path
   #getStatementRoot = (path: string): string => {
     const lastIndexStatementRoot = path.lastIndexOf(SQLElement.STATEMENT);
     if (lastIndexStatementRoot === -1 || !lastIndexStatementRoot)
@@ -202,7 +204,7 @@ export class CreateLineage
     return path.slice(0, lastIndexStatementRoot + SQLElement.STATEMENT.length);
   };
 
-  // Checks if parent dependency can be mapped on the provided self column or to another column of the self table.
+  // Checks if parent dependency can be mapped on the provided self column or to another column of the self materialization.
   #isDependencyOfTarget = (
     potentialDependency: ColumnRef,
     selfRef: ColumnRef
@@ -251,8 +253,8 @@ export class CreateLineage
 
       await this.#generateWarehouseResources();
 
-      this.#models.forEach((model) => {
-        model.logic.statementRefs.forEach((refs) => {
+      this.#logics.forEach((logic) => {
+        logic.statementRefs.forEach((refs) => {
           let dataDependencyRefs = refs.columns.filter(
             (column) => column.dependencyType === DependencyType.DATA
           );
@@ -269,7 +271,7 @@ export class CreateLineage
                 (ref) =>
                   ref.name === value.name &&
                   ref.path === value.path &&
-                  ref.tableName === value.tableName
+                  ref.materializationName === value.materializationName
               )
           );
 
@@ -314,8 +316,8 @@ export class CreateLineage
                 {
                   selfRef,
                   parentRef: dependency,
-                  selfModelId: model.dbtModelId,
-                  parentModelDbtIds: this.#models.map(
+                  selfDbtModelId: logic.dbtModelId,
+                  parentDbtModelIds: this.#logics.map(
                     (element) => element.dbtModelId
                   ),
                   lineageId: this.#lineage.id,
@@ -332,7 +334,7 @@ export class CreateLineage
 
       // todo - how to avoid checking if property exists. A sub-method created the property
       if (!this.#lineage)
-        throw new ReferenceError('Model property is undefined');
+        throw new ReferenceError('Lineage property is undefined');
 
       return Result.ok(buildLineageDto(this.#lineage));
     } catch (error: unknown) {

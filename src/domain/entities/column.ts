@@ -2,7 +2,7 @@ export interface ColumnProperties {
   id: string;
   dbtModelId: string;
   name: string;
-  tableId: string;
+  materializationId: string;
   lineageId: string;
 }
 
@@ -13,7 +13,7 @@ export class Column {
 
   #name: string;
 
-  #tableId: string;
+  #materializationId: string;
 
 
   #lineageId: string;
@@ -30,8 +30,8 @@ export class Column {
     return this.#name;
   }
 
-  get tableId(): string {
-    return this.#tableId;
+  get materializationId(): string {
+    return this.#materializationId;
   }
 
   get lineageId(): string {
@@ -42,7 +42,7 @@ export class Column {
     this.#id = properties.id;
     this.#dbtModelId = properties.dbtModelId;
     this.#name = properties.name;
-    this.#tableId = properties.tableId;
+    this.#materializationId = properties.materializationId;
     this.#lineageId = properties.lineageId;
   }
 
@@ -50,7 +50,7 @@ export class Column {
     if (!properties.id) throw new TypeError('Column must have id');
     if(!properties.dbtModelId) throw new TypeError('Column must have dbtModelId');
     if (!properties.name) throw new TypeError('Column must have name');
-    if (!properties.tableId) throw new TypeError('Column must have tableId');
+    if (!properties.materializationId) throw new TypeError('Column must have materializationId');
     if (!properties.lineageId)
       throw new TypeError('Column must have lineage version');
 
@@ -58,7 +58,7 @@ export class Column {
       id: properties.id,
       dbtModelId: properties.dbtModelId,
       name: properties.name,
-      tableId: properties.tableId,
+      materializationId: properties.materializationId,
       lineageId: properties.lineageId,
     });
 

@@ -6,7 +6,7 @@ import { IColumnRepo, ColumnQueryDto } from './i-column-repo';
 export interface ReadColumnsRequestDto {
   dbtModelId?: string,
   name?: string | string[];
-  tableId?: string | string[];
+  materializationId?: string | string[];
   lineageId: string;
 }
 
@@ -56,7 +56,7 @@ export class ReadColumns
     // queryDto.organizationId = organizationId;
     if (request.dbtModelId) queryDto.dbtModelId = request.dbtModelId;
     if (request.name) queryDto.name = request.name;
-    if (request.tableId) queryDto.tableId = request.tableId;
+    if (request.materializationId) queryDto.materializationId = request.materializationId;
    
     return queryDto;
   };

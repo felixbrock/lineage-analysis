@@ -8,7 +8,7 @@ import { IColumnRepo } from './i-column-repo';
 export interface CreateColumnRequestDto {
   name: string;
   dbtModelId: string;
-  tableId: string;
+  materializationId: string;
   lineageId: string;
 }
 
@@ -44,14 +44,14 @@ export class CreateColumn
         id: new ObjectId().toHexString(),
         dbtModelId: request.dbtModelId,
         name: request.name,
-        tableId: request.tableId,
+        materializationId: request.materializationId,
         lineageId: request.lineageId,
       });
 
       const readColumnsResult = await this.#readColumns.execute(
         {
           name: request.name,
-          tableId: request.tableId,
+          materializationId: request.materializationId,
           lineageId: request.lineageId,
         },
         { organizationId: auth.organizationId }
@@ -60,7 +60,7 @@ export class CreateColumn
       if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
       if (!readColumnsResult.value) throw new Error('Reading columns failed');
       if (readColumnsResult.value.length)
-        throw new Error(`Column for table already exists`);
+        throw new Error(`Column for materialization already exists`);
 
       await this.#columnRepo.insertOne(column);
 
