@@ -330,8 +330,8 @@ export class Logic {
             })
           );
         else if (
-          key === SQLElement.TABLE_REFERENCE ||
-          key === SQLElement.COMMON_TABLE_EXPRESSION
+          key === SQLElement.TABLE_REFERENCE
+          // || key === SQLElement.COMMON_TABLE_EXPRESSION
         )
           refs.materializations.push(
             this.#handleMaterializationIdentifierRef({
@@ -481,6 +481,8 @@ export class Logic {
     if (!prototype.lineageId) throw new TypeError('Logic must have lineageId');
 
     const parsedLogicObj = JSON.parse(prototype.parsedLogic);
+    
+    console.log(JSON.stringify(parsedLogicObj));
 
     const statementRefs = this.#getStatementRefs(parsedLogicObj.file);
 
