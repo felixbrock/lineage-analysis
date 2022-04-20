@@ -441,9 +441,6 @@ export class Logic {
 
   static #addColumnMaterializationInfo = (statementRefs: Refs[]): Refs[] => {
     const fixedStatementRefs: Refs[] = statementRefs.map((element) => {
-      const parentMaterializations = element.materializations.filter(
-        (materialization) => !materialization.isSelfRef
-      );
 
       const columns = element.columns.map((column) => {
         if (column.materializationName) return column;
@@ -452,7 +449,7 @@ export class Logic {
 
         const materializationRef = this.#getBestMatchingMaterialization(
           columnToFix.path,
-          parentMaterializations
+          element.materializations
         );
 
         columnToFix.materializationName = materializationRef.name;
@@ -470,7 +467,7 @@ export class Logic {
 
         const materializationRef = this.#getBestMatchingMaterialization(
           wildcardToFix.path,
-          parentMaterializations
+          element.materializations
         );
 
         wildcardToFix.materializationName = materializationRef.name;
