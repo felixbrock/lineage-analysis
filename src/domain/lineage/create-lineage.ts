@@ -176,9 +176,11 @@ export class CreateLineage
             // todo - add additional properties like index
             const createColumnResult = await this.#createColumn.execute(
               {
-                name: column.name,
-                materializationId: materialization.id,
                 dbtModelId: materialization.dbtModelId,
+                name: column.name,
+                index: column.index,
+                type: column.type,
+                materializationId: materialization.id,
                 lineageId: this.#lineage.id,
               },
               { organizationId: 'todo' }
