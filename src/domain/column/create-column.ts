@@ -6,8 +6,10 @@ import { ReadColumns } from './read-columns';
 import { IColumnRepo } from './i-column-repo';
 
 export interface CreateColumnRequestDto {
-  name: string;
   dbtModelId: string;
+  name: string;
+  index: string,
+  type: string,
   materializationId: string;
   lineageId: string;
 }
@@ -44,6 +46,8 @@ export class CreateColumn
         id: new ObjectId().toHexString(),
         dbtModelId: request.dbtModelId,
         name: request.name,
+        index: request.index,
+        type: request.type,
         materializationId: request.materializationId,
         lineageId: request.lineageId,
       });

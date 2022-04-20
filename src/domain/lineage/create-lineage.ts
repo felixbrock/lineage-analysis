@@ -11,7 +11,7 @@ import { CreateLogic } from '../logic/create-logic';
 import { ParseSQL, ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
 import { Lineage } from '../entities/lineage';
 import LineageRepo from '../../infrastructure/persistence/lineage-repo';
-import { Logic, ColumnRef} from '../entities/logic';
+import { Logic, ColumnRef, Refs } from '../entities/logic';
 import { CreateDependency } from '../dependency/create-dependency';
 import { DependencyType } from '../entities/dependency';
 
@@ -66,7 +66,7 @@ export class CreateLineage
     this.#lineageRepo = lineageRepo;
   }
 
-  #setLineage = async (
+  #buildLineage = async (
     lineageId?: string,
     lineageCreatedAt?: number
   ): Promise<void> => {
@@ -148,18 +148,19 @@ export class CreateLineage
 
         this.#logics.push(logic);
 
-        const createMaterializationResult = await this.#createMaterialization.execute(
-          {
-            materializationType: dbtModel.metadata.type,
-            name: dbtModel.metadata.name,
-            dbtModelId: dbtModel.unique_id,
-            schemaName: dbtModel.metadata.schema,
-            databaseName: dbtModel.metadata.database,
-            logicId: logic.id,
-            lineageId: this.#lineage.id,
-          },
-          { organizationId: 'todo' }
-        );
+        const createMaterializationResult =
+          await this.#createMaterialization.execute(
+            {
+              materializationType: dbtModel.metadata.type,
+              name: dbtModel.metadata.name,
+              dbtModelId: dbtModel.unique_id,
+              schemaName: dbtModel.metadata.schema,
+              databaseName: dbtModel.metadata.database,
+              logicId: logic.id,
+              lineageId: this.#lineage.id,
+            },
+            { organizationId: 'todo' }
+          );
 
         if (!createMaterializationResult.success)
           throw new Error(createMaterializationResult.error);
@@ -178,9 +179,11 @@ export class CreateLineage
             // todo - add additional properties like index
             const createColumnResult = await this.#createColumn.execute(
               {
-                name: column.name,
-                materializationId: materialization.id,
                 dbtModelId: materialization.dbtModelId,
+                name: column.name,
+                index: column.index,
+                type: column.type,
+                materializationId: materialization.id,
                 lineageId: this.#lineage.id,
               },
               { organizationId: 'todo' }
@@ -244,6 +247,93 @@ export class CreateLineage
     );
   };
 
+  // Get all relevant statement references that are a valid dependency to parent resources
+  #getDataDependencyRefs = (statementRefs: Refs): ColumnRef[] => {
+    let dataDependencyRefs = statementRefs.columns.filter(
+      (column) => column.dependencyType === DependencyType.DATA
+    );
+    dataDependencyRefs.push(...statementRefs.wildcards);
+
+    const setColumnRefs = dataDependencyRefs.filter((ref) =>
+      ref.path.includes(SQLElement.SET_EXPRESSION)
+    );
+
+    const uniqueSetColumnRefs = setColumnRefs.filter(
+      (value, index, self) =>
+        index ===
+        self.findIndex(
+          (ref) =>
+            ref.name === value.name &&
+            ref.path === value.path &&
+            ref.materializationName === value.materializationName
+        )
+    );
+
+    let columnRefs = dataDependencyRefs.filter(
+      (ref) => !ref.path.includes(SQLElement.SET_EXPRESSION)
+    );
+
+    dataDependencyRefs = uniqueSetColumnRefs.concat(columnRefs);
+
+    const withColumnRefs = dataDependencyRefs.filter(
+      (ref) =>
+        ref.path.includes(SQLElement.WITH_COMPOUND_STATEMENT) &&
+        !ref.path.includes(SQLElement.COMMON_TABLE_EXPRESSION)
+    );
+    columnRefs = dataDependencyRefs.filter(
+      (ref) => !ref.path.includes(SQLElement.WITH_COMPOUND_STATEMENT)
+    );
+
+    dataDependencyRefs = withColumnRefs.concat(columnRefs);
+
+    return dataDependencyRefs;
+  };
+
+  #buildDependency = (
+    selfRef: ColumnRef,
+    statementRefs: Refs,
+    dbtModelId: string
+  ): void => {
+    const isColumnRef = (item: ColumnRef | undefined): item is ColumnRef =>
+      !!item;
+
+    const dependencies: ColumnRef[] = statementRefs.columns
+      .map((columnRef) => {
+        const isDependency = this.#isDependencyOfTarget(columnRef, selfRef);
+        if (isDependency) return columnRef;
+        return undefined;
+      })
+      .filter(isColumnRef);
+
+    dependencies.forEach((dependency) => {
+      if (!this.#lineage)
+        throw new ReferenceError('Lineage property is undefined');
+
+      this.#createDependency.execute(
+        {
+          selfRef,
+          parentRef: dependency,
+          selfDbtModelId: dbtModelId,
+          parentDbtModelIds: this.#logics.map((element) => element.dbtModelId),
+          lineageId: this.#lineage.id,
+        },
+        { organizationId: 'todo' }
+      );
+    });
+  };
+
+  #buildDependencies = (): void => {
+    this.#logics.forEach((logic) => {
+      logic.statementRefs.forEach((refs) => {
+        const dataDependencyRefs = this.#getDataDependencyRefs(refs);
+
+        dataDependencyRefs.forEach((selfRef) =>
+          this.#buildDependency(selfRef, refs, logic.dbtModelId)
+        );
+      });
+    });
+  };
+
   async execute(
     request: CreateLineageRequestDto,
     auth: CreateLineageAuthDto
@@ -251,85 +341,11 @@ export class CreateLineage
     // todo-replace
     console.log(auth);
     try {
-      await this.#setLineage(request.lineageId, request.lineageCreatedAt);
+      await this.#buildLineage(request.lineageId, request.lineageCreatedAt);
 
       await this.#generateWarehouseResources();
 
-      this.#logics.forEach((logic) => {
-        logic.statementRefs.forEach((refs) => {
-          let dataDependencyRefs = refs.columns.filter(
-            (column) => column.dependencyType === DependencyType.DATA
-          );
-          dataDependencyRefs.push(...refs.wildcards);
-
-          const setColumnRefs = dataDependencyRefs.filter((ref) =>
-            ref.path.includes(SQLElement.SET_EXPRESSION)
-          );
-
-          const uniqueSetColumnRefs = setColumnRefs.filter(
-            (value, index, self) =>
-              index ===
-              self.findIndex(
-                (ref) =>
-                  ref.name === value.name &&
-                  ref.path === value.path &&
-                  ref.materializationName === value.materializationName
-              )
-          );
-
-          let columnRefs = dataDependencyRefs.filter(
-            (ref) => !ref.path.includes(SQLElement.SET_EXPRESSION)
-          );
-
-          dataDependencyRefs = uniqueSetColumnRefs.concat(columnRefs);
-
-          const withColumnRefs = dataDependencyRefs.filter(
-            (ref) =>
-              ref.path.includes(SQLElement.WITH_COMPOUND_STATEMENT) &&
-              !ref.path.includes(SQLElement.COMMON_TABLE_EXPRESSION)
-          );
-          columnRefs = dataDependencyRefs.filter(
-            (ref) => !ref.path.includes(SQLElement.WITH_COMPOUND_STATEMENT)
-          );
-
-          dataDependencyRefs = withColumnRefs.concat(columnRefs);
-
-          const isColumnRef = (
-            item: ColumnRef | undefined
-          ): item is ColumnRef => !!item;
-
-          dataDependencyRefs.forEach((selfRef) => {
-            const dependencies: ColumnRef[] = refs.columns
-              .map((columnRef) => {
-                const isDependency = this.#isDependencyOfTarget(
-                  columnRef,
-                  selfRef
-                );
-                if (isDependency) return columnRef;
-                return undefined;
-              })
-              .filter(isColumnRef);
-
-            dependencies.forEach((dependency) => {
-              if (!this.#lineage)
-                throw new ReferenceError('Lineage property is undefined');
-
-              this.#createDependency.execute(
-                {
-                  selfRef,
-                  parentRef: dependency,
-                  selfDbtModelId: logic.dbtModelId,
-                  parentDbtModelIds: this.#logics.map(
-                    (element) => element.dbtModelId
-                  ),
-                  lineageId: this.#lineage.id,
-                },
-                { organizationId: 'todo' }
-              );
-            });
-          });
-        });
-      });
+      this.#buildDependencies();
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');

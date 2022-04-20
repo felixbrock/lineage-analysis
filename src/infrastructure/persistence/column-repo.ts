@@ -15,6 +15,8 @@ interface ColumnPersistence {
   _id: ObjectId;
   dbtModelId: string;
   name: string;
+  index: string;
+  type: string;
   materializationId: string;
   lineageId: string;
 }
@@ -22,6 +24,8 @@ interface ColumnPersistence {
 interface ColumnQueryFilter {
   dbtModelId?: string;
   name?: string | { [key: string]: string[] };
+  index?: string;
+  type?: string;
   materializationId?: string | { [key: string]: string[] };
   lineageId: string;
 }
@@ -85,7 +89,13 @@ export default class ColumnRepo implements IColumnRepo {
     if (columnQueryDto.name instanceof Array)
       filter.name = { $in: columnQueryDto.name };
 
-    if (typeof columnQueryDto.materializationId === 'string' && columnQueryDto.materializationId)
+    if (columnQueryDto.index) filter.index = columnQueryDto.index;
+    if (columnQueryDto.type) filter.type = columnQueryDto.type;
+
+    if (
+      typeof columnQueryDto.materializationId === 'string' &&
+      columnQueryDto.materializationId
+    )
       filter.materializationId = columnQueryDto.materializationId;
     if (columnQueryDto.materializationId instanceof Array)
       filter.materializationId = { $in: columnQueryDto.materializationId };
@@ -164,6 +174,8 @@ export default class ColumnRepo implements IColumnRepo {
     id: column._id.toHexString(),
     dbtModelId: column.dbtModelId,
     name: column.name,
+    index: column.index,
+    type: column.type,
     materializationId: column.materializationId,
     lineageId: column.lineageId,
   });
@@ -172,6 +184,8 @@ export default class ColumnRepo implements IColumnRepo {
     _id: ObjectId.createFromHexString(column.id),
     dbtModelId: column.dbtModelId,
     name: column.name,
+    index: column.index,
+    type: column.type,
     materializationId: column.materializationId,
     lineageId: column.lineageId,
   });
