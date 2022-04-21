@@ -108,12 +108,12 @@ export class CreateLineage
 
   #generateWarehouseResources = async (): Promise<void> => {
     const dbtCatalogNodes = this.#getDbtNodes(
-      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog.json`
-      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog.json`
+      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog.json`
+      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog.json`
     );
     const dbtManifestNodes = this.#getDbtNodes(
-      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest.json`
-      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest.json`
+      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest.json`
+      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest.json`
     );
 
     const dbtModelKeys = Object.keys(dbtCatalogNodes);
@@ -289,11 +289,11 @@ export class CreateLineage
     return dataDependencyRefs;
   };
 
-  #buildDependency = (
+  #buildDependency = async (
     selfRef: ColumnRef,
     statementRefs: Refs,
     dbtModelId: string
-  ): void => {
+  ): Promise<void> => {
     const isColumnRef = (item: ColumnRef | undefined): item is ColumnRef =>
       !!item;
 
@@ -305,11 +305,11 @@ export class CreateLineage
       })
       .filter(isColumnRef);
 
-    dependencies.forEach((dependency) => {
+    dependencies.forEach(async (dependency) => {
       if (!this.#lineage)
         throw new ReferenceError('Lineage property is undefined');
 
-      this.#createDependency.execute(
+      await this.#createDependency.execute(
         {
           selfRef,
           parentRef: dependency,
@@ -322,13 +322,16 @@ export class CreateLineage
     });
   };
 
-  #buildDependencies = (): void => {
-    this.#logics.forEach((logic) => {
-      logic.statementRefs.forEach((refs) => {
+  #buildDependencies = async (): Promise<void> => {
+    // todo - should method be completely sync? Probably resolves once transformed into batch job.
+    this.#logics.forEach(async (logic) => {
+      logic.statementRefs.forEach(async (refs) => {
         const dataDependencyRefs = this.#getDataDependencyRefs(refs);
 
-        dataDependencyRefs.forEach((selfRef) =>
-          this.#buildDependency(selfRef, refs, logic.dbtModelId)
+        await Promise.all(
+          dataDependencyRefs.map(async (selfRef) =>
+            this.#buildDependency(selfRef, refs, logic.dbtModelId)
+          )
         );
       });
     });

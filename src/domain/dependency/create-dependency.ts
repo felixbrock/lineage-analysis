@@ -61,6 +61,14 @@ export class CreateDependency
     return potentialParents[0].id;
   };
 
+  #getMatchingDbtModelIds = (
+    parentDbtModelIds: string[],
+    parentMaterializationName: string
+  ): string[] =>
+    parentDbtModelIds.filter((id) =>
+      id.toLowerCase().includes(parentMaterializationName.toLowerCase())
+    );
+
   constructor(
     readColumns: ReadColumns,
     readDependencies: ReadDependencies,
@@ -90,8 +98,12 @@ export class CreateDependency
 
       const [selfColumn] = readSelfColumnResult.value;
 
+      const matchingDbtModelIds = this.#getMatchingDbtModelIds(request.parentDbtModelIds, request.parentRef.materializationName);
+
+      if(!matchingDbtModelIds.length) throw new ReferenceError('No matching dbt model id found for dependency to create');
+
       const parentId = await this.#getParentId(
-        request.parentDbtModelIds,
+        matchingDbtModelIds,
         request.parentRef.name,
         request.lineageId
       );

@@ -29,14 +29,25 @@ export interface MaterializationRef extends Ref {
   isSelfRef: boolean;
 }
 
-export interface ColumnRef extends Ref {
+interface ColumnRefPrototype extends Ref {
   path: string;
   dependencyType: DependencyType;
   isWildcardRef: boolean;
   materializationName?: string;
 }
 
-export interface Refs {
+export interface ColumnRef
+  extends Omit<ColumnRefPrototype, 'materializationName'> {
+  materializationName: string;
+}
+
+interface RefsPrototype {
+  materializations: MaterializationRef[];
+  columns: ColumnRefPrototype[];
+  wildcards: ColumnRefPrototype[];
+}
+
+export interface Refs extends Omit<RefsPrototype, 'columns' | 'wildcards'> {
   materializations: MaterializationRef[];
   columns: ColumnRef[];
   wildcards: ColumnRef[];
@@ -108,7 +119,7 @@ export class Logic {
   static #getColumnDependencyType = (path: string): DependencyType => {
     const definitionElements = [
       `${SQLElement.COLUMN_DEFINITION}.${SQLElement.IDENTIFIER}`,
-      `${SQLElement.ALIAS_EXPRESSION}.${SQLElement.IDENTIFIER}`
+      `${SQLElement.ALIAS_EXPRESSION}.${SQLElement.IDENTIFIER}`,
     ];
 
     const dataDependencyElements = [
@@ -139,7 +150,7 @@ export class Logic {
   // Handles any column ref
   static #handleColumnIdentifierRef = (
     props: HandlerProperties<string>
-  ): ColumnRef => {
+  ): ColumnRefPrototype => {
     const columnValueRef = this.#splitColumnValue(props.value);
     const path = this.#appendPath(props.key, props.refPath);
 
@@ -179,7 +190,7 @@ export class Logic {
   // Handles any case of * (wildcard) refs
   static #handleWildCardRef = (
     props: HandlerProperties<{ [key: string]: any }>
-  ): ColumnRef => {
+  ): ColumnRefPrototype => {
     const wildcardElementKeys = Object.keys(props.value);
 
     const isDotNoation = [
@@ -291,9 +302,10 @@ export class Logic {
   static #extractRefs = (
     parsedSQL: { [key: string]: any },
     path = ''
-  ): Refs => {
+  ): RefsPrototype => {
     let refPath = path;
-    const refs: Refs = {
+
+    const refsPrototype: RefsPrototype = {
       columns: [],
       materializations: [],
       wildcards: [],
@@ -302,7 +314,10 @@ export class Logic {
     let alias: HandlerProperties<string> = { key: '', value: '', refPath: '' };
     Object.entries(parsedSQL).forEach((parsedSQLElement) => {
       const key = parsedSQLElement[0];
-      const value = typeof parsedSQLElement[1] === 'string' ? parsedSQLElement[1].toUpperCase() : parsedSQLElement[1];
+      const value =
+        typeof parsedSQLElement[1] === 'string'
+          ? parsedSQLElement[1].toUpperCase()
+          : parsedSQLElement[1];
 
       refPath =
         key === SQLElement.KEYWORD && value === SQLElement.KEYWORD_AS
@@ -310,10 +325,16 @@ export class Logic {
           : refPath;
 
       if (key === SQLElement.IDENTIFIER) {
-        if (path.includes(SQLElement.ALIAS_EXPRESSION)) alias = { key, value, refPath };
+        if (path.includes(SQLElement.ALIAS_EXPRESSION))
+          alias = { key, value, refPath };
         else if (path.includes(SQLElement.COLUMN_REFERENCE)) {
-          refs.columns.push(
-            this.#handleColumnIdentifierRef({ key, value, refPath, alias: alias.value })
+          refsPrototype.columns.push(
+            this.#handleColumnIdentifierRef({
+              key,
+              value,
+              refPath,
+              alias: alias.value,
+            })
           );
 
           alias = { key: '', value: '', refPath: '' };
@@ -331,30 +352,32 @@ export class Logic {
 
           alias = { key: '', value: '', refPath: '' };
 
-          refs.materializations = this.#pushMaterialization(
+          refsPrototype.materializations = this.#pushMaterialization(
             ref,
-            refs.materializations
+            refsPrototype.materializations
           );
         }
       } else if (key === SQLElement.WILDCARD_IDENTIFIER)
-        refs.wildcards.push(this.#handleWildCardRef({ key, value, refPath }));
+        refsPrototype.wildcards.push(
+          this.#handleWildCardRef({ key, value, refPath })
+        );
       else if (value.constructor === Object) {
         const subRefs = this.#extractRefs(
           value,
           this.#appendPath(key, refPath)
         );
 
-        refs.columns.push(...subRefs.columns);
+        refsPrototype.columns.push(...subRefs.columns);
         subRefs.materializations.forEach((materialization) => {
-          refs.materializations = this.#pushMaterialization(
+          refsPrototype.materializations = this.#pushMaterialization(
             materialization,
-            refs.materializations
+            refsPrototype.materializations
           );
         });
-        refs.wildcards.push(...subRefs.wildcards);
+        refsPrototype.wildcards.push(...subRefs.wildcards);
       } else if (Object.prototype.toString.call(value) === '[object Array]') {
         if (key === SQLElement.COLUMN_REFERENCE)
-          refs.columns.push(
+          refsPrototype.columns.push(
             this.#handleColumnIdentifierRef({
               key,
               value: this.#joinArrayValue(value),
@@ -368,9 +391,9 @@ export class Logic {
             refPath,
           });
 
-          refs.materializations = this.#pushMaterialization(
+          refsPrototype.materializations = this.#pushMaterialization(
             ref,
-            refs.materializations
+            refsPrototype.materializations
           );
         } else
           value.forEach((element: { [key: string]: any }) => {
@@ -379,33 +402,26 @@ export class Logic {
               this.#appendPath(key, refPath)
             );
 
-            refs.columns.push(...subRefs.columns);
+            refsPrototype.columns.push(...subRefs.columns);
             subRefs.materializations.forEach((materialization) => {
-              refs.materializations = this.#pushMaterialization(
+              refsPrototype.materializations = this.#pushMaterialization(
                 materialization,
-                refs.materializations
+                refsPrototype.materializations
               );
             });
-            refs.wildcards.push(...subRefs.wildcards);
+            refsPrototype.wildcards.push(...subRefs.wildcards);
           });
       }
     });
 
     // todo - Based on the assumption that unmatched alias only exist for columns and not tables
     if (alias.value)
-      refs.columns.push(this.#handleColumnIdentifierRef(alias));
+      refsPrototype.columns.push(this.#handleColumnIdentifierRef(alias));
 
     alias = { key: '', value: '', refPath: '' };
 
-    return refs;
+    return refsPrototype;
   };
-
-  static #hasMissingMaterializationRefs = (statementRefs: Refs[]): boolean =>
-    statementRefs.some(
-      (element) =>
-        element.columns.some((column) => !column.materializationName) ||
-        element.wildcards.some((wildcard) => !wildcard.materializationName)
-    );
 
   static #getBestMatchingMaterialization = (
     columnPath: string,
@@ -446,11 +462,23 @@ export class Logic {
     return bestMatch.ref;
   };
 
-  static #addColumnMaterializationInfo = (statementRefs: Refs[]): Refs[] => {
+  static #buildStatementRefs = (
+    statementRefs: RefsPrototype[]
+  ): Refs[] => {
     const fixedStatementRefs: Refs[] = statementRefs.map((element) => {
-
-      const columns = element.columns.map((column) => {
-        if (column.materializationName) return column;
+      const columns: ColumnRef[] = element.columns.map((column) => {
+        if (column.materializationName)
+          return {
+            dependencyType: column.dependencyType,
+            name: column.name,
+            alias: column.alias,
+            path: column.path,
+            isWildcardRef: column.isWildcardRef,
+            materializationName: column.name,
+            schemaName: column.schemaName,
+            databaseName: column.databaseName,
+            warehouseName: column.warehouseName,
+          };
 
         const columnToFix = column;
 
@@ -459,16 +487,32 @@ export class Logic {
           element.materializations
         );
 
-        columnToFix.materializationName = materializationRef.name;
-        columnToFix.schemaName = materializationRef.schemaName;
-        columnToFix.databaseName = materializationRef.databaseName;
-        columnToFix.warehouseName = materializationRef.warehouseName;
-
-        return columnToFix;
+        return {
+          dependencyType: columnToFix.dependencyType,
+          name: columnToFix.name,
+          alias: columnToFix.alias,
+          path: columnToFix.path,
+          isWildcardRef: columnToFix.isWildcardRef,
+          materializationName: materializationRef.name,
+          schemaName: materializationRef.schemaName,
+          databaseName: materializationRef.databaseName,
+          warehouseName: materializationRef.warehouseName,
+        };
       });
 
-      const wildcards = element.wildcards.map((wildcard) => {
-        if (wildcard.materializationName) return wildcard;
+      const wildcards: ColumnRef[] = element.wildcards.map((wildcard) => {
+        if (wildcard.materializationName)
+          return {
+            dependencyType: wildcard.dependencyType,
+            name: wildcard.name,
+            alias: wildcard.alias,
+            path: wildcard.path,
+            isWildcardRef: wildcard.isWildcardRef,
+            materializationName: wildcard.name,
+            schemaName: wildcard.schemaName,
+            databaseName: wildcard.databaseName,
+            warehouseName: wildcard.warehouseName,
+          };
 
         const wildcardToFix = wildcard;
 
@@ -477,12 +521,17 @@ export class Logic {
           element.materializations
         );
 
-        wildcardToFix.materializationName = materializationRef.name;
-        wildcardToFix.schemaName = materializationRef.schemaName;
-        wildcardToFix.databaseName = materializationRef.databaseName;
-        wildcardToFix.warehouseName = materializationRef.warehouseName;
-
-        return wildcardToFix;
+        return {
+          dependencyType: wildcardToFix.dependencyType,
+          name: wildcardToFix.name,
+          alias: wildcardToFix.alias,
+          path: wildcardToFix.path,
+          isWildcardRef: wildcardToFix.isWildcardRef,
+          materializationName: materializationRef.name,
+          schemaName: materializationRef.schemaName,
+          databaseName: materializationRef.databaseName,
+          warehouseName: materializationRef.warehouseName,
+        };
       });
 
       return { materializations: element.materializations, columns, wildcards };
@@ -493,14 +542,14 @@ export class Logic {
 
   // Runs through tree of parsed logic and extract all refs of materializations and columns (self and parent materializations)
   static #getStatementRefs = (fileObj: any): Refs[] => {
-    let statementRefs: Refs[] = [];
+    const statementRefsPrototype: RefsPrototype[] = [];
 
     if (
       fileObj.constructor === Object &&
       fileObj[SQLElement.STATEMENT] !== undefined
     ) {
       const statementRefsObj = this.#extractRefs(fileObj[SQLElement.STATEMENT]);
-      statementRefs.push(statementRefsObj);
+      statementRefsPrototype.push(statementRefsObj);
     } else if (Object.prototype.toString.call(fileObj) === '[object Array]') {
       const statementObjects = fileObj.filter(
         (statement: any) => SQLElement.STATEMENT in statement
@@ -510,17 +559,11 @@ export class Logic {
         const statementRefsObj = this.#extractRefs(
           statement[SQLElement.STATEMENT]
         );
-        statementRefs.push(statementRefsObj);
+        statementRefsPrototype.push(statementRefsObj);
       });
     }
 
-    if (this.#hasMissingMaterializationRefs(statementRefs))
-      statementRefs = this.#addColumnMaterializationInfo(statementRefs);
-
-    if (this.#hasMissingMaterializationRefs(statementRefs))
-      throw new ReferenceError('Missing materialization for column reference');
-
-    return statementRefs;
+    return this.#buildStatementRefs(statementRefsPrototype);
   };
 
   static create(prototype: LogicPrototype): Logic {
