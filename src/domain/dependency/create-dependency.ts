@@ -83,19 +83,18 @@ export class CreateDependency
         { organizationId: 'todo' }
       );
 
-      if (!readSelfColumnResult.success) throw new Error(readSelfColumnResult.error);
+      if (!readSelfColumnResult.success)
+        throw new Error(readSelfColumnResult.error);
       if (!readSelfColumnResult.value)
         throw new ReferenceError(`Reading of dependency columns failed`);
 
       const [selfColumn] = readSelfColumnResult.value;
 
-      const parentId = request.parentRef.materializationName
-        ? request.parentRef.materializationName
-        : await this.#getParentId(
-            request.parentDbtModelIds,
-            request.parentRef.name,
-            request.lineageId
-          );
+      const parentId = await this.#getParentId(
+        request.parentDbtModelIds,
+        request.parentRef.name,
+        request.lineageId
+      );
 
       const dependency = Dependency.create({
         id: new ObjectId().toHexString(),

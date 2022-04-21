@@ -161,7 +161,7 @@ export default class LogicRepo implements ILogicRepo {
   #buildStatementRefs = (statementRefs: PersistenceStatementRefs): Refs[] =>
     statementRefs.map((ref) => {
       const materializations: MaterializationRef[] = ref.materializations.map((materialization) => ({
-        path: materialization.path,
+        paths: materialization.paths,
         name: materialization.name,
         alias: materialization.alias,
         schemaName: materialization.schemaName,

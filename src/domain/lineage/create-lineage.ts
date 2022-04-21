@@ -108,12 +108,12 @@ export class CreateLineage
 
   #generateWarehouseResources = async (): Promise<void> => {
     const dbtCatalogNodes = this.#getDbtNodes(
-      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog.json`
-      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog.json`
+      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog.json`
+      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog.json`
     );
     const dbtManifestNodes = this.#getDbtNodes(
-      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest.json`
-      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest.json`
+      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest.json`
+      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest.json`
     );
 
     const dbtModelKeys = Object.keys(dbtCatalogNodes);
