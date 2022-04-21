@@ -108,12 +108,12 @@ export class Logic {
   static #getColumnDependencyType = (path: string): DependencyType => {
     const definitionElements = [
       `${SQLElement.COLUMN_DEFINITION}.${SQLElement.IDENTIFIER}`,
+      `${SQLElement.ALIAS_EXPRESSION}.${SQLElement.IDENTIFIER}`
     ];
 
     const dataDependencyElements = [
       `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
       `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.WILDCARD_EXPRESSION}.${SQLElement.WILDCARD_IDENTIFIER}`,
-      `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.ALIAS_EXPRESSION}.${SQLElement.IDENTIFIER}`,
       `${SQLElement.FUNCTION}.${SQLElement.BRACKETED}.${SQLElement.EXPRESSION}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
     ];
 
@@ -299,7 +299,7 @@ export class Logic {
       wildcards: [],
     };
 
-    let alias: string;
+    let alias: HandlerProperties<string> = {key: '', value: '', refPath: ''};
     Object.entries(parsedSQL).forEach((parsedSQLElement) => {
       const key = parsedSQLElement[0];
       const value = parsedSQLElement[1];
@@ -310,13 +310,13 @@ export class Logic {
           : refPath;
 
       if (key === SQLElement.IDENTIFIER) {
-        if (path.includes(SQLElement.ALIAS_EXPRESSION)) alias = value;
+        if (path.includes(SQLElement.ALIAS_EXPRESSION)) alias = {key, value, refPath};
         else if (path.includes(SQLElement.COLUMN_REFERENCE)) {
           refs.columns.push(
-            this.#handleColumnIdentifierRef({ key, value, refPath, alias })
+            this.#handleColumnIdentifierRef({ key, value, refPath, alias: alias.value })
           );
 
-          alias = '';
+          alias = {key: '', value: '', refPath: ''};
         } else if (
           path.includes(SQLElement.TABLE_REFERENCE) ||
           (path.includes(`${SQLElement.COMMON_TABLE_EXPRESSION}`) &&
@@ -326,10 +326,10 @@ export class Logic {
             key,
             value,
             refPath,
-            alias,
+            alias: alias.value,
           });
 
-          alias = '';
+          alias = {key: '', value: '', refPath: ''};
 
           refs.materializations = this.#pushMaterialization(
             ref,
@@ -390,6 +390,13 @@ export class Logic {
           });
       }
     });
+
+    // todo - Based on the assumption that unmatched alias only exist for columns and not tables
+    if(alias.value) 
+    refs.columns.push(this.#handleColumnIdentifierRef(alias));
+
+    alias = {key: '', value: '', refPath: ''};
+
     return refs;
   };
 
