@@ -1,7 +1,7 @@
 import { Column } from '../entities/column';
 
 export interface ColumnQueryDto {
-  dbtModelId?: string;
+  dbtModelId?: string | string[];
   name?: string | string[];
   index?: string;
   type?: string;

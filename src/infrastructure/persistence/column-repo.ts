@@ -22,7 +22,7 @@ interface ColumnPersistence {
 }
 
 interface ColumnQueryFilter {
-  dbtModelId?: string;
+  dbtModelId?: string | { [key: string]: string[] };
   name?: string | { [key: string]: string[] };
   index?: string;
   type?: string;
@@ -82,8 +82,14 @@ export default class ColumnRepo implements IColumnRepo {
   #buildFilter = (columnQueryDto: ColumnQueryDto): ColumnQueryFilter => {
     const filter: ColumnQueryFilter = { lineageId: columnQueryDto.lineageId };
 
-    if (columnQueryDto.dbtModelId)
+    if (
+      typeof columnQueryDto.dbtModelId === 'string' &&
+      columnQueryDto.dbtModelId
+    )
       filter.dbtModelId = columnQueryDto.dbtModelId;
+    if (columnQueryDto.dbtModelId instanceof Array)
+      filter.dbtModelId = { $in: columnQueryDto.dbtModelId };
+
     if (typeof columnQueryDto.name === 'string' && columnQueryDto.name)
       filter.name = columnQueryDto.name;
     if (columnQueryDto.name instanceof Array)

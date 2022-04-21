@@ -42,7 +42,7 @@ export class CreateDependency
     lineageId: string
   ): Promise<string> => {
     const readColumnsResult = await this.#readColumns.execute(
-      { materializationId: parentDbtModelIds, name: parentName, lineageId },
+      { dbtModelId: parentDbtModelIds, name: parentName, lineageId },
       { organizationId: 'todo' }
     );
 

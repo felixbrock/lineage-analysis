@@ -299,10 +299,10 @@ export class Logic {
       wildcards: [],
     };
 
-    let alias: HandlerProperties<string> = {key: '', value: '', refPath: ''};
+    let alias: HandlerProperties<string> = { key: '', value: '', refPath: '' };
     Object.entries(parsedSQL).forEach((parsedSQLElement) => {
       const key = parsedSQLElement[0];
-      const value = parsedSQLElement[1];
+      const value = typeof parsedSQLElement[1] === 'string' ? parsedSQLElement[1].toUpperCase() : parsedSQLElement[1];
 
       refPath =
         key === SQLElement.KEYWORD && value === SQLElement.KEYWORD_AS
@@ -310,13 +310,13 @@ export class Logic {
           : refPath;
 
       if (key === SQLElement.IDENTIFIER) {
-        if (path.includes(SQLElement.ALIAS_EXPRESSION)) alias = {key, value, refPath};
+        if (path.includes(SQLElement.ALIAS_EXPRESSION)) alias = { key, value, refPath };
         else if (path.includes(SQLElement.COLUMN_REFERENCE)) {
           refs.columns.push(
             this.#handleColumnIdentifierRef({ key, value, refPath, alias: alias.value })
           );
 
-          alias = {key: '', value: '', refPath: ''};
+          alias = { key: '', value: '', refPath: '' };
         } else if (
           path.includes(SQLElement.TABLE_REFERENCE) ||
           (path.includes(`${SQLElement.COMMON_TABLE_EXPRESSION}`) &&
@@ -329,7 +329,7 @@ export class Logic {
             alias: alias.value,
           });
 
-          alias = {key: '', value: '', refPath: ''};
+          alias = { key: '', value: '', refPath: '' };
 
           refs.materializations = this.#pushMaterialization(
             ref,
@@ -392,10 +392,10 @@ export class Logic {
     });
 
     // todo - Based on the assumption that unmatched alias only exist for columns and not tables
-    if(alias.value) 
-    refs.columns.push(this.#handleColumnIdentifierRef(alias));
+    if (alias.value)
+      refs.columns.push(this.#handleColumnIdentifierRef(alias));
 
-    alias = {key: '', value: '', refPath: ''};
+    alias = { key: '', value: '', refPath: '' };
 
     return refs;
   };
