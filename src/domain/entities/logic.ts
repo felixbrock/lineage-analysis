@@ -99,13 +99,14 @@ export class Logic {
     this.#lineageId = properties.lineageId;
   }
 
+  /* Adds a key to an already existing path that describes the current exploration route through a json tree */
   static #appendPath = (key: string, path: string): string => {
     let newPath = path;
     newPath += !path ? key : `.${key}`;
     return newPath;
   };
 
-  // Checks if ref is a self ref and, hence, defines the target column and materialization itself
+  /* Checks if a table ref is describing the resulting materialization of an corresponding SQL model */
   static #isSelfRef = (path: string): boolean => {
     const selfElements = [
       `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`,
@@ -116,6 +117,7 @@ export class Logic {
     return selfElements.some((element) => path.includes(element));
   };
 
+  /* Returns the type of dependency identified in the SQL logic */
   static #getColumnDependencyType = (path: string): DependencyType => {
     const definitionElements = [
       `${SQLElement.COLUMN_DEFINITION}.${SQLElement.IDENTIFIER}`,
@@ -135,6 +137,8 @@ export class Logic {
     return DependencyType.QUERY;
   };
 
+  /* Returns a single joined string value of an array value identified in the parsed SQL logic
+  (e.g. for for table_expressions or column_expressions) */
   static #joinArrayValue = (value: [{ [key: string]: string }]): string => {
     const valueElements = value.map((element) => {
       const identifierKey = 'identifier';
@@ -147,7 +151,7 @@ export class Logic {
     return valueElements.join('');
   };
 
-  // Handles any column ref
+  /* Handles any column ref found in the parsed SQL logic */
   static #handleColumnIdentifierRef = (
     props: HandlerProperties<string>
   ): ColumnRefPrototype => {
@@ -167,7 +171,7 @@ export class Logic {
     };
   };
 
-  // Handles any materialization ref
+  /* Handles any materialization ref found in the parsed SQL logic */
   static #handleMaterializationIdentifierRef = (
     props: HandlerProperties<string>
   ): MaterializationRef => {
@@ -187,7 +191,7 @@ export class Logic {
     };
   };
 
-  // Handles any case of * (wildcard) refs
+  /* Handles any * (wildcard) ref found in the parsed SQL logic */
   static #handleWildCardRef = (
     props: HandlerProperties<{ [key: string]: any }>
   ): ColumnRefPrototype => {
@@ -226,7 +230,8 @@ export class Logic {
   };
 
   // todo - Will probably fail, e.g. when 'use schema' is used
-  // Splits up warehouse.database.schema.materialization notation
+
+  /* Splits up warehouse.database.schema.materialization notation */
   static #splitMaterializationValue = (
     value: string
   ): {
@@ -246,7 +251,8 @@ export class Logic {
   };
 
   // todo - Will probably fail, e.g. when 'use schema' is used
-  // Splits up warehouse.database.schema.materialization.column notation
+  
+  /* Splits up warehouse.database.schema.materialization.column notation */
   static #splitColumnValue = (
     value: string
   ): {
@@ -267,6 +273,7 @@ export class Logic {
     };
   };
 
+  /* Adds a new materialization reference found safely to the existing array of already identified refs */
   static #pushMaterialization = (
     ref: MaterializationRef,
     refs: MaterializationRef[]
@@ -298,7 +305,8 @@ export class Logic {
     );
   };
 
-  // Runs through parse SQL logic (JSON object) and check for potential dependencies. Return those dependencies.
+  /* Directly interacts with parsed SQL logic. Calls different handlers based on use-case. 
+  Runs through parse SQL logic (JSON object) and check for potential dependencies. */
   static #extractRefs = (
     parsedSQL: { [key: string]: any },
     path = ''
@@ -423,6 +431,8 @@ export class Logic {
     return refsPrototype;
   };
 
+  /* Identifies the closest materialization reference to a provided column path. 
+  Assumption: The closest materialization ref in SQL defines the the ref's materialization */
   static #getBestMatchingMaterialization = (
     columnPath: string,
     materializations: MaterializationRef[]
@@ -462,9 +472,8 @@ export class Logic {
     return bestMatch.ref;
   };
 
-  static #buildStatementRefs = (
-    statementRefs: RefsPrototype[]
-  ): Refs[] => {
+  /* Transforms RefsPrototype object to Refs object by identifying missing materialization refs */
+  static #buildStatementRefs = (statementRefs: RefsPrototype[]): Refs[] => {
     const fixedStatementRefs: Refs[] = statementRefs.map((element) => {
       const columns: ColumnRef[] = element.columns.map((column) => {
         if (column.materializationName)
@@ -540,7 +549,7 @@ export class Logic {
     return fixedStatementRefs;
   };
 
-  // Runs through tree of parsed logic and extract all refs of materializations and columns (self and parent materializations)
+  /* Runs through tree of parsed logic and extract all refs of materializations and columns (self and parent materializations and columns) */
   static #getStatementRefs = (fileObj: any): Refs[] => {
     const statementRefsPrototype: RefsPrototype[] = [];
 
