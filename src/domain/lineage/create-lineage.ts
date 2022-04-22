@@ -66,6 +66,7 @@ export class CreateLineage
     this.#lineageRepo = lineageRepo;
   }
 
+  /* Building a new lineage object that is referenced by resources like columns and materializations */
   #buildLineage = async (
     lineageId?: string,
     lineageCreatedAt?: number
@@ -85,6 +86,7 @@ export class CreateLineage
       await this.#lineageRepo.insertOne(this.#lineage);
   };
 
+  /* Parses SQL logic */
   #parseLogic = async (sql: string): Promise<string> => {
     const parseSQLResult: ParseSQLResponseDto = await this.#parseSQL.execute(
       { dialect: 'snowflake', sql },
@@ -98,6 +100,7 @@ export class CreateLineage
     return JSON.stringify(parseSQLResult.value);
   };
 
+  /* Get dbt nodes from catalog.json or manifest.json */
   #getDbtNodes = (location: string): any => {
     const data = fs.readFileSync(location, 'utf-8');
 
@@ -106,6 +109,7 @@ export class CreateLineage
     return catalog.nodes;
   };
 
+  /* Runs through dbt nodes and creates objects like logic, materializations and columns */
   #generateWarehouseResources = async (): Promise<void> => {
     const dbtCatalogNodes = this.#getDbtNodes(
       `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog.json`
@@ -199,7 +203,8 @@ export class CreateLineage
     );
   };
 
-  // Identifies the statement root (e.g. create_materialization_statement.select_statement) of a specific reference path
+  
+  /* Identifies the statement root (e.g. create_materialization_statement.select_statement) of a specific reference path */
   #getStatementRoot = (path: string): string => {
     const lastIndexStatementRoot = path.lastIndexOf(SQLElement.STATEMENT);
     if (lastIndexStatementRoot === -1 || !lastIndexStatementRoot)
@@ -209,7 +214,7 @@ export class CreateLineage
     return path.slice(0, lastIndexStatementRoot + SQLElement.STATEMENT.length);
   };
 
-  // Checks if parent dependency can be mapped on the provided self column or to another column of the self materialization.
+  /* Checks if parent dependency can be mapped on the provided self column or to another column of the self materialization. */
   #isDependencyOfTarget = (
     potentialDependency: ColumnRef,
     selfRef: ColumnRef
@@ -247,7 +252,7 @@ export class CreateLineage
     );
   };
 
-  // Get all relevant statement references that are a valid dependency to parent resources
+  /* Get all relevant statement references that are a valid dependency to parent resources */
   #getDataDependencyRefs = (statementRefs: Refs): ColumnRef[] => {
     let dataDependencyRefs = statementRefs.columns.filter(
       (column) => column.dependencyType === DependencyType.DATA
@@ -289,6 +294,8 @@ export class CreateLineage
     return dataDependencyRefs;
   };
 
+
+  /* Creates all dependencies that exist between DWH resources */
   #buildDependency = async (
     selfRef: ColumnRef,
     statementRefs: Refs,
@@ -322,6 +329,7 @@ export class CreateLineage
     });
   };
 
+  /* Creates all dependencies that exist between DWH resources */
   #buildDependencies = async (): Promise<void> => {
     // todo - should method be completely sync? Probably resolves once transformed into batch job.
     this.#logics.forEach(async (logic) => {

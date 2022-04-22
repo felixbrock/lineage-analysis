@@ -36,6 +36,7 @@ export class CreateDependency
 
   readonly #dependencyRepo: IDependencyRepo;
 
+  /* Returns the object id of the parent column which self column depends upon */
   #getParentId = async (
     parentDbtModelIds: string[],
     parentName: string,
@@ -61,6 +62,7 @@ export class CreateDependency
     return potentialParents[0].id;
   };
 
+  /* Returns only dbt model ids that include the self column's table name */
   #getMatchingDbtModelIds = (
     parentDbtModelIds: string[],
     parentMaterializationName: string
