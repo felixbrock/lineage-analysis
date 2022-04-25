@@ -98,8 +98,12 @@ export class CreateDependency
       if (!readSelfColumnResult.value)
         throw new ReferenceError(`Reading of dependency columns failed`);
 
-      const [selfColumn] = readSelfColumnResult.value;
-
+      let selfColumn;
+      if(readSelfColumnResult.value.length > 1)
+        [selfColumn] = readSelfColumnResult.value.filter((column) => column.name === request.parentRef.name);
+      else
+        [selfColumn] = readSelfColumnResult.value;
+    
       const matchingDbtModelIds = this.#getMatchingDbtModelIds(request.parentDbtModelIds, request.parentRef.materializationName);
 
       if(!matchingDbtModelIds.length) throw new ReferenceError('No matching dbt model id found for dependency to create');
