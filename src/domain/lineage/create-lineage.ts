@@ -249,8 +249,14 @@ export class CreateLineage
     const isGroupBy =
       potentialDependency.path.includes(SQLElement.GROUPBY_CLAUSE) &&
       selfRef.name !== potentialDependency.name;
+    const isJoinOn =
+      potentialDependency.path.includes(SQLElement.JOIN_ON_CONDITION)
+      && selfRef.name !== potentialDependency.name;
 
     if (isWildcardRef || isSameName || isGroupBy) return true;
+
+    if (isJoinOn) return false;
+    if (potentialDependency.name !== selfRef.name) return false;
 
     throw new RangeError(
       'Unhandled case when checking if is dependency of target'
@@ -383,18 +389,22 @@ export class CreateLineage
   /* Creates all dependencies that exist between DWH resources */
   #buildDependencies = async (): Promise<void> => {
     // todo - should method be completely sync? Probably resolves once transformed into batch job.
-    this.#logics.forEach(async (logic) => {
-      logic.statementRefs.forEach(async (refs) => {
+    
+    await Promise.all(this.#logics.map(async (logic) => {
 
-        const dataDependencyRefs = this.#getDataDependencyRefs(refs);
+      await Promise.all(
+        logic.statementRefs.map(async (refs) => {
 
-        await Promise.all(
-          dataDependencyRefs.map(async (selfRef) =>
-            this.#buildDependency(selfRef, refs, logic.dbtModelId)
-          )
+          const dataDependencyRefs = this.#getDataDependencyRefs(refs);
+
+          await Promise.all(
+            dataDependencyRefs.map(async (selfRef) =>
+              this.#buildDependency(selfRef, refs, logic.dbtModelId)
+            )
+          );
+        })
         );
-      });
-    });
+    }));
   };
 
   async execute(
@@ -408,7 +418,7 @@ export class CreateLineage
 
       await this.#generateWarehouseResources();
 
-      this.#buildDependencies();
+      await this.#buildDependencies();
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');

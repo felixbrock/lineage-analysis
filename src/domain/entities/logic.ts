@@ -1,3 +1,4 @@
+import fs from 'fs';
 import { DependencyType } from './dependency';
 import SQLElement from '../value-types/sql-element';
 
@@ -431,11 +432,36 @@ export class Logic {
     return refsPrototype;
   };
 
+
+  static getTablesAndCols():any[] {
+    const data = fs.readFileSync(
+      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog.json`, 'utf-8');
+    const catalog = JSON.parse(data);
+    const catalogNodes = catalog.nodes;
+
+    const result: any[] = [];
+    
+    Object.entries(catalogNodes).forEach((entry) => {
+
+      const [node, body]:[string, any] = entry;
+      const {metadata, columns} = body;
+
+      const {name} = metadata;
+      const cols = Object.keys(columns);
+      
+      const foo = {"model": node, "name": name, "columns": cols};
+      result.push(foo);
+    });
+
+    return result;
+  };
+
   /* Identifies the closest materialization reference to a provided column path. 
   Assumption: The closest materialization ref in SQL defines the the ref's materialization */
   static #getBestMatchingMaterialization = (
     columnPath: string,
-    materializations: MaterializationRef[]
+    materializations: MaterializationRef[],
+    columnName: string
   ): MaterializationRef => {
     const columnPathElements = columnPath.split('.');
 
@@ -454,13 +480,24 @@ export class Logic {
             matchingPoints += 1;
           else differenceFound = true;
         });
-
+        
         if (!bestMatch || matchingPoints > bestMatch.matchingPoints)
           bestMatch = { ref: materialization, matchingPoints };
-        else if (bestMatch.matchingPoints === matchingPoints)
-          throw new RangeError(
-            'More than one potential materialization match found for column reference'
-          );
+        else if (bestMatch.matchingPoints === matchingPoints){
+
+          const tablesAndCols = Logic.getTablesAndCols();
+          const materializationName = materialization.name;
+          
+          tablesAndCols.forEach((mat) => {
+            if(mat.name === materializationName && mat.columns.includes(columnName))
+              bestMatch = {ref: materialization, matchingPoints};
+          });
+        }
+          // catalog logic
+          // bestMatch.ref.push(materialization);
+          // throw new RangeError(
+          //   'More than one potential materialization match found for column reference'
+          // );
       });
     });
 
@@ -490,23 +527,31 @@ export class Logic {
           };
 
         const columnToFix = column;
+        
 
         const materializationRef = this.#getBestMatchingMaterialization(
           columnToFix.path,
-          element.materializations
+          element.materializations,
+          column.name
         );
-
-        return {
-          dependencyType: columnToFix.dependencyType,
-          name: columnToFix.name,
-          alias: columnToFix.alias,
-          path: columnToFix.path,
-          isWildcardRef: columnToFix.isWildcardRef,
-          materializationName: materializationRef.name,
-          schemaName: materializationRef.schemaName,
-          databaseName: materializationRef.databaseName,
-          warehouseName: materializationRef.warehouseName,
-        };
+        
+        // const list : ColumnRef[] = [];
+        // materializationRef.forEach((materialization) => {
+        //   list.push(
+          return {
+            dependencyType: columnToFix.dependencyType,
+            name: columnToFix.name,
+            alias: columnToFix.alias,
+            path: columnToFix.path,
+            isWildcardRef: columnToFix.isWildcardRef,
+            materializationName: materializationRef.name,
+            schemaName: materializationRef.schemaName,
+            databaseName: materializationRef.databaseName,
+            warehouseName: materializationRef.warehouseName,
+          };
+        //   );
+        // });
+        // return list;
       });
 
       const wildcards: ColumnRef[] = element.wildcards.map((wildcard) => {
@@ -527,20 +572,24 @@ export class Logic {
 
         const materializationRef = this.#getBestMatchingMaterialization(
           wildcardToFix.path,
-          element.materializations
+          element.materializations,
+          wildcard.name
         );
 
-        return {
-          dependencyType: wildcardToFix.dependencyType,
-          name: wildcardToFix.name,
-          alias: wildcardToFix.alias,
-          path: wildcardToFix.path,
-          isWildcardRef: wildcardToFix.isWildcardRef,
-          materializationName: materializationRef.name,
-          schemaName: materializationRef.schemaName,
-          databaseName: materializationRef.databaseName,
-          warehouseName: materializationRef.warehouseName,
-        };
+        // materializationRef.forEach((materialization) => {
+
+          return {
+            dependencyType: wildcardToFix.dependencyType,
+            name: wildcardToFix.name,
+            alias: wildcardToFix.alias,
+            path: wildcardToFix.path,
+            isWildcardRef: wildcardToFix.isWildcardRef,
+            materializationName: materializationRef.name,
+            schemaName: materializationRef.schemaName,
+            databaseName: materializationRef.databaseName,
+            warehouseName: materializationRef.warehouseName,
+          };
+        // });
       });
 
       return { materializations: element.materializations, columns, wildcards };
@@ -598,3 +647,5 @@ export class Logic {
     return logic;
   }
 }
+
+
