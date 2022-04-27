@@ -49,7 +49,7 @@ export class CreateLineage
 
   #lineage?: Lineage;
 
-  #logics: Logic[] = [];
+  #logics: Logic[];
 
   readonly #readColumns: ReadColumns;
 
@@ -69,6 +69,8 @@ export class CreateLineage
     this.#parseSQL = parseSQL;
     this.#lineageRepo = lineageRepo;
     this.#readColumns = readColumns;
+    this.#logics = [];
+    this.#lineage = undefined;
   }
 
   /* Building a new lineage object that is referenced by resources like columns and materializations */
@@ -117,12 +119,12 @@ export class CreateLineage
   /* Runs through dbt nodes and creates objects like logic, materializations and columns */
   #generateWarehouseResources = async (): Promise<void> => {
     const dbtCatalogNodes = this.#getDbtNodes(
-      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog.json`
-      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog.json`
+      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog.json`
+      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog.json`
     );
     const dbtManifestNodes = this.#getDbtNodes(
-      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest.json`
-      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest.json`
+      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest.json`
+      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest.json`
     );
 
     const dbtModelKeys = Object.keys(dbtCatalogNodes);
@@ -414,6 +416,11 @@ export class CreateLineage
     // todo-replace
     console.log(auth);
     try {
+
+      // todo - Workaround. Fix ioc container
+      this.#lineage = undefined;
+      this.#logics = [];
+
       await this.#buildLineage(request.lineageId, request.lineageCreatedAt);
 
       await this.#generateWarehouseResources();

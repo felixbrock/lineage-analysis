@@ -433,9 +433,11 @@ export class Logic {
   };
 
 
-  static getTablesAndCols():any[] {
+  static #getTablesAndCols():any[] {
     const data = fs.readFileSync(
-      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog.json`, 'utf-8');
+      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog.json`
+      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog.json`
+      , 'utf-8');
     const catalog = JSON.parse(data);
     const catalogNodes = catalog.nodes;
 
@@ -485,7 +487,7 @@ export class Logic {
           bestMatch = { ref: materialization, matchingPoints };
         else if (bestMatch.matchingPoints === matchingPoints){
 
-          const tablesAndCols = Logic.getTablesAndCols();
+          const tablesAndCols = Logic.#getTablesAndCols();
           const materializationName = materialization.name;
           
           tablesAndCols.forEach((mat) => {
