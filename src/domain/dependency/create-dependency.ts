@@ -116,26 +116,15 @@ export class CreateDependency
         request.lineageId
       );
       
-      let dependency;
-
-      if(request.parentRef.dependencyType === DependencyType.QUERY){
-        dependency = Dependency.create({
+      const isQueryDependency = request.parentRef.dependencyType === DependencyType.QUERY;
+    
+      const dependency = Dependency.create({
           id: new ObjectId().toHexString(),
-          type: request.parentRef.dependencyType,
-          headId: selfColumn.materializationId,
+          type: isQueryDependency ? request.parentRef.dependencyType : request.selfRef.dependencyType,
+          headId: isQueryDependency ? selfColumn.materializationId :  selfColumn.id,
           tailId: parentId,
           lineageId: request.lineageId,
         });
-      }else{
-        dependency = Dependency.create({
-          id: new ObjectId().toHexString(),
-          type: request.selfRef.dependencyType,
-          headId: selfColumn.id,
-          tailId: parentId,
-          lineageId: request.lineageId,
-        });
-      }
-         
 
       const readColumnsResult = await this.#readDependencies.execute(
         {

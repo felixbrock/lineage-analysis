@@ -119,6 +119,31 @@ export class CreateLineage
     return catalog.nodes;
   };
 
+  #getTablesAndCols = ():any[] => {
+    const data = fs.readFileSync(
+      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog.json`
+      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog.json`
+      , 'utf-8');
+    const catalog = JSON.parse(data);
+    const catalogNodes = catalog.nodes;
+
+    const result: any[] = [];
+    
+    Object.entries(catalogNodes).forEach((entry) => {
+
+      const [node, body]:[string, any] = entry;
+      const {metadata, columns} = body;
+
+      const {name} = metadata;
+      const cols = Object.keys(columns);
+      
+      const foo = {"model": node, "name": name, "columns": cols};
+      result.push(foo);
+    });
+
+    return result;
+  };
+
   /* Runs through dbt nodes and creates objects like logic, materializations and columns */
   #generateWarehouseResources = async (): Promise<void> => {
     const dbtCatalogNodes = this.#getDbtNodes(
@@ -143,12 +168,14 @@ export class CreateLineage
         const manifest = dbtManifestNodes[key];
 
         const parsedLogic = await this.#parseLogic(manifest.compiled_sql);
+        const tablesAndCols = this.#getTablesAndCols();
 
         const createLogicResult = await this.#createLogic.execute(
           {
             dbtModelId: dbtModel.unique_id,
             lineageId: this.#lineage.id,
             parsedLogic,
+            catalog: tablesAndCols,
           },
           { organizationId: 'todo' }
         );
@@ -320,48 +347,7 @@ export class CreateLineage
     const isColumnRef = (item: ColumnRef | undefined): item is ColumnRef =>
       !!item;
 
-    const dependencies: ColumnRef[] = [];
-    await Promise.all(statementRefs.wildcards.map(async (wildcardRef) => {
-
-      if (!this.#lineage)
-        throw new ReferenceError('Lineage property is undefined');
-
-      // currently hardcoded to model.dbt_demo
-      const readColumnsResult = await this.#readColumns.execute(
-        {
-          dbtModelId: `model.dbt_demo.${wildcardRef.materializationName}`,
-          lineageId: this.#lineage.id
-        },
-        { organizationId: 'todo' }
-      );
-
-      if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
-      if (!readColumnsResult.value)
-        throw new ReferenceError(`Reading of columns failed`);
-
-      const colsFromWildcard = readColumnsResult.value;
-
-      colsFromWildcard.forEach((column) => {
-        const newColumnRef: ColumnRef =
-        {
-          materializationName: '',
-          path: wildcardRef.path,
-          dependencyType: wildcardRef.dependencyType,
-          isWildcardRef: wildcardRef.isWildcardRef,
-          name: column.name,
-        };
-
-        if (wildcardRef.alias) newColumnRef.alias = wildcardRef.alias;
-        if (wildcardRef.schemaName) newColumnRef.schemaName = wildcardRef.schemaName;
-        if (wildcardRef.databaseName) newColumnRef.databaseName = wildcardRef.databaseName;
-        if (wildcardRef.warehouseName) newColumnRef.warehouseName = wildcardRef.warehouseName;
-        if (wildcardRef.materializationName) newColumnRef.materializationName = wildcardRef.materializationName;
-
-        const isDependency = this.#isDependencyOfTarget(newColumnRef, selfRef);
-        if (isDependency) dependencies.push(newColumnRef);
-
-      });
-    }));
+    const wildcardDependencies = await this.getDependenciesForWildcard(statementRefs, selfRef);
 
     const columnDependencies = statementRefs.columns
       .map((columnRef) => {
@@ -371,30 +357,28 @@ export class CreateLineage
       })
       .filter(isColumnRef);
 
-    dependencies.push(...columnDependencies);
+    const dependencies: ColumnRef[] = wildcardDependencies.concat(columnDependencies);
 
     await Promise.all(dependencies.map(async (dependency) => {
       if (!this.#lineage)
         throw new ReferenceError('Lineage property is undefined');
         
-        if(dependency !== this.#lastQueryDependency){
+        if(dependency === this.#lastQueryDependency) return;
 
-          if(dependency.dependencyType === DependencyType.QUERY)
-            this.#lastQueryDependency = dependency;
-          await this.#createDependency.execute(
-            {
-              selfRef,
-              parentRef: dependency,
-              selfDbtModelId: dbtModelId,
-              parentDbtModelIds: this.#logics.map((element) => element.dbtModelId),
-              lineageId: this.#lineage.id,
-            },
-            { organizationId: 'todo' }
-          );
-          
-        }
-        
-    }));
+        if(dependency.dependencyType === DependencyType.QUERY)
+          this.#lastQueryDependency = dependency;
+        await this.#createDependency.execute(
+          {
+            selfRef,
+            parentRef: dependency,
+            selfDbtModelId: dbtModelId,
+            parentDbtModelIds: this.#logics.map((element) => element.dbtModelId),
+            lineageId: this.#lineage.id,
+          },
+          { organizationId: 'todo' }
+        );
+      }
+    ));
 
   };
 
@@ -418,6 +402,53 @@ export class CreateLineage
         );
     }));
   };
+
+  private async getDependenciesForWildcard(statementRefs: Refs, selfRef: ColumnRef) {
+    
+    const dependencies: ColumnRef[] = [];
+    await Promise.all(statementRefs.wildcards.map(async (wildcardRef) => {
+
+      if (!this.#lineage)
+        throw new ReferenceError('Lineage property is undefined');
+
+      // currently hardcoded to model.dbt_demo
+      const readColumnsResult = await this.#readColumns.execute(
+        {
+          dbtModelId: `model.dbt_demo.${wildcardRef.materializationName}`,
+          lineageId: this.#lineage.id
+        },
+        { organizationId: 'todo' }
+      );
+
+      if (!readColumnsResult.success)
+        throw new Error(readColumnsResult.error);
+      if (!readColumnsResult.value)
+        throw new ReferenceError(`Reading of columns failed`);
+
+      const colsFromWildcard = readColumnsResult.value;
+
+      colsFromWildcard.forEach((column) => {
+        const newColumnRef: ColumnRef = {
+          materializationName: wildcardRef.materializationName,
+          path: wildcardRef.path,
+          dependencyType: wildcardRef.dependencyType,
+          isWildcardRef: wildcardRef.isWildcardRef,
+          name: column.name,
+          alias: wildcardRef.alias,
+          schemaName: wildcardRef.schemaName,
+          databaseName: wildcardRef.databaseName,
+          warehouseName: wildcardRef.warehouseName,
+        };
+
+        const isDependency = this.#isDependencyOfTarget(newColumnRef, selfRef);
+        if (isDependency)
+          dependencies.push(newColumnRef);
+
+      });
+    }));
+
+    return dependencies;
+  }
 
   async execute(
     request: CreateLineageRequestDto,

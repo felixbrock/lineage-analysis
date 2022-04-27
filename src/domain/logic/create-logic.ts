@@ -10,6 +10,7 @@ export interface CreateLogicRequestDto {
   dbtModelId: string;
   parsedLogic: string;
   lineageId: string;
+  catalog: any[];
 }
 
 export interface CreateLogicAuthDto {
@@ -41,6 +42,7 @@ export class CreateLogic
         dbtModelId: request.dbtModelId,
         parsedLogic: request.parsedLogic,
         lineageId: request.lineageId,
+        catalog: request.catalog
       });
 
       const readLogicsResult = await this.#readLogics.execute(
