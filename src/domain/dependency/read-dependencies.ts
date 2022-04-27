@@ -5,8 +5,8 @@ import { IDependencyRepo, DependencyQueryDto } from './i-dependency-repo';
 
 export interface ReadDependenciesRequestDto {
   type?: DependencyType;
-  headColumnId?: string;
-  tailColumnId?: string;
+  headId?: string;
+  tailId?: string;
   lineageId: string;
 }
 
@@ -60,8 +60,8 @@ export class ReadDependencies
     // todo - add organizationId
     // queryDto.organizationId = organizationId;
     if (request.type) queryDto.type = request.type;
-    if (request.headColumnId) queryDto.headColumnId = request.headColumnId;
-    if (request.tailColumnId) queryDto.tailColumnId = request.tailColumnId;
+    if (request.headId) queryDto.headId = request.headId;
+    if (request.tailId) queryDto.tailId = request.tailId;
 
     return queryDto;
   };

@@ -3,7 +3,7 @@ import { DependencyType } from "../entities/dependency";
 export interface DependencyDto {
   id: string;
   type: DependencyType,
-  headColumnId: string,
-  tailColumnId: string,
+  headId: string,
+  tailId: string,
   lineageId: string
 }

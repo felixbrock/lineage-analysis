@@ -435,8 +435,8 @@ export class Logic {
 
   static #getTablesAndCols():any[] {
     const data = fs.readFileSync(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog.json`
-      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog.json`
+      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog.json`
+      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog.json`
       , 'utf-8');
     const catalog = JSON.parse(data);
     const catalogNodes = catalog.nodes;
@@ -622,6 +622,17 @@ export class Logic {
         statementRefsPrototype.push(statementRefsObj);
       });
     }
+    statementRefsPrototype.forEach((prototype) => {
+
+      prototype.columns.forEach((val, index) => {
+        const nextCol = prototype.columns[index+1];
+        if(nextCol)
+          if(val.dependencyType === DependencyType.DEFINITION && 
+            nextCol.dependencyType === DependencyType.DATA)
+              nextCol.alias = val.name;
+            
+      });
+    });
 
     return this.#buildStatementRefs(statementRefsPrototype);
   };

@@ -2,7 +2,7 @@
 import { ObjectId } from 'mongodb';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { Dependency } from '../entities/dependency';
+import { Dependency, DependencyType } from '../entities/dependency';
 import { IDependencyRepo } from './i-dependency-repo';
 import { ReadDependencies } from './read-dependencies';
 import { ColumnRef } from '../entities/logic';
@@ -99,8 +99,10 @@ export class CreateDependency
         throw new ReferenceError(`Reading of dependency columns failed`);
 
       let selfColumn;
-      if(readSelfColumnResult.value.length > 1)
-        [selfColumn] = readSelfColumnResult.value.filter((column) => column.name === request.parentRef.name);
+      if(readSelfColumnResult.value.length > 1){
+        const parentName = request.parentRef.alias ? request.parentRef.alias : request.parentRef.name;
+        [selfColumn] = readSelfColumnResult.value.filter((column) => column.name === parentName);
+      }    
       else
         [selfColumn] = readSelfColumnResult.value;
     
@@ -113,20 +115,33 @@ export class CreateDependency
         request.parentRef.name,
         request.lineageId
       );
+      
+      let dependency;
 
-      const dependency = Dependency.create({
-        id: new ObjectId().toHexString(),
-        type: request.selfRef.dependencyType,
-        headColumnId: selfColumn.id,
-        tailColumnId: parentId,
-        lineageId: request.lineageId,
-      });
+      if(request.parentRef.dependencyType === DependencyType.QUERY){
+        dependency = Dependency.create({
+          id: new ObjectId().toHexString(),
+          type: request.parentRef.dependencyType,
+          headId: selfColumn.materializationId,
+          tailId: parentId,
+          lineageId: request.lineageId,
+        });
+      }else{
+        dependency = Dependency.create({
+          id: new ObjectId().toHexString(),
+          type: request.selfRef.dependencyType,
+          headId: selfColumn.id,
+          tailId: parentId,
+          lineageId: request.lineageId,
+        });
+      }
+         
 
       const readColumnsResult = await this.#readDependencies.execute(
         {
           type: request.selfRef.dependencyType,
-          headColumnId: selfColumn.id,
-          tailColumnId: parentId,
+          headId: selfColumn.id,
+          tailId: parentId,
           lineageId: request.lineageId,
         },
         { organizationId: auth.organizationId }

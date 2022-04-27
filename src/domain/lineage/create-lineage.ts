@@ -53,6 +53,8 @@ export class CreateLineage
 
   readonly #readColumns: ReadColumns;
 
+  #lastQueryDependency?: ColumnRef;
+
   constructor(
     createLogic: CreateLogic,
     createMaterialization: CreateMaterialization,
@@ -71,6 +73,7 @@ export class CreateLineage
     this.#readColumns = readColumns;
     this.#logics = [];
     this.#lineage = undefined;
+    this.#lastQueryDependency = undefined;
   }
 
   /* Building a new lineage object that is referenced by resources like columns and materializations */
@@ -119,12 +122,12 @@ export class CreateLineage
   /* Runs through dbt nodes and creates objects like logic, materializations and columns */
   #generateWarehouseResources = async (): Promise<void> => {
     const dbtCatalogNodes = this.#getDbtNodes(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog.json`
-      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog.json`
+      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog.json`
+      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog.json`
     );
     const dbtManifestNodes = this.#getDbtNodes(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest.json`
-      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest.json`
+      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest.json`
+      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest.json`
     );
 
     const dbtModelKeys = Object.keys(dbtCatalogNodes);
@@ -373,17 +376,24 @@ export class CreateLineage
     await Promise.all(dependencies.map(async (dependency) => {
       if (!this.#lineage)
         throw new ReferenceError('Lineage property is undefined');
+        
+        if(dependency !== this.#lastQueryDependency){
 
-      await this.#createDependency.execute(
-        {
-          selfRef,
-          parentRef: dependency,
-          selfDbtModelId: dbtModelId,
-          parentDbtModelIds: this.#logics.map((element) => element.dbtModelId),
-          lineageId: this.#lineage.id,
-        },
-        { organizationId: 'todo' }
-      );
+          if(dependency.dependencyType === DependencyType.QUERY)
+            this.#lastQueryDependency = dependency;
+          await this.#createDependency.execute(
+            {
+              selfRef,
+              parentRef: dependency,
+              selfDbtModelId: dbtModelId,
+              parentDbtModelIds: this.#logics.map((element) => element.dbtModelId),
+              lineageId: this.#lineage.id,
+            },
+            { organizationId: 'todo' }
+          );
+          
+        }
+        
     }));
 
   };
