@@ -124,6 +124,7 @@ export class CreateLineage
       dbtModelKeys.map(async (key) => {
         if (!this.#lineage)
           throw new ReferenceError('Lineage property is undefined');
+        const lineage = this.#lineage;
 
         const dbtModel = dbtCatalogNodes[key];
         const manifest = dbtManifestNodes[key];
@@ -133,7 +134,7 @@ export class CreateLineage
         const createLogicResult = await this.#createLogic.execute(
           {
             dbtModelId: dbtModel.unique_id,
-            lineageId: this.#lineage.id,
+            lineageId: lineage.id,
             parsedLogic,
           },
           { organizationId: 'todo' }
@@ -157,7 +158,7 @@ export class CreateLineage
               schemaName: dbtModel.metadata.schema,
               databaseName: dbtModel.metadata.database,
               logicId: logic.id,
-              lineageId: this.#lineage.id,
+              lineageId: lineage.id,
             },
             { organizationId: 'todo' }
           );
@@ -171,7 +172,7 @@ export class CreateLineage
 
         await Promise.all(
           Object.keys(dbtModel.columns).map(async (columnKey) => {
-            if (!this.#lineage)
+            if (!lineage)
               throw new ReferenceError('Lineage property is undefined');
 
             const column = dbtModel.columns[columnKey];
@@ -184,7 +185,7 @@ export class CreateLineage
                 index: column.index,
                 type: column.type,
                 materializationId: materialization.id,
-                lineageId: this.#lineage.id,
+                lineageId: lineage.id,
               },
               { organizationId: 'todo' }
             );
