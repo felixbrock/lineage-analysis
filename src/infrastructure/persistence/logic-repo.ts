@@ -13,7 +13,6 @@ import {
   ColumnRef,
   Logic,
   LogicProperties,
-  LogicPrototype,
   Refs,
   MaterializationRef,
 } from '../../domain/entities/logic';
@@ -50,7 +49,7 @@ export default class LogicRepo implements ILogicRepo {
 
       if (!result) return null;
 
-      return this.#toEntity(this.#buildPrototype(result));
+      return this.#toEntity(this.#buildProperties(result));
     } catch (error: unknown) {
       if (typeof error === 'string') return Promise.reject(error);
       if (error instanceof Error) return Promise.reject(error.message);
@@ -75,7 +74,7 @@ export default class LogicRepo implements ILogicRepo {
       if (!results || !results.length) return [];
 
       return results.map((element: any) =>
-        this.#toEntity(this.#buildPrototype(element))
+        this.#toEntity(this.#buildProperties(element))
       );
     } catch (error: unknown) {
       if (typeof error === 'string') return Promise.reject(error);
@@ -104,7 +103,7 @@ export default class LogicRepo implements ILogicRepo {
       if (!results || !results.length) return [];
 
       return results.map((element: any) =>
-        this.#toEntity(this.#buildPrototype(element))
+        this.#toEntity(this.#buildProperties(element))
       );
     } catch (error: unknown) {
       if (typeof error === 'string') return Promise.reject(error);
@@ -155,20 +154,22 @@ export default class LogicRepo implements ILogicRepo {
     }
   };
 
-  #toEntity = (logicPrototype: LogicPrototype): Logic =>
-    Logic.create(logicPrototype);
+  #toEntity = (logicProperties: LogicProperties): Logic =>
+    Logic.build(logicProperties);
 
   #buildStatementRefs = (statementRefs: PersistenceStatementRefs): Refs[] =>
     statementRefs.map((ref) => {
-      const materializations: MaterializationRef[] = ref.materializations.map((materialization) => ({
-        paths: materialization.paths,
-        name: materialization.name,
-        alias: materialization.alias,
-        schemaName: materialization.schemaName,
-        databaseName: materialization.databaseName,
-        warehouseName: materialization.warehouseName,
-        isSelfRef: materialization.isSelfRef,
-      }));
+      const materializations: MaterializationRef[] = ref.materializations.map(
+        (materialization) => ({
+          paths: materialization.paths,
+          name: materialization.name,
+          alias: materialization.alias,
+          schemaName: materialization.schemaName,
+          databaseName: materialization.databaseName,
+          warehouseName: materialization.warehouseName,
+          isSelfRef: materialization.isSelfRef,
+        })
+      );
 
       const columns: ColumnRef[] = ref.columns.map((column) => ({
         path: column.path,
@@ -197,7 +198,7 @@ export default class LogicRepo implements ILogicRepo {
       return { materializations, columns, wildcards };
     });
 
-  #buildPrototype = (logic: LogicPersistence): LogicProperties => ({
+  #buildProperties = (logic: LogicPersistence): LogicProperties => ({
     // eslint-disable-next-line no-underscore-dangle
     id: logic._id.toHexString(),
     dbtModelId: logic.dbtModelId,

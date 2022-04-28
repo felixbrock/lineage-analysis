@@ -51,7 +51,7 @@ export class Dependency {
     this.#lineageId = properties.lineageId;
   }
 
-  static create(properties: DependencyProperties): Dependency {
+  static create = (properties: DependencyProperties): Dependency => {
     if (!properties.id) throw new TypeError('Dependency object must have id');
     if (!properties.type)
       throw new TypeError('Dependency object must have type');
@@ -66,5 +66,5 @@ export class Dependency {
     const dependency = new Dependency(properties);
 
     return dependency;
-  }
+  };
 }

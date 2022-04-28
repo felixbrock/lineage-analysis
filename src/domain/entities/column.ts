@@ -61,7 +61,7 @@ export class Column {
     this.#lineageId = properties.lineageId;
   }
 
-  static create(properties: ColumnProperties): Column {
+  static create = (properties: ColumnProperties): Column => {
     if (!properties.id) throw new TypeError('Column must have id');
     if (!properties.dbtModelId)
       throw new TypeError('Column must have dbtModelId');
@@ -84,5 +84,5 @@ export class Column {
     });
 
     return column;
-  }
+  };
 }

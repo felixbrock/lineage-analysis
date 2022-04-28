@@ -74,7 +74,7 @@ export class Materialization {
     this.#lineageId = properties.lineageId;
   }
 
-  static create(properties: MaterializationProperties): Materialization {
+  static create = (properties: MaterializationProperties): Materialization => {
     if (!properties.id) throw new TypeError('Materialization must have id');
     if (!properties.dbtModelId)
       throw new TypeError('Materialization must have dbtModelId');
@@ -91,5 +91,5 @@ export class Materialization {
     const materialization = new Materialization(properties);
 
     return materialization;
-  }
+  };
 }

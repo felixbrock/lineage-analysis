@@ -48,7 +48,7 @@ export default class DependencyRepo implements IDependencyRepo {
 
       if (!result) return null;
 
-      return this.#toEntity(this.#buildPrototype(result));
+      return this.#toEntity(this.#buildProperties(result));
     } catch (error: unknown) {
       if (typeof error === 'string') return Promise.reject(error);
       if (error instanceof Error) return Promise.reject(error.message);
@@ -75,7 +75,7 @@ export default class DependencyRepo implements IDependencyRepo {
       if (!results || !results.length) return [];
 
       return results.map((element: any) =>
-        this.#toEntity(this.#buildPrototype(element))
+        this.#toEntity(this.#buildProperties(element))
       );
     } catch (error: unknown) {
       if (typeof error === 'string') return Promise.reject(error);
@@ -112,7 +112,7 @@ export default class DependencyRepo implements IDependencyRepo {
       if (!results || !results.length) return [];
 
       return results.map((element: any) =>
-        this.#toEntity(this.#buildPrototype(element))
+        this.#toEntity(this.#buildProperties(element))
       );
     } catch (error: unknown) {
       if (typeof error === 'string') return Promise.reject(error);
@@ -166,7 +166,7 @@ export default class DependencyRepo implements IDependencyRepo {
   #toEntity = (properties: DependencyProperties): Dependency =>
     Dependency.create(properties);
 
-  #buildPrototype = (
+  #buildProperties = (
     dependency: DependencyPersistence
   ): DependencyProperties => ({
     // eslint-disable-next-line no-underscore-dangle
