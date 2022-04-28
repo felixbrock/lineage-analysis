@@ -3,7 +3,7 @@ import fs from 'fs'; // 'todo - dependency rule violation'
 import { ObjectId } from 'mongodb';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { CatalogData, Logic } from '../entities/logic';
+import { CatalogModelData, Logic } from '../entities/logic';
 import { ILogicRepo } from './i-logic-repo';
 import { ReadLogics } from './read-logics';
 
@@ -33,7 +33,7 @@ export class CreateLogic
   }
 
 
-  #getTablesAndCols = (): CatalogData => {
+  #getTablesAndCols = (): CatalogModelData[] => {
     const data = fs.readFileSync(
       // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog.json`
       `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog.json`
@@ -41,21 +41,21 @@ export class CreateLogic
     const catalog = JSON.parse(data);
     const catalogNodes = catalog.nodes;
 
-    const result: any[] = [];
+    const result: CatalogModelData[] = [];
     
     Object.entries(catalogNodes).forEach((entry) => {
 
-      const [node, body]:[string, any] = entry;
+      const [modelName, body]:[string, any] = entry;
       const {metadata, columns} = body;
 
       const {name} = metadata;
-      const cols = Object.keys(columns);
+      const columnNames = Object.keys(columns);
       
-      const foo = {"model": node, "name": name, "columns": cols};
-      result.push(foo);
+      const modelData: CatalogModelData = {modelName, materialisationName: name, columnNames};
+      result.push(modelData);
     });
 
-    return {catalogData: result};
+    return result;
   };
 
   async execute(

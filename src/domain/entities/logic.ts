@@ -14,11 +14,13 @@ export interface LogicPrototype {
   dbtModelId: string;
   parsedLogic: string;
   lineageId: string;
-  catalog?: CatalogData;
+  catalog?: CatalogModelData[];
 }
 
-export interface CatalogData{
-  catalogData: any[]
+export interface CatalogModelData{
+  modelName: string,
+  materialisationName: string,
+  columnNames: string[]
 }
 interface Ref {
   name: string;
@@ -442,7 +444,7 @@ export class Logic {
     columnPath: string,
     materializations: MaterializationRef[],
     columnName: string,
-    catalog: CatalogData
+    catalog: CatalogModelData[]
   ): MaterializationRef => {
     const columnPathElements = columnPath.split('.');
 
@@ -468,8 +470,8 @@ export class Logic {
 
           const materializationName = materialization.name;
           
-          catalog.catalogData.forEach((mat) => {
-            if(mat.name === materializationName && mat.columns.includes(columnName))
+          catalog.forEach((modelData) => {
+            if(modelData.materialisationName === materializationName && modelData.columnNames.includes(columnName))
               bestMatch = {ref: materialization, matchingPoints};
           });
         }
@@ -485,7 +487,7 @@ export class Logic {
   };
 
   /* Transforms RefsPrototype object to Refs object by identifying missing materialization refs */
-  static #buildStatementRefs = (statementRefs: RefsPrototype[], catalog: CatalogData): Refs[] => {
+  static #buildStatementRefs = (statementRefs: RefsPrototype[], catalog: CatalogModelData[]): Refs[] => {
     const fixedStatementRefs: Refs[] = statementRefs.map((element) => {
       const columns: ColumnRef[] = element.columns.map((column) => {
         if (column.materializationName)
@@ -567,7 +569,7 @@ export class Logic {
   };
 
   /* Runs through tree of parsed logic and extract all refs of materializations and columns (self and parent materializations and columns) */
-  static #getStatementRefs = (fileObj: any, catalog: CatalogData): Refs[] => {
+  static #getStatementRefs = (fileObj: any, catalog: CatalogModelData[]): Refs[] => {
     const statementRefsPrototype: RefsPrototype[] = [];
 
     if (

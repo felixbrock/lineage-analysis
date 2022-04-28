@@ -310,7 +310,7 @@ export class CreateLineage
     return dataDependencyRefs;
   };
 
-  #columnRefIsEqual = (fst: ColumnRef, snd: ColumnRef | undefined): Boolean => {
+  #columnRefIsEqual = (fst: ColumnRef, snd: ColumnRef | undefined): boolean => {
 
     if(!fst || !snd) return false;
 
@@ -324,7 +324,7 @@ export class CreateLineage
     fst.schemaName === snd.schemaName &&
     fst.warehouseName === snd.warehouseName;
 
-  }
+  };
 
 
   /* Creates all dependencies that exist between DWH resources */
