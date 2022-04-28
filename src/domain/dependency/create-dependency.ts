@@ -49,7 +49,7 @@ export class CreateDependency
 
     if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
     if (!readColumnsResult.value)
-      throw new ReferenceError(`Reading of dependency columns failed`);
+      throw new ReferenceError(`Reading of parent columns failed`);
 
     const potentialParents = readColumnsResult.value;
 
