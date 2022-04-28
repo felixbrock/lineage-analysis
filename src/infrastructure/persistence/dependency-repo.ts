@@ -21,15 +21,15 @@ import {
 interface DependencyPersistence {
   _id: ObjectId;
   type: DependencyType;
-  headColumnId: string;
-  tailColumnId: string;
+  headId: string;
+  tailId: string;
   lineageId: string;
 }
 
 interface DependencyQueryFilter {
   type?: DependencyType;
-  headColumnId?: string;
-  tailColumnId?: string;
+  headId?: string;
+  tailId?: string;
   lineageId: string;
 }
 
@@ -92,10 +92,10 @@ export default class DependencyRepo implements IDependencyRepo {
     };
 
     if (dependencyQueryDto.type) filter.type = dependencyQueryDto.type;
-    if (dependencyQueryDto.headColumnId)
-      filter.headColumnId = dependencyQueryDto.headColumnId;
-    if (dependencyQueryDto.tailColumnId)
-      filter.tailColumnId = dependencyQueryDto.tailColumnId;
+    if (dependencyQueryDto.headId)
+      filter.headId = dependencyQueryDto.headId;
+    if (dependencyQueryDto.tailId)
+      filter.tailId = dependencyQueryDto.tailId;
 
     return filter;
   };
@@ -172,16 +172,16 @@ export default class DependencyRepo implements IDependencyRepo {
     // eslint-disable-next-line no-underscore-dangle
     id: dependency._id.toHexString(),
     type: dependency.type,
-    headColumnId: dependency.headColumnId,
-    tailColumnId: dependency.tailColumnId,
+    headId: dependency.headId,
+    tailId: dependency.tailId,
     lineageId: dependency.lineageId,
   });
 
   #toPersistence = (dependency: Dependency): Document => ({
     _id: ObjectId.createFromHexString(dependency.id),
     type: dependency.type,
-    headColumnId: dependency.headColumnId,
-    tailColumnId: dependency.tailColumnId,
+    headId: dependency.headId,
+    tailId: dependency.tailId,
     lineageId: dependency.lineageId,
   });
 }

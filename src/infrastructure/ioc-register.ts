@@ -1,6 +1,5 @@
 import { InjectionMode, asClass, createContainer } from 'awilix';
 
-import LineageDomain from '../domain/lineage-domain';
 import { CreateLineage } from '../domain/lineage/create-lineage';
 import AccountApiRepo from './persistence/account-api-repo';
 import { GetAccounts } from '../domain/account-api/get-accounts';
@@ -24,9 +23,7 @@ import { CreateDependency } from '../domain/dependency/create-dependency';
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
 iocRegister.register({
-  lineageDomain: asClass(LineageDomain),
-
-  createLineage: asClass(CreateLineage),
+  createLineage: asClass(CreateLineage).scoped(),
   createLogic: asClass(CreateLogic),
   createMaterialization: asClass(CreateMaterialization),
   createColumn: asClass(CreateColumn),
@@ -52,11 +49,4 @@ iocRegister.register({
   sqlParserApiRepo: asClass(SQLParserApiRepo),
 });
 
-const lineageMain = iocRegister.resolve<LineageDomain>('lineageDomain');
-
-const register = {
-  lineageMain,
-  container: iocRegister,
-};
-
-export default register;
+export default iocRegister;

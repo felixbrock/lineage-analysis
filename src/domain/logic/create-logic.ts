@@ -1,8 +1,9 @@
 // todo clean architecture violation
+import fs from 'fs'; // 'todo - dependency rule violation'
 import { ObjectId } from 'mongodb';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { Logic } from '../entities/logic';
+import { CatalogModelData, Logic } from '../entities/logic';
 import { ILogicRepo } from './i-logic-repo';
 import { ReadLogics } from './read-logics';
 
@@ -31,16 +32,46 @@ export class CreateLogic
     this.#logicRepo = logicRepo;
   }
 
+
+  #getTablesAndCols = (): CatalogModelData[] => {
+    const data = fs.readFileSync(
+      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog.json`
+      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog.json`
+      , 'utf-8');
+    const catalog = JSON.parse(data);
+    const catalogNodes = catalog.nodes;
+
+    const result: CatalogModelData[] = [];
+    
+    Object.entries(catalogNodes).forEach((entry) => {
+
+      const [modelName, body]:[string, any] = entry;
+      const {metadata, columns} = body;
+
+      const {name} = metadata;
+      const columnNames = Object.keys(columns);
+      
+      const modelData: CatalogModelData = {modelName, materialisationName: name, columnNames};
+      result.push(modelData);
+    });
+
+    return result;
+  };
+
   async execute(
     request: CreateLogicRequestDto,
     auth: CreateLogicAuthDto
   ): Promise<CreateLogicResponse> {
     try {
+
+      const catalog = this.#getTablesAndCols();
+
       const logic = Logic.create({
         id: new ObjectId().toHexString(),
         dbtModelId: request.dbtModelId,
         parsedLogic: request.parsedLogic,
         lineageId: request.lineageId,
+        catalog
       });
 
       const readLogicsResult = await this.#readLogics.execute(

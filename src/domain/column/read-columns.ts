@@ -4,7 +4,7 @@ import Result from '../value-types/transient-types/result';
 import { IColumnRepo, ColumnQueryDto } from './i-column-repo';
 
 export interface ReadColumnsRequestDto {
-  dbtModelId?: string,
+  dbtModelId?: string | string[],
   name?: string | string[];
   index?: string;
   type?: string;

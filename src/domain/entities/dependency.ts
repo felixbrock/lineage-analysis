@@ -7,8 +7,8 @@ export enum DependencyType {
 export interface DependencyProperties {
   id: string,
   type: DependencyType,
-  headColumnId: string,
-  tailColumnId: string,
+  headId: string,
+  tailId: string,
   lineageId: string
 }
 
@@ -17,9 +17,9 @@ export class Dependency {
 
   #type: DependencyType;
 
-  #headColumnId: string;
+  #headId: string;
 
-  #tailColumnId: string;
+  #tailId: string;
 
   #lineageId: string;
 
@@ -31,12 +31,12 @@ export class Dependency {
     return this.#type;
   }
 
-  get headColumnId(): string {
-    return this.#headColumnId;
+  get headId(): string {
+    return this.#headId;
   }
 
-  get tailColumnId(): string {
-    return this.#tailColumnId;
+  get tailId(): string {
+    return this.#tailId;
   }
 
   get lineageId(): string {
@@ -46,8 +46,8 @@ export class Dependency {
   private constructor(properties: DependencyProperties) {
     this.#id = properties.id;
     this.#type = properties.type;
-    this.#headColumnId = properties.headColumnId;
-    this.#tailColumnId = properties.tailColumnId;
+    this.#headId = properties.headId;
+    this.#tailId = properties.tailId;
     this.#lineageId = properties.lineageId;
   }
 
@@ -55,10 +55,10 @@ export class Dependency {
     if (!properties.id) throw new TypeError('Dependency object must have id');
     if (!properties.type)
       throw new TypeError('Dependency object must have type');
-    if (!properties.headColumnId)
-      throw new TypeError('Dependency object must have headColumnId');
-    if (!properties.tailColumnId)
-      throw new TypeError('Dependency object must have tailColumnId');
+    if (!properties.headId)
+      throw new TypeError('Dependency object must have headId');
+    if (!properties.tailId)
+      throw new TypeError('Dependency object must have tailId');
       if (!properties.lineageId)
       throw new TypeError('Dependency object must have lineageId');
 

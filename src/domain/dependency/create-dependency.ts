@@ -2,7 +2,7 @@
 import { ObjectId } from 'mongodb';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { Dependency } from '../entities/dependency';
+import { Dependency, DependencyType } from '../entities/dependency';
 import { IDependencyRepo } from './i-dependency-repo';
 import { ReadDependencies } from './read-dependencies';
 import { ColumnRef } from '../entities/logic';
@@ -36,13 +36,14 @@ export class CreateDependency
 
   readonly #dependencyRepo: IDependencyRepo;
 
+  /* Returns the object id of the parent column which self column depends upon */
   #getParentId = async (
     parentDbtModelIds: string[],
     parentName: string,
     lineageId: string
   ): Promise<string> => {
     const readColumnsResult = await this.#readColumns.execute(
-      { materializationId: parentDbtModelIds, name: parentName, lineageId },
+      { dbtModelId: parentDbtModelIds, name: parentName, lineageId },
       { organizationId: 'todo' }
     );
 
@@ -60,6 +61,15 @@ export class CreateDependency
 
     return potentialParents[0].id;
   };
+
+  /* Returns only dbt model ids that include the self column's table name */
+  #getMatchingDbtModelIds = (
+    parentDbtModelIds: string[],
+    parentMaterializationName: string
+  ): string[] =>
+    parentDbtModelIds.filter((id) =>
+      id.toLowerCase().includes(parentMaterializationName.toLowerCase())
+    );
 
   constructor(
     readColumns: ReadColumns,
@@ -88,27 +98,39 @@ export class CreateDependency
       if (!readSelfColumnResult.value)
         throw new ReferenceError(`Reading of dependency columns failed`);
 
-      const [selfColumn] = readSelfColumnResult.value;
+      let selfColumn;
+      if(readSelfColumnResult.value.length > 1){
+        const parentName = request.parentRef.alias ? request.parentRef.alias : request.parentRef.name;
+        [selfColumn] = readSelfColumnResult.value.filter((column) => column.name === parentName);
+      }    
+      else
+        [selfColumn] = readSelfColumnResult.value;
+    
+      const matchingDbtModelIds = this.#getMatchingDbtModelIds(request.parentDbtModelIds, request.parentRef.materializationName);
+
+      if(!matchingDbtModelIds.length) throw new ReferenceError('No matching dbt model id found for dependency to create');
 
       const parentId = await this.#getParentId(
-        request.parentDbtModelIds,
+        matchingDbtModelIds,
         request.parentRef.name,
         request.lineageId
       );
-
+      
+      const isQueryDependency = request.parentRef.dependencyType === DependencyType.QUERY;
+    
       const dependency = Dependency.create({
-        id: new ObjectId().toHexString(),
-        type: request.selfRef.dependencyType,
-        headColumnId: selfColumn.id,
-        tailColumnId: parentId,
-        lineageId: request.lineageId,
-      });
+          id: new ObjectId().toHexString(),
+          type: isQueryDependency ? request.parentRef.dependencyType : request.selfRef.dependencyType,
+          headId: isQueryDependency ? selfColumn.materializationId :  selfColumn.id,
+          tailId: parentId,
+          lineageId: request.lineageId,
+        });
 
       const readColumnsResult = await this.#readDependencies.execute(
         {
           type: request.selfRef.dependencyType,
-          headColumnId: selfColumn.id,
-          tailColumnId: parentId,
+          headId: selfColumn.id,
+          tailId: parentId,
           lineageId: request.lineageId,
         },
         { organizationId: auth.organizationId }
