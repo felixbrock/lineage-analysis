@@ -1,8 +1,9 @@
 // todo clean architecture violation
+import fs from 'fs'; // 'todo - dependency rule violation'
 import { ObjectId } from 'mongodb';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { Logic } from '../entities/logic';
+import { CatalogData, Logic } from '../entities/logic';
 import { ILogicRepo } from './i-logic-repo';
 import { ReadLogics } from './read-logics';
 
@@ -10,7 +11,6 @@ export interface CreateLogicRequestDto {
   dbtModelId: string;
   parsedLogic: string;
   lineageId: string;
-  catalog: any[];
 }
 
 export interface CreateLogicAuthDto {
@@ -32,17 +32,46 @@ export class CreateLogic
     this.#logicRepo = logicRepo;
   }
 
+
+  #getTablesAndCols = (): CatalogData => {
+    const data = fs.readFileSync(
+      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog.json`
+      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog.json`
+      , 'utf-8');
+    const catalog = JSON.parse(data);
+    const catalogNodes = catalog.nodes;
+
+    const result: any[] = [];
+    
+    Object.entries(catalogNodes).forEach((entry) => {
+
+      const [node, body]:[string, any] = entry;
+      const {metadata, columns} = body;
+
+      const {name} = metadata;
+      const cols = Object.keys(columns);
+      
+      const foo = {"model": node, "name": name, "columns": cols};
+      result.push(foo);
+    });
+
+    return {catalogData: result};
+  };
+
   async execute(
     request: CreateLogicRequestDto,
     auth: CreateLogicAuthDto
   ): Promise<CreateLogicResponse> {
     try {
+
+      const catalog = this.#getTablesAndCols();
+
       const logic = Logic.create({
         id: new ObjectId().toHexString(),
         dbtModelId: request.dbtModelId,
         parsedLogic: request.parsedLogic,
         lineageId: request.lineageId,
-        catalog: request.catalog
+        catalog
       });
 
       const readLogicsResult = await this.#readLogics.execute(

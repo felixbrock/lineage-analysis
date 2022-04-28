@@ -14,9 +14,12 @@ export interface LogicPrototype {
   dbtModelId: string;
   parsedLogic: string;
   lineageId: string;
-  catalog: any[];
+  catalog?: CatalogData;
 }
 
+export interface CatalogData{
+  catalogData: any[]
+}
 interface Ref {
   name: string;
   alias?: string;
@@ -439,7 +442,7 @@ export class Logic {
     columnPath: string,
     materializations: MaterializationRef[],
     columnName: string,
-    catalog: any[]
+    catalog: CatalogData
   ): MaterializationRef => {
     const columnPathElements = columnPath.split('.');
 
@@ -465,7 +468,7 @@ export class Logic {
 
           const materializationName = materialization.name;
           
-          catalog.forEach((mat) => {
+          catalog.catalogData.forEach((mat) => {
             if(mat.name === materializationName && mat.columns.includes(columnName))
               bestMatch = {ref: materialization, matchingPoints};
           });
@@ -482,7 +485,7 @@ export class Logic {
   };
 
   /* Transforms RefsPrototype object to Refs object by identifying missing materialization refs */
-  static #buildStatementRefs = (statementRefs: RefsPrototype[], catalog: any[]): Refs[] => {
+  static #buildStatementRefs = (statementRefs: RefsPrototype[], catalog: CatalogData): Refs[] => {
     const fixedStatementRefs: Refs[] = statementRefs.map((element) => {
       const columns: ColumnRef[] = element.columns.map((column) => {
         if (column.materializationName)
@@ -564,7 +567,7 @@ export class Logic {
   };
 
   /* Runs through tree of parsed logic and extract all refs of materializations and columns (self and parent materializations and columns) */
-  static #getStatementRefs = (fileObj: any, catalog: any[]): Refs[] => {
+  static #getStatementRefs = (fileObj: any, catalog: CatalogData): Refs[] => {
     const statementRefsPrototype: RefsPrototype[] = [];
 
     if (
@@ -607,6 +610,7 @@ export class Logic {
     if (!prototype.parsedLogic)
       throw new TypeError('Logic creation requires parsed SQL logic');
     if (!prototype.lineageId) throw new TypeError('Logic must have lineageId');
+    if (!prototype.catalog) throw new TypeError('Logic must have catalog data');
 
     const parsedLogicObj = JSON.parse(prototype.parsedLogic);
 

@@ -47,11 +47,11 @@ export class CreateLineage
 
   readonly #lineageRepo: LineageRepo;
 
+  readonly #readColumns: ReadColumns;
+  
   #lineage?: Lineage;
 
   #logics: Logic[];
-
-  readonly #readColumns: ReadColumns;
 
   #lastQueryDependency?: ColumnRef;
 
@@ -119,31 +119,6 @@ export class CreateLineage
     return catalog.nodes;
   };
 
-  #getTablesAndCols = ():any[] => {
-    const data = fs.readFileSync(
-      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog.json`
-      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog.json`
-      , 'utf-8');
-    const catalog = JSON.parse(data);
-    const catalogNodes = catalog.nodes;
-
-    const result: any[] = [];
-    
-    Object.entries(catalogNodes).forEach((entry) => {
-
-      const [node, body]:[string, any] = entry;
-      const {metadata, columns} = body;
-
-      const {name} = metadata;
-      const cols = Object.keys(columns);
-      
-      const foo = {"model": node, "name": name, "columns": cols};
-      result.push(foo);
-    });
-
-    return result;
-  };
-
   /* Runs through dbt nodes and creates objects like logic, materializations and columns */
   #generateWarehouseResources = async (): Promise<void> => {
     const dbtCatalogNodes = this.#getDbtNodes(
@@ -168,14 +143,12 @@ export class CreateLineage
         const manifest = dbtManifestNodes[key];
 
         const parsedLogic = await this.#parseLogic(manifest.compiled_sql);
-        const tablesAndCols = this.#getTablesAndCols();
 
         const createLogicResult = await this.#createLogic.execute(
           {
             dbtModelId: dbtModel.unique_id,
             lineageId: this.#lineage.id,
             parsedLogic,
-            catalog: tablesAndCols,
           },
           { organizationId: 'todo' }
         );
@@ -337,6 +310,22 @@ export class CreateLineage
     return dataDependencyRefs;
   };
 
+  #columnRefIsEqual = (fst: ColumnRef, snd: ColumnRef | undefined): Boolean => {
+
+    if(!fst || !snd) return false;
+
+    return fst.alias === snd.alias &&
+    fst.databaseName === snd.databaseName &&
+    fst.dependencyType === snd.dependencyType &&
+    fst.isWildcardRef === snd.isWildcardRef &&
+    fst.materializationName === snd.materializationName &&
+    fst.name === snd.name &&
+    fst.path === snd.path &&
+    fst.schemaName === snd.schemaName &&
+    fst.warehouseName === snd.warehouseName;
+
+  }
+
 
   /* Creates all dependencies that exist between DWH resources */
   #buildDependency = async (
@@ -347,7 +336,7 @@ export class CreateLineage
     const isColumnRef = (item: ColumnRef | undefined): item is ColumnRef =>
       !!item;
 
-    const wildcardDependencies = await this.getDependenciesForWildcard(statementRefs, selfRef);
+    const wildcardDependencies = await this.#getDependenciesForWildcard(statementRefs, selfRef);
 
     const columnDependencies = statementRefs.columns
       .map((columnRef) => {
@@ -363,7 +352,7 @@ export class CreateLineage
       if (!this.#lineage)
         throw new ReferenceError('Lineage property is undefined');
         
-        if(dependency === this.#lastQueryDependency) return;
+        if(this.#columnRefIsEqual(dependency, this.#lastQueryDependency)) return;
 
         if(dependency.dependencyType === DependencyType.QUERY)
           this.#lastQueryDependency = dependency;
@@ -403,7 +392,7 @@ export class CreateLineage
     }));
   };
 
-  private async getDependenciesForWildcard(statementRefs: Refs, selfRef: ColumnRef) {
+  #getDependenciesForWildcard = async (statementRefs: Refs, selfRef: ColumnRef): Promise<ColumnRef[]> => {
     
     const dependencies: ColumnRef[] = [];
     await Promise.all(statementRefs.wildcards.map(async (wildcardRef) => {
@@ -448,7 +437,7 @@ export class CreateLineage
     }));
 
     return dependencies;
-  }
+  };
 
   async execute(
     request: CreateLineageRequestDto,
@@ -461,6 +450,7 @@ export class CreateLineage
       // todo - Workaround. Fix ioc container
       this.#lineage = undefined;
       this.#logics = [];
+      this.#lastQueryDependency = undefined;
 
       await this.#buildLineage(request.lineageId, request.lineageCreatedAt);
 
