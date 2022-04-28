@@ -21,11 +21,11 @@ export class Lineage {
     this.#createdAt = properties.createdAt || Date.now();
   }
 
-  static create(properties: LineageProperties): Lineage {
+  static create = (properties: LineageProperties): Lineage => {
     if (!properties.id) throw new TypeError('Lineage must have id');
 
     const lineage = new Lineage(properties);
 
     return lineage;
-  }
+  };
 }

@@ -14,13 +14,13 @@ export interface LogicPrototype {
   dbtModelId: string;
   parsedLogic: string;
   lineageId: string;
-  catalog?: CatalogModelData[];
+  catalog: CatalogModelData[];
 }
 
-export interface CatalogModelData{
-  modelName: string,
-  materialisationName: string,
-  columnNames: string[]
+export interface CatalogModelData {
+  modelName: string;
+  materialisationName: string;
+  columnNames: string[];
 }
 interface Ref {
   name: string;
@@ -257,7 +257,7 @@ export class Logic {
   };
 
   // todo - Will probably fail, e.g. when 'use schema' is used
-  
+
   /* Splits up warehouse.database.schema.materialization.column notation */
   static #splitColumnValue = (
     value: string
@@ -437,7 +437,6 @@ export class Logic {
     return refsPrototype;
   };
 
-
   /* Identifies the closest materialization reference to a provided column path. 
   Assumption: The closest materialization ref in SQL defines the the ref's materialization */
   static #getBestMatchingMaterialization = (
@@ -463,16 +462,18 @@ export class Logic {
             matchingPoints += 1;
           else differenceFound = true;
         });
-        
+
         if (!bestMatch || matchingPoints > bestMatch.matchingPoints)
           bestMatch = { ref: materialization, matchingPoints };
-        else if (bestMatch.matchingPoints === matchingPoints){
-
+        else if (bestMatch.matchingPoints === matchingPoints) {
           const materializationName = materialization.name;
-          
+
           catalog.forEach((modelData) => {
-            if(modelData.materialisationName === materializationName && modelData.columnNames.includes(columnName))
-              bestMatch = {ref: materialization, matchingPoints};
+            if (
+              modelData.materialisationName === materializationName &&
+              modelData.columnNames.includes(columnName)
+            )
+              bestMatch = { ref: materialization, matchingPoints };
           });
         }
       });
@@ -487,7 +488,10 @@ export class Logic {
   };
 
   /* Transforms RefsPrototype object to Refs object by identifying missing materialization refs */
-  static #buildStatementRefs = (statementRefs: RefsPrototype[], catalog: CatalogModelData[]): Refs[] => {
+  static #buildStatementRefs = (
+    statementRefs: RefsPrototype[],
+    catalog: CatalogModelData[]
+  ): Refs[] => {
     const fixedStatementRefs: Refs[] = statementRefs.map((element) => {
       const columns: ColumnRef[] = element.columns.map((column) => {
         if (column.materializationName)
@@ -504,7 +508,6 @@ export class Logic {
           };
 
         const columnToFix = column;
-        
 
         const materializationRef = this.#getBestMatchingMaterialization(
           columnToFix.path,
@@ -512,18 +515,18 @@ export class Logic {
           column.name,
           catalog
         );
-        
-          return {
-            dependencyType: columnToFix.dependencyType,
-            name: columnToFix.name,
-            alias: columnToFix.alias,
-            path: columnToFix.path,
-            isWildcardRef: columnToFix.isWildcardRef,
-            materializationName: materializationRef.name,
-            schemaName: materializationRef.schemaName,
-            databaseName: materializationRef.databaseName,
-            warehouseName: materializationRef.warehouseName,
-          };
+
+        return {
+          dependencyType: columnToFix.dependencyType,
+          name: columnToFix.name,
+          alias: columnToFix.alias,
+          path: columnToFix.path,
+          isWildcardRef: columnToFix.isWildcardRef,
+          materializationName: materializationRef.name,
+          schemaName: materializationRef.schemaName,
+          databaseName: materializationRef.databaseName,
+          warehouseName: materializationRef.warehouseName,
+        };
       });
 
       const wildcards: ColumnRef[] = element.wildcards.map((wildcard) => {
@@ -549,17 +552,17 @@ export class Logic {
           catalog
         );
 
-          return {
-            dependencyType: wildcardToFix.dependencyType,
-            name: wildcardToFix.name,
-            alias: wildcardToFix.alias,
-            path: wildcardToFix.path,
-            isWildcardRef: wildcardToFix.isWildcardRef,
-            materializationName: materializationRef.name,
-            schemaName: materializationRef.schemaName,
-            databaseName: materializationRef.databaseName,
-            warehouseName: materializationRef.warehouseName,
-          };
+        return {
+          dependencyType: wildcardToFix.dependencyType,
+          name: wildcardToFix.name,
+          alias: wildcardToFix.alias,
+          path: wildcardToFix.path,
+          isWildcardRef: wildcardToFix.isWildcardRef,
+          materializationName: materializationRef.name,
+          schemaName: materializationRef.schemaName,
+          databaseName: materializationRef.databaseName,
+          warehouseName: materializationRef.warehouseName,
+        };
       });
 
       return { materializations: element.materializations, columns, wildcards };
@@ -569,7 +572,10 @@ export class Logic {
   };
 
   /* Runs through tree of parsed logic and extract all refs of materializations and columns (self and parent materializations and columns) */
-  static #getStatementRefs = (fileObj: any, catalog: CatalogModelData[]): Refs[] => {
+  static #getStatementRefs = (
+    fileObj: any,
+    catalog: CatalogModelData[]
+  ): Refs[] => {
     const statementRefsPrototype: RefsPrototype[] = [];
 
     if (
@@ -591,21 +597,21 @@ export class Logic {
       });
     }
     statementRefsPrototype.forEach((prototype) => {
-
       prototype.columns.forEach((val, index) => {
-        const nextCol = prototype.columns[index+1];
-        if(!nextCol) return;
-        if(val.dependencyType === DependencyType.DEFINITION && 
-          nextCol.dependencyType === DependencyType.DATA)
-            nextCol.alias = val.name;
-            
+        const nextCol = prototype.columns[index + 1];
+        if (!nextCol) return;
+        if (
+          val.dependencyType === DependencyType.DEFINITION &&
+          nextCol.dependencyType === DependencyType.DATA
+        )
+          nextCol.alias = val.name;
       });
     });
 
     return this.#buildStatementRefs(statementRefsPrototype, catalog);
   };
 
-  static create(prototype: LogicPrototype): Logic {
+  static create = (prototype: LogicPrototype): Logic => {
     if (!prototype.id) throw new TypeError('Logic must have id');
     if (!prototype.dbtModelId)
       throw new TypeError('Logic must have dbtModelId');
@@ -616,9 +622,12 @@ export class Logic {
 
     const parsedLogicObj = JSON.parse(prototype.parsedLogic);
 
-    const statementRefs = this.#getStatementRefs(parsedLogicObj.file, prototype.catalog);
+    const statementRefs = this.#getStatementRefs(
+      parsedLogicObj.file,
+      prototype.catalog
+    );
 
-    const logic = new Logic({
+    const logic = this.build({
       id: prototype.id,
       dbtModelId: prototype.dbtModelId,
       parsedLogic: prototype.parsedLogic,
@@ -627,7 +636,24 @@ export class Logic {
     });
 
     return logic;
-  }
+  };
+
+  static build = (properties: LogicProperties): Logic => {
+    if (!properties.id) throw new TypeError('Logic must have id');
+    if (!properties.dbtModelId)
+      throw new TypeError('Logic must have dbtModelId');
+    if (!properties.parsedLogic)
+      throw new TypeError('Logic creation requires parsed SQL logic');
+    if (!properties.lineageId) throw new TypeError('Logic must have lineageId');
+
+    const logic = new Logic({
+      id: properties.id,
+      dbtModelId: properties.dbtModelId,
+      parsedLogic: properties.parsedLogic,
+      statementRefs: properties.statementRefs,
+      lineageId: properties.lineageId,
+    });
+
+    return logic;
+  };
 }
-
-

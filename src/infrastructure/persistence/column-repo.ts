@@ -45,7 +45,7 @@ export default class ColumnRepo implements IColumnRepo {
 
       if (!result) return null;
 
-      return this.#toEntity(this.#buildPrototype(result));
+      return this.#toEntity(this.#buildProperties(result));
     } catch (error: unknown) {
       if (typeof error === 'string') return Promise.reject(error);
       if (error instanceof Error) return Promise.reject(error.message);
@@ -70,7 +70,7 @@ export default class ColumnRepo implements IColumnRepo {
       if (!results || !results.length) return [];
 
       return results.map((element: any) =>
-        this.#toEntity(this.#buildPrototype(element))
+        this.#toEntity(this.#buildProperties(element))
       );
     } catch (error: unknown) {
       if (typeof error === 'string') return Promise.reject(error);
@@ -121,7 +121,7 @@ export default class ColumnRepo implements IColumnRepo {
       if (!results || !results.length) return [];
 
       return results.map((element: any) =>
-        this.#toEntity(this.#buildPrototype(element))
+        this.#toEntity(this.#buildProperties(element))
       );
     } catch (error: unknown) {
       if (typeof error === 'string') return Promise.reject(error);
@@ -175,7 +175,7 @@ export default class ColumnRepo implements IColumnRepo {
   #toEntity = (properties: ColumnProperties): Column =>
     Column.create(properties);
 
-  #buildPrototype = (column: ColumnPersistence): ColumnProperties => ({
+  #buildProperties = (column: ColumnPersistence): ColumnProperties => ({
     // eslint-disable-next-line no-underscore-dangle
     id: column._id.toHexString(),
     dbtModelId: column.dbtModelId,
