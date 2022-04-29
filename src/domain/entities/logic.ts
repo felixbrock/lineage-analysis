@@ -599,22 +599,29 @@ export class Logic {
     statementRefsPrototype.forEach((prototype) => {
       prototype.columns.forEach((val, index) => {
         const nextCol = prototype.columns[index + 1];
-        
-        if(val.name.includes('$')){
+
+        if (val.name.includes('$')) {
           const columnNumber = val.name.split('$')[1];
-          const materialisationNames = prototype.materializations.map((mat)=>{return mat.name});
-          
-          if(materialisationNames.length === 1){
-            const materialisation = materialisationNames[0];
+          const materialisationNames = prototype.materializations.map((mat) => (mat.name));
 
-            catalog.forEach((model) => {
-              if(model.materialisationName === materialisation.toUpperCase()){
-                const realName = model.columnNames[parseInt(columnNumber)-1];
-                val.name = realName;
-              }
-            });          
-          }
+          let materialisation: string | undefined;
 
+          if (materialisationNames.length === 1)
+            [materialisation] = materialisationNames;
+          else
+            materialisation = val.materializationName;
+
+
+          const filteredCatalog = catalog.filter((model) => 
+            materialisation && model.materialisationName === materialisation.toUpperCase()
+          );
+          const [realName] = filteredCatalog.map((model) => 
+            model.columnNames[parseInt(columnNumber, 10) - 1]
+          );
+
+          if (realName)
+            // eslint-disable-next-line no-param-reassign
+            val.name = realName;
         }
 
         if (!nextCol) return;
@@ -624,7 +631,6 @@ export class Logic {
         )
           nextCol.alias = val.name;
 
-       
       });
     });
 
