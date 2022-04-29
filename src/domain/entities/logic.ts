@@ -599,12 +599,32 @@ export class Logic {
     statementRefsPrototype.forEach((prototype) => {
       prototype.columns.forEach((val, index) => {
         const nextCol = prototype.columns[index + 1];
+        
+        if(val.name.includes('$')){
+          const columnNumber = val.name.split('$')[1];
+          const materialisationNames = prototype.materializations.map((mat)=>{return mat.name});
+          
+          if(materialisationNames.length === 1){
+            const materialisation = materialisationNames[0];
+
+            catalog.forEach((model) => {
+              if(model.materialisationName === materialisation.toUpperCase()){
+                const realName = model.columnNames[parseInt(columnNumber)-1];
+                val.name = realName;
+              }
+            });          
+          }
+
+        }
+
         if (!nextCol) return;
         if (
           val.dependencyType === DependencyType.DEFINITION &&
           nextCol.dependencyType === DependencyType.DATA
         )
           nextCol.alias = val.name;
+
+       
       });
     });
 
