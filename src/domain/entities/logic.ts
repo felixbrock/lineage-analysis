@@ -157,6 +157,26 @@ export class Logic {
     return valueElements.join('');
   };
 
+  /* Handles functions that result in an column defined by an alias name */
+  static #handleFunctionAliasRef = (
+    props: HandlerProperties<string>
+  ): ColumnRefPrototype => {
+    const columnValueRef = this.#splitColumnValue(props.value);
+    const path = this.#appendPath(props.key, props.refPath);
+
+    return {
+      dependencyType: this.#getColumnDependencyType(path),
+      path,
+      alias: props.alias,
+      name: columnValueRef.columnName,
+      materializationName: columnValueRef.materializationName,
+      schemaName: columnValueRef.schemaName,
+      databaseName: columnValueRef.databaseName,
+      warehouseName: columnValueRef.warehouseName,
+      isWildcardRef: false,
+    };
+  };
+
   /* Handles any column ref found in the parsed SQL logic */
   static #handleColumnIdentifierRef = (
     props: HandlerProperties<string>
@@ -325,20 +345,35 @@ export class Logic {
       wildcards: [],
     };
 
+    const valueKeyRepresentatives = [SQLElement.KEYWORD_AS];
+
     let alias: HandlerProperties<string> = { key: '', value: '', refPath: '' };
     Object.entries(parsedSQL).forEach((parsedSQLElement) => {
       const key = parsedSQLElement[0];
       const value =
-        typeof parsedSQLElement[1] === 'string'
+        typeof parsedSQLElement[1] === 'string' &&
+        !valueKeyRepresentatives.includes(parsedSQLElement[1])
           ? parsedSQLElement[1].toUpperCase()
           : parsedSQLElement[1];
 
       refPath =
-        key === SQLElement.KEYWORD && value === SQLElement.KEYWORD_AS
+        key === SQLElement.KEYWORD && valueKeyRepresentatives.includes(value)
           ? this.#appendPath(value, refPath)
           : refPath;
 
-      if (key === SQLElement.IDENTIFIER) {
+      if (key === SQLElement.FUNCTION && alias.value) {
+        // todo - handle refs inside an function content
+        refsPrototype.columns.push(
+          this.#handleFunctionAliasRef({
+            key,
+            value : 'todo-some-function',
+            refPath,
+            alias: alias.value,
+          })
+        );
+
+        alias = { key: '', value: '', refPath: '' };
+      } else if (key === SQLElement.IDENTIFIER) {
         if (path.includes(SQLElement.ALIAS_EXPRESSION))
           alias = { key, value, refPath };
         else if (path.includes(SQLElement.COLUMN_REFERENCE)) {
@@ -392,7 +427,7 @@ export class Logic {
       } else if (Object.prototype.toString.call(value) === '[object Array]') {
         if (key === SQLElement.COLUMN_REFERENCE)
           refsPrototype.columns.push(
-            this.#handleColumnIdentifierRef({
+            this.#handleFunctionAliasRef({
               key,
               value: this.#joinArrayValue(value),
               refPath,
@@ -430,7 +465,7 @@ export class Logic {
 
     // todo - Based on the assumption that unmatched alias only exist for columns and not tables
     if (alias.value)
-      refsPrototype.columns.push(this.#handleColumnIdentifierRef(alias));
+      refsPrototype.columns.push(this.#handleFunctionAliasRef(alias));
 
     alias = { key: '', value: '', refPath: '' };
 
