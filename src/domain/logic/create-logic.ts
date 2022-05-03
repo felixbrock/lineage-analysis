@@ -9,6 +9,7 @@ import { ReadLogics } from './read-logics';
 
 export interface CreateLogicRequestDto {
   dbtModelId: string;
+  sql: string;
   parsedLogic: string;
   lineageId: string;
 }
@@ -32,26 +33,29 @@ export class CreateLogic
     this.#logicRepo = logicRepo;
   }
 
-
   #getTablesAndCols = (): CatalogModelData[] => {
     const data = fs.readFileSync(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
+      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`,
       // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
-      , 'utf-8');
+      'utf-8'
+    );
     const catalog = JSON.parse(data);
     const catalogNodes = catalog.nodes;
 
     const result: CatalogModelData[] = [];
-    
+
     Object.entries(catalogNodes).forEach((entry) => {
+      const [modelName, body]: [string, any] = entry;
+      const { metadata, columns } = body;
 
-      const [modelName, body]:[string, any] = entry;
-      const {metadata, columns} = body;
-
-      const {name} = metadata;
+      const { name } = metadata;
       const columnNames = Object.keys(columns);
-      
-      const modelData: CatalogModelData = {modelName, materialisationName: name, columnNames};
+
+      const modelData: CatalogModelData = {
+        modelName,
+        materialisationName: name,
+        columnNames,
+      };
       result.push(modelData);
     });
 
@@ -63,15 +67,15 @@ export class CreateLogic
     auth: CreateLogicAuthDto
   ): Promise<CreateLogicResponse> {
     try {
-
       const catalog = this.#getTablesAndCols();
 
       const logic = Logic.create({
         id: new ObjectId().toHexString(),
         dbtModelId: request.dbtModelId,
+        sql: request.sql,
         parsedLogic: request.parsedLogic,
         lineageId: request.lineageId,
-        catalog
+        catalog,
       });
 
       const readLogicsResult = await this.#readLogics.execute(
