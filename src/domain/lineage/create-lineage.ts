@@ -6,7 +6,6 @@ import IUseCase from '../services/use-case';
 import SQLElement from '../value-types/sql-element';
 import { CreateColumn } from '../column/create-column';
 import { CreateMaterialization } from '../materialization/create-materialization';
-import { buildLineageDto, LineageDto } from './lineage-dto';
 import { CreateLogic } from '../logic/create-logic';
 import { ParseSQL, ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
 import { Lineage } from '../entities/lineage';
@@ -25,7 +24,7 @@ export interface CreateLineageAuthDto {
   organizationId: string;
 }
 
-export type CreateLineageResponseDto = Result<LineageDto>;
+export type CreateLineageResponseDto = Result<Lineage>;
 
 interface DbtResources {
   nodes: any;
@@ -555,7 +554,7 @@ export class CreateLineage
       if (!this.#lineage)
         throw new ReferenceError('Lineage property is undefined');
 
-      return Result.ok(buildLineageDto(this.#lineage));
+      return Result.ok(this.#lineage);
     } catch (error: unknown) {
       if (typeof error === 'string') return Result.fail(error);
       if (error instanceof Error) return Result.fail(error.message);

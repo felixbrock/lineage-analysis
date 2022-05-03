@@ -7,6 +7,7 @@ import {
   CreateLineageRequestDto,
   CreateLineageResponseDto,
 } from '../../../domain/lineage/create-lineage';
+import { buildLineageDto } from '../../../domain/lineage/lineage-dto';
 
 import {
   BaseController,
@@ -70,7 +71,11 @@ export default class CreateLineageController extends BaseController {
         return CreateLineageController.badRequest(res, useCaseResult.error);
       }
 
-      return CreateLineageController.ok(res, useCaseResult.value, CodeHttp.OK);
+      const resultValue = useCaseResult.value
+      ? buildLineageDto(useCaseResult.value)
+      : useCaseResult.value;
+
+      return CreateLineageController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
       if (typeof error === 'string')
         return CreateLineageController.fail(res, error);

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import app from '../../ioc-register';
 import CreateLineageController from '../controllers/create-lineage-controller';
-import ReadLineageSnapshotController from '../controllers/read-lineage-snapshot-controller';
+import ReadLineageController from '../controllers/read-lineage-controller';
 
 const lineageRoutes = Router();
 
@@ -10,8 +10,8 @@ const createLineageController = new CreateLineageController(
   app.resolve('getAccounts')
 );
 
-const readLineageController = new ReadLineageSnapshotController(
-  app.resolve('readLineageSnapshot'),
+const readLineageController = new ReadLineageController(
+  app.resolve('readLineage'),
   app.resolve('getAccounts')
 );
 
@@ -19,7 +19,7 @@ lineageRoutes.post('/', (req, res) => {
   createLineageController.execute(req, res);
 });
 
-lineageRoutes.get('/snapshot/:lineageId', (req, res) => {
+lineageRoutes.get('/:id', (req, res) => {
   readLineageController.execute(req, res);
 });
 
