@@ -4,6 +4,7 @@ import SQLElement from '../value-types/sql-element';
 export interface LogicProperties {
   id: string;
   dbtModelId: string;
+  sql: string;
   parsedLogic: string;
   statementRefs: Refs[];
   lineageId: string;
@@ -12,6 +13,7 @@ export interface LogicProperties {
 export interface LogicPrototype {
   id: string;
   dbtModelId: string;
+  sql: string;
   parsedLogic: string;
   lineageId: string;
   catalog: CatalogModelData[];
@@ -71,6 +73,8 @@ export class Logic {
 
   #dbtModelId: string;
 
+  #sql: string;
+
   #parsedLogic: string;
 
   #statementRefs: Refs[];
@@ -83,6 +87,10 @@ export class Logic {
 
   get dbtModelId(): string {
     return this.#dbtModelId;
+  }
+
+  get sql(): string {
+    return this.#sql;
   }
 
   get parsedLogic(): string {
@@ -100,6 +108,7 @@ export class Logic {
   private constructor(properties: LogicProperties) {
     this.#id = properties.id;
     this.#dbtModelId = properties.dbtModelId;
+    this.#sql = properties.sql;
     this.#parsedLogic = properties.parsedLogic;
     this.#statementRefs = properties.statementRefs;
     this.#lineageId = properties.lineageId;
@@ -618,6 +627,8 @@ export class Logic {
     if (!prototype.id) throw new TypeError('Logic must have id');
     if (!prototype.dbtModelId)
       throw new TypeError('Logic must have dbtModelId');
+    if (!prototype.sql)
+      throw new TypeError('Logic creation requires SQL logic');
     if (!prototype.parsedLogic)
       throw new TypeError('Logic creation requires parsed SQL logic');
     if (!prototype.lineageId) throw new TypeError('Logic must have lineageId');
@@ -633,6 +644,7 @@ export class Logic {
     const logic = this.build({
       id: prototype.id,
       dbtModelId: prototype.dbtModelId,
+      sql: prototype.sql,
       parsedLogic: prototype.parsedLogic,
       statementRefs,
       lineageId: prototype.lineageId,
@@ -652,6 +664,7 @@ export class Logic {
     const logic = new Logic({
       id: properties.id,
       dbtModelId: properties.dbtModelId,
+      sql: properties.sql,
       parsedLogic: properties.parsedLogic,
       statementRefs: properties.statementRefs,
       lineageId: properties.lineageId,

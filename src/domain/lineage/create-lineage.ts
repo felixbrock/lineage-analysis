@@ -184,11 +184,14 @@ export class CreateLineage
       throw new ReferenceError('Lineage property is undefined');
     const lineage = this.#lineage;
 
-    const parsedLogic = await this.#parseLogic(modelManifest.compiled_sql);
+    const sql = modelManifest.compiled_sql;
+
+    const parsedLogic = await this.#parseLogic(sql);
 
     const createLogicResult = await this.#createLogic.execute(
       {
         dbtModelId: model.unique_id,
+        sql,
         lineageId: lineage.id,
         parsedLogic,
       },

@@ -24,6 +24,7 @@ type PersistenceStatementRefs = {
 interface LogicPersistence {
   _id: ObjectId;
   dbtModelId: string;
+  sql: string;
   parsedLogic: string;
   statementRefs: PersistenceStatementRefs;
   lineageId: string;
@@ -202,6 +203,7 @@ export default class LogicRepo implements ILogicRepo {
     // eslint-disable-next-line no-underscore-dangle
     id: logic._id.toHexString(),
     dbtModelId: logic.dbtModelId,
+    sql: logic.sql,
     parsedLogic: logic.parsedLogic,
     statementRefs: this.#buildStatementRefs(logic.statementRefs),
     lineageId: logic.lineageId,
@@ -210,6 +212,7 @@ export default class LogicRepo implements ILogicRepo {
   #toPersistence = (logic: Logic): Document => ({
     _id: ObjectId.createFromHexString(logic.id),
     dbtModelId: logic.dbtModelId,
+    sql: logic.sql,
     parsedLogic: logic.parsedLogic,
     statementRefs: logic.statementRefs,
     lineageId: logic.lineageId,
