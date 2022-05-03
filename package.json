@@ -25,6 +25,7 @@
   "homepage": "https://github.com/cloud-hivedive-io/lineage-analysis#readme",
   "devDependencies": {
     "@tsconfig/node14": "^1.0.1",
+    "@types/cors": "^2.8.12",
     "@types/dotenv": "^8.2.0",
     "@types/express": "^4.17.13",
     "@types/jest": "^27.4.1",
@@ -47,6 +48,7 @@
   "dependencies": {
     "awilix": "^6.1.0",
     "axios": "^0.26.0",
+    "cors": "^2.8.5",
     "dotenv": "^16.0.0",
     "express": "^4.17.3",
     "jsonwebtoken": "^8.5.1",

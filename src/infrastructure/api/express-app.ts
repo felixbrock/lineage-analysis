@@ -1,4 +1,5 @@
 import express, { Application } from 'express';
+import cors from 'cors';
 import v1Router from './routes/v1';
 
 interface AppConfig {
@@ -33,7 +34,7 @@ export default class ExpressApp {
   private configApp(): void {
     this.#expressApp.use(express.json());
     this.#expressApp.use(express.urlencoded({ extended: true }));
-    // this.#expressApp.use(cors());
+    this.#expressApp.use(cors());
     // this.#expressApp.use(compression());
     // // this.#expressApp.use(morgan("combined"));
     // this.#expressApp.use(helmet());
