@@ -1,8 +1,8 @@
-import { Dependency, DependencyType } from '../entities/dependency';
+import { Dependency } from "../entities/dependency";
 
 export interface DependencyDto {
   id: string;
-  type: DependencyType;
+  type: string;
   headId: string;
   tailId: string;
   lineageId: string;
