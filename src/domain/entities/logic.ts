@@ -157,26 +157,6 @@ export class Logic {
     return valueElements.join('');
   };
 
-  /* Handles functions that result in an column defined by an alias name */
-  static #handleFunctionAliasRef = (
-    props: HandlerProperties<string>
-  ): ColumnRefPrototype => {
-    const columnValueRef = this.#splitColumnValue(props.value);
-    const path = this.#appendPath(props.key, props.refPath);
-
-    return {
-      dependencyType: this.#getColumnDependencyType(path),
-      path,
-      alias: props.alias,
-      name: columnValueRef.columnName,
-      materializationName: columnValueRef.materializationName,
-      schemaName: columnValueRef.schemaName,
-      databaseName: columnValueRef.databaseName,
-      warehouseName: columnValueRef.warehouseName,
-      isWildcardRef: false,
-    };
-  };
-
   /* Handles any column ref found in the parsed SQL logic */
   static #handleColumnIdentifierRef = (
     props: HandlerProperties<string>
@@ -361,19 +341,7 @@ export class Logic {
           ? this.#appendPath(value, refPath)
           : refPath;
 
-      if (key === SQLElement.FUNCTION && alias.value) {
-        // todo - handle refs inside an function content
-        refsPrototype.columns.push(
-          this.#handleFunctionAliasRef({
-            key,
-            value : 'todo-some-function',
-            refPath,
-            alias: alias.value,
-          })
-        );
-
-        alias = { key: '', value: '', refPath: '' };
-      } else if (key === SQLElement.IDENTIFIER) {
+      if (key === SQLElement.IDENTIFIER) {
         if (path.includes(SQLElement.ALIAS_EXPRESSION))
           alias = { key, value, refPath };
         else if (path.includes(SQLElement.COLUMN_REFERENCE)) {
@@ -427,7 +395,7 @@ export class Logic {
       } else if (Object.prototype.toString.call(value) === '[object Array]') {
         if (key === SQLElement.COLUMN_REFERENCE)
           refsPrototype.columns.push(
-            this.#handleFunctionAliasRef({
+            this.#handleColumnIdentifierRef({
               key,
               value: this.#joinArrayValue(value),
               refPath,
@@ -465,7 +433,7 @@ export class Logic {
 
     // todo - Based on the assumption that unmatched alias only exist for columns and not tables
     if (alias.value)
-      refsPrototype.columns.push(this.#handleFunctionAliasRef(alias));
+      refsPrototype.columns.push(this.#handleColumnIdentifierRef(alias));
 
     alias = { key: '', value: '', refPath: '' };
 
@@ -632,14 +600,14 @@ export class Logic {
       });
     }
     statementRefsPrototype.forEach((prototype) => {
-      prototype.columns.forEach((val, index) => {
+      prototype.columns.forEach((column, index) => {
         const nextCol = prototype.columns[index + 1];
         if (!nextCol) return;
         if (
-          val.dependencyType === DependencyType.DEFINITION &&
+          column.dependencyType === DependencyType.DEFINITION &&
           nextCol.dependencyType === DependencyType.DATA
         )
-          nextCol.alias = val.name;
+          nextCol.alias = column.name;
       });
     });
 
