@@ -27,6 +27,11 @@ export interface CreateLineageAuthDto {
 
 export type CreateLineageResponseDto = Result<LineageDto>;
 
+interface DbtResources {
+  nodes: any;
+  sources: any;
+}
+
 export class CreateLineage
   implements
     IUseCase<
@@ -110,8 +115,128 @@ export class CreateLineage
     return JSON.stringify(parseSQLResult.value);
   };
 
+  #generateColumn = async (
+    column: any,
+    dbtModelId: string,
+    materializationId: string
+  ): Promise<void> => {
+    if (!this.#lineage)
+      throw new ReferenceError('Lineage property is undefined');
+    const lineage = this.#lineage;
+
+    // todo - add additional properties like index
+    const createColumnResult = await this.#createColumn.execute(
+      {
+        dbtModelId,
+        name: column.name,
+        index: column.index,
+        type: column.type,
+        materializationId,
+        lineageId: lineage.id,
+      },
+      { organizationId: 'todo' }
+    );
+
+    if (!createColumnResult.success) throw new Error(createColumnResult.error);
+    if (!createColumnResult.value)
+      throw new SyntaxError(`Creation of column failed`);
+  };
+
+  #generateWarehouseSource = async (source: any): Promise<void> => {
+    if (!this.#lineage)
+      throw new ReferenceError('Lineage property is undefined');
+    const lineage = this.#lineage;
+
+    const createMaterializationResult =
+      await this.#createMaterialization.execute(
+        {
+          materializationType: source.metadata.type,
+          name: source.metadata.name,
+          dbtModelId: source.unique_id,
+          schemaName: source.metadata.schema,
+          databaseName: source.metadata.database,
+          logicId: 'todo - read from snowflake',
+          lineageId: lineage.id,
+        },
+        { organizationId: 'todo' }
+      );
+
+    if (!createMaterializationResult.success)
+      throw new Error(createMaterializationResult.error);
+    if (!createMaterializationResult.value)
+      throw new SyntaxError(`Creation of materialization failed`);
+
+    const materialization = createMaterializationResult.value;
+
+    await Promise.all(
+      Object.keys(source.columns).map(async (columnKey) =>
+        this.#generateColumn(
+          source.columns[columnKey],
+          materialization.dbtModelId,
+          materialization.id
+        )
+      )
+    );
+  };
+
+  #generateDbtModel = async (model: any, modelManifest: any): Promise<void> => {
+    if (!this.#lineage)
+      throw new ReferenceError('Lineage property is undefined');
+    const lineage = this.#lineage;
+
+    const parsedLogic = await this.#parseLogic(modelManifest.compiled_sql);
+
+    const createLogicResult = await this.#createLogic.execute(
+      {
+        dbtModelId: model.unique_id,
+        lineageId: lineage.id,
+        parsedLogic,
+      },
+      { organizationId: 'todo' }
+    );
+
+    if (!createLogicResult.success) throw new Error(createLogicResult.error);
+    if (!createLogicResult.value)
+      throw new SyntaxError(`Creation of logic failed`);
+
+    const logic = createLogicResult.value;
+
+    this.#logics.push(logic);
+
+    const createMaterializationResult =
+      await this.#createMaterialization.execute(
+        {
+          materializationType: model.metadata.type,
+          name: model.metadata.name,
+          dbtModelId: model.unique_id,
+          schemaName: model.metadata.schema,
+          databaseName: model.metadata.database,
+          logicId: logic.id,
+          lineageId: lineage.id,
+        },
+        { organizationId: 'todo' }
+      );
+
+    if (!createMaterializationResult.success)
+      throw new Error(createMaterializationResult.error);
+    if (!createMaterializationResult.value)
+      throw new SyntaxError(`Creation of materialization failed`);
+
+    const materialization = createMaterializationResult.value;
+
+    await Promise.all(
+      Object.keys(model.columns).map(async (columnKey) =>
+        this.#generateColumn(
+          model.columns[columnKey],
+          materialization.dbtModelId,
+          materialization.id
+        )
+      )
+    );
+  };
+
   /* Get dbt nodes from catalog.json or manifest.json */
-  #getDbtResources = (location: string): any => {
+  #getDbtResources = (location: string): DbtResources => {
     const data = fs.readFileSync(location, 'utf-8');
 
     const catalog = JSON.parse(data);
@@ -119,101 +244,39 @@ export class CreateLineage
     const { nodes } = catalog;
     const { sources } = catalog;
 
-    return { ...nodes, ...sources };
+    return { nodes, sources };
   };
 
   /* Runs through dbt nodes and creates objects like logic, materializations and columns */
   #generateWarehouseResources = async (): Promise<void> => {
     const dbtCatalogResources = this.#getDbtResources(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1.json`
-      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1.json`
+      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
+      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
     );
     const dbtManifestResources = this.#getDbtResources(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1.json`
-      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1.json`
+      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1-no-v_date_stg.json`
+      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1-no-v_date_stg.json`
     );
 
-    const dbtModelKeys = Object.keys(dbtCatalogResources);
+    const dbtSourceKeys = Object.keys(dbtCatalogResources.sources);
+
+    await Promise.all(
+      dbtSourceKeys.map(async (key) =>
+        this.#generateWarehouseSource(dbtCatalogResources.sources[key])
+      )
+    );
+
+    const dbtModelKeys = Object.keys(dbtCatalogResources.nodes);
 
     if (!dbtModelKeys.length) throw new ReferenceError('No dbt models found');
 
     await Promise.all(
-      dbtModelKeys.map(async (key) => {
-        if (!this.#lineage)
-          throw new ReferenceError('Lineage property is undefined');
-        const lineage = this.#lineage;
-
-        const dbtModel = dbtCatalogResources[key];
-        const manifest = dbtManifestResources[key];
-
-        const parsedLogic = await this.#parseLogic(manifest.compiled_sql);
-
-        const createLogicResult = await this.#createLogic.execute(
-          {
-            dbtModelId: dbtModel.unique_id,
-            lineageId: lineage.id,
-            parsedLogic,
-          },
-          { organizationId: 'todo' }
-        );
-
-        if (!createLogicResult.success)
-          throw new Error(createLogicResult.error);
-        if (!createLogicResult.value)
-          throw new SyntaxError(`Creation of logic failed`);
-
-        const logic = createLogicResult.value;
-
-        this.#logics.push(logic);
-
-        const createMaterializationResult =
-          await this.#createMaterialization.execute(
-            {
-              materializationType: dbtModel.metadata.type,
-              name: dbtModel.metadata.name,
-              dbtModelId: dbtModel.unique_id,
-              schemaName: dbtModel.metadata.schema,
-              databaseName: dbtModel.metadata.database,
-              logicId: logic.id,
-              lineageId: lineage.id,
-            },
-            { organizationId: 'todo' }
-          );
-
-        if (!createMaterializationResult.success)
-          throw new Error(createMaterializationResult.error);
-        if (!createMaterializationResult.value)
-          throw new SyntaxError(`Creation of materialization failed`);
-
-        const materialization = createMaterializationResult.value;
-
-        await Promise.all(
-          Object.keys(dbtModel.columns).map(async (columnKey) => {
-            if (!lineage)
-              throw new ReferenceError('Lineage property is undefined');
-
-            const column = dbtModel.columns[columnKey];
-
-            // todo - add additional properties like index
-            const createColumnResult = await this.#createColumn.execute(
-              {
-                dbtModelId: materialization.dbtModelId,
-                name: column.name,
-                index: column.index,
-                type: column.type,
-                materializationId: materialization.id,
-                lineageId: lineage.id,
-              },
-              { organizationId: 'todo' }
-            );
-
-            if (!createColumnResult.success)
-              throw new Error(createColumnResult.error);
-            if (!createColumnResult.value)
-              throw new SyntaxError(`Creation of column failed`);
-          })
-        );
-      })
+      dbtModelKeys.map(async (key) =>
+        this.#generateDbtModel(
+          dbtCatalogResources.nodes[key],
+          dbtManifestResources.nodes[key]
+        )
+      )
     );
   };
 
