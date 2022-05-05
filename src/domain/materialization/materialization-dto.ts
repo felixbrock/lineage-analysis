@@ -8,6 +8,7 @@ export interface MaterializationDto {
   schemaName: string;
   databaseName: string;
   logicId: string;
+  lineageId: string;
 }
 
 export const buildMaterializationDto = (
@@ -20,4 +21,5 @@ export const buildMaterializationDto = (
   schemaName: materialization.schemaName,
   databaseName: materialization.databaseName,
   logicId: materialization.logicId,
+  lineageId: materialization.lineageId,
 });
