@@ -51,7 +51,7 @@ export class CreateLogic
       const {name} = metadata;
       const columnNames = Object.keys(columns);
       
-      const modelData: CatalogModelData = {modelName, materialisationName: name, columnNames};
+      const modelData: CatalogModelData = {modelName, materializationName: name, columnNames};
       result.push(modelData);
     });
 

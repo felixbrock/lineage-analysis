@@ -19,7 +19,7 @@ export interface LogicPrototype {
 
 export interface CatalogModelData {
   modelName: string;
-  materialisationName: string;
+  materializationName: string;
   columnNames: string[];
 }
 interface Ref {
@@ -470,7 +470,7 @@ export class Logic {
 
           catalog.forEach((modelData) => {
             if (
-              modelData.materialisationName === materializationName &&
+              modelData.materializationName === materializationName &&
               modelData.columnNames.includes(columnName)
             )
               bestMatch = { ref: materialization, matchingPoints };
@@ -597,24 +597,24 @@ export class Logic {
       });
     }
     statementRefsPrototype.forEach((prototype) => {
-      prototype.columns.forEach((val, index) => {
+      prototype.columns.forEach((column, index) => {
         const nextCol = prototype.columns[index + 1];
 
-        if (val.name.includes('$')) {
-          const columnNumber = val.name.split('$')[1];
-          const materialisationNames = prototype.materializations.map((mat) => (mat.name));
+        if (column.name.includes('$')) {
+          const columnNumber = column.name.split('$')[1];
+          const materializationNames = prototype.materializations.map((mat) => (mat.name));
 
-          let materialisation: string;
+          let materialization: string;
 
-          if (materialisationNames.length === 1)
-            [materialisation] = materialisationNames;
+          if (materializationNames.length === 1)
+            [materialization] = materializationNames;
           else
-            materialisation = val.materializationName ? val.materializationName : '';
+            materialization = column.materializationName ? column.materializationName : '';
             // eslint-disable-next-line no-param-reassign
-            val.dependencyType = DependencyType.DATA;
+            column.dependencyType = DependencyType.DATA;
 
           const filteredCatalog = catalog.filter((model) => 
-            materialisation && model.materialisationName === materialisation.toUpperCase()
+            materialization && model.materializationName === materialization.toUpperCase()
           );
           const [realName] = filteredCatalog.map((model) => 
             model.columnNames[parseInt(columnNumber, 10) - 1]
@@ -622,16 +622,16 @@ export class Logic {
 
           if (realName)
             // eslint-disable-next-line no-param-reassign
-            val.alias = realName;
+            column.alias = realName;
 
         }
 
         if (!nextCol) return;
         if (
-          val.dependencyType === DependencyType.DEFINITION &&
+          column.dependencyType === DependencyType.DEFINITION &&
           nextCol.dependencyType === DependencyType.DATA
         )
-          nextCol.alias = val.name;
+          nextCol.alias = column.name;
 
       });
     });
