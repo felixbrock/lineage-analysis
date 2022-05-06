@@ -19,6 +19,8 @@ import LineageRepo from './persistence/lineage-repo';
 import { ReadDependencies } from '../domain/dependency/read-dependencies';
 import DependencyRepo from './persistence/dependency-repo';
 import { CreateDependency } from '../domain/dependency/create-dependency';
+import { ReadLineage } from '../domain/lineage/read-lineage';
+import { ReadLogic } from '../domain/logic/read-logic';
 
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
@@ -30,6 +32,8 @@ iocRegister.register({
   createDependency: asClass(CreateDependency),
 
   readMaterialization: asClass(ReadMaterialization),
+  readLineage: asClass(ReadLineage),
+  readLogic: asClass(ReadLogic),
 
   readLogics: asClass(ReadLogics),
   readMaterializations: asClass(ReadMaterializations),
