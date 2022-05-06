@@ -501,7 +501,7 @@ export class Logic {
             alias: column.alias,
             path: column.path,
             isWildcardRef: column.isWildcardRef,
-            materializationName: column.name,
+            materializationName: column.materializationName,
             schemaName: column.schemaName,
             databaseName: column.databaseName,
             warehouseName: column.warehouseName,
@@ -604,13 +604,14 @@ export class Logic {
           const columnNumber = val.name.split('$')[1];
           const materialisationNames = prototype.materializations.map((mat) => (mat.name));
 
-          let materialisation: string | undefined;
+          let materialisation: string;
 
           if (materialisationNames.length === 1)
             [materialisation] = materialisationNames;
           else
-            materialisation = val.materializationName;
-
+            materialisation = val.materializationName ? val.materializationName : '';
+            // eslint-disable-next-line no-param-reassign
+            val.dependencyType = DependencyType.DATA;
 
           const filteredCatalog = catalog.filter((model) => 
             materialisation && model.materialisationName === materialisation.toUpperCase()
@@ -621,7 +622,8 @@ export class Logic {
 
           if (realName)
             // eslint-disable-next-line no-param-reassign
-            val.name = realName;
+            val.alias = realName;
+
         }
 
         if (!nextCol) return;
