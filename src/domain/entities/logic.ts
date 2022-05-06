@@ -599,6 +599,7 @@ export class Logic {
     statementRefsPrototype.forEach((prototype) => {
       prototype.columns.forEach((column, index) => {
         const nextCol = prototype.columns[index + 1];
+        const thisCol = column;
 
         if (column.name.includes('$')) {
           const columnNumber = column.name.split('$')[1];
@@ -610,8 +611,7 @@ export class Logic {
             [materialization] = materializationNames;
           else
             materialization = column.materializationName ? column.materializationName : '';
-            // eslint-disable-next-line no-param-reassign
-            column.dependencyType = DependencyType.DATA;
+            thisCol.dependencyType = DependencyType.DATA;
 
           const filteredCatalog = catalog.filter((model) => 
             materialization && model.materializationName === materialization.toUpperCase()
@@ -621,9 +621,7 @@ export class Logic {
           );
 
           if (realName)
-            // eslint-disable-next-line no-param-reassign
-            column.alias = realName;
-
+            thisCol.alias = realName;
         }
 
         if (!nextCol) return;
