@@ -29,7 +29,7 @@ export interface MongoDbConfig {
   dbName: string;
 }
 
-const getMongodbConfig = (): MongoDbConfig => {
+const getMongodbConfig = (): MongoDbConfig => {  
   switch (nodeEnv) {
     case 'development':
       return {
@@ -48,8 +48,8 @@ const getMongodbConfig = (): MongoDbConfig => {
       };
     default:
       return {
-        url: '',
-        dbName: '',
+        url: process.env.DATABASE_DEV_URL || '',
+        dbName: process.env.DATABASE_DEV_URL || '',
       };
   }
 };
