@@ -1,16 +1,19 @@
-import { MaterializationType, Materialization } from '../entities/materialization';
+import { Materialization } from '../entities/materialization';
 
 export interface MaterializationDto {
   id: string;
   dbtModelId: string;
-  materializationType: MaterializationType;
+  materializationType: string;
   name: string;
   schemaName: string;
   databaseName: string;
   logicId: string;
+  lineageId: string;
 }
 
-export const buildMaterializationDto = (materialization: Materialization): MaterializationDto => ({
+export const buildMaterializationDto = (
+  materialization: Materialization
+): MaterializationDto => ({
   id: materialization.id,
   dbtModelId: materialization.dbtModelId,
   materializationType: materialization.materializationType,
@@ -18,4 +21,5 @@ export const buildMaterializationDto = (materialization: Materialization): Mater
   schemaName: materialization.schemaName,
   databaseName: materialization.databaseName,
   logicId: materialization.logicId,
+  lineageId: materialization.lineageId,
 });
