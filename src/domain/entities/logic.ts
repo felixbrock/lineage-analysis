@@ -49,6 +49,21 @@ export interface ColumnRef
   materializationName: string;
 }
 
+interface Alias {
+  key: string;
+  value: string;
+  refPath: string;
+}
+
+interface TempExtractionData {
+  unmatchedAliases?: Alias;
+}
+
+interface RefsExtractionDto {
+  temp: TempExtractionData;
+  refsPrototype: RefsPrototype;
+}
+
 interface RefsPrototype {
   materializations: MaterializationRef[];
   columns: ColumnRefPrototype[];
@@ -137,6 +152,8 @@ export class Logic {
     const definitionElements = [
       `${SQLElement.COLUMN_DEFINITION}.${SQLElement.IDENTIFIER}`,
       `${SQLElement.ALIAS_EXPRESSION}.${SQLElement.IDENTIFIER}`,
+      `${SQLElement.BARE_FUNCTION}`,
+      `${SQLElement.LITERAL}`,
     ];
 
     const dataDependencyElements = [
@@ -320,25 +337,159 @@ export class Logic {
     );
   };
 
+  /* Checks if an alias contains information */
+  static aliasExists = (alias: Alias): boolean =>
+    !!(alias.key || alias.value || alias.refPath);
+
+  /* In case of an unassigned alias merge refs and subrefs in a special way */
+  static mergeRefs = (
+    refsPrototype: RefsPrototype,
+    subExtractionDto: RefsExtractionDto,
+    alias: Alias
+  ): RefsExtractionDto => {
+    const newRefsPrototype = refsPrototype;
+
+    const numberOfColumns = subExtractionDto.refsPrototype.columns.length;
+    const numberOfWildcards = subExtractionDto.refsPrototype.wildcards.length;
+    const numberOfMaterializations =
+      subExtractionDto.refsPrototype.materializations.length;
+
+    if (!this.aliasExists(alias)) {
+      newRefsPrototype.columns.push(...subExtractionDto.refsPrototype.columns);
+      subExtractionDto.refsPrototype.materializations.forEach(
+        (materialization) => {
+          newRefsPrototype.materializations = this.#pushMaterialization(
+            materialization,
+            newRefsPrototype.materializations
+          );
+        }
+      );
+      newRefsPrototype.wildcards.push(
+        ...subExtractionDto.refsPrototype.wildcards
+      );
+
+      return {
+        refsPrototype: newRefsPrototype,
+        temp: { unmatchedAliases: subExtractionDto.temp.unmatchedAliases },
+      };
+    }
+
+    if (subExtractionDto.temp.unmatchedAliases)
+      throw new ReferenceError(
+        'Two unmatched aliases at the same time. Unable to assign'
+      );
+    if (numberOfWildcards > 1)
+      throw new ReferenceError(
+        'Multiple wildcards found that potentially use alias'
+      );
+    if (numberOfColumns >= 1 && numberOfWildcards >= 1)
+      throw new ReferenceError(
+        'Columns and wildcards found that potentially use alias'
+      );
+    if (numberOfMaterializations > 1)
+      throw new ReferenceError(
+        'Multiple materializations found that potentially use alias'
+      );
+
+    if (numberOfColumns === 1) {
+      const column = subExtractionDto.refsPrototype.columns[0];
+      column.alias = alias.value;
+
+      newRefsPrototype.columns.push(column);
+
+      subExtractionDto.refsPrototype.materializations.forEach(
+        (materialization) => {
+          newRefsPrototype.materializations = this.#pushMaterialization(
+            materialization,
+            newRefsPrototype.materializations
+          );
+        }
+      );
+
+      return { refsPrototype: newRefsPrototype, temp: {} };
+    }
+    if (numberOfColumns > 1) {
+      const { columns } = subExtractionDto.refsPrototype;
+
+      columns.forEach((element) => {
+        const column = element;
+        column.alias = alias.value;
+
+        newRefsPrototype.columns.push(column);
+      });
+
+      subExtractionDto.refsPrototype.materializations.forEach(
+        (materialization) => {
+          newRefsPrototype.materializations = this.#pushMaterialization(
+            materialization,
+            newRefsPrototype.materializations
+          );
+        }
+      );
+
+      return { refsPrototype: newRefsPrototype, temp: {} };
+    }
+    if (numberOfWildcards === 1) {
+      const wildcard = subExtractionDto.refsPrototype.wildcards[0];
+      wildcard.alias = alias.value;
+
+      newRefsPrototype.wildcards.push(wildcard);
+
+      subExtractionDto.refsPrototype.materializations.forEach(
+        (materialization) => {
+          newRefsPrototype.materializations = this.#pushMaterialization(
+            materialization,
+            newRefsPrototype.materializations
+          );
+        }
+      );
+
+      return { refsPrototype: newRefsPrototype, temp: {} };
+    }
+    if (numberOfMaterializations === 1) {
+      const materialization =
+        subExtractionDto.refsPrototype.materializations[0];
+      materialization.alias = alias.value;
+
+      newRefsPrototype.materializations.push(materialization);
+
+      return { refsPrototype: newRefsPrototype, temp: {} };
+    }
+
+    return {
+      refsPrototype: newRefsPrototype,
+      temp: { unmatchedAliases: alias },
+    };
+  };
+
   /* Directly interacts with parsed SQL logic. Calls different handlers based on use-case. 
   Runs through parse SQL logic (JSON object) and check for potential dependencies. */
   static #extractRefs = (
     parsedSQL: { [key: string]: any },
-    path = ''
-  ): RefsPrototype => {
+    path = '',
+    recursionLevel = 0
+  ): RefsExtractionDto => {
     let refPath = path;
 
-    const refsPrototype: RefsPrototype = {
+    let refsPrototype: RefsPrototype = {
       columns: [],
       materializations: [],
       wildcards: [],
     };
 
+    const temp: TempExtractionData = {};
+
     const valueKeyRepresentatives = [SQLElement.KEYWORD_AS];
 
-    let alias: HandlerProperties<string> = { key: '', value: '', refPath: '' };
+    const aliasToColumnDefinitionElements = [
+      SQLElement.LITERAL,
+      SQLElement.BARE_FUNCTION,
+    ];
+
+    let alias: Alias = { key: '', value: '', refPath: '' };
     Object.entries(parsedSQL).forEach((parsedSQLElement) => {
       const key = parsedSQLElement[0];
+
       const value =
         typeof parsedSQLElement[1] === 'string' &&
         !valueKeyRepresentatives.includes(parsedSQLElement[1])
@@ -387,66 +538,98 @@ export class Logic {
         refsPrototype.wildcards.push(
           this.#handleWildCardRef({ key, value, refPath })
         );
-      else if (value.constructor === Object) {
-        const subRefs = this.#extractRefs(
-          value,
-          this.#appendPath(key, refPath)
+      else if (
+        this.aliasExists(alias) &&
+        aliasToColumnDefinitionElements.includes(key) &&
+        typeof value === 'string'
+      ) {
+        refsPrototype.columns.push(
+          this.#handleColumnIdentifierRef({
+            key,
+            value,
+            refPath,
+            alias: alias.value,
+          })
         );
 
-        refsPrototype.columns.push(...subRefs.columns);
-        subRefs.materializations.forEach((materialization) => {
-          refsPrototype.materializations = this.#pushMaterialization(
-            materialization,
-            refsPrototype.materializations
-          );
-        });
-        refsPrototype.wildcards.push(...subRefs.wildcards);
+        alias = { key: '', value: '', refPath: '' };
+      } else if (value.constructor === Object) {
+        const subExtractionDto = this.#extractRefs(
+          value,
+          this.#appendPath(key, refPath),
+          recursionLevel + 1
+        );
+
+        const mergeExtractionDto = this.mergeRefs(
+          refsPrototype,
+          subExtractionDto,
+          alias
+        );
+
+        refsPrototype = mergeExtractionDto.refsPrototype;
+
+        if (mergeExtractionDto.temp.unmatchedAliases)
+          alias = mergeExtractionDto.temp.unmatchedAliases;
+        else alias = { key: '', value: '', refPath: '' };
       } else if (Object.prototype.toString.call(value) === '[object Array]') {
-        if (key === SQLElement.COLUMN_REFERENCE)
+        if (key === SQLElement.COLUMN_REFERENCE) {
           refsPrototype.columns.push(
             this.#handleColumnIdentifierRef({
               key,
               value: this.#joinArrayValue(value),
               refPath,
+              alias: alias.value,
             })
           );
-        else if (key === SQLElement.TABLE_REFERENCE) {
+
+          alias = { key: '', value: '', refPath: '' };
+        } else if (key === SQLElement.TABLE_REFERENCE) {
           const ref = this.#handleMaterializationIdentifierRef({
             key,
             value: this.#joinArrayValue(value),
             refPath,
+            alias: alias.value,
           });
 
           refsPrototype.materializations = this.#pushMaterialization(
             ref,
             refsPrototype.materializations
           );
+
+          alias = { key: '', value: '', refPath: '' };
         } else
           value.forEach((element: { [key: string]: any }) => {
-            const subRefs = this.#extractRefs(
+            const subExtractionDto = this.#extractRefs(
               element,
-              this.#appendPath(key, refPath)
+              this.#appendPath(key, refPath),
+              recursionLevel + 1
             );
 
-            refsPrototype.columns.push(...subRefs.columns);
-            subRefs.materializations.forEach((materialization) => {
-              refsPrototype.materializations = this.#pushMaterialization(
-                materialization,
-                refsPrototype.materializations
-              );
-            });
-            refsPrototype.wildcards.push(...subRefs.wildcards);
+            const mergeExtractionDto = this.mergeRefs(
+              refsPrototype,
+              subExtractionDto,
+              alias
+            );
+
+            refsPrototype = mergeExtractionDto.refsPrototype;
+            if (mergeExtractionDto.temp.unmatchedAliases)
+              alias = mergeExtractionDto.temp.unmatchedAliases;
+            else alias = { key: '', value: '', refPath: '' };
           });
       }
     });
 
-    // todo - Based on the assumption that unmatched alias only exist for columns and not tables
-    if (alias.value)
-      refsPrototype.columns.push(this.#handleColumnIdentifierRef(alias));
+    if (recursionLevel === 0 && alias.value)
+      refsPrototype.columns.push(
+        this.#handleColumnIdentifierRef({
+          key: alias.key,
+          value: alias.value,
+          refPath: alias.refPath,
+        })
+      );
+    else if (alias.value) temp.unmatchedAliases = alias;
 
-    alias = { key: '', value: '', refPath: '' };
-
-    return refsPrototype;
+    return { temp, refsPrototype };
   };
 
   /* Identifies the closest materialization reference to a provided column path. 
@@ -594,18 +777,20 @@ export class Logic {
       fileObj.constructor === Object &&
       fileObj[SQLElement.STATEMENT] !== undefined
     ) {
-      const statementRefsObj = this.#extractRefs(fileObj[SQLElement.STATEMENT]);
-      statementRefsPrototype.push(statementRefsObj);
+      const statementExtractionDto = this.#extractRefs(
+        fileObj[SQLElement.STATEMENT]
+      );
+      statementRefsPrototype.push(statementExtractionDto.refsPrototype);
     } else if (Object.prototype.toString.call(fileObj) === '[object Array]') {
       const statementObjects = fileObj.filter(
         (statement: any) => SQLElement.STATEMENT in statement
       );
 
       statementObjects.forEach((statement: any) => {
-        const statementRefsObj = this.#extractRefs(
+        const statementExtractionDto = this.#extractRefs(
           statement[SQLElement.STATEMENT]
         );
-        statementRefsPrototype.push(statementRefsObj);
+        statementRefsPrototype.push(statementExtractionDto.refsPrototype);
       });
     }
     statementRefsPrototype.forEach((prototype) => {

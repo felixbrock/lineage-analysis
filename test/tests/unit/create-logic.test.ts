@@ -1,21 +1,24 @@
-import dotenv from 'dotenv';
-
-dotenv.config();
 
 import app from '../../../src/infrastructure/ioc-register';
 import fs from 'fs';
+import { CreateLogicRequestDto } from '../../../src/domain/logic/create-logic';
+
+/* Run single test: npm test -- create-logic.test.ts */
 
 test('logic creation', async () => {
   const createLogic = app.resolve('createLogic');
 
+  const modelName = 'W_COLUMNS_D';
+
   const parsedLogic = fs.readFileSync(
-    'C:/Users/felix-pc/Hivedive Limited/Hivedive - Documents/Problem28/Product/Sample1SQLModels/model-snowflake_usage-V_DATE_STG.json',
+    `C:/Users/felix-pc/Hivedive Limited/Hivedive - Documents/Problem28/Product/Sample1SQLModels/model-snowflake_usage-${modelName}.json`,
     'utf-8'
   );
 
-  const reqDto = {
-    dbtModelId: 'model.snowflake_usage.V_DATE_STG',
-    lineageId: '62701d10305dcf107071fa00',
+  const reqDto: CreateLogicRequestDto = {
+    dbtModelId: `model.snowflake_usage.${modelName}`,
+    lineageId: 'test-4',
+    sql: 'test',
     parsedLogic,
   };
 
@@ -24,6 +27,8 @@ test('logic creation', async () => {
   const result = await createLogic.execute(reqDto, auth);
 
   console.log(result.error);
+
+  console.log(result.value.statementRefs);
 
   expect(result.success).toBe(true);
 });

@@ -5,5 +5,5 @@ module.exports = {
     '^.+\\.ts?$': 'ts-jest',
   },
   transformIgnorePatterns: ['<rootDir>/node_modules/'],
-  setupFiles: ["<rootDir>/src/config.ts"],
+  setupFiles: ["dotenv/config"],
 };

@@ -28,7 +28,7 @@ export default class SQLElement {
   static IDENTIFIER = 'identifier';
 
   static WILDCARD_EXPRESSION = 'wildcard_expression';
-  
+
   static WILDCARD_IDENTIFIER = 'wildcard_identifier';
 
   static WILDCARD_IDENTIFIER_DOT = 'dot';
@@ -56,4 +56,8 @@ export default class SQLElement {
   static BRACKETED = 'bracketed';
 
   static EXPRESSION = 'expression';
+
+  static LITERAL = 'literal';
+
+  static BARE_FUNCTION = 'bare_function';
 }

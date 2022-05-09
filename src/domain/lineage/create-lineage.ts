@@ -378,6 +378,7 @@ export class CreateLineage
     return dataDependencyRefs;
   };
 
+  /* Compares to ColumnRef objects if they are equal */
   #columnRefIsEqual = (fst: ColumnRef, snd: ColumnRef | undefined): boolean => {
     if (!fst || !snd) return false;
 
