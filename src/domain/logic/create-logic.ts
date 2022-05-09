@@ -56,6 +56,7 @@ export class CreateLogic
         materialisationName: name,
         columnNames,
       };
+
       result.push(modelData);
     });
 

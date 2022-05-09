@@ -21,7 +21,7 @@ export interface LogicPrototype {
 
 export interface CatalogModelData {
   modelName: string;
-  materialisationName: string;
+  materializationName: string;
   columnNames: string[];
 }
 interface Ref {
@@ -482,7 +482,7 @@ export class Logic {
 
           catalog.forEach((modelData) => {
             if (
-              modelData.materialisationName === materializationName &&
+              modelData.materializationName === materializationName &&
               modelData.columnNames.includes(columnName)
             )
               bestMatch = { ref: materialization, matchingPoints };
@@ -513,7 +513,7 @@ export class Logic {
             alias: column.alias,
             path: column.path,
             isWildcardRef: column.isWildcardRef,
-            materializationName: column.name,
+            materializationName: column.materializationName,
             schemaName: column.schemaName,
             databaseName: column.databaseName,
             warehouseName: column.warehouseName,
@@ -611,6 +611,31 @@ export class Logic {
     statementRefsPrototype.forEach((prototype) => {
       prototype.columns.forEach((column, index) => {
         const nextCol = prototype.columns[index + 1];
+        const thisCol = column;
+
+        if (column.name.includes('$')) {
+          const columnNumber = column.name.split('$')[1];
+          const materializationNames = prototype.materializations.map((mat) => (mat.name));
+
+          let materialization: string;
+
+          if (materializationNames.length === 1)
+            [materialization] = materializationNames;
+          else
+            materialization = column.materializationName ? column.materializationName : '';
+            thisCol.dependencyType = DependencyType.DATA;
+
+          const filteredCatalog = catalog.filter((model) => 
+            materialization && model.materializationName === materialization.toUpperCase()
+          );
+          const [realName] = filteredCatalog.map((model) => 
+            model.columnNames[parseInt(columnNumber, 10) - 1]
+          );
+
+          if (realName)
+            thisCol.alias = realName;
+        }
+
         if (!nextCol) return;
         if (
           column.dependencyType === DependencyType.DEFINITION &&
