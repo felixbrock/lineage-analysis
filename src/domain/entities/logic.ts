@@ -152,6 +152,8 @@ export class Logic {
     const definitionElements = [
       `${SQLElement.COLUMN_DEFINITION}.${SQLElement.IDENTIFIER}`,
       `${SQLElement.ALIAS_EXPRESSION}.${SQLElement.IDENTIFIER}`,
+      `${SQLElement.BARE_FUNCTION}`,
+      `${SQLElement.LITERAL}`,
     ];
 
     const dataDependencyElements = [
@@ -335,6 +337,10 @@ export class Logic {
     );
   };
 
+  /* Checks if an alias contains information */
+  static aliasExists = (alias: Alias): boolean =>
+    !!(alias.key || alias.value || alias.refPath);
+
   /* In case of an unassigned alias merge refs and subrefs in a special way */
   static mergeRefs = (
     refsPrototype: RefsPrototype,
@@ -348,9 +354,7 @@ export class Logic {
     const numberOfMaterializations =
       subExtractionDto.refsPrototype.materializations.length;
 
-    const aliasExists = !!(alias.key || alias.value || alias.refPath);
-
-    if (!aliasExists) {
+    if (!this.aliasExists(alias)) {
       newRefsPrototype.columns.push(...subExtractionDto.refsPrototype.columns);
       subExtractionDto.refsPrototype.materializations.forEach(
         (materialization) => {
@@ -378,13 +382,9 @@ export class Logic {
       throw new ReferenceError(
         'Multiple wildcards found that potentially use alias'
       );
-    if (numberOfColumns > 1)
+    if (numberOfColumns >= 1 && numberOfWildcards >= 1)
       throw new ReferenceError(
-        'Multiple columns or wildcards found that potentially use alias'
-      );
-    if (numberOfColumns + numberOfWildcards > 1)
-      throw new ReferenceError(
-        'Multiple columns or wildcards found that potentially use alias'
+        'Columns and wildcards found that potentially use alias'
       );
     if (numberOfMaterializations > 1)
       throw new ReferenceError(
@@ -396,6 +396,27 @@ export class Logic {
       column.alias = alias.value;
 
       newRefsPrototype.columns.push(column);
+
+      subExtractionDto.refsPrototype.materializations.forEach(
+        (materialization) => {
+          newRefsPrototype.materializations = this.#pushMaterialization(
+            materialization,
+            newRefsPrototype.materializations
+          );
+        }
+      );
+
+      return { refsPrototype: newRefsPrototype, temp: {} };
+    }
+    if (numberOfColumns > 1) {
+      const { columns } = subExtractionDto.refsPrototype;
+
+      columns.forEach((element) => {
+        const column = element;
+        column.alias = alias.value;
+
+        newRefsPrototype.columns.push(column);
+      });
 
       subExtractionDto.refsPrototype.materializations.forEach(
         (materialization) => {
@@ -460,6 +481,11 @@ export class Logic {
 
     const valueKeyRepresentatives = [SQLElement.KEYWORD_AS];
 
+    const aliasToColumnDefinitionElements = [
+      SQLElement.LITERAL,
+      SQLElement.BARE_FUNCTION,
+    ];
+
     let alias: Alias = { key: '', value: '', refPath: '' };
     Object.entries(parsedSQL).forEach((parsedSQLElement) => {
       const key = parsedSQLElement[0];
@@ -512,7 +538,22 @@ export class Logic {
         refsPrototype.wildcards.push(
           this.#handleWildCardRef({ key, value, refPath })
         );
-      else if (value.constructor === Object) {
+      else if (
+        this.aliasExists(alias) &&
+        aliasToColumnDefinitionElements.includes(key) &&
+        typeof value === 'string'
+      ) {
+        refsPrototype.columns.push(
+          this.#handleColumnIdentifierRef({
+            key,
+            value,
+            refPath,
+            alias: alias.value,
+          })
+        );
+
+        alias = { key: '', value: '', refPath: '' };
+      } else if (value.constructor === Object) {
         const subExtractionDto = this.#extractRefs(
           value,
           this.#appendPath(key, refPath),
@@ -531,25 +572,31 @@ export class Logic {
           alias = mergeExtractionDto.temp.unmatchedAliases;
         else alias = { key: '', value: '', refPath: '' };
       } else if (Object.prototype.toString.call(value) === '[object Array]') {
-        if (key === SQLElement.COLUMN_REFERENCE)
+        if (key === SQLElement.COLUMN_REFERENCE) {
           refsPrototype.columns.push(
             this.#handleColumnIdentifierRef({
               key,
               value: this.#joinArrayValue(value),
               refPath,
+              alias: alias.value,
             })
           );
-        else if (key === SQLElement.TABLE_REFERENCE) {
+
+          alias = { key: '', value: '', refPath: '' };
+        } else if (key === SQLElement.TABLE_REFERENCE) {
           const ref = this.#handleMaterializationIdentifierRef({
             key,
             value: this.#joinArrayValue(value),
             refPath,
+            alias: alias.value,
           });
 
           refsPrototype.materializations = this.#pushMaterialization(
             ref,
             refsPrototype.materializations
           );
+
+          alias = { key: '', value: '', refPath: '' };
         } else
           value.forEach((element: { [key: string]: any }) => {
             const subExtractionDto = this.#extractRefs(
@@ -572,7 +619,6 @@ export class Logic {
       }
     });
 
-    // todo - Based on the assumption that unmatched alias only exist for columns and not tables
     if (recursionLevel === 0 && alias.value)
       refsPrototype.columns.push(
         this.#handleColumnIdentifierRef({
