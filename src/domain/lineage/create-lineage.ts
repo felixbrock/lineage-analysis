@@ -100,7 +100,7 @@ export class CreateLineage
       await this.#lineageRepo.insertOne(this.#lineage);
   };
 
-  /* Parses SQL logic */
+  /* Sends sql to parse SQL microservices and receives parsed SQL logic back */
   #parseLogic = async (sql: string): Promise<string> => {
     const parseSQLResult: ParseSQLResponseDto = await this.#parseSQL.execute(
       { dialect: 'snowflake', sql },
