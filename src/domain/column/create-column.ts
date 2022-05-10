@@ -8,10 +8,11 @@ import { IColumnRepo } from './i-column-repo';
 export interface CreateColumnRequestDto {
   dbtModelId: string;
   name: string;
-  index: string,
-  type: string,
+  index: string;
+  type: string;
   materializationId: string;
   lineageId: string;
+  writeToPersistence: boolean;
 }
 
 export interface CreateColumnAuthDto {
@@ -66,7 +67,7 @@ export class CreateColumn
       if (readColumnsResult.value.length)
         throw new Error(`Column for materialization already exists`);
 
-      await this.#columnRepo.insertOne(column);
+      if (request.writeToPersistence) await this.#columnRepo.insertOne(column);
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');

@@ -14,6 +14,7 @@ export interface CreateDependencyRequestDto {
   parentRef: ColumnRef;
   parentDbtModelIds: string[];
   lineageId: string;
+  writeToPersistence: boolean;
 }
 
 export interface CreateDependencyAuthDto {
@@ -24,11 +25,11 @@ export type CreateDependencyResponse = Result<Dependency>;
 
 export class CreateDependency
   implements
-  IUseCase<
-  CreateDependencyRequestDto,
-  CreateDependencyResponse,
-  CreateDependencyAuthDto
-  >
+    IUseCase<
+      CreateDependencyRequestDto,
+      CreateDependencyResponse,
+      CreateDependencyAuthDto
+    >
 {
   readonly #readColumns: ReadColumns;
 
@@ -101,34 +102,47 @@ export class CreateDependency
       let selfColumn;
       let parentName: string;
       if (readSelfColumnResult.value.length > 1) {
-
         if (request.parentRef.name.includes('$'))
           parentName = request.parentRef.name;
         else
-          parentName = request.parentRef.alias ? request.parentRef.alias : request.parentRef.name;
+          parentName = request.parentRef.alias
+            ? request.parentRef.alias
+            : request.parentRef.name;
 
-        [selfColumn] = readSelfColumnResult.value.filter((column) => column.name === parentName);
-      }
-      else
-        [selfColumn] = readSelfColumnResult.value;
+        [selfColumn] = readSelfColumnResult.value.filter(
+          (column) => column.name === parentName
+        );
+      } else [selfColumn] = readSelfColumnResult.value;
 
-      const matchingDbtModelIds = this.#getMatchingDbtModelIds(request.parentDbtModelIds, request.parentRef.materializationName);
+      const matchingDbtModelIds = this.#getMatchingDbtModelIds(
+        request.parentDbtModelIds,
+        request.parentRef.materializationName
+      );
 
-      if (!matchingDbtModelIds.length) throw new ReferenceError('No matching dbt model id found for dependency to create');
+      if (!matchingDbtModelIds.length)
+        throw new ReferenceError(
+          'No matching dbt model id found for dependency to create'
+        );
 
       const parentId = await this.#getParentId(
         matchingDbtModelIds,
-        (request.parentRef.name.includes('$') && request.parentRef.alias) ?
-          request.parentRef.alias : request.parentRef.name,
+        request.parentRef.name.includes('$') && request.parentRef.alias
+          ? request.parentRef.alias
+          : request.parentRef.name,
         request.lineageId
       );
 
-      const isQueryDependency = request.parentRef.dependencyType === DependencyType.QUERY;
+      const isQueryDependency =
+        request.parentRef.dependencyType === DependencyType.QUERY;
 
       const dependency = Dependency.create({
         id: new ObjectId().toHexString(),
-        type: isQueryDependency ? request.parentRef.dependencyType : request.selfRef.dependencyType,
-        headId: isQueryDependency ? selfColumn.materializationId : selfColumn.id,
+        type: isQueryDependency
+          ? request.parentRef.dependencyType
+          : request.selfRef.dependencyType,
+        headId: isQueryDependency
+          ? selfColumn.materializationId
+          : selfColumn.id,
         tailId: parentId,
         lineageId: request.lineageId,
       });
@@ -148,7 +162,8 @@ export class CreateDependency
       if (readColumnsResult.value.length)
         throw new Error(`Column for materialization already exists`);
 
-      await this.#dependencyRepo.insertOne(dependency);
+      if (request.writeToPersistence)
+        await this.#dependencyRepo.insertOne(dependency);
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');

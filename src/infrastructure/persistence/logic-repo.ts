@@ -2,6 +2,7 @@ import {
   DeleteResult,
   Document,
   FindCursor,
+  InsertManyResult,
   InsertOneResult,
   ObjectId,
 } from 'mongodb';
@@ -127,6 +128,29 @@ export default class LogicRepo implements ILogicRepo {
       close(client);
 
       return result.insertedId.toHexString();
+    } catch (error: unknown) {
+      if (typeof error === 'string') return Promise.reject(error);
+      if (error instanceof Error) return Promise.reject(error.message);
+      return Promise.reject(new Error('Unknown error occured'));
+    }
+  };
+
+  insertMany = async (logics: Logic[]): Promise<string[]> => {
+    const client = createClient();
+    try {
+      const db = await connect(client);
+      const result: InsertManyResult<Document> = await db
+        .collection(collectionName)
+        .insertMany(
+          logics.map((element) => this.#toPersistence(sanitize(element)))
+        );
+
+      if (!result.acknowledged)
+        throw new Error('Logic creations failed. Inserts not acknowledged');
+
+      close(client);
+
+      return Object.keys(result.insertedIds).map(key => result.insertedIds[parseInt(key, 10)].toHexString());
     } catch (error: unknown) {
       if (typeof error === 'string') return Promise.reject(error);
       if (error instanceof Error) return Promise.reject(error.message);

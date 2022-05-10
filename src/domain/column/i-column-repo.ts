@@ -14,5 +14,6 @@ export interface IColumnRepo {
   findBy(columnQueryDto: ColumnQueryDto): Promise<Column[]>;
   all(): Promise<Column[]>;
   insertOne(column: Column): Promise<string>;
+  insertMany(columns: Column[]): Promise<string[]>;
   deleteOne(id: string): Promise<string>;
 }

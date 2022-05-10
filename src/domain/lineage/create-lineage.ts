@@ -9,11 +9,20 @@ import { CreateMaterialization } from '../materialization/create-materialization
 import { CreateLogic } from '../logic/create-logic';
 import { ParseSQL, ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
 import { Lineage } from '../entities/lineage';
-import LineageRepo from '../../infrastructure/persistence/lineage-repo';
 import { Logic, ColumnRef, Refs } from '../entities/logic';
-import { CreateDependency } from '../dependency/create-dependency';
-import { DependencyType } from '../entities/dependency';
+import {
+  CreateDependency,
+  CreateDependencyResponse,
+} from '../dependency/create-dependency';
+import { Dependency, DependencyType } from '../entities/dependency';
 import { ReadColumns } from '../column/read-columns';
+import { Materialization } from '../entities/materialization';
+import { Column } from '../entities/column';
+import { ILineageRepo } from './i-lineage-repo';
+import { IColumnRepo } from '../column/i-column-repo';
+import { IMaterializationRepo } from '../materialization/i-materialization-repo';
+import { IDependencyRepo } from '../dependency/i-dependency-repo';
+import { ILogicRepo } from '../logic/i-logic-repo';
 
 export interface CreateLineageRequestDto {
   lineageId?: string;
@@ -49,13 +58,27 @@ export class CreateLineage
 
   readonly #parseSQL: ParseSQL;
 
-  readonly #lineageRepo: LineageRepo;
+  readonly #lineageRepo: ILineageRepo;
+
+  readonly #logicRepo: ILogicRepo;
+
+  readonly #materializationRepo: IMaterializationRepo;
+
+  readonly #columnRepo: IColumnRepo;
+
+  readonly #dependencyRepo: IDependencyRepo;
 
   readonly #readColumns: ReadColumns;
 
   #lineage?: Lineage;
 
   #logics: Logic[];
+
+  #materializations: Materialization[];
+
+  #columns: Column[];
+
+  #dependencies: Dependency[];
 
   #lastQueryDependency?: ColumnRef;
 
@@ -65,7 +88,11 @@ export class CreateLineage
     createColumn: CreateColumn,
     createDependency: CreateDependency,
     parseSQL: ParseSQL,
-    lineageRepo: LineageRepo,
+    lineageRepo: ILineageRepo,
+    logicRepo: ILogicRepo,
+    materializationRepo: IMaterializationRepo,
+    columnRepo: IColumnRepo,
+    dependencyRepo: IDependencyRepo,
     readColumns: ReadColumns
   ) {
     this.#createLogic = createLogic;
@@ -74,8 +101,15 @@ export class CreateLineage
     this.#createDependency = createDependency;
     this.#parseSQL = parseSQL;
     this.#lineageRepo = lineageRepo;
+    this.#logicRepo = logicRepo;
+    this.#materializationRepo = materializationRepo;
+    this.#columnRepo = columnRepo;
+    this.#dependencyRepo = dependencyRepo;
     this.#readColumns = readColumns;
     this.#logics = [];
+    this.#materializations = [];
+    this.#columns = [];
+    this.#dependencies = [];
     this.#lineage = undefined;
     this.#lastQueryDependency = undefined;
   }
@@ -100,7 +134,7 @@ export class CreateLineage
       await this.#lineageRepo.insertOne(this.#lineage);
   };
 
-  /* Parses SQL logic */
+  /* Sends sql to parse SQL microservices and receives parsed SQL logic back */
   #parseLogic = async (sql: string): Promise<string> => {
     const parseSQLResult: ParseSQLResponseDto = await this.#parseSQL.execute(
       { dialect: 'snowflake', sql },
@@ -115,10 +149,10 @@ export class CreateLineage
   };
 
   #generateColumn = async (
-    column: any,
+    columnDefinition: any,
     dbtModelId: string,
     materializationId: string
-  ): Promise<void> => {
+  ): Promise<Column> => {
     if (!this.#lineage)
       throw new ReferenceError('Lineage property is undefined');
     const lineage = this.#lineage;
@@ -127,11 +161,12 @@ export class CreateLineage
     const createColumnResult = await this.#createColumn.execute(
       {
         dbtModelId,
-        name: column.name,
-        index: column.index,
-        type: column.type,
+        name: columnDefinition.name,
+        index: columnDefinition.index,
+        type: columnDefinition.type,
         materializationId,
         lineageId: lineage.id,
+        writeToPersistence: false,
       },
       { organizationId: 'todo' }
     );
@@ -139,6 +174,8 @@ export class CreateLineage
     if (!createColumnResult.success) throw new Error(createColumnResult.error);
     if (!createColumnResult.value)
       throw new SyntaxError(`Creation of column failed`);
+
+    return createColumnResult.value;
   };
 
   #generateWarehouseSource = async (source: any): Promise<void> => {
@@ -156,6 +193,7 @@ export class CreateLineage
           databaseName: source.metadata.database,
           logicId: 'todo - read from snowflake',
           lineageId: lineage.id,
+          writeToPersistence: false,
         },
         { organizationId: 'todo' }
       );
@@ -167,7 +205,9 @@ export class CreateLineage
 
     const materialization = createMaterializationResult.value;
 
-    await Promise.all(
+    this.#materializations.push(materialization);
+
+    const columns = await Promise.all(
       Object.keys(source.columns).map(async (columnKey) =>
         this.#generateColumn(
           source.columns[columnKey],
@@ -176,6 +216,8 @@ export class CreateLineage
         )
       )
     );
+
+    this.#columns.push(...columns);
   };
 
   #generateDbtModel = async (model: any, modelManifest: any): Promise<void> => {
@@ -193,6 +235,7 @@ export class CreateLineage
         sql,
         lineageId: lineage.id,
         parsedLogic,
+        writeToPersistence: false,
       },
       { organizationId: 'todo' }
     );
@@ -215,6 +258,7 @@ export class CreateLineage
           databaseName: model.metadata.database,
           logicId: logic.id,
           lineageId: lineage.id,
+          writeToPersistence: false,
         },
         { organizationId: 'todo' }
       );
@@ -226,7 +270,9 @@ export class CreateLineage
 
     const materialization = createMaterializationResult.value;
 
-    await Promise.all(
+    this.#materializations.push(materialization);
+
+    const columns = await Promise.all(
       Object.keys(model.columns).map(async (columnKey) =>
         this.#generateColumn(
           model.columns[columnKey],
@@ -235,6 +281,8 @@ export class CreateLineage
         )
       )
     );
+
+    this.#columns.push(...columns);
   };
 
   /* Get dbt nodes from catalog.json or manifest.json */
@@ -378,7 +426,7 @@ export class CreateLineage
     return dataDependencyRefs;
   };
 
-  /* Compares to ColumnRef objects if they are equal */
+  /* Compares two ColumnRef objects if they are equal */
   #columnRefIsEqual = (fst: ColumnRef, snd: ColumnRef | undefined): boolean => {
     if (!fst || !snd) return false;
 
@@ -396,7 +444,7 @@ export class CreateLineage
   };
 
   /* Creates all dependencies that exist between DWH resources */
-  #buildDependency = async (
+  #buildStatementRefDependencies = async (
     selfRef: ColumnRef,
     statementRefs: Refs,
     dbtModelId: string
@@ -427,30 +475,63 @@ export class CreateLineage
     const dependencies: ColumnRef[] =
       wildcardDependencies.concat(columnDependencies);
 
-    await Promise.all(
-      dependencies.map(async (dependency) => {
-        if (!this.#lineage)
-          throw new ReferenceError('Lineage property is undefined');
+    const isCreateDependencyResponse = (
+      item: CreateDependencyResponse | null
+    ): item is CreateDependencyResponse => !!item;
 
-        if (this.#columnRefIsEqual(dependency, this.#lastQueryDependency))
-          return;
+    const createDependencyResults = await Promise.all(
+      dependencies.map(
+        async (dependency): Promise<CreateDependencyResponse | null> => {
+          if (!this.#lineage)
+            throw new ReferenceError('Lineage property is undefined');
 
-        if (dependency.dependencyType === DependencyType.QUERY)
-          this.#lastQueryDependency = dependency;
-        await this.#createDependency.execute(
-          {
-            selfRef,
-            parentRef: dependency,
-            selfDbtModelId: dbtModelId,
-            parentDbtModelIds: this.#logics.map(
-              (element) => element.dbtModelId
-            ),
-            lineageId: this.#lineage.id,
-          },
-          { organizationId: 'todo' }
-        );
-      })
+          if (this.#columnRefIsEqual(dependency, this.#lastQueryDependency))
+            return null;
+
+          if (dependency.dependencyType === DependencyType.QUERY)
+            this.#lastQueryDependency = dependency;
+
+          const createDependencyResult = await this.#createDependency.execute(
+            {
+              selfRef,
+              parentRef: dependency,
+              selfDbtModelId: dbtModelId,
+              parentDbtModelIds: this.#logics.map(
+                (element) => element.dbtModelId
+              ),
+              lineageId: this.#lineage.id,
+              writeToPersistence: false,
+            },
+            { organizationId: 'todo' }
+          );
+
+          return createDependencyResult;
+        }
+      )
     );
+
+    const onlyCreateDependencyResults = createDependencyResults.filter(
+      isCreateDependencyResponse
+    );
+
+    if (onlyCreateDependencyResults.some((result) => !result.success)) {
+      const errorResults = onlyCreateDependencyResults.filter(
+        (result) => result.error
+      );
+      throw new Error(errorResults[0].error);
+    }
+
+    if (onlyCreateDependencyResults.some((result) => !result.value))
+      throw new SyntaxError(`Creation of dependencies failed`);
+
+    const isValue = (item: Dependency | undefined): item is Dependency =>
+      !!item;
+
+    const values = onlyCreateDependencyResults
+      .map((result) => result.value)
+      .filter(isValue);
+
+    this.#dependencies.push(...values);
   };
 
   /* Creates all dependencies that exist between DWH resources */
@@ -465,7 +546,11 @@ export class CreateLineage
 
             await Promise.all(
               dataDependencyRefs.map(async (selfRef) =>
-                this.#buildDependency(selfRef, refs, logic.dbtModelId)
+                this.#buildStatementRefDependencies(
+                  selfRef,
+                  refs,
+                  logic.dbtModelId
+                )
               )
             );
           })
@@ -530,6 +615,18 @@ export class CreateLineage
     return dependencies;
   };
 
+  #writeWhResourcesToPersistence = async (): Promise<void> => {
+    await this.#logicRepo.insertMany(this.#logics);
+
+    await this.#materializationRepo.insertMany(this.#materializations);
+
+    await this.#columnRepo.insertMany(this.#columns);
+  };
+
+  #writeDependenciesToPersistence = async (): Promise<void> => {
+    await this.#dependencyRepo.insertMany(this.#dependencies);
+  };
+
   async execute(
     request: CreateLineageRequestDto,
     auth: CreateLineageAuthDto
@@ -540,13 +637,20 @@ export class CreateLineage
       // todo - Workaround. Fix ioc container
       this.#lineage = undefined;
       this.#logics = [];
+      this.#materializations = [];
+      this.#columns = [];
+      this.#dependencies = [];
       this.#lastQueryDependency = undefined;
 
       await this.#buildLineage(request.lineageId, request.lineageCreatedAt);
 
       await this.#generateWarehouseResources();
 
+      await this.#writeWhResourcesToPersistence();
+
       await this.#buildDependencies();
+
+      await this.#writeDependenciesToPersistence();
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');

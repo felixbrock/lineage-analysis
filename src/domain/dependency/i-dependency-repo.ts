@@ -12,5 +12,6 @@ export interface IDependencyRepo {
   findBy(dependencyQueryDto: DependencyQueryDto): Promise<Dependency[]>;
   all(): Promise<Dependency[]>;
   insertOne(dependency: Dependency): Promise<string>;
+  insertMany(dependencies: Dependency[]): Promise<string[]>;
   deleteOne(id: string): Promise<string>;
 }
