@@ -10,5 +10,6 @@ export interface ILogicRepo {
   findBy(materializationQueryDto: LogicQueryDto): Promise<Logic[]>;
   all(): Promise<Logic[]>;
   insertOne(logic: Logic): Promise<string>;
+  insertMany(logics: Logic[]): Promise<string[]>;
   deleteOne(id: string): Promise<string>;
 }

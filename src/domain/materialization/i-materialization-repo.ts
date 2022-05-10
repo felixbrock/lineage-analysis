@@ -15,5 +15,6 @@ export interface IMaterializationRepo {
   findBy(materializationQueryDto: MaterializationQueryDto): Promise<Materialization[]>;
   all(): Promise<Materialization[]>;
   insertOne(materialization: Materialization): Promise<string>;
+  insertMany(materializations: Materialization[]): Promise<string[]>;
   deleteOne(id: string): Promise<string>;
 }

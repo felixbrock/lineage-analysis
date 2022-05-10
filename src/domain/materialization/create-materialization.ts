@@ -2,7 +2,10 @@
 import { ObjectId } from 'mongodb';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { MaterializationType, Materialization } from '../entities/materialization';
+import {
+  MaterializationType,
+  Materialization,
+} from '../entities/materialization';
 import { ReadMaterializations } from './read-materializations';
 import { IMaterializationRepo } from './i-materialization-repo';
 
@@ -14,6 +17,7 @@ export interface CreateMaterializationRequestDto {
   databaseName: string;
   logicId: string;
   lineageId: string;
+  writeToPersistence: boolean;
 }
 
 export interface CreateMaterializationAuthDto {
@@ -24,13 +28,20 @@ export type CreateMaterializationResponseDto = Result<Materialization>;
 
 export class CreateMaterialization
   implements
-    IUseCase<CreateMaterializationRequestDto, CreateMaterializationResponseDto, CreateMaterializationAuthDto>
+    IUseCase<
+      CreateMaterializationRequestDto,
+      CreateMaterializationResponseDto,
+      CreateMaterializationAuthDto
+    >
 {
   readonly #readMaterializations: ReadMaterializations;
 
   readonly #materializationRepo: IMaterializationRepo;
 
-  constructor(readMaterializations: ReadMaterializations, materializationRepo: IMaterializationRepo) {
+  constructor(
+    readMaterializations: ReadMaterializations,
+    materializationRepo: IMaterializationRepo
+  ) {
     this.#readMaterializations = readMaterializations;
     this.#materializationRepo = materializationRepo;
   }
@@ -51,20 +62,24 @@ export class CreateMaterialization
         lineageId: request.lineageId,
       });
 
-      const readMaterializationsResult = await this.#readMaterializations.execute(
-        {
-          dbtModelId: request.dbtModelId,
-          lineageId: request.lineageId,
-        },
-        { organizationId: auth.organizationId }
-      );
+      const readMaterializationsResult =
+        await this.#readMaterializations.execute(
+          {
+            dbtModelId: request.dbtModelId,
+            lineageId: request.lineageId,
+          },
+          { organizationId: auth.organizationId }
+        );
 
-      if (!readMaterializationsResult.success) throw new Error(readMaterializationsResult.error);
-      if (!readMaterializationsResult.value) throw new Error('Reading materializations failed');
+      if (!readMaterializationsResult.success)
+        throw new Error(readMaterializationsResult.error);
+      if (!readMaterializationsResult.value)
+        throw new Error('Reading materializations failed');
       if (readMaterializationsResult.value.length)
         throw new Error(`Materialization already exists`);
 
-      await this.#materializationRepo.insertOne(materialization);
+      if (request.writeToPersistence)
+        await this.#materializationRepo.insertOne(materialization);
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');

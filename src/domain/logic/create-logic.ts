@@ -12,6 +12,7 @@ export interface CreateLogicRequestDto {
   sql: string;
   parsedLogic: string;
   lineageId: string;
+  writeToPersistence: boolean;
 }
 
 export interface CreateLogicAuthDto {
@@ -53,7 +54,7 @@ export class CreateLogic
 
       const modelData: CatalogModelData = {
         modelName,
-        materialisationName: name,
+        materializationName: name,
         columnNames,
       };
 
@@ -92,7 +93,7 @@ export class CreateLogic
       if (readLogicsResult.value.length)
         throw new ReferenceError('Logic to be created already exists');
 
-      await this.#logicRepo.insertOne(logic);
+      if (request.writeToPersistence) await this.#logicRepo.insertOne(logic);
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');
