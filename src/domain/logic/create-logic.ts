@@ -3,13 +3,19 @@ import fs from 'fs'; // 'todo - dependency rule violation'
 import { ObjectId } from 'mongodb';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { CatalogModelData, Logic } from '../entities/logic';
+import {
+  CatalogModelData,
+  Logic,
+  MaterializationDependency,
+} from '../entities/logic';
 import { ILogicRepo } from './i-logic-repo';
 import { ReadLogics } from './read-logics';
 
 export interface CreateLogicRequestDto {
   dbtModelId: string;
+  modelName: string;
   sql: string;
+  dependentOn: MaterializationDependency[];
   parsedLogic: string;
   lineageId: string;
   writeToPersistence: boolean;
@@ -36,7 +42,7 @@ export class CreateLogic
 
   #getTablesAndCols = (): CatalogModelData[] => {
     const data = fs.readFileSync(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`,
+      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/temp-test.json`,
       // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
       'utf-8'
     );
@@ -74,7 +80,9 @@ export class CreateLogic
       const logic = Logic.create({
         id: new ObjectId().toHexString(),
         dbtModelId: request.dbtModelId,
+        modelName: request.modelName,
         sql: request.sql,
+        dependentOn: request.dependentOn,
         parsedLogic: request.parsedLogic,
         lineageId: request.lineageId,
         catalog,

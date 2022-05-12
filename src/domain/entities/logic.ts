@@ -1,10 +1,18 @@
 import { DependencyType } from './dependency';
 import SQLElement from '../value-types/sql-element';
 
+export interface MaterializationDependency {
+  dbtModelId: string;
+  materializationName: string;
+  schemaName?: string;
+  databaseName?: string;
+}
+
 export interface LogicProperties {
   id: string;
   dbtModelId: string;
   sql: string;
+  dependentOn: MaterializationDependency[];
   parsedLogic: string;
   statementRefs: Refs;
   lineageId: string;
@@ -13,7 +21,9 @@ export interface LogicProperties {
 export interface LogicPrototype {
   id: string;
   dbtModelId: string;
+  modelName: string; 
   sql: string;
+  dependentOn: MaterializationDependency[];
   parsedLogic: string;
   lineageId: string;
   catalog: CatalogModelData[];
@@ -111,6 +121,8 @@ export class Logic {
 
   #sql: string;
 
+  #dependentOn: MaterializationDependency[];
+
   #parsedLogic: string;
 
   #statementRefs: Refs;
@@ -129,6 +141,10 @@ export class Logic {
     return this.#sql;
   }
 
+  get dependentOn(): MaterializationDependency[] {
+    return this.#dependentOn;
+  }
+
   get parsedLogic(): string {
     return this.#parsedLogic;
   }
@@ -145,6 +161,7 @@ export class Logic {
     this.#id = properties.id;
     this.#dbtModelId = properties.dbtModelId;
     this.#sql = properties.sql;
+    this.#dependentOn = properties.dependentOn;
     this.#parsedLogic = properties.parsedLogic;
     this.#statementRefs = properties.statementRefs;
     this.#lineageId = properties.lineageId;
@@ -214,10 +231,13 @@ export class Logic {
     props: HandlerProperties<string>
   ): ColumnRefPrototype => {
     const columnValueRef = this.#splitColumnValue(props.value);
-    
-    const toAppend = props.key === SQLElement.IDENTIFIER ? props.key: `${props.key}.${SQLElement.IDENTIFIER}`;
+
+    const toAppend =
+      props.key === SQLElement.IDENTIFIER
+        ? props.key
+        : `${props.key}.${SQLElement.IDENTIFIER}`;
     const path = this.#appendPath(toAppend, props.path);
-   
+
     return {
       dependencyType: this.#getColumnDependencyType(path),
       alias: props.alias,
@@ -239,7 +259,10 @@ export class Logic {
       props.value
     );
 
-    const toAppend = props.key === SQLElement.IDENTIFIER ? props.key: `${props.key}.${SQLElement.IDENTIFIER}`;
+    const toAppend =
+      props.key === SQLElement.IDENTIFIER
+        ? props.key
+        : `${props.key}.${SQLElement.IDENTIFIER}`;
     const path = this.#appendPath(toAppend, props.path);
 
     return {
@@ -815,7 +838,8 @@ export class Logic {
   /* Transforming prototype that is representing the analyzed model itself (self) to materializationRef, 
   by improving information coverage on object level  */
   static #buildSelfMaterializationRef = (
-    matRefPrototypes: MaterializationRefPrototype[]
+    matRefPrototypes: MaterializationRefPrototype[],
+    modelName: string
   ): MaterializationRef => {
     const lastSelectMatRefPosition = matRefPrototypes
       .map((materialization) => {
@@ -857,7 +881,7 @@ export class Logic {
     if (!selfMatPrototype)
       throw new ReferenceError('Self materialization was not identified');
 
-    return { ...selfMatPrototype, type: 'self' };
+    return { ...selfMatPrototype, name: modelName, type: 'self' };
   };
 
   /* Transforming prototypes that are not representing the analyzed model itself (non-self) to materializationRefs, by improving information coverage on object level  */
@@ -1054,10 +1078,12 @@ export class Logic {
   /* Transforms RefsPrototype object to Refs object by identifying missing materialization refs */
   static #buildStatementRefs = (
     refsPrototype: RefsPrototype,
+    modelName: string,
     catalog: CatalogModelData[]
   ): Refs => {
     const selfMaterializationRef = this.#buildSelfMaterializationRef(
-      refsPrototype.materializations
+      refsPrototype.materializations,
+      modelName
     );
 
     const nonSelfMatRefsPrototypes = refsPrototype.materializations.filter(
@@ -1102,6 +1128,7 @@ export class Logic {
   /* Runs through tree of parsed logic and extract all refs of materializations and columns (self and parent materializations and columns) */
   static #getStatementRefs = (
     fileObj: any,
+    modelName: string,
     catalog: CatalogModelData[]
   ): Refs => {
     const statementRefsPrototype: RefsPrototype = {
@@ -1189,24 +1216,28 @@ export class Logic {
         nextCol.alias = column.name;
     });
 
-    return this.#buildStatementRefs(statementRefsPrototype, catalog);
+    return this.#buildStatementRefs(statementRefsPrototype, modelName, catalog);
   };
 
   static create = (prototype: LogicPrototype): Logic => {
-    if (!prototype.id) throw new TypeError('Logic must have id');
+    if (!prototype.id) throw new TypeError('Logic prototype must have id');
     if (!prototype.dbtModelId)
-      throw new TypeError('Logic must have dbtModelId');
+      throw new TypeError('Logic prototype must have dbtModelId');
+      if (!prototype.modelName)
+      throw new TypeError('Logic prototype must have model name');
     if (!prototype.sql)
-      throw new TypeError('Logic creation requires SQL logic');
+      throw new TypeError('Logic prototype must have SQL logic');
     if (!prototype.parsedLogic)
-      throw new TypeError('Logic creation requires parsed SQL logic');
+      throw new TypeError('Logic  prototype must have parsed SQL logic');
     if (!prototype.lineageId) throw new TypeError('Logic must have lineageId');
-    if (!prototype.catalog) throw new TypeError('Logic must have catalog data');
+    if (!prototype.catalog)
+      throw new TypeError('Logic prototype must have catalog data');
 
     const parsedLogicObj = JSON.parse(prototype.parsedLogic);
 
     const statementRefs = this.#getStatementRefs(
       parsedLogicObj.file,
+      prototype.modelName,
       prototype.catalog
     );
 
@@ -1214,6 +1245,7 @@ export class Logic {
       id: prototype.id,
       dbtModelId: prototype.dbtModelId,
       sql: prototype.sql,
+      dependentOn: prototype.dependentOn,
       parsedLogic: prototype.parsedLogic,
       statementRefs,
       lineageId: prototype.lineageId,
@@ -1234,6 +1266,7 @@ export class Logic {
       id: properties.id,
       dbtModelId: properties.dbtModelId,
       sql: properties.sql,
+      dependentOn: properties.dependentOn,
       parsedLogic: properties.parsedLogic,
       statementRefs: properties.statementRefs,
       lineageId: properties.lineageId,

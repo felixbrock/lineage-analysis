@@ -9,7 +9,12 @@ import { CreateMaterialization } from '../materialization/create-materialization
 import { CreateLogic } from '../logic/create-logic';
 import { ParseSQL, ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
 import { Lineage } from '../entities/lineage';
-import { Logic, ColumnRef, Refs } from '../entities/logic';
+import {
+  Logic,
+  ColumnRef,
+  Refs,
+  MaterializationDependency,
+} from '../entities/logic';
 import {
   CreateDependency,
   CreateDependencyResponse,
@@ -38,6 +43,7 @@ export type CreateLineageResponseDto = Result<Lineage>;
 interface DbtResources {
   nodes: any;
   sources: any;
+  parent_map: any;
 }
 
 export class CreateLineage
@@ -82,6 +88,8 @@ export class CreateLineage
 
   #lastQueryDependency?: ColumnRef;
 
+  #matDependencyCatalog: MaterializationDependency[];
+
   constructor(
     createLogic: CreateLogic,
     createMaterialization: CreateMaterialization,
@@ -110,6 +118,7 @@ export class CreateLineage
     this.#materializations = [];
     this.#columns = [];
     this.#dependencies = [];
+    this.#matDependencyCatalog = [];
     this.#lineage = undefined;
     this.#lastQueryDependency = undefined;
   }
@@ -220,7 +229,11 @@ export class CreateLineage
     this.#columns.push(...columns);
   };
 
-  #generateDbtModel = async (model: any, modelManifest: any): Promise<void> => {
+  #generateDbtModel = async (
+    model: any,
+    modelManifest: any,
+    dependentOn: MaterializationDependency[]
+  ): Promise<void> => {
     if (!this.#lineage)
       throw new ReferenceError('Lineage property is undefined');
     const lineage = this.#lineage;
@@ -233,6 +246,8 @@ export class CreateLineage
       {
         dbtModelId: model.unique_id,
         sql,
+        modelName: model.metadata.name,
+        dependentOn,
         lineageId: lineage.id,
         parsedLogic,
         writeToPersistence: false,
@@ -293,22 +308,37 @@ export class CreateLineage
 
     const { nodes } = catalog;
     const { sources } = catalog;
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    const { parent_map } = catalog;
 
-    return { nodes, sources };
+    return { nodes, sources, parent_map };
   };
 
   /* Runs through dbt nodes and creates objects like logic, materializations and columns */
   #generateWarehouseResources = async (): Promise<void> => {
     const dbtCatalogResources = this.#getDbtResources(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
+      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/temp-test.json`
       // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
     );
     const dbtManifestResources = this.#getDbtResources(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1-no-v_date_stg.json`
+      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/web-samples/temp-test.json`
       // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1-no-v_date_stg.json`
     );
 
     const dbtSourceKeys = Object.keys(dbtCatalogResources.sources);
+
+    dbtSourceKeys.forEach((key) => {
+      const source = dbtCatalogResources.sources[key];
+
+      const materializationDependency = {
+        dbtModelId: key,
+        materializationName: source.metadata.name,
+        schemaName: source.metadata.schema,
+        databaseName: source.metadata.database,
+      };
+
+      this.#matDependencyCatalog.push(materializationDependency);
+    });
 
     await Promise.all(
       dbtSourceKeys.map(async (key) =>
@@ -321,12 +351,66 @@ export class CreateLineage
     if (!dbtModelKeys.length) throw new ReferenceError('No dbt models found');
 
     await Promise.all(
-      dbtModelKeys.map(async (key) =>
-        this.#generateDbtModel(
+      dbtModelKeys.map(async (key) => {
+        const source = dbtCatalogResources.nodes[key];
+
+        const materializationDependency = {
+          dbtModelId: key,
+          materializationName: source.metadata.name,
+          schemaName: source.metadata.schema,
+          databaseName: source.metadata.database,
+        };
+  
+        this.#matDependencyCatalog.push(materializationDependency);
+
+
+
+
+
+
+
+
+
+
+
+
+        
+        const dependsOn = dbtManifestResources.parent_map[key];
+
+        const dependentOn: MaterializationDependency[] = dependsOn.map(
+          (dependencyKey: string): MaterializationDependency => {
+            const searchResult = this.#matDependencyCatalog.find(
+              (dependency) => dependency.dbtModelId === dependencyKey
+            );
+
+            if (searchResult) return searchResult;
+
+            const type = dependencyKey.slice(0, dependencyKey.indexOf('.'));
+
+            const model =
+              type === 'model'
+                ? dbtCatalogResources.nodes[dependencyKey]
+                : dbtCatalogResources.sources[dependencyKey];
+
+            const materializationDependency = {
+              dbtModelId: dependencyKey,
+              materializationName: model.metadata.name,
+              schemaName: model.metadata.schema,
+              databaseName: model.metadata.database,
+            };
+
+            this.#matDependencyCatalog.push(materializationDependency);
+
+            return materializationDependency;
+          }
+        );
+
+        return this.#generateDbtModel(
           dbtCatalogResources.nodes[key],
-          dbtManifestResources.nodes[key]
-        )
-      )
+          dbtManifestResources.nodes[key],
+          dependentOn
+        );
+      })
     );
   };
 
@@ -460,12 +544,9 @@ export class CreateLineage
     if (dbtModelIdElements.length !== 3)
       throw new RangeError('Unexpected number of dbt model id elements');
 
-    const dbtModelIdProjectRoot = `${dbtModelIdElements[0]}.${dbtModelIdElements[1]}`;
-
     const wildcardDependencies = await this.#getDependenciesForWildcard(
-      statementRefs,
-      selfRef,
-      dbtModelIdProjectRoot
+      statementRefs.wildcards,
+      selfRef
     );
 
     const columnDependencies = statementRefs.columns
@@ -562,24 +643,42 @@ export class CreateLineage
   };
 
   #getDependenciesForWildcard = async (
-    statementRefs: Refs,
-    selfRef: ColumnRef,
-    dbtModelIdProjectRoot: string
+    wildcards: ColumnRef[],
+    selfRef: ColumnRef
   ): Promise<ColumnRef[]> => {
-    const dbtIdProjectRoot =
-      dbtModelIdProjectRoot.slice(-1) !== '.'
-        ? dbtModelIdProjectRoot
-        : dbtModelIdProjectRoot.substring(0, dbtModelIdProjectRoot.length - 1);
-
     const dependencies: ColumnRef[] = [];
     await Promise.all(
-      statementRefs.wildcards.map(async (wildcardRef) => {
+      wildcards.map(async (wildcardRef) => {
         if (!this.#lineage)
           throw new ReferenceError('Lineage property is undefined');
 
+        const catalogMatches = this.#matDependencyCatalog.filter(
+          (dependency) => {
+            let condition =
+              dependency.materializationName ===
+              wildcardRef.materializationName;
+            condition = wildcardRef.schemaName
+              ? condition && dependency.schemaName === wildcardRef.schemaName
+              : condition;
+            condition = wildcardRef.databaseName
+              ? condition &&
+                dependency.databaseName === wildcardRef.databaseName
+              : condition;
+
+            return condition;
+          }
+        );
+
+        if (catalogMatches.length !== 1)
+          throw new RangeError(
+            'Inconsistencies in materialization dependency catalog'
+          );
+
+        const { dbtModelId } = catalogMatches[0];
+
         const readColumnsResult = await this.#readColumns.execute(
           {
-            dbtModelId: `${dbtIdProjectRoot}.${wildcardRef.materializationName}`,
+            dbtModelId,
             lineageId: this.#lineage.id,
           },
           { organizationId: 'todo' }

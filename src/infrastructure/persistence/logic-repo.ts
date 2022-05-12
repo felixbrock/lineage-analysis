@@ -16,16 +16,20 @@ import {
   LogicProperties,
   Refs,
   MaterializationRef,
+  MaterializationDependency,
 } from '../../domain/entities/logic';
 
 type PersistenceStatementRefs = {
   [key: string]: { [key: string]: any }[];
 };
 
+type PersistenceMatDependency = { [key: string]: string };
+
 interface LogicPersistence {
   _id: ObjectId;
   dbtModelId: string;
   sql: string;
+  dependentOn: PersistenceMatDependency[];
   parsedLogic: string;
   statementRefs: PersistenceStatementRefs;
   lineageId: string;
@@ -184,52 +188,62 @@ export default class LogicRepo implements ILogicRepo {
   #toEntity = (logicProperties: LogicProperties): Logic =>
     Logic.build(logicProperties);
 
-  #buildStatementRefs = (statementRefs: PersistenceStatementRefs): Refs =>
-    {
-      const materializations: MaterializationRef[] = statementRefs.materializations.map(
-        (materialization) => ({
-          name: materialization.name,
-          alias: materialization.alias,
-          schemaName: materialization.schemaName,
-          databaseName: materialization.databaseName,
-          warehouseName: materialization.warehouseName,
-          type: materialization.type,
-          contexts: materialization.contexts,
-        })
-      );
-
-      const columns: ColumnRef[] = statementRefs.columns.map((column) => ({
-        name: column.name,
-        alias: column.alias,
-        schemaName: column.schemaName,
-        databaseName: column.databaseName,
-        warehouseName: column.warehouseName,
-        dependencyType: column.dependencyType,
-        isWildcardRef: column.isWildcardRef,
-        materializationName: column.materializationName,
-        context: column.context,
+  #buildStatementRefs = (statementRefs: PersistenceStatementRefs): Refs => {
+    const materializations: MaterializationRef[] =
+      statementRefs.materializations.map((materialization) => ({
+        name: materialization.name,
+        alias: materialization.alias,
+        schemaName: materialization.schemaName,
+        databaseName: materialization.databaseName,
+        warehouseName: materialization.warehouseName,
+        type: materialization.type,
+        contexts: materialization.contexts,
       }));
 
-      const wildcards: ColumnRef[] = statementRefs.wildcards.map((wildcard) => ({
-        name: wildcard.name,
-        alias: wildcard.alias,
-        schemaName: wildcard.schemaName,
-        databaseName: wildcard.databaseName,
-        warehouseName: wildcard.warehouseName,
-        dependencyType: wildcard.dependencyType,
-        isWildcardRef: wildcard.isWildcardRef,
-        materializationName: wildcard.materializationName,
-        context: wildcard.context,
-      }));
+    const columns: ColumnRef[] = statementRefs.columns.map((column) => ({
+      name: column.name,
+      alias: column.alias,
+      schemaName: column.schemaName,
+      databaseName: column.databaseName,
+      warehouseName: column.warehouseName,
+      dependencyType: column.dependencyType,
+      isWildcardRef: column.isWildcardRef,
+      materializationName: column.materializationName,
+      context: column.context,
+    }));
 
-      return { materializations, columns, wildcards };
-    };
+    const wildcards: ColumnRef[] = statementRefs.wildcards.map((wildcard) => ({
+      name: wildcard.name,
+      alias: wildcard.alias,
+      schemaName: wildcard.schemaName,
+      databaseName: wildcard.databaseName,
+      warehouseName: wildcard.warehouseName,
+      dependencyType: wildcard.dependencyType,
+      isWildcardRef: wildcard.isWildcardRef,
+      materializationName: wildcard.materializationName,
+      context: wildcard.context,
+    }));
+
+    return { materializations, columns, wildcards };
+  };
+
+  #buildMatDependency = (
+    materializationDependency: PersistenceMatDependency
+  ): MaterializationDependency => ({
+    dbtModelId: materializationDependency.dbtModelId,
+    materializationName: materializationDependency.materializationName,
+    schemaName: materializationDependency.schemaName,
+    databaseName: materializationDependency.databaseName,
+  });
 
   #buildProperties = (logic: LogicPersistence): LogicProperties => ({
     // eslint-disable-next-line no-underscore-dangle
     id: logic._id.toHexString(),
     dbtModelId: logic.dbtModelId,
     sql: logic.sql,
+    dependentOn: logic.dependentOn.map((element) =>
+      this.#buildMatDependency(element)
+    ),
     parsedLogic: logic.parsedLogic,
     statementRefs: this.#buildStatementRefs(logic.statementRefs),
     lineageId: logic.lineageId,
