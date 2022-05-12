@@ -346,16 +346,20 @@ export class CreateLineage
     selfRef: ColumnRef
   ): boolean => {
     const dependencyStatementRoot = this.#getStatementRoot(
-      potentialDependency.path
+      potentialDependency.context.path
     );
-    const selfStatementRoot = this.#getStatementRoot(selfRef.path);
+    const selfStatementRoot = this.#getStatementRoot(selfRef.context.path);
 
     const isStatementDependency =
-      !potentialDependency.path.includes(SQLElement.INSERT_STATEMENT) &&
-      !potentialDependency.path.includes(SQLElement.COLUMN_DEFINITION) &&
+      !potentialDependency.context.path.includes(SQLElement.INSERT_STATEMENT) &&
+      !potentialDependency.context.path.includes(
+        SQLElement.COLUMN_DEFINITION
+      ) &&
       dependencyStatementRoot === selfStatementRoot &&
-      (potentialDependency.path.includes(SQLElement.COLUMN_REFERENCE) ||
-        potentialDependency.path.includes(SQLElement.WILDCARD_IDENTIFIER));
+      (potentialDependency.context.path.includes(SQLElement.COLUMN_REFERENCE) ||
+        potentialDependency.context.path.includes(
+          SQLElement.WILDCARD_IDENTIFIER
+        ));
 
     if (!isStatementDependency) return false;
 
@@ -368,10 +372,10 @@ export class CreateLineage
     const isSameName =
       isSelfSelectStatement && selfRef.name === potentialDependency.name;
     const isGroupBy =
-      potentialDependency.path.includes(SQLElement.GROUPBY_CLAUSE) &&
+      potentialDependency.context.path.includes(SQLElement.GROUPBY_CLAUSE) &&
       selfRef.name !== potentialDependency.name;
     const isJoinOn =
-      potentialDependency.path.includes(SQLElement.JOIN_ON_CONDITION) &&
+      potentialDependency.context.path.includes(SQLElement.JOIN_ON_CONDITION) &&
       selfRef.name !== potentialDependency.name;
 
     if (isWildcardRef || isSameName || isGroupBy) return true;
@@ -392,7 +396,7 @@ export class CreateLineage
     dataDependencyRefs.push(...statementRefs.wildcards);
 
     const setColumnRefs = dataDependencyRefs.filter((ref) =>
-      ref.path.includes(SQLElement.SET_EXPRESSION)
+      ref.context.path.includes(SQLElement.SET_EXPRESSION)
     );
 
     const uniqueSetColumnRefs = setColumnRefs.filter(
@@ -401,24 +405,24 @@ export class CreateLineage
         self.findIndex(
           (ref) =>
             ref.name === value.name &&
-            ref.path === value.path &&
+            ref.context.path === value.context.path &&
             ref.materializationName === value.materializationName
         )
     );
 
     let columnRefs = dataDependencyRefs.filter(
-      (ref) => !ref.path.includes(SQLElement.SET_EXPRESSION)
+      (ref) => !ref.context.path.includes(SQLElement.SET_EXPRESSION)
     );
 
     dataDependencyRefs = uniqueSetColumnRefs.concat(columnRefs);
 
     const withColumnRefs = dataDependencyRefs.filter(
       (ref) =>
-        ref.path.includes(SQLElement.WITH_COMPOUND_STATEMENT) &&
-        !ref.path.includes(SQLElement.COMMON_TABLE_EXPRESSION)
+        ref.context.path.includes(SQLElement.WITH_COMPOUND_STATEMENT) &&
+        !ref.context.path.includes(SQLElement.COMMON_TABLE_EXPRESSION)
     );
     columnRefs = dataDependencyRefs.filter(
-      (ref) => !ref.path.includes(SQLElement.WITH_COMPOUND_STATEMENT)
+      (ref) => !ref.context.path.includes(SQLElement.WITH_COMPOUND_STATEMENT)
     );
 
     dataDependencyRefs = withColumnRefs.concat(columnRefs);
@@ -437,7 +441,7 @@ export class CreateLineage
       fst.isWildcardRef === snd.isWildcardRef &&
       fst.materializationName === snd.materializationName &&
       fst.name === snd.name &&
-      fst.path === snd.path &&
+      fst.context.path === snd.context.path &&
       fst.schemaName === snd.schemaName &&
       fst.warehouseName === snd.warehouseName
     );
@@ -540,20 +544,18 @@ export class CreateLineage
 
     await Promise.all(
       this.#logics.map(async (logic) => {
-        await Promise.all(
-          logic.statementRefs.map(async (refs) => {
-            const dataDependencyRefs = this.#getDataDependencyRefs(refs);
+        const dataDependencyRefs = this.#getDataDependencyRefs(
+          logic.statementRefs
+        );
 
-            await Promise.all(
-              dataDependencyRefs.map(async (selfRef) =>
-                this.#buildStatementRefDependencies(
-                  selfRef,
-                  refs,
-                  logic.dbtModelId
-                )
-              )
-            );
-          })
+        await Promise.all(
+          dataDependencyRefs.map(async (selfRef) =>
+            this.#buildStatementRefDependencies(
+              selfRef,
+              logic.statementRefs,
+              logic.dbtModelId
+            )
+          )
         );
       })
     );
@@ -593,7 +595,6 @@ export class CreateLineage
         colsFromWildcard.forEach((column) => {
           const newColumnRef: ColumnRef = {
             materializationName: wildcardRef.materializationName,
-            path: wildcardRef.path,
             dependencyType: wildcardRef.dependencyType,
             isWildcardRef: wildcardRef.isWildcardRef,
             name: column.name,
@@ -601,6 +602,7 @@ export class CreateLineage
             schemaName: wildcardRef.schemaName,
             databaseName: wildcardRef.databaseName,
             warehouseName: wildcardRef.warehouseName,
+            context: wildcardRef.context,
           };
 
           const isDependency = this.#isDependencyOfTarget(

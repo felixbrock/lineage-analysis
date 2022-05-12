@@ -6,7 +6,7 @@ export interface LogicDto {
   sql: string;
   parsedLogic: string;
   // todo - Should be turned into a value-type and returned as a dto?
-  statementRefs: any[];
+  statementRefs: any;
   lineageId: string;
 }
 
