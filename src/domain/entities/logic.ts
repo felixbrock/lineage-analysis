@@ -29,6 +29,9 @@ interface TransientMatRepresentation {
   representativeName: string;
   representativeAlias?: string;
   representedName: string;
+  representedSchemaName?: string;
+  representedDatabaseName?: string;
+  representedWarehouseName?: string;
 }
 
 interface RefContext {
@@ -879,10 +882,10 @@ export class Logic {
   };
 
   /* Return the name of the materialization that is represented by a referenced transient materialization */
-  static #getRepresentedMatName = (
+  static #findRepresentedMatName = (
     materializationName: string,
     transientMatRepresentations: TransientMatRepresentation[]
-  ): string => {
+  ): TransientMatRepresentation | undefined => {
     const representations = transientMatRepresentations.filter(
       (representation) =>
         representation.representativeName === materializationName ||
@@ -894,10 +897,8 @@ export class Logic {
       throw new RangeError(
         'Multiple transientRepresentations found for materialization name'
       );
-
-    return representations.length
-      ? representations[0].representativeName
-      : materializationName;
+    if (representations.length) return representations[0];
+    return undefined;
   };
 
   /* Transforming prototypes to columnRefs, by improving information coverage on object level  */
@@ -912,15 +913,36 @@ export class Logic {
         nonSelfMaterializationRefs
       );
 
-      if (column.materializationName) {
-        const materializationName = this.#getRepresentedMatName(
-          column.materializationName,
+      if (column.dependencyType === DependencyType.DEFINITION)
+        return {
+          ...column,
+          materializationName: selfMaterializationRef.name,
+          schemaName: selfMaterializationRef.schemaName,
+          databaseName: selfMaterializationRef.databaseName,
+          warehouseName: selfMaterializationRef.warehouseName,
+        };
+
+      const originalMaterializationName = column.materializationName;
+      if (originalMaterializationName) {
+        const representation = this.#findRepresentedMatName(
+          originalMaterializationName,
           transientMatRepresentations
         );
 
         return {
           ...column,
-          materializationName,
+          materializationName: representation
+            ? representation.representedName
+            : originalMaterializationName,
+          schemaName: representation
+            ? representation.representedSchemaName
+            : column.schemaName,
+          databaseName: representation
+            ? representation.representedDatabaseName
+            : column.databaseName,
+          warehouseName: representation
+            ? representation.representedWarehouseName
+            : column.warehouseName,
         };
       }
 
@@ -935,17 +957,25 @@ export class Logic {
         catalog
       );
 
-      const materializationName = this.#getRepresentedMatName(
+      const representation = this.#findRepresentedMatName(
         materializationRef.name,
         transientMatRepresentations
       );
 
       return {
         ...column,
-        materializationName,
-        schemaName: materializationRef.schemaName,
-        databaseName: materializationRef.databaseName,
-        warehouseName: materializationRef.warehouseName,
+        materializationName: representation
+          ? representation.representedName
+          : materializationRef.name,
+        schemaName: representation
+          ? representation.representedSchemaName
+          : column.schemaName,
+        databaseName: representation
+          ? representation.representedDatabaseName
+          : column.databaseName,
+        warehouseName: representation
+          ? representation.representedWarehouseName
+          : column.warehouseName,
       };
     });
 
@@ -962,33 +992,56 @@ export class Logic {
       (ref) => ref.type === 'transient'
     );
 
+    const isTransientMatRepresentation = (
+      element: TransientMatRepresentation | undefined
+    ): element is TransientMatRepresentation => !!element;
+
     const representations: TransientMatRepresentation[] =
-      transientMaterializationRefs.map((ref) => {
-        const definitionContext = ref.contexts.find((context) =>
-          context.path.includes(transientQualifier)
-        );
-        if (!definitionContext)
-          throw new ReferenceError(
-            'Transient context of transient materialization not found'
+      transientMaterializationRefs
+        .map((ref): TransientMatRepresentation | undefined => {
+          const definitionContext = ref.contexts.find((context) =>
+            context.path.includes(transientQualifier)
+          );
+          if (!definitionContext)
+            throw new ReferenceError(
+              'Transient context of transient materialization not found'
+            );
+
+          const representedOnes = nonSelfMaterializationRefs.filter(
+            (element) => {
+              if (element.type === 'transient') return false;
+
+              const matches = element.contexts.filter((context) =>
+                context.location.startsWith(
+                  definitionContext.location.slice(
+                    0,
+                    definitionContext.location.lastIndexOf('.')
+                  )
+                )
+              );
+
+              if (matches.length) return true;
+              return false;
+            }
           );
 
-        const representedOnes = nonSelfMaterializationRefs.filter((element) =>
-          element.contexts.filter((context) =>
-            context.location.startsWith(definitionContext.location)
-          )
-        );
+          if (representedOnes.length > 1)
+            throw new Error(
+              'Unhandled case of WITH materialization representation'
+            );
 
-        if (representedOnes.length > 1)
-          throw new Error(
-            'Unhandled case of WITH materialization representation'
-          );
+          if (!representedOnes.length) return undefined;
 
-        return {
-          representativeName: ref.name,
-          representativeAlias: ref.alias,
-          representedName: representedOnes[0].name,
-        };
-      });
+          return {
+            representativeName: ref.name,
+            representativeAlias: ref.alias,
+            representedName: representedOnes[0].name,
+            representedSchemaName: representedOnes[0].schemaName,
+            representedDatabaseName: representedOnes[0].databaseName,
+            representedWarehouseName: representedOnes[0].warehouseName,
+          };
+        })
+        .filter(isTransientMatRepresentation);
 
     return representations;
   };
@@ -1010,8 +1063,8 @@ export class Logic {
         const selfMatRefLocations = selfMaterializationRef.contexts.map(
           (context) => context.location
         );
-        return contextLocations.some((location) =>
-          selfMatRefLocations.includes(location)
+        return contextLocations.every(
+          (location) => !selfMatRefLocations.includes(location)
         );
       }
     );
