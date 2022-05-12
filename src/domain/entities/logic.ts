@@ -183,6 +183,7 @@ export class Logic {
 
     const dataDependencyElements = [
       `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
+      `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.EXPRESSION}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
       `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.WILDCARD_EXPRESSION}.${SQLElement.WILDCARD_IDENTIFIER}`,
       `${SQLElement.FUNCTION}.${SQLElement.BRACKETED}.${SQLElement.EXPRESSION}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
     ];
@@ -209,12 +210,14 @@ export class Logic {
   };
 
   /* Handles any column ref found in the parsed SQL logic */
-  static #handleColumnIdentifierRef = (
+  static #handleColumnRef = (
     props: HandlerProperties<string>
   ): ColumnRefPrototype => {
     const columnValueRef = this.#splitColumnValue(props.value);
-    const path = this.#appendPath(props.key, props.path);
-
+    
+    const toAppend = props.key === SQLElement.IDENTIFIER ? props.key: `${props.key}.${SQLElement.IDENTIFIER}`;
+    const path = this.#appendPath(toAppend, props.path);
+   
     return {
       dependencyType: this.#getColumnDependencyType(path),
       alias: props.alias,
@@ -229,13 +232,15 @@ export class Logic {
   };
 
   /* Handles any materialization ref found in the parsed SQL logic */
-  static #handleMaterializationIdentifierRef = (
+  static #handleMaterializationRef = (
     props: HandlerProperties<string>
   ): MaterializationRefPrototype => {
     const materializationValueRef = this.#splitMaterializationValue(
       props.value
     );
-    const path = this.#appendPath(props.key, props.path);
+
+    const toAppend = props.key === SQLElement.IDENTIFIER ? props.key: `${props.key}.${SQLElement.IDENTIFIER}`;
+    const path = this.#appendPath(toAppend, props.path);
 
     return {
       alias: props.alias,
@@ -591,7 +596,7 @@ export class Logic {
           alias = { key, value, refPath };
         else if (path.includes(SQLElement.COLUMN_REFERENCE)) {
           refsPrototype.columns.push(
-            this.#handleColumnIdentifierRef({
+            this.#handleColumnRef({
               key,
               value,
               path: refPath,
@@ -606,7 +611,7 @@ export class Logic {
           (path.includes(`${SQLElement.COMMON_TABLE_EXPRESSION}`) &&
             !path.includes(`${SQLElement.COMMON_TABLE_EXPRESSION}.`))
         ) {
-          const ref = this.#handleMaterializationIdentifierRef({
+          const ref = this.#handleMaterializationRef({
             key,
             value,
             path: refPath,
@@ -636,7 +641,7 @@ export class Logic {
         typeof value === 'string'
       ) {
         refsPrototype.columns.push(
-          this.#handleColumnIdentifierRef({
+          this.#handleColumnRef({
             key,
             value,
             path: refPath,
@@ -668,7 +673,7 @@ export class Logic {
       } else if (Object.prototype.toString.call(value) === '[object Array]') {
         if (key === SQLElement.COLUMN_REFERENCE) {
           refsPrototype.columns.push(
-            this.#handleColumnIdentifierRef({
+            this.#handleColumnRef({
               key,
               value: this.#joinArrayValue(value),
               path: refPath,
@@ -679,7 +684,7 @@ export class Logic {
 
           alias = { key: '', value: '', refPath: '' };
         } else if (key === SQLElement.TABLE_REFERENCE) {
-          const ref = this.#handleMaterializationIdentifierRef({
+          const ref = this.#handleMaterializationRef({
             key,
             value: this.#joinArrayValue(value),
             path: refPath,
@@ -745,7 +750,7 @@ export class Logic {
 
     if (recursionLevel === 0 && alias.value)
       refsPrototype.columns.push(
-        this.#handleColumnIdentifierRef({
+        this.#handleColumnRef({
           key: alias.key,
           value: alias.value,
           path: alias.refPath,
