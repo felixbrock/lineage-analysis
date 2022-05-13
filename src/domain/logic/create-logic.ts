@@ -6,7 +6,7 @@ import IUseCase from '../services/use-case';
 import {
   CatalogModelData,
   Logic,
-  MaterializationDependency,
+  MaterializationDefinition,
 } from '../entities/logic';
 import { ILogicRepo } from './i-logic-repo';
 import { ReadLogics } from './read-logics';
@@ -15,7 +15,7 @@ export interface CreateLogicRequestDto {
   dbtModelId: string;
   modelName: string;
   sql: string;
-  dependentOn: MaterializationDependency[];
+  dependentOn: MaterializationDefinition[];
   parsedLogic: string;
   lineageId: string;
   writeToPersistence: boolean;

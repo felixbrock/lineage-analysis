@@ -16,20 +16,20 @@ import {
   LogicProperties,
   Refs,
   MaterializationRef,
-  MaterializationDependency,
+  MaterializationDefinition,
 } from '../../domain/entities/logic';
 
 type PersistenceStatementRefs = {
   [key: string]: { [key: string]: any }[];
 };
 
-type PersistenceMatDependency = { [key: string]: string };
+type PersistenceMaterializationDefinition = { [key: string]: string };
 
 interface LogicPersistence {
   _id: ObjectId;
   dbtModelId: string;
   sql: string;
-  dependentOn: PersistenceMatDependency[];
+  dependentOn: PersistenceMaterializationDefinition[];
   parsedLogic: string;
   statementRefs: PersistenceStatementRefs;
   lineageId: string;
@@ -227,13 +227,13 @@ export default class LogicRepo implements ILogicRepo {
     return { materializations, columns, wildcards };
   };
 
-  #buildMatDependency = (
-    materializationDependency: PersistenceMatDependency
-  ): MaterializationDependency => ({
-    dbtModelId: materializationDependency.dbtModelId,
-    materializationName: materializationDependency.materializationName,
-    schemaName: materializationDependency.schemaName,
-    databaseName: materializationDependency.databaseName,
+  #buildMaterializationDefinition = (
+    matCatalogElement: PersistenceMaterializationDefinition
+  ): MaterializationDefinition => ({
+    dbtModelId: matCatalogElement.dbtModelId,
+    materializationName: matCatalogElement.materializationName,
+    schemaName: matCatalogElement.schemaName,
+    databaseName: matCatalogElement.databaseName,
   });
 
   #buildProperties = (logic: LogicPersistence): LogicProperties => ({
@@ -242,7 +242,7 @@ export default class LogicRepo implements ILogicRepo {
     dbtModelId: logic.dbtModelId,
     sql: logic.sql,
     dependentOn: logic.dependentOn.map((element) =>
-      this.#buildMatDependency(element)
+      this.#buildMaterializationDefinition(element)
     ),
     parsedLogic: logic.parsedLogic,
     statementRefs: this.#buildStatementRefs(logic.statementRefs),

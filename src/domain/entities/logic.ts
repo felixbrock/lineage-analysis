@@ -1,7 +1,7 @@
 import { DependencyType } from './dependency';
 import SQLElement from '../value-types/sql-element';
 
-export interface MaterializationDependency {
+export interface MaterializationDefinition {
   dbtModelId: string;
   materializationName: string;
   schemaName?: string;
@@ -12,7 +12,7 @@ export interface LogicProperties {
   id: string;
   dbtModelId: string;
   sql: string;
-  dependentOn: MaterializationDependency[];
+  dependentOn: MaterializationDefinition[];
   parsedLogic: string;
   statementRefs: Refs;
   lineageId: string;
@@ -21,9 +21,9 @@ export interface LogicProperties {
 export interface LogicPrototype {
   id: string;
   dbtModelId: string;
-  modelName: string; 
+  modelName: string;
   sql: string;
-  dependentOn: MaterializationDependency[];
+  dependentOn: MaterializationDefinition[];
   parsedLogic: string;
   lineageId: string;
   catalog: CatalogModelData[];
@@ -121,7 +121,7 @@ export class Logic {
 
   #sql: string;
 
-  #dependentOn: MaterializationDependency[];
+  #dependentOn: MaterializationDefinition[];
 
   #parsedLogic: string;
 
@@ -141,7 +141,7 @@ export class Logic {
     return this.#sql;
   }
 
-  get dependentOn(): MaterializationDependency[] {
+  get dependentOn(): MaterializationDefinition[] {
     return this.#dependentOn;
   }
 
@@ -930,6 +930,25 @@ export class Logic {
     return undefined;
   };
 
+  /* Checks if a columnRef represents a column of the currently analyzed materialization (self materialization) */
+  static #isSelfRefColumn = (
+    prototype: ColumnRef,
+    selfMaterializationRef: MaterializationRef
+  ): boolean => {
+    let condition =
+      prototype.materializationName === selfMaterializationRef.name ||
+      prototype.materializationName === selfMaterializationRef.alias;
+    condition = prototype.schemaName
+      ? condition && prototype.schemaName === selfMaterializationRef.schemaName
+      : condition;
+    condition = prototype.databaseName
+      ? condition &&
+        prototype.databaseName === selfMaterializationRef.databaseName
+      : condition;
+
+    return condition;
+  };
+
   /* Transforming prototypes to columnRefs, by improving information coverage on object level  */
   static #buildColumnRefs = (
     columnRefPrototypes: ColumnRefPrototype[],
@@ -937,42 +956,51 @@ export class Logic {
     selfMaterializationRef: MaterializationRef,
     catalog: CatalogModelData[]
   ): ColumnRef[] => {
-    const columns: ColumnRef[] = columnRefPrototypes.map((column) => {
+    const columns: ColumnRef[] = columnRefPrototypes.map((prototype) => {
       const transientMatRepresentations = this.#getTransientRepresentations(
         nonSelfMaterializationRefs
       );
 
-      if (column.dependencyType === DependencyType.DEFINITION)
+      if (prototype.dependencyType === DependencyType.DEFINITION)
         return {
-          ...column,
+          ...prototype,
           materializationName: selfMaterializationRef.name,
           schemaName: selfMaterializationRef.schemaName,
           databaseName: selfMaterializationRef.databaseName,
           warehouseName: selfMaterializationRef.warehouseName,
         };
 
-      const originalMaterializationName = column.materializationName;
+      const originalMaterializationName = prototype.materializationName;
       if (originalMaterializationName) {
         const representation = this.#findRepresentedMatName(
           originalMaterializationName,
           transientMatRepresentations
         );
 
-        return {
-          ...column,
+        const columnRef: ColumnRef = {
+          ...prototype,
           materializationName: representation
             ? representation.representedName
             : originalMaterializationName,
           schemaName: representation
             ? representation.representedSchemaName
-            : column.schemaName,
+            : prototype.schemaName,
           databaseName: representation
             ? representation.representedDatabaseName
-            : column.databaseName,
+            : prototype.databaseName,
           warehouseName: representation
             ? representation.representedWarehouseName
-            : column.warehouseName,
+            : prototype.warehouseName,
         };
+
+        const isSelfRefColumn = this.#isSelfRefColumn(
+          columnRef,
+          selfMaterializationRef
+        );
+        if (isSelfRefColumn)
+          columnRef.dependencyType = DependencyType.DEFINITION;
+
+        return columnRef;
       }
 
       const materializations = nonSelfMaterializationRefs.concat(
@@ -980,9 +1008,9 @@ export class Logic {
       );
 
       const materializationRef = this.#getBestMatchingMaterialization(
-        column.context.path,
+        prototype.context.path,
         materializations,
-        column.name,
+        prototype.name,
         catalog
       );
 
@@ -991,21 +1019,29 @@ export class Logic {
         transientMatRepresentations
       );
 
-      return {
-        ...column,
+      const columnRef = {
+        ...prototype,
         materializationName: representation
           ? representation.representedName
           : materializationRef.name,
         schemaName: representation
           ? representation.representedSchemaName
-          : column.schemaName,
+          : prototype.schemaName,
         databaseName: representation
           ? representation.representedDatabaseName
-          : column.databaseName,
+          : prototype.databaseName,
         warehouseName: representation
           ? representation.representedWarehouseName
-          : column.warehouseName,
+          : prototype.warehouseName,
       };
+
+      const isSelfRefColumn = this.#isSelfRefColumn(
+        columnRef,
+        selfMaterializationRef
+      );
+      if (isSelfRefColumn) columnRef.dependencyType = DependencyType.DEFINITION;
+
+      return columnRef;
     });
 
     return columns;
@@ -1223,7 +1259,7 @@ export class Logic {
     if (!prototype.id) throw new TypeError('Logic prototype must have id');
     if (!prototype.dbtModelId)
       throw new TypeError('Logic prototype must have dbtModelId');
-      if (!prototype.modelName)
+    if (!prototype.modelName)
       throw new TypeError('Logic prototype must have model name');
     if (!prototype.sql)
       throw new TypeError('Logic prototype must have SQL logic');

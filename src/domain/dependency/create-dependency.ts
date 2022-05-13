@@ -7,6 +7,7 @@ import { IDependencyRepo } from './i-dependency-repo';
 import { ReadDependencies } from './read-dependencies';
 import { ColumnRef } from '../entities/logic';
 import { ReadColumns } from '../column/read-columns';
+import { Column } from '../entities/column';
 
 export interface CreateDependencyRequestDto {
   selfRef: ColumnRef;
@@ -72,6 +73,49 @@ export class CreateDependency
       id.toLowerCase().includes(parentMaterializationName.toLowerCase())
     );
 
+  #getSelfColumn = async (
+    selfDbtModelId: string,
+    selfRef: ColumnRef,
+    parentRef: ColumnRef,
+    lineageId: string
+  ): Promise<Column> => {
+    const readSelfColumnResult = await this.#readColumns.execute(
+      {
+        dbtModelId: selfDbtModelId,
+        lineageId,
+        name: selfRef.alias || selfRef.name,
+      },
+      { organizationId: 'todo' }
+    );
+
+    if (!readSelfColumnResult.success)
+      throw new Error(readSelfColumnResult.error);
+    if (!readSelfColumnResult.value)
+      throw new ReferenceError(`Reading of dependency columns failed`);
+
+    const selfColumnMatches = readSelfColumnResult.value;
+
+    if (!selfColumnMatches.length)
+    throw new RangeError('No self column found');
+
+    if (selfColumnMatches.length === 1) return selfColumnMatches[0];
+
+    throw new RangeError('0 or more than 1 selfColumns found');
+
+    // const parentName: string = parentRef.name.includes('$')
+    //   ? parentRef.name
+    //   : parentRef.alias || parentRef.name;
+
+    // const filterResult = readSelfColumnResult.value.filter(
+    //   (column) => column.name === parentName
+    // );
+
+    // if (filterResult.length !== 1)
+    //   throw new RangeError('0 or more than 1 selfColumns found');
+
+    // return filterResult[0];
+  };
+
   constructor(
     readColumns: ReadColumns,
     readDependencies: ReadDependencies,
@@ -89,30 +133,12 @@ export class CreateDependency
     console.log(auth);
 
     try {
-      const readSelfColumnResult = await this.#readColumns.execute(
-        { dbtModelId: request.selfDbtModelId, lineageId: request.lineageId },
-        { organizationId: 'todo' }
+      const headColumn = await this.#getSelfColumn(
+        request.selfDbtModelId,
+        request.selfRef,
+        request.parentRef,
+        request.lineageId
       );
-
-      if (!readSelfColumnResult.success)
-        throw new Error(readSelfColumnResult.error);
-      if (!readSelfColumnResult.value)
-        throw new ReferenceError(`Reading of dependency columns failed`);
-
-      let selfColumn;
-      let parentName: string;
-      if (readSelfColumnResult.value.length > 1) {
-        if (request.parentRef.name.includes('$'))
-          parentName = request.parentRef.name;
-        else
-          parentName = request.parentRef.alias
-            ? request.parentRef.alias
-            : request.parentRef.name;
-
-        [selfColumn] = readSelfColumnResult.value.filter(
-          (column) => column.name === parentName
-        );
-      } else [selfColumn] = readSelfColumnResult.value;
 
       const matchingDbtModelIds = this.#getMatchingDbtModelIds(
         request.parentDbtModelIds,
@@ -124,11 +150,14 @@ export class CreateDependency
           'No matching dbt model id found for dependency to create'
         );
 
-      const parentId = await this.#getParentId(
-        matchingDbtModelIds,
+      const parentName =
         request.parentRef.name.includes('$') && request.parentRef.alias
           ? request.parentRef.alias
-          : request.parentRef.name,
+          : request.parentRef.name;
+
+      const parentId = await this.#getParentId(
+        matchingDbtModelIds,
+        parentName,
         request.lineageId
       );
 
@@ -141,8 +170,8 @@ export class CreateDependency
           ? request.parentRef.dependencyType
           : request.selfRef.dependencyType,
         headId: isQueryDependency
-          ? selfColumn.materializationId
-          : selfColumn.id,
+          ? headColumn.materializationId
+          : headColumn.id,
         tailId: parentId,
         lineageId: request.lineageId,
       });
@@ -150,7 +179,7 @@ export class CreateDependency
       const readColumnsResult = await this.#readDependencies.execute(
         {
           type: request.selfRef.dependencyType,
-          headId: selfColumn.id,
+          headId: headColumn.id,
           tailId: parentId,
           lineageId: request.lineageId,
         },
