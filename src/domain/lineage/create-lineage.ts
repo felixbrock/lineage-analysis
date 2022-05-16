@@ -43,7 +43,7 @@ export type CreateLineageResponseDto = Result<Lineage>;
 interface DbtResources {
   nodes: any;
   sources: any;
-  parent_map: any;
+  parent_map: {[key: string]: string[]};
 }
 
 export class CreateLineage
@@ -365,7 +365,7 @@ export class CreateLineage
 
     await Promise.all(
       dbtModelKeys.map(async (key) => {
-        const dependsOn: string[] = dbtManifestResources.parent_map[key];
+        const dependsOn: string[] = [...new Set(dbtManifestResources.parent_map[key])];
 
         const dependentOn = this.#matDefinitionCatalog.filter((element) =>
           dependsOn.includes(element.dbtModelId)
