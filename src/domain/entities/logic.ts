@@ -174,21 +174,6 @@ export class Logic {
     return newPath;
   };
 
-  // /* Checks if a table ref is describing the resulting materialization of an corresponding SQL model */
-  // static #isSelfRef = (path: string): boolean => {
-  //   const selfElements = [
-  //     `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`,
-  //     `${SQLElement.FROM_EXPRESSION_ELEMENT}.${SQLElement.TABLE_EXPRESSION}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`,
-  //     `${SQLElement.COMMON_TABLE_EXPRESSION}`,
-  //   ];
-  //   const nonSelfElements = [`${SQLElement.FROM_EXPRESSION_ELEMENT}`];
-
-  //   return (
-  //     selfElements.some((element) => path.includes(element)) &&
-  //     nonSelfElements.every((element) => !path.includes(element))
-  //   );
-  // };
-
   /* Returns the type of dependency identified in the SQL logic */
   static #getColumnDependencyType = (path: string): DependencyType => {
     const definitionElements = [
@@ -330,18 +315,10 @@ export class Logic {
     const valueElements = value.split('.').reverse();
 
     return {
-      materializationName: valueElements[0]
-        ? this.#sanitizeValue(valueElements[0])
-        : valueElements[0],
-      schemaName: valueElements[1]
-        ? this.#sanitizeValue(valueElements[1])
-        : valueElements[1],
-      databaseName: valueElements[2]
-        ? this.#sanitizeValue(valueElements[2])
-        : valueElements[2],
-      warehouseName: valueElements[3]
-        ? this.#sanitizeValue(valueElements[3])
-        : valueElements[3],
+      materializationName: this.#sanitizeValue(valueElements[0]),
+      schemaName: this.#sanitizeValue(valueElements[1]),
+      databaseName: this.#sanitizeValue(valueElements[2]),
+      warehouseName: this.#sanitizeValue(valueElements[3]),
     };
   };
 
@@ -360,41 +337,32 @@ export class Logic {
     const valueElements = value.split('.').reverse();
 
     return {
-      columnName: valueElements[0]
-        ? this.#sanitizeValue(valueElements[0])
-        : valueElements[0],
-      materializationName: valueElements[1]
-        ? this.#sanitizeValue(valueElements[1])
-        : valueElements[1],
-      schemaName: valueElements[2]
-        ? this.#sanitizeValue(valueElements[2])
-        : valueElements[2],
-      databaseName: valueElements[3]
-        ? this.#sanitizeValue(valueElements[3])
-        : valueElements[3],
-      warehouseName: valueElements[4]
-        ? this.#sanitizeValue(valueElements[4])
-        : valueElements[4],
+      columnName: this.#sanitizeValue(valueElements[0]),
+      materializationName: this.#sanitizeValue(valueElements[1]),
+      schemaName: this.#sanitizeValue(valueElements[2]),
+      databaseName: this.#sanitizeValue(valueElements[3]),
+      warehouseName: this.#sanitizeValue(valueElements[4]),
     };
   };
 
-  /* Adds a new materialization reference found safely to the existing array of already identified refs */
+  /* Adds a new materialization reference to the existing array of already identified refs in a secure manner */
   static #pushMaterialization = (
     ref: MaterializationRefPrototype,
     refs: MaterializationRefPrototype[]
   ): MaterializationRefPrototype[] => {
     // todo - ignores the case .schema1.tableName and .schema2.tableName where both tables have the same name. Valid case, but logic will throw an error
 
-    const optionShowsExistence = (first?: string, second?: string): boolean =>
+    // Due to incomplete nature of prototypes false is only returned in case both values are defined, but differ
+    const valuesAreEqual = (first?: string, second?: string): boolean =>
       !first || !second || first === second;
 
     const findExistingInstance = (
       element: MaterializationRefPrototype
     ): boolean =>
       element.name === ref.name &&
-      optionShowsExistence(element.schemaName, ref.schemaName) &&
-      optionShowsExistence(element.databaseName, ref.databaseName) &&
-      optionShowsExistence(element.warehouseName, ref.warehouseName);
+      valuesAreEqual(element.schemaName, ref.schemaName) &&
+      valuesAreEqual(element.databaseName, ref.databaseName) &&
+      valuesAreEqual(element.warehouseName, ref.warehouseName);
 
     const existingInstance = refs.find(findExistingInstance);
 
@@ -879,7 +847,7 @@ export class Logic {
     });
 
     if (!selfMatPrototype)
-      return {name: modelName, type: 'self', contexts: []};
+      return { name: modelName, type: 'self', contexts: [] };
 
     return { ...selfMatPrototype, name: modelName, type: 'self' };
   };
@@ -935,23 +903,27 @@ export class Logic {
     prototype: ColumnRef,
     selfMaterializationRef: MaterializationRef
   ): boolean => {
-    let condition =
-      prototype.materializationName === selfMaterializationRef.name ||
-      prototype.materializationName === selfMaterializationRef.alias;
-    condition = prototype.schemaName
-      ? condition && prototype.schemaName === selfMaterializationRef.schemaName
-      : condition;
-    condition = prototype.databaseName
-      ? condition &&
-        prototype.databaseName === selfMaterializationRef.databaseName
-      : condition;
 
-    const wildcardSelfQualifiers = [`${SQLElement.WITH_COMPOUND_STATEMENT}.${SQLElement.COMMON_TABLE_EXPRESSION}.${SQLElement.BRACKETED}`, `${SQLElement.WITH_COMPOUND_STATEMENT}.${SQLElement.SELECT_STATEMENT}`];
+    const nameIsEqual = prototype.materializationName === selfMaterializationRef.name ||
+    prototype.materializationName === selfMaterializationRef.alias;
 
-    if (prototype.isWildcardRef && condition === false)
-      return wildcardSelfQualifiers.some(qualifier => prototype.context.path.includes(qualifier)) ;
+    const schemaNameIsEqual = !prototype.schemaName || prototype.schemaName === selfMaterializationRef.schemaName;
 
-    return condition;
+    const databaseNameIsEqual = !prototype.databaseName || prototype.databaseName === selfMaterializationRef.databaseName;
+
+    const isEqual = nameIsEqual && schemaNameIsEqual && databaseNameIsEqual;
+
+    const wildcardSelfQualifiers = [
+      `${SQLElement.WITH_COMPOUND_STATEMENT}.${SQLElement.COMMON_TABLE_EXPRESSION}.${SQLElement.BRACKETED}`,
+      `${SQLElement.WITH_COMPOUND_STATEMENT}.${SQLElement.SELECT_STATEMENT}`,
+    ];
+
+    if (prototype.isWildcardRef && isEqual)
+      return wildcardSelfQualifiers.some((qualifier) =>
+        prototype.context.path.includes(qualifier)
+      );
+
+    return isEqual;
   };
 
   /* Transforming prototypes to columnRefs, by improving information coverage on object level  */
@@ -1053,7 +1025,7 @@ export class Logic {
     return columns;
   };
 
-  /* Identify transient materializations that only exists at execution time and merge link them with the represented tables */
+  /* Identify transient materializations that only exists at execution time and link them with the represented tables */
   static #getTransientRepresentations = (
     nonSelfMaterializationRefs: MaterializationRef[]
   ): TransientMatRepresentation[] => {
