@@ -847,7 +847,7 @@ export class Logic {
           `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`,
           `${SQLElement.WITH_COMPOUND_STATEMENT}.${SQLElement.COMMON_TABLE_EXPRESSION}.${SQLElement.IDENTIFIER}`,
         ];
-        const selfMatSelectQualifier = `${SQLElement.FROM_EXPRESSION_ELEMENT}.${SQLElement.TABLE_EXPRESSION}.${SQLElement.TABLE_REFERENCE}`;
+        const selfMatSelectQualifier = `${SQLElement.WITH_COMPOUND_STATEMENT}.${SQLElement.SELECT_STATEMENT}`;
         const selectContexts = materialization.contexts.filter(
           (context) =>
             context.path.includes(selfMatSelectQualifier) ||
@@ -879,7 +879,7 @@ export class Logic {
     });
 
     if (!selfMatPrototype)
-      throw new ReferenceError('Self materialization was not identified');
+      return {name: modelName, type: 'self', contexts: []};
 
     return { ...selfMatPrototype, name: modelName, type: 'self' };
   };
@@ -946,6 +946,11 @@ export class Logic {
         prototype.databaseName === selfMaterializationRef.databaseName
       : condition;
 
+    const wildcardSelfQualifiers = [`${SQLElement.WITH_COMPOUND_STATEMENT}.${SQLElement.COMMON_TABLE_EXPRESSION}.${SQLElement.BRACKETED}`, `${SQLElement.WITH_COMPOUND_STATEMENT}.${SQLElement.SELECT_STATEMENT}`];
+
+    if (prototype.isWildcardRef && condition === false)
+      return wildcardSelfQualifiers.some(qualifier => prototype.context.path.includes(qualifier)) ;
+
     return condition;
   };
 
@@ -997,6 +1002,7 @@ export class Logic {
           columnRef,
           selfMaterializationRef
         );
+
         if (isSelfRefColumn)
           columnRef.dependencyType = DependencyType.DEFINITION;
 

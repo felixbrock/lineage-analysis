@@ -730,6 +730,7 @@ export class CreateLineage
       this.#materializations = [];
       this.#columns = [];
       this.#dependencies = [];
+      this.#matDefinitionCatalog = [];
       this.#lastQueryDependency = undefined;
 
       await this.#buildLineage(request.lineageId, request.lineageCreatedAt);
