@@ -1,5 +1,6 @@
 import { DependencyType } from './dependency';
 import SQLElement from '../value-types/sql-element';
+import { execFileSync } from 'child_process';
 
 export interface MaterializationDefinition {
   dbtModelId: string;
@@ -542,6 +543,103 @@ export class Logic {
 
   // };
 
+  static setAlias(
+    alias: Alias,
+    key: string,
+    value: string,
+    refPath: string): Alias {
+    let newAlias = alias;
+    newAlias = { key, value, refPath };
+    return newAlias;
+  };
+
+  static resetAlias(
+    alias: Alias
+  ): Alias {
+    let newAlias = alias;
+    newAlias = { key: '', value: '', refPath: '' };
+    return newAlias;
+  };
+
+  static #handleIdentifiers = (
+    key: string,
+    path: string,
+    alias: Alias,
+    value: any,
+    refPath: string,
+    refsPrototype: RefsPrototype,
+    contextLocation: string,
+  ): void => {
+
+    if (path.includes(SQLElement.ALIAS_EXPRESSION))
+      this.setAlias(alias, key, value, refPath);
+    else if (path.includes(SQLElement.COLUMN_REFERENCE)) {
+      refsPrototype.columns.push(
+        this.#handleColumnRef({
+          key,
+          value,
+          path: refPath,
+          alias: alias.value,
+          contextLocation,
+        })
+      );
+
+      this.resetAlias(alias);
+    } else if (
+      path.includes(SQLElement.TABLE_REFERENCE) ||
+      (path.includes(`${SQLElement.COMMON_TABLE_EXPRESSION}`) &&
+        !path.includes(`${SQLElement.COMMON_TABLE_EXPRESSION}.`))
+    ) {
+      const ref = this.#handleMaterializationRef({
+        key,
+        value,
+        path: refPath,
+        alias: alias.value,
+        contextLocation,
+      });
+
+      this.resetAlias(alias);
+
+      let newMaterializations = refsPrototype.materializations;
+      newMaterializations = this.#pushMaterialization(
+        ref,
+        newMaterializations
+      );
+    }
+  };
+
+  static #valueConstructorisObject = (
+    key: string,
+    alias: Alias,
+    value: any,
+    refPath: string,
+    refsPrototype: RefsPrototype,
+    recursionLevel: number,
+    contextLocation: string, 
+  ): void => {
+    const subExtractionDto = this.#extractRefs(
+      value,
+      this.#appendPath(`${0}`, contextLocation),
+      this.#appendPath(key, refPath),
+      recursionLevel + 1
+    );
+
+    const mergeExtractionDto = this.#mergeRefs(
+      refsPrototype,
+      subExtractionDto,
+      alias
+    );
+
+    let newRefProto = refsPrototype;
+    newRefProto = mergeExtractionDto.refsPrototype;
+
+    if (mergeExtractionDto.temp.unmatchedAliases) {
+      let newAlias = alias;
+      newAlias = mergeExtractionDto.temp.unmatchedAliases;
+    }
+    else this.resetAlias(alias);
+  };
+
   /* Directly interacts with parsed SQL logic. Calls different handlers based on use-case. 
   Runs through parse SQL logic (JSON object) and check for potential dependencies. */
   static #extractRefs = (
@@ -573,7 +671,7 @@ export class Logic {
 
       const value =
         typeof parsedSQLElement[1] === 'string' &&
-        !valueKeyRepresentatives.includes(parsedSQLElement[1])
+          !valueKeyRepresentatives.includes(parsedSQLElement[1])
           ? parsedSQLElement[1].toUpperCase()
           : parsedSQLElement[1];
 
@@ -582,42 +680,10 @@ export class Logic {
           ? this.#appendPath(value, refPath)
           : refPath;
 
-      if (key === SQLElement.IDENTIFIER) {
-        if (path.includes(SQLElement.ALIAS_EXPRESSION))
-          alias = { key, value, refPath };
-        else if (path.includes(SQLElement.COLUMN_REFERENCE)) {
-          refsPrototype.columns.push(
-            this.#handleColumnRef({
-              key,
-              value,
-              path: refPath,
-              alias: alias.value,
-              contextLocation,
-            })
-          );
+      if (key === SQLElement.IDENTIFIER)
+        this.#handleIdentifiers(key, path, alias, value, refPath, refsPrototype, contextLocation);
 
-          alias = { key: '', value: '', refPath: '' };
-        } else if (
-          path.includes(SQLElement.TABLE_REFERENCE) ||
-          (path.includes(`${SQLElement.COMMON_TABLE_EXPRESSION}`) &&
-            !path.includes(`${SQLElement.COMMON_TABLE_EXPRESSION}.`))
-        ) {
-          const ref = this.#handleMaterializationRef({
-            key,
-            value,
-            path: refPath,
-            alias: alias.value,
-            contextLocation,
-          });
-
-          alias = { key: '', value: '', refPath: '' };
-
-          refsPrototype.materializations = this.#pushMaterialization(
-            ref,
-            refsPrototype.materializations
-          );
-        }
-      } else if (key === SQLElement.WILDCARD_IDENTIFIER)
+      else if (key === SQLElement.WILDCARD_IDENTIFIER)
         refsPrototype.wildcards.push(
           this.#handleWildCardRef({
             key,
@@ -641,27 +707,11 @@ export class Logic {
           })
         );
 
-        alias = { key: '', value: '', refPath: '' };
-      } else if (value.constructor === Object) {
-        const subExtractionDto = this.#extractRefs(
-          value,
-          this.#appendPath(`${0}`, contextLocation),
-          this.#appendPath(key, refPath),
-          recursionLevel + 1
-        );
-
-        const mergeExtractionDto = this.#mergeRefs(
-          refsPrototype,
-          subExtractionDto,
-          alias
-        );
-
-        refsPrototype = mergeExtractionDto.refsPrototype;
-
-        if (mergeExtractionDto.temp.unmatchedAliases)
-          alias = mergeExtractionDto.temp.unmatchedAliases;
-        else alias = { key: '', value: '', refPath: '' };
-      } else if (Object.prototype.toString.call(value) === '[object Array]') {
+        this.resetAlias(alias);
+      } else if (value.constructor === Object)
+        this.#valueConstructorisObject(key, alias, value, refPath, refsPrototype, recursionLevel, contextLocation);
+      
+      else if (Object.prototype.toString.call(value) === '[object Array]') {
         if (key === SQLElement.COLUMN_REFERENCE) {
           refsPrototype.columns.push(
             this.#handleColumnRef({
@@ -673,7 +723,7 @@ export class Logic {
             })
           );
 
-          alias = { key: '', value: '', refPath: '' };
+          this.resetAlias(alias);
         } else if (key === SQLElement.TABLE_REFERENCE) {
           const ref = this.#handleMaterializationRef({
             key,
@@ -688,7 +738,7 @@ export class Logic {
             refsPrototype.materializations
           );
 
-          alias = { key: '', value: '', refPath: '' };
+          this.resetAlias(alias);
         } else if (key === SQLElement.WITH_COMPOUND_STATEMENT) {
           const withElements: RefsExtractionDto[] = value.map(
             (element: { [key: string]: any }, index: number) =>
@@ -734,7 +784,7 @@ export class Logic {
             refsPrototype = mergeExtractionDto.refsPrototype;
             if (mergeExtractionDto.temp.unmatchedAliases)
               alias = mergeExtractionDto.temp.unmatchedAliases;
-            else alias = { key: '', value: '', refPath: '' };
+            else this.resetAlias(alias);
           });
       }
     });
@@ -905,7 +955,7 @@ export class Logic {
   ): boolean => {
 
     const nameIsEqual = prototype.materializationName === selfMaterializationRef.name ||
-    prototype.materializationName === selfMaterializationRef.alias;
+      prototype.materializationName === selfMaterializationRef.alias;
 
     const schemaNameIsEqual = !prototype.schemaName || prototype.schemaName === selfMaterializationRef.schemaName;
 
