@@ -1,6 +1,5 @@
 import { DependencyType } from './dependency';
 import SQLElement from '../value-types/sql-element';
-import { execFileSync } from 'child_process';
 
 export interface MaterializationDefinition {
   dbtModelId: string;
@@ -634,10 +633,50 @@ export class Logic {
     newRefProto = mergeExtractionDto.refsPrototype;
 
     if (mergeExtractionDto.temp.unmatchedAliases) {
+      
       let newAlias = alias;
       newAlias = mergeExtractionDto.temp.unmatchedAliases;
     }
     else this.resetAlias(alias);
+  };
+
+  static #handleWithStatement = (
+    key: string,
+    alias: Alias,
+    value: any,
+    refPath: string,
+    refsPrototype: RefsPrototype,
+    recursionLevel: number,
+    contextLocation: string,
+    ): void => {
+    const withElements: RefsExtractionDto[] = value.map(
+      (element: { [key: string]: any }, index: number) =>
+        this.#extractRefs(
+          element,
+          this.#appendPath(`${index}`, contextLocation),
+          this.#appendPath(key, refPath),
+          recursionLevel + 1
+        )
+    );
+
+    if (withElements.some((element) => element.temp.unmatchedAliases))
+      throw new ReferenceError(
+        'Unhandled Case: Unmatched aliases on WITH level'
+      );
+
+    const withElementsMerged = this.#mergeWithRefsPrototypes(
+      withElements.map((element) => element.refsPrototype)
+    );
+
+    const mergeExtractionDto = this.#mergeRefs(
+      refsPrototype,
+      { refsPrototype: withElementsMerged, temp: {} },
+      alias
+    );
+
+    let newRefsProto = refsPrototype;
+    newRefsProto = mergeExtractionDto.refsPrototype;
+
   };
 
   /* Directly interacts with parsed SQL logic. Calls different handlers based on use-case. 
@@ -708,7 +747,8 @@ export class Logic {
         );
 
         this.resetAlias(alias);
-      } else if (value.constructor === Object)
+      } 
+      else if (value.constructor === Object)
         this.#valueConstructorisObject(key, alias, value, refPath, refsPrototype, recursionLevel, contextLocation);
       
       else if (Object.prototype.toString.call(value) === '[object Array]') {
@@ -740,32 +780,9 @@ export class Logic {
 
           this.resetAlias(alias);
         } else if (key === SQLElement.WITH_COMPOUND_STATEMENT) {
-          const withElements: RefsExtractionDto[] = value.map(
-            (element: { [key: string]: any }, index: number) =>
-              this.#extractRefs(
-                element,
-                this.#appendPath(`${index}`, contextLocation),
-                this.#appendPath(key, refPath),
-                recursionLevel + 1
-              )
-          );
+          
+          this.#handleWithStatement(key, alias, value, refPath, refsPrototype, recursionLevel, contextLocation);
 
-          if (withElements.some((element) => element.temp.unmatchedAliases))
-            throw new ReferenceError(
-              'Unhandled Case: Unmatched aliases on WITH level'
-            );
-
-          const withElementsMerged = this.#mergeWithRefsPrototypes(
-            withElements.map((element) => element.refsPrototype)
-          );
-
-          const mergeExtractionDto = this.#mergeRefs(
-            refsPrototype,
-            { refsPrototype: withElementsMerged, temp: {} },
-            alias
-          );
-
-          refsPrototype = mergeExtractionDto.refsPrototype;
         } else
           value.forEach((element: { [key: string]: any }, index: number) => {
             const subExtractionDto = this.#extractRefs(
