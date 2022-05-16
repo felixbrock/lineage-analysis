@@ -63,15 +63,6 @@ export class CreateDependency
     return potentialParents[0].id;
   };
 
-  /* Returns only dbt model ids that include the self column's table name */
-  #getMatchingDbtModelIds = (
-    parentDbtModelIds: string[],
-    parentMaterializationName: string
-  ): string[] =>
-    parentDbtModelIds.filter((id) =>
-      id.toLowerCase().includes(parentMaterializationName.toLowerCase())
-    );
-
   #getSelfColumn = async (
     selfDbtModelId: string,
     dependencyRef: ColumnRef,
