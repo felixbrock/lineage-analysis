@@ -16,16 +16,20 @@ import {
   LogicProperties,
   Refs,
   MaterializationRef,
+  MaterializationDefinition,
 } from '../../domain/entities/logic';
 
 type PersistenceStatementRefs = {
   [key: string]: { [key: string]: any }[];
-}[];
+};
+
+type PersistenceMaterializationDefinition = { [key: string]: string };
 
 interface LogicPersistence {
   _id: ObjectId;
   dbtModelId: string;
   sql: string;
+  dependentOn: PersistenceMaterializationDefinition[];
   parsedLogic: string;
   statementRefs: PersistenceStatementRefs;
   lineageId: string;
@@ -150,7 +154,9 @@ export default class LogicRepo implements ILogicRepo {
 
       close(client);
 
-      return Object.keys(result.insertedIds).map(key => result.insertedIds[parseInt(key, 10)].toHexString());
+      return Object.keys(result.insertedIds).map((key) =>
+        result.insertedIds[parseInt(key, 10)].toHexString()
+      );
     } catch (error: unknown) {
       if (typeof error === 'string') return Promise.reject(error);
       if (error instanceof Error) return Promise.reject(error.message);
@@ -182,52 +188,62 @@ export default class LogicRepo implements ILogicRepo {
   #toEntity = (logicProperties: LogicProperties): Logic =>
     Logic.build(logicProperties);
 
-  #buildStatementRefs = (statementRefs: PersistenceStatementRefs): Refs[] =>
-    statementRefs.map((ref) => {
-      const materializations: MaterializationRef[] = ref.materializations.map(
-        (materialization) => ({
-          paths: materialization.paths,
-          name: materialization.name,
-          alias: materialization.alias,
-          schemaName: materialization.schemaName,
-          databaseName: materialization.databaseName,
-          warehouseName: materialization.warehouseName,
-          isSelfRef: materialization.isSelfRef,
-        })
-      );
-
-      const columns: ColumnRef[] = ref.columns.map((column) => ({
-        path: column.path,
-        name: column.name,
-        alias: column.alias,
-        schemaName: column.schemaName,
-        databaseName: column.databaseName,
-        warehouseName: column.warehouseName,
-        dependencyType: column.dependencyType,
-        isWildcardRef: column.isWildcardRef,
-        materializationName: column.materializationName,
+  #buildStatementRefs = (statementRefs: PersistenceStatementRefs): Refs => {
+    const materializations: MaterializationRef[] =
+      statementRefs.materializations.map((materialization) => ({
+        name: materialization.name,
+        alias: materialization.alias,
+        schemaName: materialization.schemaName,
+        databaseName: materialization.databaseName,
+        warehouseName: materialization.warehouseName,
+        type: materialization.type,
+        contexts: materialization.contexts,
       }));
 
-      const wildcards: ColumnRef[] = ref.wildcards.map((wildcard) => ({
-        path: wildcard.path,
-        name: wildcard.name,
-        alias: wildcard.alias,
-        schemaName: wildcard.schemaName,
-        databaseName: wildcard.databaseName,
-        warehouseName: wildcard.warehouseName,
-        dependencyType: wildcard.dependencyType,
-        isWildcardRef: wildcard.isWildcardRef,
-        materializationName: wildcard.materializationName,
-      }));
+    const columns: ColumnRef[] = statementRefs.columns.map((column) => ({
+      name: column.name,
+      alias: column.alias,
+      schemaName: column.schemaName,
+      databaseName: column.databaseName,
+      warehouseName: column.warehouseName,
+      dependencyType: column.dependencyType,
+      isWildcardRef: column.isWildcardRef,
+      materializationName: column.materializationName,
+      context: column.context,
+    }));
 
-      return { materializations, columns, wildcards };
-    });
+    const wildcards: ColumnRef[] = statementRefs.wildcards.map((wildcard) => ({
+      name: wildcard.name,
+      alias: wildcard.alias,
+      schemaName: wildcard.schemaName,
+      databaseName: wildcard.databaseName,
+      warehouseName: wildcard.warehouseName,
+      dependencyType: wildcard.dependencyType,
+      isWildcardRef: wildcard.isWildcardRef,
+      materializationName: wildcard.materializationName,
+      context: wildcard.context,
+    }));
+
+    return { materializations, columns, wildcards };
+  };
+
+  #buildMaterializationDefinition = (
+    matCatalogElement: PersistenceMaterializationDefinition
+  ): MaterializationDefinition => ({
+    dbtModelId: matCatalogElement.dbtModelId,
+    materializationName: matCatalogElement.materializationName,
+    schemaName: matCatalogElement.schemaName,
+    databaseName: matCatalogElement.databaseName,
+  });
 
   #buildProperties = (logic: LogicPersistence): LogicProperties => ({
     // eslint-disable-next-line no-underscore-dangle
     id: logic._id.toHexString(),
     dbtModelId: logic.dbtModelId,
     sql: logic.sql,
+    dependentOn: logic.dependentOn.map((element) =>
+      this.#buildMaterializationDefinition(element)
+    ),
     parsedLogic: logic.parsedLogic,
     statementRefs: this.#buildStatementRefs(logic.statementRefs),
     lineageId: logic.lineageId,

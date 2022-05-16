@@ -9,7 +9,12 @@ import { CreateMaterialization } from '../materialization/create-materialization
 import { CreateLogic } from '../logic/create-logic';
 import { ParseSQL, ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
 import { Lineage } from '../entities/lineage';
-import { Logic, ColumnRef, Refs } from '../entities/logic';
+import {
+  Logic,
+  ColumnRef,
+  Refs,
+  MaterializationDefinition,
+} from '../entities/logic';
 import {
   CreateDependency,
   CreateDependencyResponse,
@@ -38,6 +43,7 @@ export type CreateLineageResponseDto = Result<Lineage>;
 interface DbtResources {
   nodes: any;
   sources: any;
+  parent_map: any;
 }
 
 export class CreateLineage
@@ -82,6 +88,8 @@ export class CreateLineage
 
   #lastQueryDependency?: ColumnRef;
 
+  #matDefinitionCatalog: MaterializationDefinition[];
+
   constructor(
     createLogic: CreateLogic,
     createMaterialization: CreateMaterialization,
@@ -110,6 +118,7 @@ export class CreateLineage
     this.#materializations = [];
     this.#columns = [];
     this.#dependencies = [];
+    this.#matDefinitionCatalog = [];
     this.#lineage = undefined;
     this.#lastQueryDependency = undefined;
   }
@@ -220,7 +229,11 @@ export class CreateLineage
     this.#columns.push(...columns);
   };
 
-  #generateDbtModel = async (model: any, modelManifest: any): Promise<void> => {
+  #generateDbtModel = async (
+    model: any,
+    modelManifest: any,
+    dependentOn: MaterializationDefinition[]
+  ): Promise<void> => {
     if (!this.#lineage)
       throw new ReferenceError('Lineage property is undefined');
     const lineage = this.#lineage;
@@ -233,6 +246,8 @@ export class CreateLineage
       {
         dbtModelId: model.unique_id,
         sql,
+        modelName: model.metadata.name,
+        dependentOn,
         lineageId: lineage.id,
         parsedLogic,
         writeToPersistence: false,
@@ -293,8 +308,10 @@ export class CreateLineage
 
     const { nodes } = catalog;
     const { sources } = catalog;
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    const { parent_map } = catalog;
 
-    return { nodes, sources };
+    return { nodes, sources, parent_map };
   };
 
   /* Runs through dbt nodes and creates objects like logic, materializations and columns */
@@ -310,6 +327,19 @@ export class CreateLineage
 
     const dbtSourceKeys = Object.keys(dbtCatalogResources.sources);
 
+    dbtSourceKeys.forEach((key) => {
+      const source = dbtCatalogResources.sources[key];
+
+      const matCatalogElement = {
+        dbtModelId: key,
+        materializationName: source.metadata.name,
+        schemaName: source.metadata.schema,
+        databaseName: source.metadata.database,
+      };
+
+      this.#matDefinitionCatalog.push(matCatalogElement);
+    });
+
     await Promise.all(
       dbtSourceKeys.map(async (key) =>
         this.#generateWarehouseSource(dbtCatalogResources.sources[key])
@@ -320,13 +350,36 @@ export class CreateLineage
 
     if (!dbtModelKeys.length) throw new ReferenceError('No dbt models found');
 
+    dbtModelKeys.forEach((key) => {
+      const model = dbtCatalogResources.nodes[key];
+
+      const matCatalogElement = {
+        dbtModelId: key,
+        materializationName: model.metadata.name,
+        schemaName: model.metadata.schema,
+        databaseName: model.metadata.database,
+      };
+
+      this.#matDefinitionCatalog.push(matCatalogElement);
+    });
+
     await Promise.all(
-      dbtModelKeys.map(async (key) =>
-        this.#generateDbtModel(
+      dbtModelKeys.map(async (key) => {
+        const dependsOn: string[] = dbtManifestResources.parent_map[key];
+
+        const dependentOn = this.#matDefinitionCatalog.filter((element) =>
+          dependsOn.includes(element.dbtModelId)
+        );
+
+        if (dependsOn.length !== dependentOn.length)
+          throw new RangeError('materialization dependency mismatch');
+
+        return this.#generateDbtModel(
           dbtCatalogResources.nodes[key],
-          dbtManifestResources.nodes[key]
-        )
-      )
+          dbtManifestResources.nodes[key],
+          dependentOn
+        );
+      })
     );
   };
 
@@ -346,16 +399,20 @@ export class CreateLineage
     selfRef: ColumnRef
   ): boolean => {
     const dependencyStatementRoot = this.#getStatementRoot(
-      potentialDependency.path
+      potentialDependency.context.path
     );
-    const selfStatementRoot = this.#getStatementRoot(selfRef.path);
+    const selfStatementRoot = this.#getStatementRoot(selfRef.context.path);
 
     const isStatementDependency =
-      !potentialDependency.path.includes(SQLElement.INSERT_STATEMENT) &&
-      !potentialDependency.path.includes(SQLElement.COLUMN_DEFINITION) &&
+      !potentialDependency.context.path.includes(SQLElement.INSERT_STATEMENT) &&
+      !potentialDependency.context.path.includes(
+        SQLElement.COLUMN_DEFINITION
+      ) &&
       dependencyStatementRoot === selfStatementRoot &&
-      (potentialDependency.path.includes(SQLElement.COLUMN_REFERENCE) ||
-        potentialDependency.path.includes(SQLElement.WILDCARD_IDENTIFIER));
+      (potentialDependency.context.path.includes(SQLElement.COLUMN_REFERENCE) ||
+        potentialDependency.context.path.includes(
+          SQLElement.WILDCARD_IDENTIFIER
+        ));
 
     if (!isStatementDependency) return false;
 
@@ -368,10 +425,10 @@ export class CreateLineage
     const isSameName =
       isSelfSelectStatement && selfRef.name === potentialDependency.name;
     const isGroupBy =
-      potentialDependency.path.includes(SQLElement.GROUPBY_CLAUSE) &&
+      potentialDependency.context.path.includes(SQLElement.GROUPBY_CLAUSE) &&
       selfRef.name !== potentialDependency.name;
     const isJoinOn =
-      potentialDependency.path.includes(SQLElement.JOIN_ON_CONDITION) &&
+      potentialDependency.context.path.includes(SQLElement.JOIN_ON_CONDITION) &&
       selfRef.name !== potentialDependency.name;
 
     if (isWildcardRef || isSameName || isGroupBy) return true;
@@ -384,15 +441,20 @@ export class CreateLineage
     );
   };
 
-  /* Get all relevant statement references that are a valid dependency to parent resources */
-  #getDataDependencyRefs = (statementRefs: Refs): ColumnRef[] => {
+  /* Get all relevant wildcard statement references that are data dependency to self materialization */
+  #getWildcardDataDependencyRefs = (statementRefs: Refs): ColumnRef[] =>
+    statementRefs.wildcards.filter(
+      (wildcard) => wildcard.dependencyType === DependencyType.DATA
+    );
+
+  /* Get all relevant column statement references that are data dependency to self materialization */
+  #getColDataDependencyRefs = (statementRefs: Refs): ColumnRef[] => {
     let dataDependencyRefs = statementRefs.columns.filter(
       (column) => column.dependencyType === DependencyType.DATA
     );
-    dataDependencyRefs.push(...statementRefs.wildcards);
 
     const setColumnRefs = dataDependencyRefs.filter((ref) =>
-      ref.path.includes(SQLElement.SET_EXPRESSION)
+      ref.context.path.includes(SQLElement.SET_EXPRESSION)
     );
 
     const uniqueSetColumnRefs = setColumnRefs.filter(
@@ -401,27 +463,27 @@ export class CreateLineage
         self.findIndex(
           (ref) =>
             ref.name === value.name &&
-            ref.path === value.path &&
+            ref.context.path === value.context.path &&
             ref.materializationName === value.materializationName
         )
     );
 
-    let columnRefs = dataDependencyRefs.filter(
-      (ref) => !ref.path.includes(SQLElement.SET_EXPRESSION)
+    const columnRefs = dataDependencyRefs.filter(
+      (ref) => !ref.context.path.includes(SQLElement.SET_EXPRESSION)
     );
 
     dataDependencyRefs = uniqueSetColumnRefs.concat(columnRefs);
 
-    const withColumnRefs = dataDependencyRefs.filter(
-      (ref) =>
-        ref.path.includes(SQLElement.WITH_COMPOUND_STATEMENT) &&
-        !ref.path.includes(SQLElement.COMMON_TABLE_EXPRESSION)
-    );
-    columnRefs = dataDependencyRefs.filter(
-      (ref) => !ref.path.includes(SQLElement.WITH_COMPOUND_STATEMENT)
-    );
+    // const withColumnRefs = dataDependencyRefs.filter(
+    //   (ref) =>
+    //     ref.context.path.includes(SQLElement.WITH_COMPOUND_STATEMENT) &&
+    //     !ref.context.path.includes(SQLElement.COMMON_TABLE_EXPRESSION)
+    // );
+    // columnRefs = dataDependencyRefs.filter(
+    //   (ref) => !ref.context.path.includes(SQLElement.WITH_COMPOUND_STATEMENT)
+    // );
 
-    dataDependencyRefs = withColumnRefs.concat(columnRefs);
+    // dataDependencyRefs = withColumnRefs.concat(columnRefs);
 
     return dataDependencyRefs;
   };
@@ -437,69 +499,50 @@ export class CreateLineage
       fst.isWildcardRef === snd.isWildcardRef &&
       fst.materializationName === snd.materializationName &&
       fst.name === snd.name &&
-      fst.path === snd.path &&
+      fst.context.path === snd.context.path &&
       fst.schemaName === snd.schemaName &&
       fst.warehouseName === snd.warehouseName
     );
   };
 
-  /* Creates all dependencies that exist between DWH resources */
-  #buildStatementRefDependencies = async (
-    selfRef: ColumnRef,
-    statementRefs: Refs,
-    dbtModelId: string
+  /* Creates dependency for specific wildcard ref */
+  #buildWildcardRefDependency = async (
+    dependencyRef: ColumnRef,
+    dbtModelId: string,
+    parentDbtModelIds: string[]
   ): Promise<void> => {
-    const isColumnRef = (item: ColumnRef | undefined): item is ColumnRef =>
-      !!item;
+    const lineage = this.#lineage;
+
+    if (!lineage) throw new ReferenceError('Lineage property is undefined');
 
     const dbtModelIdElements = dbtModelId.split('.');
     if (dbtModelIdElements.length !== 3)
       throw new RangeError('Unexpected number of dbt model id elements');
 
-    const dbtModelIdProjectRoot = `${dbtModelIdElements[0]}.${dbtModelIdElements[1]}`;
-
-    const wildcardDependencies = await this.#getDependenciesForWildcard(
-      statementRefs,
-      selfRef,
-      dbtModelIdProjectRoot
+    const columnDependencyRefs = await this.#getDependenciesForWildcard(
+      dependencyRef
     );
 
-    const columnDependencies = statementRefs.columns
-      .map((columnRef) => {
-        const isDependency = this.#isDependencyOfTarget(columnRef, selfRef);
-        if (isDependency) return columnRef;
-        return undefined;
-      })
-      .filter(isColumnRef);
-
-    const dependencies: ColumnRef[] =
-      wildcardDependencies.concat(columnDependencies);
-
-    const isCreateDependencyResponse = (
-      item: CreateDependencyResponse | null
-    ): item is CreateDependencyResponse => !!item;
+    // const isCreateDependencyResponse = (
+    //   item: CreateDependencyResponse | null
+    // ): item is CreateDependencyResponse => !!item;
 
     const createDependencyResults = await Promise.all(
-      dependencies.map(
-        async (dependency): Promise<CreateDependencyResponse | null> => {
-          if (!this.#lineage)
-            throw new ReferenceError('Lineage property is undefined');
+      columnDependencyRefs.map(
+        async (dependency): Promise<CreateDependencyResponse> => {
 
-          if (this.#columnRefIsEqual(dependency, this.#lastQueryDependency))
-            return null;
+          // if (this.#columnRefIsEqual(dependency, this.#lastQueryDependency))
+          //   return null;
 
-          if (dependency.dependencyType === DependencyType.QUERY)
-            this.#lastQueryDependency = dependency;
+          // if (dependency.dependencyType === DependencyType.QUERY)
+          //   this.#lastQueryDependency = dependency;
 
           const createDependencyResult = await this.#createDependency.execute(
             {
-              selfRef,
-              parentRef: dependency,
+              dependencyRef: dependency,
               selfDbtModelId: dbtModelId,
-              parentDbtModelIds: this.#logics.map(
-                (element) => element.dbtModelId
-              ),
-              lineageId: this.#lineage.id,
+              parentDbtModelIds,
+              lineageId: lineage.id,
               writeToPersistence: false,
             },
             { organizationId: 'todo' }
@@ -510,28 +553,63 @@ export class CreateLineage
       )
     );
 
-    const onlyCreateDependencyResults = createDependencyResults.filter(
-      isCreateDependencyResponse
-    );
+    // const onlyCreateDependencyResults = createDependencyResults.filter(
+    //   isCreateDependencyResponse
+    // );
 
-    if (onlyCreateDependencyResults.some((result) => !result.success)) {
-      const errorResults = onlyCreateDependencyResults.filter(
+    if (createDependencyResults.some((result) => !result.success)) {
+      const errorResults = createDependencyResults.filter(
         (result) => result.error
       );
       throw new Error(errorResults[0].error);
     }
 
-    if (onlyCreateDependencyResults.some((result) => !result.value))
+    if (createDependencyResults.some((result) => !result.value))
       throw new SyntaxError(`Creation of dependencies failed`);
 
     const isValue = (item: Dependency | undefined): item is Dependency =>
       !!item;
 
-    const values = onlyCreateDependencyResults
+    const values = createDependencyResults
       .map((result) => result.value)
       .filter(isValue);
 
     this.#dependencies.push(...values);
+  };
+
+  /* Creates dependency for specific column ref */
+  #buildColumnRefDependency = async (
+    dependencyRef: ColumnRef,
+    dbtModelId: string,
+    parentDbtModelIds: string[]
+  ): Promise<void> => {
+    const lineage = this.#lineage;
+
+    if (!lineage) throw new ReferenceError('Lineage property is undefined');
+
+    const dbtModelIdElements = dbtModelId.split('.');
+    if (dbtModelIdElements.length !== 3)
+      throw new RangeError('Unexpected number of dbt model id elements');
+
+    const createDependencyResult = await this.#createDependency.execute(
+      {
+        dependencyRef,
+        selfDbtModelId: dbtModelId,
+        parentDbtModelIds,
+        lineageId: lineage.id,
+        writeToPersistence: false,
+      },
+      { organizationId: 'todo' }
+    );
+
+    if (!createDependencyResult.success)
+      throw new Error(createDependencyResult.error);
+    if (!createDependencyResult.value)
+      throw new ReferenceError(`Creating dependency failed`);
+
+    const dependency = createDependencyResult.value;
+
+    this.#dependencies.push(dependency);
   };
 
   /* Creates all dependencies that exist between DWH resources */
@@ -540,77 +618,89 @@ export class CreateLineage
 
     await Promise.all(
       this.#logics.map(async (logic) => {
-        await Promise.all(
-          logic.statementRefs.map(async (refs) => {
-            const dataDependencyRefs = this.#getDataDependencyRefs(refs);
+        const colDataDependencyRefs = this.#getColDataDependencyRefs(
+          logic.statementRefs
+        );
 
-            await Promise.all(
-              dataDependencyRefs.map(async (selfRef) =>
-                this.#buildStatementRefDependencies(
-                  selfRef,
-                  refs,
-                  logic.dbtModelId
-                )
-              )
-            );
-          })
+        await Promise.all(
+          colDataDependencyRefs.map(async (dependencyRef) =>
+            this.#buildColumnRefDependency(
+              dependencyRef,
+              logic.dbtModelId,
+              logic.dependentOn.map((element) => element.dbtModelId)
+            )
+          )
+        );
+
+        const wildcardDataDependencyRefs = this.#getWildcardDataDependencyRefs(
+          logic.statementRefs
+        );
+
+        await Promise.all(
+          wildcardDataDependencyRefs.map(async (dependencyRef) =>
+            this.#buildWildcardRefDependency(
+              dependencyRef,
+              logic.dbtModelId,
+              logic.dependentOn.map((element) => element.dbtModelId)
+            )
+          )
         );
       })
     );
   };
 
   #getDependenciesForWildcard = async (
-    statementRefs: Refs,
-    selfRef: ColumnRef,
-    dbtModelIdProjectRoot: string
+    dependencyRef: ColumnRef
   ): Promise<ColumnRef[]> => {
-    const dbtIdProjectRoot =
-      dbtModelIdProjectRoot.slice(-1) !== '.'
-        ? dbtModelIdProjectRoot
-        : dbtModelIdProjectRoot.substring(0, dbtModelIdProjectRoot.length - 1);
+    const lineage = this.#lineage;
 
-    const dependencies: ColumnRef[] = [];
-    await Promise.all(
-      statementRefs.wildcards.map(async (wildcardRef) => {
-        if (!this.#lineage)
-          throw new ReferenceError('Lineage property is undefined');
+    if (!lineage) throw new ReferenceError('Lineage property is undefined');
 
-        const readColumnsResult = await this.#readColumns.execute(
-          {
-            dbtModelId: `${dbtIdProjectRoot}.${wildcardRef.materializationName}`,
-            lineageId: this.#lineage.id,
-          },
-          { organizationId: 'todo' }
-        );
+    const catalogMatches = this.#matDefinitionCatalog.filter((dependency) => {
+      let condition =
+        dependency.materializationName === dependencyRef.materializationName;
+      condition = dependencyRef.schemaName
+        ? condition && dependency.schemaName === dependencyRef.schemaName
+        : condition;
+      condition = dependencyRef.databaseName
+        ? condition && dependency.databaseName === dependencyRef.databaseName
+        : condition;
 
-        if (!readColumnsResult.success)
-          throw new Error(readColumnsResult.error);
-        if (!readColumnsResult.value)
-          throw new ReferenceError(`Reading of columns failed`);
+      return condition;
+    });
 
-        const colsFromWildcard = readColumnsResult.value;
+    if (catalogMatches.length !== 1)
+      throw new RangeError(
+        'Inconsistencies in materialization dependency catalog'
+      );
 
-        colsFromWildcard.forEach((column) => {
-          const newColumnRef: ColumnRef = {
-            materializationName: wildcardRef.materializationName,
-            path: wildcardRef.path,
-            dependencyType: wildcardRef.dependencyType,
-            isWildcardRef: wildcardRef.isWildcardRef,
-            name: column.name,
-            alias: wildcardRef.alias,
-            schemaName: wildcardRef.schemaName,
-            databaseName: wildcardRef.databaseName,
-            warehouseName: wildcardRef.warehouseName,
-          };
+    const { dbtModelId } = catalogMatches[0];
 
-          const isDependency = this.#isDependencyOfTarget(
-            newColumnRef,
-            selfRef
-          );
-          if (isDependency) dependencies.push(newColumnRef);
-        });
-      })
+    const readColumnsResult = await this.#readColumns.execute(
+      {
+        dbtModelId,
+        lineageId: lineage.id,
+      },
+      { organizationId: 'todo' }
     );
+
+    if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
+    if (!readColumnsResult.value)
+      throw new ReferenceError(`Reading of columns failed`);
+
+    const colsFromWildcard = readColumnsResult.value;
+
+    const dependencies = colsFromWildcard.map((column) => ({
+      materializationName: dependencyRef.materializationName,
+      dependencyType: dependencyRef.dependencyType,
+      isWildcardRef: dependencyRef.isWildcardRef,
+      name: column.name,
+      alias: dependencyRef.alias,
+      schemaName: dependencyRef.schemaName,
+      databaseName: dependencyRef.databaseName,
+      warehouseName: dependencyRef.warehouseName,
+      context: dependencyRef.context,
+    }));
 
     return dependencies;
   };
@@ -640,6 +730,7 @@ export class CreateLineage
       this.#materializations = [];
       this.#columns = [];
       this.#dependencies = [];
+      this.#matDefinitionCatalog = [];
       this.#lastQueryDependency = undefined;
 
       await this.#buildLineage(request.lineageId, request.lineageCreatedAt);

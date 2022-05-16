@@ -3,13 +3,19 @@ import fs from 'fs'; // 'todo - dependency rule violation'
 import { ObjectId } from 'mongodb';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { CatalogModelData, Logic } from '../entities/logic';
+import {
+  CatalogModelData,
+  Logic,
+  MaterializationDefinition,
+} from '../entities/logic';
 import { ILogicRepo } from './i-logic-repo';
 import { ReadLogics } from './read-logics';
 
 export interface CreateLogicRequestDto {
   dbtModelId: string;
+  modelName: string;
   sql: string;
+  dependentOn: MaterializationDefinition[];
   parsedLogic: string;
   lineageId: string;
   writeToPersistence: boolean;
@@ -74,7 +80,9 @@ export class CreateLogic
       const logic = Logic.create({
         id: new ObjectId().toHexString(),
         dbtModelId: request.dbtModelId,
+        modelName: request.modelName,
         sql: request.sql,
+        dependentOn: request.dependentOn,
         parsedLogic: request.parsedLogic,
         lineageId: request.lineageId,
         catalog,
