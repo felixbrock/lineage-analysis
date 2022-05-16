@@ -616,6 +616,10 @@ export class Logic {
     recursionLevel: number,
     contextLocation: string, 
   ): void => {
+
+    let thisPrototype = refsPrototype;
+    let thisAlias = alias;
+
     const subExtractionDto = this.#extractRefs(
       value,
       this.#appendPath(`${0}`, contextLocation),
@@ -624,18 +628,15 @@ export class Logic {
     );
 
     const mergeExtractionDto = this.#mergeRefs(
-      refsPrototype,
+      thisPrototype,
       subExtractionDto,
-      alias
+      thisAlias
     );
 
-    let newRefProto = refsPrototype;
-    newRefProto = mergeExtractionDto.refsPrototype;
+    thisPrototype = mergeExtractionDto.refsPrototype;
 
     if (mergeExtractionDto.temp.unmatchedAliases) {
-      
-      let newAlias = alias;
-      newAlias = mergeExtractionDto.temp.unmatchedAliases;
+      thisAlias = mergeExtractionDto.temp.unmatchedAliases;
     }
     else this.resetAlias(alias);
   };
@@ -649,6 +650,8 @@ export class Logic {
     recursionLevel: number,
     contextLocation: string,
     ): void => {
+    let thisPrototype = refsPrototype;
+
     const withElements: RefsExtractionDto[] = value.map(
       (element: { [key: string]: any }, index: number) =>
         this.#extractRefs(
@@ -669,13 +672,11 @@ export class Logic {
     );
 
     const mergeExtractionDto = this.#mergeRefs(
-      refsPrototype,
+      thisPrototype,
       { refsPrototype: withElementsMerged, temp: {} },
       alias
     );
-
-    let newRefsProto = refsPrototype;
-    newRefsProto = mergeExtractionDto.refsPrototype;
+    thisPrototype = mergeExtractionDto.refsPrototype;
 
   };
 
