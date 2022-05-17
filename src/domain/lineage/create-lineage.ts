@@ -43,7 +43,7 @@ export type CreateLineageResponseDto = Result<Lineage>;
 interface DbtResources {
   nodes: any;
   sources: any;
-  parent_map: any;
+  parent_map: {[key: string]: string[]};
 }
 
 export class CreateLineage
@@ -317,12 +317,12 @@ export class CreateLineage
   /* Runs through dbt nodes and creates objects like logic, materializations and columns */
   #generateWarehouseResources = async (): Promise<void> => {
     const dbtCatalogResources = this.#getDbtResources(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
-      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
+      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
+      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/catalog.json`
     );
     const dbtManifestResources = this.#getDbtResources(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1-no-v_date_stg.json`
-      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1-no-v_date_stg.json`
+      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1-no-v_date_stg.json`
+      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/manifest.json`
     );
 
     const dbtSourceKeys = Object.keys(dbtCatalogResources.sources);
@@ -365,7 +365,7 @@ export class CreateLineage
 
     await Promise.all(
       dbtModelKeys.map(async (key) => {
-        const dependsOn: string[] = dbtManifestResources.parent_map[key];
+        const dependsOn: string[] = [...new Set(dbtManifestResources.parent_map[key])];
 
         const dependentOn = this.#matDefinitionCatalog.filter((element) =>
           dependsOn.includes(element.dbtModelId)

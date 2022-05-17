@@ -298,8 +298,10 @@ export class Logic {
     throw new SyntaxError('Unhandled wildcard-dict use-case');
   };
 
-  static #sanitizeValue = (value: string): string =>
-    value.replace(/["'`]/g, '');
+  static #sanitizeValue = (value: string): string => {
+    if(!value) return value;
+    return value.replace(/["'`]/g, '');
+  }
 
   // todo - Will probably fail, e.g. when 'use schema' is used
 
