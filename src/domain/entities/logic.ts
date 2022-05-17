@@ -570,10 +570,12 @@ export class Logic {
     contextLocation: string,
   ): void => {
 
+    const thisPrototype = refsPrototype;
+
     if (path.includes(SQLElement.ALIAS_EXPRESSION))
       this.setAlias(alias, key, value, refPath);
     else if (path.includes(SQLElement.COLUMN_REFERENCE)) {
-      refsPrototype.columns.push(
+      thisPrototype.columns.push(
         this.#handleColumnRef({
           key,
           value,
@@ -599,10 +601,9 @@ export class Logic {
 
       this.resetAlias(alias);
 
-      let newMaterializations = refsPrototype.materializations;
-      newMaterializations = this.#pushMaterialization(
+      thisPrototype.materializations = this.#pushMaterialization(
         ref,
-        newMaterializations
+        thisPrototype.materializations
       );
     }
   };
@@ -689,15 +690,15 @@ export class Logic {
     recursionLevel = 0
   ): RefsExtractionDto => {
     let refPath = path;
-
+    
     let refsPrototype: RefsPrototype = {
       columns: [],
       materializations: [],
       wildcards: [],
     };
 
-    const temp: TempExtractionData = {};
-
+    const tempData: TempExtractionData = {};
+    
     const valueKeyRepresentatives = [SQLElement.KEYWORD_AS];
 
     const aliasToColumnDefinitionElements = [
@@ -706,9 +707,10 @@ export class Logic {
     ];
 
     let alias: Alias = { key: '', value: '', refPath: '' };
+    
     Object.entries(parsedSQL).forEach((parsedSQLElement) => {
+      
       const key = parsedSQLElement[0];
-
       const value =
         typeof parsedSQLElement[1] === 'string' &&
           !valueKeyRepresentatives.includes(parsedSQLElement[1])
@@ -780,11 +782,10 @@ export class Logic {
           );
 
           this.resetAlias(alias);
-        } else if (key === SQLElement.WITH_COMPOUND_STATEMENT) {
-          
+        } else if (key === SQLElement.WITH_COMPOUND_STATEMENT) 
           this.#handleWithStatement(key, alias, value, refPath, refsPrototype, recursionLevel, contextLocation);
 
-        } else
+          else
           value.forEach((element: { [key: string]: any }, index: number) => {
             const subExtractionDto = this.#extractRefs(
               element,
@@ -816,9 +817,9 @@ export class Logic {
           contextLocation,
         })
       );
-    else if (alias.value) temp.unmatchedAliases = alias;
+    else if (alias.value) tempData.unmatchedAliases = alias;
 
-    return { temp, refsPrototype };
+    return { temp: tempData, refsPrototype };
   };
 
   /* Identifies the closest materialization reference to a provided column path. 
