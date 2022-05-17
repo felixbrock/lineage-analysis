@@ -815,25 +815,32 @@ export class Logic {
     matRefPrototypes: MaterializationRefPrototype[],
     modelName: string
   ): MaterializationRef => {
-    const lastSelectMatRefPosition = matRefPrototypes
-      .map((materialization) => {
-        const selfMatQualifiers = [
-          `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`,
-          `${SQLElement.WITH_COMPOUND_STATEMENT}.${SQLElement.COMMON_TABLE_EXPRESSION}.${SQLElement.IDENTIFIER}`,
-        ];
-        const selfMatSelectQualifier = `${SQLElement.WITH_COMPOUND_STATEMENT}.${SQLElement.SELECT_STATEMENT}`;
-        const selectContexts = materialization.contexts.filter(
-          (context) =>
-            context.path.includes(selfMatSelectQualifier) ||
-            selfMatQualifiers.some((qualifier) =>
-              context.path.includes(qualifier)
-            )
-        );
-        return selectContexts
-          .map((context) => context.location)
-          .sort()
-          .reverse()[0];
-      })
+    const lastSelectPositions = matRefPrototypes.map((materialization) => {
+      const selfMatQualifiers = [
+        `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`,
+        `${SQLElement.WITH_COMPOUND_STATEMENT}.${SQLElement.COMMON_TABLE_EXPRESSION}.${SQLElement.IDENTIFIER}`,
+      ];
+      const selfMatSelectQualifier = `${SQLElement.WITH_COMPOUND_STATEMENT}.${SQLElement.SELECT_STATEMENT}`;
+
+      const selectContexts = materialization.contexts.filter(
+        (context) =>
+          context.path.includes(selfMatSelectQualifier) ||
+          selfMatQualifiers.some((qualifier) =>
+            context.path.includes(qualifier)
+          )
+      );
+
+      return selectContexts
+        .map((context) => context.location)
+        .sort()
+        .reverse()[0];
+    });
+
+    const isPosition = (element: string | undefined): element is string =>
+      !!element;
+
+    const lastSelectMatRefPosition = lastSelectPositions
+      .filter(isPosition)
       .sort()
       .reverse()[0];
 
@@ -1027,7 +1034,7 @@ export class Logic {
         columnRef,
         selfMaterializationRef
       );
-      if (isSelfRefColumn) columnRef.dependencyType = DependencyType.DEFINITION;
+      if (isSelfRefColumn || representation) columnRef.dependencyType = DependencyType.DEFINITION;
 
       return columnRef;
     });
