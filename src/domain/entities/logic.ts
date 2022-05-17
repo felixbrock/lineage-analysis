@@ -396,13 +396,14 @@ export class Logic {
     alias?: Alias
   ): RefsExtractionDto => {
     const newRefsPrototype = refsPrototype;
+    const localAlias = alias;
 
     const numberOfColumns = subExtractionDto.refsPrototype.columns.length;
     const numberOfWildcards = subExtractionDto.refsPrototype.wildcards.length;
     const numberOfMaterializations =
       subExtractionDto.refsPrototype.materializations.length;
 
-    if (!alias) {
+    if (!localAlias) {
       newRefsPrototype.columns.push(...subExtractionDto.refsPrototype.columns);
       subExtractionDto.refsPrototype.materializations.forEach(
         (materialization) => {
@@ -422,7 +423,7 @@ export class Logic {
       };
     }
 
-    if (subExtractionDto.temp.alias)kksi
+    if (subExtractionDto.temp.alias)
       throw new ReferenceError(
         'Two unmatched aliases at the same time. Unable to assign'
       );
@@ -441,7 +442,7 @@ export class Logic {
 
     if (numberOfColumns === 1) {
       const column = subExtractionDto.refsPrototype.columns[0];
-      column.alias = alias.value;
+      column.alias = localAlias.value;
 
       newRefsPrototype.columns.push(column);
 
@@ -454,14 +455,13 @@ export class Logic {
         }
       );
 
-      return { refsPrototype: newRefsPrototype, temp: {} };
-    }
-    if (numberOfColumns > 1) {
+      localAlias.isUsed = true;
+    } else if (numberOfColumns > 1) {
       const { columns } = subExtractionDto.refsPrototype;
 
       columns.forEach((element) => {
         const column = element;
-        column.alias = alias.value;
+        column.alias = localAlias.value;
 
         newRefsPrototype.columns.push(column);
       });
@@ -475,11 +475,10 @@ export class Logic {
         }
       );
 
-      return { refsPrototype: newRefsPrototype, temp: {} };
-    }
-    if (numberOfWildcards === 1) {
+      localAlias.isUsed = true;
+    } else if (numberOfWildcards === 1) {
       const wildcard = subExtractionDto.refsPrototype.wildcards[0];
-      wildcard.alias = alias.value;
+      wildcard.alias = localAlias.value;
 
       newRefsPrototype.wildcards.push(wildcard);
 
@@ -492,21 +491,21 @@ export class Logic {
         }
       );
 
-      return { refsPrototype: newRefsPrototype, temp: {} };
+      localAlias.isUsed = true;
     }
     if (numberOfMaterializations === 1) {
       const materialization =
         subExtractionDto.refsPrototype.materializations[0];
-      materialization.alias = alias.value;
+      materialization.alias = localAlias.value;
 
       newRefsPrototype.materializations.push(materialization);
 
-      return { refsPrototype: newRefsPrototype, temp: {} };
+      localAlias.isUsed = true;
     }
 
     return {
       refsPrototype: newRefsPrototype,
-      temp: { alias },
+      temp: { alias: localAlias },
     };
   };
 
@@ -602,7 +601,7 @@ export class Logic {
             })
           );
 
-          if(alias) alias.isUsed = true;
+          if (alias) alias.isUsed = true;
         } else if (
           path.includes(SQLElement.TABLE_REFERENCE) ||
           (path.includes(`${SQLElement.COMMON_TABLE_EXPRESSION}`) &&
@@ -616,7 +615,7 @@ export class Logic {
             contextLocation,
           });
 
-          if(alias) alias.isUsed = true;
+          if (alias) alias.isUsed = true;
 
           refsPrototype.materializations = this.#pushMaterialization(
             ref,
@@ -647,8 +646,7 @@ export class Logic {
           })
         );
 
-        if(alias) alias.isUsed = true;
-
+        if (alias) alias.isUsed = true;
       } else if (value.constructor === Object) {
         const subExtractionDto = this.#extractRefs(
           value,
@@ -678,7 +676,7 @@ export class Logic {
             })
           );
 
-          if(alias) alias.isUsed = true;
+          if (alias) alias.isUsed = true;
         } else if (key === SQLElement.TABLE_REFERENCE) {
           const ref = this.#handleMaterializationRef({
             key,
@@ -693,7 +691,7 @@ export class Logic {
             refsPrototype.materializations
           );
 
-          if(alias) alias.isUsed = true;
+          if (alias) alias.isUsed = true;
         } else if (key === SQLElement.WITH_COMPOUND_STATEMENT) {
           const withElements: RefsExtractionDto[] = value.map(
             (element: { [key: string]: any }, index: number) =>
@@ -716,6 +714,7 @@ export class Logic {
           );
 
           refsPrototype = mergeExtractionDto.refsPrototype;
+          alias = mergeExtractionDto.temp.alias;
         } else
           value.forEach((element: { [key: string]: any }, index: number) => {
             const subExtractionDto = this.#extractRefs(
