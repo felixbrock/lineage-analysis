@@ -547,7 +547,7 @@ export class Logic {
     parsedSQL: { [key: string]: any },
     contextLocation: string,
     path = '',
-    recursionLevel = 0
+    recursionIndex = 0
   ): RefsExtractionDto => {
     let refPath = path;
 
@@ -567,7 +567,7 @@ export class Logic {
     ];
 
     let alias: Alias | undefined;
-    Object.entries(parsedSQL).forEach((parsedSQLElement) => {
+    Object.entries(parsedSQL).forEach((parsedSQLElement, elementIndex) => {
       const key = parsedSQLElement[0];
 
       const value =
@@ -650,9 +650,9 @@ export class Logic {
       } else if (value.constructor === Object) {
         const subExtractionDto = this.#extractRefs(
           value,
-          this.#appendPath(`${0}`, contextLocation),
+          this.#appendPath(`${elementIndex}`, contextLocation),
           this.#appendPath(key, refPath),
-          recursionLevel + 1
+          recursionIndex + 1
         );
 
         const mergeExtractionDto = this.#mergeRefs(
@@ -699,7 +699,7 @@ export class Logic {
                 element,
                 this.#appendPath(`${index}`, contextLocation),
                 this.#appendPath(key, refPath),
-                recursionLevel + 1
+                recursionIndex + 1
               )
           );
 
@@ -721,7 +721,7 @@ export class Logic {
               element,
               this.#appendPath(`${index}`, contextLocation),
               this.#appendPath(key, refPath),
-              recursionLevel + 1
+              recursionIndex + 1
             );
 
             const mergeExtractionDto = this.#mergeRefs(
@@ -741,7 +741,7 @@ export class Logic {
       aliasObj.boundedContext ===
         this.#getContextLocationParent(contextLocation);
 
-    if (recursionLevel === 0 && alias)
+    if (recursionIndex === 0 && alias)
       refsPrototype.columns.push(
         this.#handleColumnRef({
           key: alias.key,
@@ -750,7 +750,7 @@ export class Logic {
           contextLocation,
         })
       );
-    else if (alias && alias.boundedContext === contextLocation)
+    else if (alias && alias.isUsed &&  alias.boundedContext === contextLocation)
       throw new RangeError('Unmatched alias');
     else if (alias && !aliasExhausted(alias)) temp.alias = alias;
 
