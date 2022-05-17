@@ -539,8 +539,6 @@ export class Logic {
     return refsPrototype;
   };
 
-  // };
-
   /* Directly interacts with parsed SQL logic. Calls different handlers based on use-case. 
   Runs through parse SQL logic (JSON object) and check for potential dependencies. */
   static #extractRefs = (
@@ -736,12 +734,15 @@ export class Logic {
       }
     });
 
-    const aliasExhausted = (aliasObj: Alias): boolean =>
-      aliasObj.isUsed &&
-      aliasObj.boundedContext ===
-        this.#getContextLocationParent(contextLocation);
+    if (!alias) return { temp, refsPrototype };
 
-    if (recursionIndex === 0 && alias)
+    const aliasExhausted =
+      alias.isUsed &&
+      alias.boundedContext === this.#getContextLocationParent(contextLocation);
+
+    const aliasExpired = alias.boundedContext === contextLocation;
+
+    if (recursionIndex === 0)
       refsPrototype.columns.push(
         this.#handleColumnRef({
           key: alias.key,
@@ -750,9 +751,10 @@ export class Logic {
           contextLocation,
         })
       );
-    else if (alias && !alias.isUsed &&  alias.boundedContext === contextLocation)
+    else if (aliasExpired && alias.isUsed) return { temp, refsPrototype };
+    else if (aliasExpired && !alias.isUsed)
       throw new RangeError('Unmatched alias');
-    else if (alias && !aliasExhausted(alias)) temp.alias = alias;
+    else if (!aliasExhausted) temp.alias = alias;
 
     return { temp, refsPrototype };
   };
