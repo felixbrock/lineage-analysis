@@ -750,7 +750,7 @@ export class Logic {
           contextLocation,
         })
       );
-    else if (alias && alias.isUsed &&  alias.boundedContext === contextLocation)
+    else if (alias && !alias.isUsed &&  alias.boundedContext === contextLocation)
       throw new RangeError('Unmatched alias');
     else if (alias && !aliasExhausted(alias)) temp.alias = alias;
 
