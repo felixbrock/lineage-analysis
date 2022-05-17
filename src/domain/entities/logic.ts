@@ -121,9 +121,13 @@ interface HandlerInput {
   refPath: string,
   refsPrototype: RefsPrototype,
   contextLocation: string,
-
   recursionLevel?: number,
   path?: string,
+}
+
+interface HandlerReturn {
+  newAlias: Alias,
+  newPrototype: RefsPrototype,
 }
 
 
@@ -577,19 +581,22 @@ export class Logic {
 
   static #handleIdentifiers = (
     input: HandlerInput
-  ): void => {
+  ): HandlerReturn => {
 
-    const thisPrototype = input.refsPrototype;
     if (!input.path) {
       throw new ReferenceError(
         'Path should not be undefined'
       );
     }
 
-    if (input.path.includes(SQLElement.ALIAS_EXPRESSION))
-      this.setAlias(input.alias, input.key, input.value, input.refPath);
+    let newPrototype = input.refsPrototype;
+    let newAlias = input.alias;
+
+    if (input.path.includes(SQLElement.ALIAS_EXPRESSION)) {
+      newAlias = { key: input.key, value: input.value, refPath: input.refPath };
+    }
     else if (input.path.includes(SQLElement.COLUMN_REFERENCE)) {
-      thisPrototype.columns.push(
+      newPrototype.columns.push(
         this.#handleColumnRef({
           key: input.key,
           value: input.value,
@@ -599,7 +606,7 @@ export class Logic {
         })
       );
 
-      this.resetAlias(input.alias);
+      newAlias = { key: '', value: '', refPath: '' };
     } else if (
       input.path.includes(SQLElement.TABLE_REFERENCE) ||
       (input.path.includes(`${SQLElement.COMMON_TABLE_EXPRESSION}`) &&
@@ -613,26 +620,26 @@ export class Logic {
         contextLocation: input.contextLocation,
       });
 
-      this.resetAlias(input.alias);
-
-      thisPrototype.materializations = this.#pushMaterialization(
+      newAlias = { key: '', value: '', refPath: '' };
+      newPrototype.materializations = this.#pushMaterialization(
         ref,
-        thisPrototype.materializations
+        newPrototype.materializations
       );
     }
+    return { newAlias, newPrototype };
   };
 
   static #handleValueObject = (
     input: HandlerInput
-  ): void => {
+  ): HandlerReturn => {
     if (!input.recursionLevel) {
       throw new ReferenceError(
         'Recursion level should not be undefined'
       );
     }
 
-    let thisPrototype = input.refsPrototype;
-    let thisAlias = input.alias;
+    let newPrototype = input.refsPrototype;
+    let newAlias = input.alias;
 
     const subExtractionDto = this.#extractRefs(
       input.value,
@@ -642,24 +649,26 @@ export class Logic {
     );
 
     const mergeExtractionDto = this.#mergeRefs(
-      thisPrototype,
+      newPrototype,
       subExtractionDto,
-      thisAlias
+      newAlias
     );
 
-    thisPrototype = mergeExtractionDto.refsPrototype;
+    newPrototype = mergeExtractionDto.refsPrototype;
 
     if (mergeExtractionDto.temp.unmatchedAliases) {
-      thisAlias = mergeExtractionDto.temp.unmatchedAliases;
+      newAlias = mergeExtractionDto.temp.unmatchedAliases;
     }
-    else this.resetAlias(input.alias);
+    else newAlias = { key: '', value: '', refPath: '' };
+
+    return { newAlias, newPrototype };
   };
 
   static #handleWithStatement = (
     input: HandlerInput
-  ): void => {
+  ): HandlerReturn => {
 
-    let thisPrototype = input.refsPrototype;
+    let newPrototype = input.refsPrototype;
 
     const withElements: RefsExtractionDto[] = input.value.map(
       (element: { [key: string]: any }, index: number) => {
@@ -687,12 +696,13 @@ export class Logic {
     );
 
     const mergeExtractionDto = this.#mergeRefs(
-      thisPrototype,
+      newPrototype,
       { refsPrototype: withElementsMerged, temp: {} },
       input.alias
     );
-    thisPrototype = mergeExtractionDto.refsPrototype;
+    newPrototype = mergeExtractionDto.refsPrototype;
 
+    return { newAlias: input.alias, newPrototype }
   };
 
   /* Directly interacts with parsed SQL logic. Calls different handlers based on use-case. 
@@ -736,8 +746,8 @@ export class Logic {
           ? this.#appendPath(value, refPath)
           : refPath;
 
-      if (key === SQLElement.IDENTIFIER)
-        this.#handleIdentifiers({
+      if (key === SQLElement.IDENTIFIER) {
+        const { newAlias, newPrototype } = this.#handleIdentifiers({
           key,
           alias,
           value,
@@ -747,6 +757,9 @@ export class Logic {
           path,
         });
 
+        alias = newAlias;
+        refsPrototype = newPrototype;
+      }
       else if (key === SQLElement.WILDCARD_IDENTIFIER)
         refsPrototype.wildcards.push(
           this.#handleWildCardRef({
@@ -773,8 +786,8 @@ export class Logic {
 
         this.resetAlias(alias);
       }
-      else if (value.constructor === Object)
-        this.#handleValueObject({
+      else if (value.constructor === Object) {
+        const { newAlias, newPrototype } = this.#handleValueObject({
           key,
           alias,
           value,
@@ -783,6 +796,11 @@ export class Logic {
           contextLocation,
           recursionLevel,
         });
+
+
+        alias = newAlias;
+        refsPrototype = newPrototype;
+      }
 
       else if (Object.prototype.toString.call(value) === '[object Array]') {
         if (key === SQLElement.COLUMN_REFERENCE) {
@@ -812,8 +830,9 @@ export class Logic {
           );
 
           this.resetAlias(alias);
-        } else if (key === SQLElement.WITH_COMPOUND_STATEMENT)
-          this.#handleWithStatement({
+        } else if (key === SQLElement.WITH_COMPOUND_STATEMENT) {
+
+          const { newAlias, newPrototype } = this.#handleWithStatement({
             key,
             alias,
             value,
@@ -822,6 +841,10 @@ export class Logic {
             contextLocation,
             recursionLevel,
           });
+
+          alias = newAlias;
+          refsPrototype = newPrototype;
+        }
 
         else
           value.forEach((element: { [key: string]: any }, index: number) => {
