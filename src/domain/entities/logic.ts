@@ -1034,7 +1034,7 @@ export class Logic {
         columnRef,
         selfMaterializationRef
       );
-      if (isSelfRefColumn || representation) columnRef.dependencyType = DependencyType.DEFINITION;
+      if (isSelfRefColumn || (columnRef.isWildcardRef && representation)) columnRef.dependencyType = DependencyType.DEFINITION;
 
       return columnRef;
     });
