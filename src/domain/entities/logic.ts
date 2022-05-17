@@ -561,23 +561,6 @@ export class Logic {
 
   // };
 
-  static setAlias(
-    alias: Alias,
-    key: string,
-    value: string,
-    refPath: string): Alias {
-    let newAlias = alias;
-    newAlias = { key, value, refPath };
-    return newAlias;
-  };
-
-  static resetAlias(
-    alias: Alias
-  ): Alias {
-    let newAlias = alias;
-    newAlias = { key: '', value: '', refPath: '' };
-    return newAlias;
-  };
 
   static #handleIdentifiers = (
     input: HandlerInput
@@ -632,7 +615,7 @@ export class Logic {
   static #handleValueObject = (
     input: HandlerInput
   ): HandlerReturn => {
-    if (!input.recursionLevel) {
+    if (input.recursionLevel == null) {
       throw new ReferenceError(
         'Recursion level should not be undefined'
       );
@@ -672,7 +655,7 @@ export class Logic {
 
     const withElements: RefsExtractionDto[] = input.value.map(
       (element: { [key: string]: any }, index: number) => {
-        if (!input.recursionLevel) {
+        if (input.recursionLevel == null) {
           throw new ReferenceError(
             'Recursion level should not be undefined'
           );
@@ -784,7 +767,7 @@ export class Logic {
           })
         );
 
-        this.resetAlias(alias);
+        alias = {key: '', value: '', refPath: ''};
       }
       else if (value.constructor === Object) {
         const { newAlias, newPrototype } = this.#handleValueObject({
@@ -813,8 +796,8 @@ export class Logic {
               contextLocation,
             })
           );
-
-          this.resetAlias(alias);
+          
+          alias = {key: '', value: '', refPath: ''};
         } else if (key === SQLElement.TABLE_REFERENCE) {
           const ref = this.#handleMaterializationRef({
             key,
@@ -829,7 +812,7 @@ export class Logic {
             refsPrototype.materializations
           );
 
-          this.resetAlias(alias);
+          alias = {key: '', value: '', refPath: ''};
         } else if (key === SQLElement.WITH_COMPOUND_STATEMENT) {
 
           const { newAlias, newPrototype } = this.#handleWithStatement({
@@ -864,7 +847,7 @@ export class Logic {
             refsPrototype = mergeExtractionDto.refsPrototype;
             if (mergeExtractionDto.temp.unmatchedAliases)
               alias = mergeExtractionDto.temp.unmatchedAliases;
-            else this.resetAlias(alias);
+            else alias = {key: '', value: '', refPath: ''};;
           });
       }
     });
