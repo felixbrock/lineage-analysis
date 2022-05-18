@@ -121,7 +121,7 @@ interface HandlerInput {
   refPath: string,
   refsPrototype: RefsPrototype,
   contextLocation: string,
-  recursionLevel?: number,
+  recursionLevel: number,
   path?: string,
 }
 
@@ -318,7 +318,7 @@ export class Logic {
   static #sanitizeValue = (value: string): string => {
     if (!value) return value;
     return value.replace(/["'`]/g, '');
-  }
+  };
 
   // todo - Will probably fail, e.g. when 'use schema' is used
 
@@ -572,7 +572,7 @@ export class Logic {
       );
     }
 
-    let newPrototype = input.refsPrototype;
+    const newPrototype = input.refsPrototype;
     let newAlias = input.alias;
 
     if (input.path.includes(SQLElement.ALIAS_EXPRESSION)) {
@@ -652,26 +652,16 @@ export class Logic {
   ): HandlerReturn => {
 
     let newPrototype = input.refsPrototype;
-
+         
     const withElements: RefsExtractionDto[] = input.value.map(
-      (element: { [key: string]: any }, index: number) => {
-        if (input.recursionLevel == null) {
-          throw new ReferenceError(
-            'Recursion level should not be undefined'
-          );
-        }
+      (element: { [key: string]: any }, index: number) => 
         this.#extractRefs(
           element,
           this.#appendPath(`${index}`, input.contextLocation),
           this.#appendPath(input.key, input.refPath),
           input.recursionLevel + 1
-        )
-      }
-    );
-
-    if (withElements.some((element) => element.temp.unmatchedAliases))
-      throw new ReferenceError(
-        'Unhandled Case: Unmatched aliases on WITH level'
+          )
+      
       );
 
     const withElementsMerged = this.#mergeWithRefsPrototypes(
@@ -685,7 +675,7 @@ export class Logic {
     );
     newPrototype = mergeExtractionDto.refsPrototype;
 
-    return { newAlias: input.alias, newPrototype }
+    return { newAlias: input.alias, newPrototype };
   };
 
   /* Directly interacts with parsed SQL logic. Calls different handlers based on use-case. 
@@ -738,6 +728,7 @@ export class Logic {
           refsPrototype,
           contextLocation,
           path,
+          recursionLevel,
         });
 
         alias = newAlias;
