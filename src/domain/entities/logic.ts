@@ -83,10 +83,12 @@ interface Alias {
   key: string;
   value: string;
   refPath: string;
+  boundedContext: string;
+  isUsed: boolean;
 }
 
 interface TempExtractionData {
-  unmatchedAliases?: Alias;
+  alias?: Alias;
 }
 
 interface RefsExtractionDto {
@@ -299,10 +301,9 @@ export class Logic {
   };
 
   static #sanitizeValue = (value: string): string => {
-    if(!value) return value;
+    if (!value) return value;
     return value.replace(/["'`]/g, '');
   };
-    
 
   // todo - Will probably fail, e.g. when 'use schema' is used
 
@@ -388,24 +389,21 @@ export class Logic {
     );
   };
 
-  /* Checks if an alias contains information */
-  static #aliasExists = (alias: Alias): boolean =>
-    !!(alias.key || alias.value || alias.refPath);
-
   /* In case of an unassigned alias merge refs and subrefs in a special way */
   static #mergeRefs = (
     refsPrototype: RefsPrototype,
     subExtractionDto: RefsExtractionDto,
-    alias: Alias
+    alias?: Alias
   ): RefsExtractionDto => {
     const newRefsPrototype = refsPrototype;
+    const localAlias = alias;
 
     const numberOfColumns = subExtractionDto.refsPrototype.columns.length;
     const numberOfWildcards = subExtractionDto.refsPrototype.wildcards.length;
     const numberOfMaterializations =
       subExtractionDto.refsPrototype.materializations.length;
 
-    if (!this.#aliasExists(alias)) {
+    if (!localAlias) {
       newRefsPrototype.columns.push(...subExtractionDto.refsPrototype.columns);
       subExtractionDto.refsPrototype.materializations.forEach(
         (materialization) => {
@@ -421,11 +419,11 @@ export class Logic {
 
       return {
         refsPrototype: newRefsPrototype,
-        temp: { unmatchedAliases: subExtractionDto.temp.unmatchedAliases },
+        temp: { alias: subExtractionDto.temp.alias },
       };
     }
 
-    if (subExtractionDto.temp.unmatchedAliases)
+    if (subExtractionDto.temp.alias)
       throw new ReferenceError(
         'Two unmatched aliases at the same time. Unable to assign'
       );
@@ -444,7 +442,7 @@ export class Logic {
 
     if (numberOfColumns === 1) {
       const column = subExtractionDto.refsPrototype.columns[0];
-      column.alias = alias.value;
+      column.alias = localAlias.value;
 
       newRefsPrototype.columns.push(column);
 
@@ -457,14 +455,13 @@ export class Logic {
         }
       );
 
-      return { refsPrototype: newRefsPrototype, temp: {} };
-    }
-    if (numberOfColumns > 1) {
+      localAlias.isUsed = true;
+    } else if (numberOfColumns > 1) {
       const { columns } = subExtractionDto.refsPrototype;
 
       columns.forEach((element) => {
         const column = element;
-        column.alias = alias.value;
+        column.alias = localAlias.value;
 
         newRefsPrototype.columns.push(column);
       });
@@ -478,11 +475,10 @@ export class Logic {
         }
       );
 
-      return { refsPrototype: newRefsPrototype, temp: {} };
-    }
-    if (numberOfWildcards === 1) {
+      localAlias.isUsed = true;
+    } else if (numberOfWildcards === 1) {
       const wildcard = subExtractionDto.refsPrototype.wildcards[0];
-      wildcard.alias = alias.value;
+      wildcard.alias = localAlias.value;
 
       newRefsPrototype.wildcards.push(wildcard);
 
@@ -495,21 +491,21 @@ export class Logic {
         }
       );
 
-      return { refsPrototype: newRefsPrototype, temp: {} };
+      localAlias.isUsed = true;
     }
     if (numberOfMaterializations === 1) {
       const materialization =
         subExtractionDto.refsPrototype.materializations[0];
-      materialization.alias = alias.value;
+      materialization.alias = localAlias.value;
 
       newRefsPrototype.materializations.push(materialization);
 
-      return { refsPrototype: newRefsPrototype, temp: {} };
+      localAlias.isUsed = true;
     }
 
     return {
       refsPrototype: newRefsPrototype,
-      temp: { unmatchedAliases: alias },
+      temp: { alias: localAlias },
     };
   };
 
@@ -543,15 +539,13 @@ export class Logic {
     return refsPrototype;
   };
 
-  // };
-
   /* Directly interacts with parsed SQL logic. Calls different handlers based on use-case. 
   Runs through parse SQL logic (JSON object) and check for potential dependencies. */
   static #extractRefs = (
     parsedSQL: { [key: string]: any },
     contextLocation: string,
     path = '',
-    recursionLevel = 0
+    recursionIndex = 0
   ): RefsExtractionDto => {
     let refPath = path;
 
@@ -570,8 +564,8 @@ export class Logic {
       SQLElement.BARE_FUNCTION,
     ];
 
-    let alias: Alias = { key: '', value: '', refPath: '' };
-    Object.entries(parsedSQL).forEach((parsedSQLElement) => {
+    let alias: Alias | undefined;
+    Object.entries(parsedSQL).forEach((parsedSQLElement, elementIndex) => {
       const key = parsedSQLElement[0];
 
       const value =
@@ -587,19 +581,25 @@ export class Logic {
 
       if (key === SQLElement.IDENTIFIER) {
         if (path.includes(SQLElement.ALIAS_EXPRESSION))
-          alias = { key, value, refPath };
+          alias = {
+            key,
+            value,
+            refPath,
+            boundedContext: this.#getContextLocationParent(contextLocation),
+            isUsed: false,
+          };
         else if (path.includes(SQLElement.COLUMN_REFERENCE)) {
           refsPrototype.columns.push(
             this.#handleColumnRef({
               key,
               value,
               path: refPath,
-              alias: alias.value,
+              alias: alias ? alias.value : undefined,
               contextLocation,
             })
           );
 
-          alias = { key: '', value: '', refPath: '' };
+          if (alias) alias.isUsed = true;
         } else if (
           path.includes(SQLElement.TABLE_REFERENCE) ||
           (path.includes(`${SQLElement.COMMON_TABLE_EXPRESSION}`) &&
@@ -609,11 +609,11 @@ export class Logic {
             key,
             value,
             path: refPath,
-            alias: alias.value,
+            alias: alias ? alias.value : undefined,
             contextLocation,
           });
 
-          alias = { key: '', value: '', refPath: '' };
+          if (alias) alias.isUsed = true;
 
           refsPrototype.materializations = this.#pushMaterialization(
             ref,
@@ -630,7 +630,7 @@ export class Logic {
           })
         );
       else if (
-        this.#aliasExists(alias) &&
+        alias &&
         aliasToColumnDefinitionElements.includes(key) &&
         typeof value === 'string'
       ) {
@@ -644,13 +644,13 @@ export class Logic {
           })
         );
 
-        alias = { key: '', value: '', refPath: '' };
+        if (alias) alias.isUsed = true;
       } else if (value.constructor === Object) {
         const subExtractionDto = this.#extractRefs(
           value,
-          this.#appendPath(`${0}`, contextLocation),
+          this.#appendPath(`${elementIndex}`, contextLocation),
           this.#appendPath(key, refPath),
-          recursionLevel + 1
+          recursionIndex + 1
         );
 
         const mergeExtractionDto = this.#mergeRefs(
@@ -661,9 +661,7 @@ export class Logic {
 
         refsPrototype = mergeExtractionDto.refsPrototype;
 
-        if (mergeExtractionDto.temp.unmatchedAliases)
-          alias = mergeExtractionDto.temp.unmatchedAliases;
-        else alias = { key: '', value: '', refPath: '' };
+        alias = mergeExtractionDto.temp.alias;
       } else if (Object.prototype.toString.call(value) === '[object Array]') {
         if (key === SQLElement.COLUMN_REFERENCE) {
           refsPrototype.columns.push(
@@ -671,18 +669,18 @@ export class Logic {
               key,
               value: this.#joinArrayValue(value),
               path: refPath,
-              alias: alias.value,
+              alias: alias ? alias.value : undefined,
               contextLocation,
             })
           );
 
-          alias = { key: '', value: '', refPath: '' };
+          if (alias) alias.isUsed = true;
         } else if (key === SQLElement.TABLE_REFERENCE) {
           const ref = this.#handleMaterializationRef({
             key,
             value: this.#joinArrayValue(value),
             path: refPath,
-            alias: alias.value,
+            alias: alias ? alias.value : undefined,
             contextLocation,
           });
 
@@ -691,7 +689,7 @@ export class Logic {
             refsPrototype.materializations
           );
 
-          alias = { key: '', value: '', refPath: '' };
+          if (alias) alias.isUsed = true;
         } else if (key === SQLElement.WITH_COMPOUND_STATEMENT) {
           const withElements: RefsExtractionDto[] = value.map(
             (element: { [key: string]: any }, index: number) =>
@@ -699,14 +697,9 @@ export class Logic {
                 element,
                 this.#appendPath(`${index}`, contextLocation),
                 this.#appendPath(key, refPath),
-                recursionLevel + 1
+                recursionIndex + 1
               )
           );
-
-          if (withElements.some((element) => element.temp.unmatchedAliases))
-            throw new ReferenceError(
-              'Unhandled Case: Unmatched aliases on WITH level'
-            );
 
           const withElementsMerged = this.#mergeWithRefsPrototypes(
             withElements.map((element) => element.refsPrototype)
@@ -719,13 +712,14 @@ export class Logic {
           );
 
           refsPrototype = mergeExtractionDto.refsPrototype;
+          alias = mergeExtractionDto.temp.alias;
         } else
           value.forEach((element: { [key: string]: any }, index: number) => {
             const subExtractionDto = this.#extractRefs(
               element,
               this.#appendPath(`${index}`, contextLocation),
               this.#appendPath(key, refPath),
-              recursionLevel + 1
+              recursionIndex + 1
             );
 
             const mergeExtractionDto = this.#mergeRefs(
@@ -735,14 +729,20 @@ export class Logic {
             );
 
             refsPrototype = mergeExtractionDto.refsPrototype;
-            if (mergeExtractionDto.temp.unmatchedAliases)
-              alias = mergeExtractionDto.temp.unmatchedAliases;
-            else alias = { key: '', value: '', refPath: '' };
+            alias = mergeExtractionDto.temp.alias;
           });
       }
     });
 
-    if (recursionLevel === 0 && alias.value)
+    if (!alias) return { temp, refsPrototype };
+
+    const aliasExhausted =
+      alias.isUsed &&
+      alias.boundedContext === this.#getContextLocationParent(contextLocation);
+
+    const aliasExpired = alias.boundedContext === contextLocation;
+
+    if (recursionIndex === 0)
       refsPrototype.columns.push(
         this.#handleColumnRef({
           key: alias.key,
@@ -751,7 +751,10 @@ export class Logic {
           contextLocation,
         })
       );
-    else if (alias.value) temp.unmatchedAliases = alias;
+    else if (aliasExpired && alias.isUsed) return { temp, refsPrototype };
+    else if (aliasExpired && !alias.isUsed)
+      throw new RangeError('Unmatched alias');
+    else if (!aliasExhausted) temp.alias = alias;
 
     return { temp, refsPrototype };
   };
@@ -812,25 +815,32 @@ export class Logic {
     matRefPrototypes: MaterializationRefPrototype[],
     modelName: string
   ): MaterializationRef => {
-    const lastSelectMatRefPosition = matRefPrototypes
-      .map((materialization) => {
-        const selfMatQualifiers = [
-          `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`,
-          `${SQLElement.WITH_COMPOUND_STATEMENT}.${SQLElement.COMMON_TABLE_EXPRESSION}.${SQLElement.IDENTIFIER}`,
-        ];
-        const selfMatSelectQualifier = `${SQLElement.WITH_COMPOUND_STATEMENT}.${SQLElement.SELECT_STATEMENT}`;
-        const selectContexts = materialization.contexts.filter(
-          (context) =>
-            context.path.includes(selfMatSelectQualifier) ||
-            selfMatQualifiers.some((qualifier) =>
-              context.path.includes(qualifier)
-            )
-        );
-        return selectContexts
-          .map((context) => context.location)
-          .sort()
-          .reverse()[0];
-      })
+    const lastSelectPositions = matRefPrototypes.map((materialization) => {
+      const selfMatQualifiers = [
+        `${SQLElement.CREATE_TABLE_STATEMENT}.${SQLElement.TABLE_REFERENCE}.${SQLElement.IDENTIFIER}`,
+        `${SQLElement.WITH_COMPOUND_STATEMENT}.${SQLElement.COMMON_TABLE_EXPRESSION}.${SQLElement.IDENTIFIER}`,
+      ];
+      const selfMatSelectQualifier = `${SQLElement.WITH_COMPOUND_STATEMENT}.${SQLElement.SELECT_STATEMENT}`;
+
+      const selectContexts = materialization.contexts.filter(
+        (context) =>
+          context.path.includes(selfMatSelectQualifier) ||
+          selfMatQualifiers.some((qualifier) =>
+            context.path.includes(qualifier)
+          )
+      );
+
+      return selectContexts
+        .map((context) => context.location)
+        .sort()
+        .reverse()[0];
+    });
+
+    const isPosition = (element: string | undefined): element is string =>
+      !!element;
+
+    const lastSelectMatRefPosition = lastSelectPositions
+      .filter(isPosition)
       .sort()
       .reverse()[0];
 
@@ -906,13 +916,17 @@ export class Logic {
     prototype: ColumnRef,
     selfMaterializationRef: MaterializationRef
   ): boolean => {
+    const nameIsEqual =
+      prototype.materializationName === selfMaterializationRef.name ||
+      prototype.materializationName === selfMaterializationRef.alias;
 
-    const nameIsEqual = prototype.materializationName === selfMaterializationRef.name ||
-    prototype.materializationName === selfMaterializationRef.alias;
+    const schemaNameIsEqual =
+      !prototype.schemaName ||
+      prototype.schemaName === selfMaterializationRef.schemaName;
 
-    const schemaNameIsEqual = !prototype.schemaName || prototype.schemaName === selfMaterializationRef.schemaName;
-
-    const databaseNameIsEqual = !prototype.databaseName || prototype.databaseName === selfMaterializationRef.databaseName;
+    const databaseNameIsEqual =
+      !prototype.databaseName ||
+      prototype.databaseName === selfMaterializationRef.databaseName;
 
     const isEqual = nameIsEqual && schemaNameIsEqual && databaseNameIsEqual;
 
@@ -1020,13 +1034,16 @@ export class Logic {
         columnRef,
         selfMaterializationRef
       );
-      if (isSelfRefColumn) columnRef.dependencyType = DependencyType.DEFINITION;
+      if (isSelfRefColumn || representation) columnRef.dependencyType = DependencyType.DEFINITION;
 
       return columnRef;
     });
 
     return columns;
   };
+
+  static #getContextLocationParent = (location: string): string =>
+    location.slice(0, location.lastIndexOf('.'));
 
   /* Identify transient materializations that only exists at execution time and link them with the represented tables */
   static #getTransientRepresentations = (
@@ -1059,10 +1076,7 @@ export class Logic {
 
               const matches = element.contexts.filter((context) =>
                 context.location.startsWith(
-                  definitionContext.location.slice(
-                    0,
-                    definitionContext.location.lastIndexOf('.')
-                  )
+                  this.#getContextLocationParent(definitionContext.location)
                 )
               );
 

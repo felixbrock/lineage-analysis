@@ -43,7 +43,7 @@ export type CreateLineageResponseDto = Result<Lineage>;
 interface DbtResources {
   nodes: any;
   sources: any;
-  parent_map: {[key: string]: string[]};
+  parent_map: { [key: string]: string[] };
 }
 
 export class CreateLineage
@@ -317,11 +317,11 @@ export class CreateLineage
   /* Runs through dbt nodes and creates objects like logic, materializations and columns */
   #generateWarehouseResources = async (): Promise<void> => {
     const dbtCatalogResources = this.#getDbtResources(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
+      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/temp-test.json`
       // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
     );
     const dbtManifestResources = this.#getDbtResources(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1-no-v_date_stg.json`
+      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/web-samples/temp-test.json`
       // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1-no-v_date_stg.json`
     );
 
@@ -365,7 +365,9 @@ export class CreateLineage
 
     await Promise.all(
       dbtModelKeys.map(async (key) => {
-        const dependsOn: string[] = [...new Set(dbtManifestResources.parent_map[key])];
+        const dependsOn: string[] = [
+          ...new Set(dbtManifestResources.parent_map[key]),
+        ];
 
         const dependentOn = this.#matDefinitionCatalog.filter((element) =>
           dependsOn.includes(element.dbtModelId)
@@ -530,7 +532,6 @@ export class CreateLineage
     const createDependencyResults = await Promise.all(
       columnDependencyRefs.map(
         async (dependency): Promise<CreateDependencyResponse> => {
-
           // if (this.#columnRefIsEqual(dependency, this.#lastQueryDependency))
           //   return null;
 
@@ -657,16 +658,18 @@ export class CreateLineage
     if (!lineage) throw new ReferenceError('Lineage property is undefined');
 
     const catalogMatches = this.#matDefinitionCatalog.filter((dependency) => {
-      let condition =
-        dependency.materializationName === dependencyRef.materializationName;
-      condition = dependencyRef.schemaName
-        ? condition && dependency.schemaName === dependencyRef.schemaName
-        : condition;
-      condition = dependencyRef.databaseName
-        ? condition && dependency.databaseName === dependencyRef.databaseName
-        : condition;
+      const nameIsEqual =
+        dependencyRef.materializationName === dependency.materializationName;
 
-      return condition;
+      const schemaNameIsEqual =
+        !dependencyRef.schemaName ||
+        dependencyRef.schemaName === dependency.schemaName;
+
+      const databaseNameIsEqual =
+        !dependencyRef.databaseName ||
+        dependencyRef.databaseName === dependency.databaseName;
+
+      return nameIsEqual && schemaNameIsEqual && databaseNameIsEqual;
     });
 
     if (catalogMatches.length !== 1)
