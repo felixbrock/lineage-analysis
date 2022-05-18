@@ -318,11 +318,11 @@ export class CreateLineage
   #generateWarehouseResources = async (): Promise<void> => {
     const dbtCatalogResources = this.#getDbtResources(
       // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
-      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/catalog.json`
+      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/web-samples/temp-test.json`
     );
     const dbtManifestResources = this.#getDbtResources(
       // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1-no-v_date_stg.json`
-      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/manifest.json`
+      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/web-samples/temp-test-manifest.json`
     );
 
     const dbtSourceKeys = Object.keys(dbtCatalogResources.sources);
@@ -657,16 +657,19 @@ export class CreateLineage
     if (!lineage) throw new ReferenceError('Lineage property is undefined');
 
     const catalogMatches = this.#matDefinitionCatalog.filter((dependency) => {
-      let condition =
-        dependency.materializationName === dependencyRef.materializationName;
-      condition = dependencyRef.schemaName
-        ? condition && dependency.schemaName === dependencyRef.schemaName
-        : condition;
-      condition = dependencyRef.databaseName
-        ? condition && dependency.databaseName === dependencyRef.databaseName
-        : condition;
+      
+      const nameIsEqual =
+        dependencyRef.materializationName === dependency.materializationName;
+      
+      const schemaNameIsEqual =
+        !dependencyRef.schemaName ||
+        dependencyRef.schemaName === dependency.schemaName;
 
-      return condition;
+      const databaseNameIsEqual =
+        !dependencyRef.databaseName ||
+        dependencyRef.databaseName === dependency.databaseName;
+
+      return nameIsEqual && schemaNameIsEqual && databaseNameIsEqual;
     });
 
     if (catalogMatches.length !== 1)
