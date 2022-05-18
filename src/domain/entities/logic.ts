@@ -185,16 +185,21 @@ export class Logic {
       `${SQLElement.LITERAL}`,
     ];
 
-    const dataDependencyElements = [
-      `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
-      `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.EXPRESSION}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
-      `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.WILDCARD_EXPRESSION}.${SQLElement.WILDCARD_IDENTIFIER}`,
-      `${SQLElement.FUNCTION}.${SQLElement.BRACKETED}.${SQLElement.EXPRESSION}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
+    const dataDependencyElementsRegex: RegExp[] = [
+      new RegExp(
+        `${SQLElement.SELECT_CLAUSE_ELEMENT}.*${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`
+      ),
+      new RegExp(
+        `${SQLElement.SELECT_CLAUSE_ELEMENT}.*${SQLElement.WILDCARD_EXPRESSION}.${SQLElement.WILDCARD_IDENTIFIER}`
+      ),
+      new RegExp(
+        `${SQLElement.FUNCTION}.*${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`
+      ),
     ];
 
     if (definitionElements.some((element) => path.includes(element)))
       return DependencyType.DEFINITION;
-    if (dataDependencyElements.some((element) => path.includes(element)))
+    if (dataDependencyElementsRegex.some((element) => !!path.match(element)))
       return DependencyType.DATA;
     return DependencyType.QUERY;
   };
@@ -1034,7 +1039,8 @@ export class Logic {
         columnRef,
         selfMaterializationRef
       );
-      if (isSelfRefColumn || representation) columnRef.dependencyType = DependencyType.DEFINITION;
+      if (isSelfRefColumn || (columnRef.isWildcardRef && representation))
+        columnRef.dependencyType = DependencyType.DEFINITION;
 
       return columnRef;
     });

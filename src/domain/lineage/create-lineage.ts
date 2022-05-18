@@ -321,7 +321,7 @@ export class CreateLineage
       // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
     );
     const dbtManifestResources = this.#getDbtResources(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/web-samples/temp-test.json`
+      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/web-samples/temp-test-manifest.json`
       // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1-no-v_date_stg.json`
     );
 
@@ -396,52 +396,52 @@ export class CreateLineage
   };
 
   /* Checks if parent dependency can be mapped on the provided self column or to another column of the self materialization. */
-  #isDependencyOfTarget = (
-    potentialDependency: ColumnRef,
-    selfRef: ColumnRef
-  ): boolean => {
-    const dependencyStatementRoot = this.#getStatementRoot(
-      potentialDependency.context.path
-    );
-    const selfStatementRoot = this.#getStatementRoot(selfRef.context.path);
+  // #isDependencyOfTarget = (
+  //   potentialDependency: ColumnRef,
+  //   selfRef: ColumnRef
+  // ): boolean => {
+  //   const dependencyStatementRoot = this.#getStatementRoot(
+  //     potentialDependency.context.path
+  //   );
+  //   const selfStatementRoot = this.#getStatementRoot(selfRef.context.path);
 
-    const isStatementDependency =
-      !potentialDependency.context.path.includes(SQLElement.INSERT_STATEMENT) &&
-      !potentialDependency.context.path.includes(
-        SQLElement.COLUMN_DEFINITION
-      ) &&
-      dependencyStatementRoot === selfStatementRoot &&
-      (potentialDependency.context.path.includes(SQLElement.COLUMN_REFERENCE) ||
-        potentialDependency.context.path.includes(
-          SQLElement.WILDCARD_IDENTIFIER
-        ));
+  //   const isStatementDependency =
+  //     !potentialDependency.context.path.includes(SQLElement.INSERT_STATEMENT) &&
+  //     !potentialDependency.context.path.includes(
+  //       SQLElement.COLUMN_DEFINITION
+  //     ) &&
+  //     dependencyStatementRoot === selfStatementRoot &&
+  //     (potentialDependency.context.path.includes(SQLElement.COLUMN_REFERENCE) ||
+  //       potentialDependency.context.path.includes(
+  //         SQLElement.WILDCARD_IDENTIFIER
+  //       ));
 
-    if (!isStatementDependency) return false;
+  //   if (!isStatementDependency) return false;
 
-    const isSelfSelectStatement = selfStatementRoot.includes(
-      SQLElement.SELECT_STATEMENT
-    );
+  //   const isSelfSelectStatement = selfStatementRoot.includes(
+  //     SQLElement.SELECT_STATEMENT
+  //   );
 
-    const isWildcardRef =
-      isSelfSelectStatement && potentialDependency.isWildcardRef;
-    const isSameName =
-      isSelfSelectStatement && selfRef.name === potentialDependency.name;
-    const isGroupBy =
-      potentialDependency.context.path.includes(SQLElement.GROUPBY_CLAUSE) &&
-      selfRef.name !== potentialDependency.name;
-    const isJoinOn =
-      potentialDependency.context.path.includes(SQLElement.JOIN_ON_CONDITION) &&
-      selfRef.name !== potentialDependency.name;
+  //   const isWildcardRef =
+  //     isSelfSelectStatement && potentialDependency.isWildcardRef;
+  //   const isSameName =
+  //     isSelfSelectStatement && selfRef.name === potentialDependency.name;
+  //   const isGroupBy =
+  //     potentialDependency.context.path.includes(SQLElement.GROUPBY_CLAUSE) &&
+  //     selfRef.name !== potentialDependency.name;
+  //   const isJoinOn =
+  //     potentialDependency.context.path.includes(SQLElement.JOIN_ON_CONDITION) &&
+  //     selfRef.name !== potentialDependency.name;
 
-    if (isWildcardRef || isSameName || isGroupBy) return true;
+  //   if (isWildcardRef || isSameName || isGroupBy) return true;
 
-    if (isJoinOn) return false;
-    if (potentialDependency.name !== selfRef.name) return false;
+  //   if (isJoinOn) return false;
+  //   if (potentialDependency.name !== selfRef.name) return false;
 
-    throw new RangeError(
-      'Unhandled case when checking if is dependency of target'
-    );
-  };
+  //   throw new RangeError(
+  //     'Unhandled case when checking if is dependency of target'
+  //   );
+  // };
 
   /* Get all relevant wildcard statement references that are data dependency to self materialization */
   #getWildcardDataDependencyRefs = (statementRefs: Refs): ColumnRef[] =>
