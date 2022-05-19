@@ -83,8 +83,8 @@ interface Alias {
   key: string;
   value: string;
   refPath: string;
-  boundedContext: string,
-  isUsed: boolean,
+  boundedContext: string;
+  isUsed: boolean;
 }
 
 interface TempExtractionData {
@@ -202,16 +202,21 @@ export class Logic {
       `${SQLElement.LITERAL}`,
     ];
 
-    const dataDependencyElements = [
-      `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
-      `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.EXPRESSION}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
-      `${SQLElement.SELECT_CLAUSE_ELEMENT}.${SQLElement.WILDCARD_EXPRESSION}.${SQLElement.WILDCARD_IDENTIFIER}`,
-      `${SQLElement.FUNCTION}.${SQLElement.BRACKETED}.${SQLElement.EXPRESSION}.${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`,
+    const dataDependencyElementsRegex: RegExp[] = [
+      new RegExp(
+        `${SQLElement.SELECT_CLAUSE_ELEMENT}.*${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`
+      ),
+      new RegExp(
+        `${SQLElement.SELECT_CLAUSE_ELEMENT}.*${SQLElement.WILDCARD_EXPRESSION}.${SQLElement.WILDCARD_IDENTIFIER}`
+      ),
+      new RegExp(
+        `${SQLElement.FUNCTION}.*${SQLElement.COLUMN_REFERENCE}.${SQLElement.IDENTIFIER}`
+      ),
     ];
 
     if (definitionElements.some((element) => path.includes(element)))
       return DependencyType.DEFINITION;
-    if (dataDependencyElements.some((element) => path.includes(element)))
+    if (dataDependencyElementsRegex.some((element) => !!path.match(element)))
       return DependencyType.DATA;
     return DependencyType.QUERY;
   };
@@ -406,7 +411,6 @@ export class Logic {
     );
   };
 
-
   /* In case of an unassigned alias merge refs and subrefs in a special way */
   static #mergeRefs = (
     refsPrototype: RefsPrototype,
@@ -472,8 +476,8 @@ export class Logic {
           );
         }
       );
+      
       localAlias.isUsed = true;
-
     } else if (numberOfColumns > 1) {
       const { columns } = subExtractionDto.refsPrototype;
 
@@ -494,7 +498,6 @@ export class Logic {
       );
 
       localAlias.isUsed = true;
-
     } else if (numberOfWildcards === 1) {
       const wildcard = subExtractionDto.refsPrototype.wildcards[0];
       wildcard.alias = localAlias.value;
@@ -557,8 +560,6 @@ export class Logic {
 
     return refsPrototype;
   };
-
-  // };
 
 /* Handles the case where the current key is an identifier */ 
   static #handleIdentifiers = (
@@ -709,7 +710,6 @@ export class Logic {
     ];
 
     let alias: Alias | undefined;
-
     Object.entries(parsedSQL).forEach((parsedSQLElement, elementIndex) => {
 
       const key = parsedSQLElement[0];
@@ -762,9 +762,6 @@ export class Logic {
             contextLocation,
           })
         );
-
-        if(alias) alias.isUsed = true;
-
       }
       else if (value.constructor === Object) {
         const { newAlias, newPrototype } = this.#handleValueObject({
@@ -779,12 +776,12 @@ export class Logic {
         elementIndex,
         );
 
-
         alias = newAlias;
         refsPrototype = newPrototype;
       }
 
       else if (Object.prototype.toString.call(value) === '[object Array]') {
+
         if (key === SQLElement.COLUMN_REFERENCE) {
           refsPrototype.columns.push(
             this.#handleColumnRef({
@@ -795,8 +792,8 @@ export class Logic {
               contextLocation,
             })
           );
-          
-          if(alias) alias.isUsed = true;
+
+          if (alias) alias.isUsed = true;
         } else if (key === SQLElement.TABLE_REFERENCE) {
           const ref = this.#handleMaterializationRef({
             key,
@@ -813,7 +810,6 @@ export class Logic {
 
           if(alias) alias.isUsed = true;
         } else if (key === SQLElement.WITH_COMPOUND_STATEMENT) {
-
           const { newAlias, newPrototype } = this.#handleWithStatement({
             key,
             alias,
@@ -827,7 +823,7 @@ export class Logic {
           alias = newAlias;
           refsPrototype = newPrototype;
         }
-
+        
         else
           value.forEach((element: { [key: string]: any }, index: number) => {
             const subExtractionDto = this.#extractRefs(
@@ -845,7 +841,6 @@ export class Logic {
 
             refsPrototype = mergeExtractionDto.refsPrototype;
             alias = mergeExtractionDto.temp.alias;
-            
           });
       }
     });
@@ -1033,13 +1028,15 @@ export class Logic {
     prototype: ColumnRef,
     selfMaterializationRef: MaterializationRef
   ): boolean => {
-
-    const nameIsEqual = prototype.materializationName === selfMaterializationRef.name ||
+    const nameIsEqual =
+      prototype.materializationName === selfMaterializationRef.name ||
       prototype.materializationName === selfMaterializationRef.alias;
 
     const schemaNameIsEqual = !prototype.schemaName || prototype.schemaName === selfMaterializationRef.schemaName;
 
-    const databaseNameIsEqual = !prototype.databaseName || prototype.databaseName === selfMaterializationRef.databaseName;
+    const databaseNameIsEqual =
+      !prototype.databaseName ||
+      prototype.databaseName === selfMaterializationRef.databaseName;
 
     const isEqual = nameIsEqual && schemaNameIsEqual && databaseNameIsEqual;
 
@@ -1147,7 +1144,9 @@ export class Logic {
         columnRef,
         selfMaterializationRef
       );
-      if (isSelfRefColumn || representation) columnRef.dependencyType = DependencyType.DEFINITION;
+
+      if (isSelfRefColumn || (columnRef.isWildcardRef && representation))
+        columnRef.dependencyType = DependencyType.DEFINITION;
 
       return columnRef;
     });
@@ -1157,7 +1156,7 @@ export class Logic {
 
   static #getContextLocationParent = (location: string): string =>
     location.slice(0, location.lastIndexOf('.'));
-  
+
   /* Identify transient materializations that only exists at execution time and link them with the represented tables */
   static #getTransientRepresentations = (
     nonSelfMaterializationRefs: MaterializationRef[]
@@ -1188,7 +1187,8 @@ export class Logic {
               if (element.type === 'transient') return false;
 
               const matches = element.contexts.filter((context) =>
-                context.location.startsWith( 
+
+                context.location.startsWith(
                   this.#getContextLocationParent(definitionContext.location)
                 )
               );
