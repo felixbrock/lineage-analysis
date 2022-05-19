@@ -43,6 +43,7 @@ export type CreateLineageResponseDto = Result<Lineage>;
 interface DbtResources {
   nodes: any;
   sources: any;
+
   parent_map: { [key: string]: string[] };
 }
 
@@ -658,6 +659,7 @@ export class CreateLineage
     if (!lineage) throw new ReferenceError('Lineage property is undefined');
 
     const catalogMatches = this.#matDefinitionCatalog.filter((dependency) => {
+
       const nameIsEqual =
         dependencyRef.materializationName === dependency.materializationName;
 
