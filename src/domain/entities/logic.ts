@@ -1112,22 +1112,22 @@ export class Logic {
     return representations;
   };
 
-  /* Assigns aliases for $ notation and aliased columns */
+  /* Assigns aliases for $ notation and columns with aliases */
   static #assignAliases = (
     statementRefsPrototype: RefsPrototype,
     catalog: CatalogModelData[],
     ): RefsPrototype => {
 
     statementRefsPrototype.columns.forEach((column, index) => {
-      const nextCol = statementRefsPrototype.columns[index + 1];
       const thisCol = column;
+      const nextCol = statementRefsPrototype.columns[index + 1];
 
       if (column.name.includes('$')) {
+        let materialization: string;
+        
         const columnNumber = column.name.split('$')[1];
         const materializationNames =
           statementRefsPrototype.materializations.map((mat) => mat.name);
-
-        let materialization: string;
 
         if (materializationNames.length === 1)
           [materialization] = materializationNames;
@@ -1135,8 +1135,7 @@ export class Logic {
           materialization = column.materializationName
             ? column.materializationName
             : '';
-        thisCol.dependencyType = DependencyType.DATA;
-
+        
         const filteredCatalog = catalog.filter(
           (model) =>
             materialization &&
@@ -1146,6 +1145,7 @@ export class Logic {
           (model) => model.columnNames[parseInt(columnNumber, 10) - 1]
         );
 
+        thisCol.dependencyType = DependencyType.DATA;
         if (realName) thisCol.alias = realName;
       }
 
@@ -1171,7 +1171,7 @@ export class Logic {
       refsPrototype,
       catalog
     );
-
+    
     const selfMaterializationRef = this.#buildSelfMaterializationRef(
       refsPrototype.materializations,
       modelName
