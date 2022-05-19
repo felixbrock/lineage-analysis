@@ -116,7 +116,7 @@ interface HandlerProperties<ValueType> {
   contextLocation: string;
 }
 
-interface HandlerInput {
+interface ExtractRefProperties {
   key: string,
   alias?: Alias,
   value: any,
@@ -560,16 +560,16 @@ export class Logic {
 
   // };
 
-
+/* Handles the case where the current key is an identifier */ 
   static #handleIdentifiers = (
-    input: HandlerInput
+    input: ExtractRefProperties
   ): HandlerReturn => {
 
-    if (!input.path) {
+    if (!input.path) 
       throw new ReferenceError(
         'Path should not be undefined'
       );
-    }
+    
 
     const newPrototype = input.refsPrototype;
     let newAlias = input.alias;
@@ -617,21 +617,18 @@ export class Logic {
     return { newAlias, newPrototype };
   };
 
+/* Handles the case where the current value is an arbitrary object */
   static #handleValueObject = (
-    input: HandlerInput,
+    input: ExtractRefProperties,
     elementIndex: number,
   ): HandlerReturn => {
-    if (input.recursionLevel == null) {
+    if (input.recursionLevel === null)
       throw new ReferenceError(
         'Recursion level should not be undefined'
       );
-    }
 
     let newPrototype = input.refsPrototype;
-    let newAlias; 
-    if(input.alias){
-      newAlias = input.alias;
-    }
+    let newAlias = input.alias; 
 
     const subExtractionDto = this.#extractRefs(
       input.value,
@@ -652,12 +649,13 @@ export class Logic {
     return { newAlias, newPrototype };
   };
 
+/* Handles the case where the current key is a with statement */
   static #handleWithStatement = (
-    input: HandlerInput
+    input: ExtractRefProperties
   ): HandlerReturn => {
 
     let newPrototype = input.refsPrototype;
-    let newAlias = input.alias ? input.alias : undefined     
+    let newAlias = input.alias 
 
     const withElements: RefsExtractionDto[] = input.value.map(
       (element: { [key: string]: any }, index: number) => 
