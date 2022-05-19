@@ -580,7 +580,7 @@ export class Logic {
         key: input.key,
         value: input.value,
         refPath: input.refPath,
-        boundedContext: this.#getContextLocationParent(input.contextLocation),
+        boundedContext: this.#getContextLocationParent(this.#getContextLocationParent(input.contextLocation)),
         isUsed: false,
        };
     }
@@ -646,7 +646,7 @@ export class Logic {
 
     newPrototype = mergeExtractionDto.refsPrototype;
 
-    newAlias = mergeExtractionDto.temp.alias
+    newAlias = mergeExtractionDto.temp.alias;
     return { newAlias, newPrototype };
   };
 
@@ -656,7 +656,7 @@ export class Logic {
   ): HandlerReturn => {
 
     let newPrototype = input.refsPrototype;
-    let newAlias = input.alias 
+    let newAlias = input.alias;
 
     const withElements: RefsExtractionDto[] = input.value.map(
       (element: { [key: string]: any }, index: number) => 
@@ -679,7 +679,7 @@ export class Logic {
       input.alias
     );
     newPrototype = mergeExtractionDto.refsPrototype;
-    newAlias = mergeExtractionDto.temp.alias
+    newAlias = mergeExtractionDto.temp.alias;
 
     return { newAlias, newPrototype };
   };
@@ -762,6 +762,9 @@ export class Logic {
             contextLocation,
           })
         );
+
+
+        if(alias) alias.isUsed = true;
       }
       else if (value.constructor === Object) {
         const { newAlias, newPrototype } = this.#handleValueObject({
@@ -866,7 +869,7 @@ export class Logic {
     else if (aliasExpired && alias.isUsed) return {temp: tempData, refsPrototype};
     else if (aliasExpired && !alias.isUsed) 
       throw new RangeError('Unmatched alias');
-    else if (!aliasExhausted) tempData.alias = alias
+    else if (!aliasExhausted) tempData.alias = alias;
 
     return { temp: tempData, refsPrototype };
   };
