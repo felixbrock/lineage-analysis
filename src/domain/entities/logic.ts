@@ -1219,18 +1219,71 @@ export class Logic {
     return representations;
   };
 
+  /* Assigns aliases for $ notation and columns with aliases */
+  static #assignAliases = (
+    statementRefsPrototype: RefsPrototype,
+    catalog: CatalogModelData[],
+    ): RefsPrototype => {
+
+    statementRefsPrototype.columns.forEach((column, index) => {
+      const thisCol = column;
+      const nextCol = statementRefsPrototype.columns[index + 1];
+
+      if (column.name.includes('$')) {
+        
+        const columnNumber = column.name.split('$')[1];
+        const materializationNames =
+          statementRefsPrototype.materializations.map((mat) => mat.name);
+
+        const materializationName = 
+        materializationNames.length === 1
+          ? materializationNames[0]
+          : column.materializationName || '';
+        
+
+        const filteredCatalog = catalog.filter(
+          (model) =>
+            materializationName &&
+            model.materializationName.toUpperCase() === materializationName.toUpperCase()
+            );
+
+        const [realName] = filteredCatalog.map(
+          (model) => model.columnNames[parseInt(columnNumber, 10) - 1]
+        );
+
+        thisCol.dependencyType = DependencyType.DATA;
+        if (realName) thisCol.alias = realName;
+      }
+
+      if (!nextCol) return;
+      if (
+        column.dependencyType === DependencyType.DEFINITION &&
+        nextCol.dependencyType === DependencyType.DATA
+      )
+        nextCol.alias = column.name;
+    });
+
+    return statementRefsPrototype;
+  };
+
   /* Transforms RefsPrototype object to Refs object by identifying missing materialization refs */
   static #buildStatementRefs = (
     refsPrototype: RefsPrototype,
     modelName: string,
     catalog: CatalogModelData[]
   ): Refs => {
+
+    const aliasedRefsPrototype = this.#assignAliases(
+      refsPrototype,
+      catalog
+    );
+
     const selfMaterializationRef = this.#buildSelfMaterializationRef(
       refsPrototype.materializations,
       modelName
     );
 
-    const nonSelfMatRefsPrototypes = refsPrototype.materializations.filter(
+    const nonSelfMatRefsPrototypes = aliasedRefsPrototype.materializations.filter(
       (materialization) => {
         const contextLocations = materialization.contexts.map(
           (context) => context.location
@@ -1253,14 +1306,14 @@ export class Logic {
     );
 
     const columns = this.#buildColumnRefs(
-      refsPrototype.columns,
+      aliasedRefsPrototype.columns,
       nonSelfMaterializationRefs,
       selfMaterializationRef,
       catalog
     );
 
     const wildcards = this.#buildColumnRefs(
-      refsPrototype.wildcards,
+      aliasedRefsPrototype.wildcards,
       nonSelfMaterializationRefs,
       selfMaterializationRef,
       catalog
@@ -1320,45 +1373,6 @@ export class Logic {
         );
       });
     }
-
-    statementRefsPrototype.columns.forEach((column, index) => {
-      const nextCol = statementRefsPrototype.columns[index + 1];
-      const thisCol = column;
-
-      if (column.name.includes('$')) {
-        const columnNumber = column.name.split('$')[1];
-        const materializationNames =
-          statementRefsPrototype.materializations.map((mat) => mat.name);
-
-        let materialization: string;
-
-        if (materializationNames.length === 1)
-          [materialization] = materializationNames;
-        else
-          materialization = column.materializationName
-            ? column.materializationName
-            : '';
-        thisCol.dependencyType = DependencyType.DATA;
-
-        const filteredCatalog = catalog.filter(
-          (model) =>
-            materialization &&
-            model.materializationName === materialization.toUpperCase()
-        );
-        const [realName] = filteredCatalog.map(
-          (model) => model.columnNames[parseInt(columnNumber, 10) - 1]
-        );
-
-        if (realName) thisCol.alias = realName;
-      }
-
-      if (!nextCol) return;
-      if (
-        column.dependencyType === DependencyType.DEFINITION &&
-        nextCol.dependencyType === DependencyType.DATA
-      )
-        nextCol.alias = column.name;
-    });
 
     return this.#buildStatementRefs(statementRefsPrototype, modelName, catalog);
   };
