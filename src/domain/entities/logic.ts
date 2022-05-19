@@ -1123,24 +1123,23 @@ export class Logic {
       const nextCol = statementRefsPrototype.columns[index + 1];
 
       if (column.name.includes('$')) {
-        let materialization: string;
         
         const columnNumber = column.name.split('$')[1];
         const materializationNames =
           statementRefsPrototype.materializations.map((mat) => mat.name);
 
-        if (materializationNames.length === 1)
-          [materialization] = materializationNames;
-        else
-          materialization = column.materializationName
-            ? column.materializationName
-            : '';
+        const materializationName = 
+        materializationNames.length === 1
+          ? materializationNames[0]
+          : column.materializationName || '';
         
+
         const filteredCatalog = catalog.filter(
           (model) =>
-            materialization &&
-            model.materializationName === materialization.toUpperCase()
-        );
+            materializationName &&
+            model.materializationName.toUpperCase() === materializationName.toUpperCase()
+            );
+
         const [realName] = filteredCatalog.map(
           (model) => model.columnNames[parseInt(columnNumber, 10) - 1]
         );
@@ -1171,7 +1170,7 @@ export class Logic {
       refsPrototype,
       catalog
     );
-    
+
     const selfMaterializationRef = this.#buildSelfMaterializationRef(
       refsPrototype.materializations,
       modelName
