@@ -1081,8 +1081,16 @@ export class Logic {
 
       const refUsesSelfTable = this.#columnNameIsAnAlias(columnName, columnRefPrototypes);
       thisPrototype.usesSelfTable = refUsesSelfTable;
-    });
 
+
+      if(thisPrototype.isWildcardRef && thisPrototype.materializationName){
+       
+        nonSelfMaterializationRefs.forEach((matRef) => {
+          if(matRef.alias === thisPrototype.materializationName)
+            thisPrototype.materializationName = matRef.name;
+        });
+      }
+    });
 
     const columns: ColumnRef[] = columnRefPrototypes.map((prototype) => {
       const transientMatRepresentations = this.#getTransientRepresentations(
