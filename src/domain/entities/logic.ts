@@ -922,6 +922,11 @@ export class Logic {
         'No materialization match for column reference found'
       );
 
+    // if(bestMatch.matchingPoints < 2){
+    //   const [selfMat] = materializations.filter((materialization) => materialization.type === 'self')
+    //   bestMatch = {ref: selfMat, matchingPoints: 0};
+    // }
+
     return bestMatch.ref;
   };
 
@@ -1271,17 +1276,17 @@ export class Logic {
   };
 
   /* Compares two ColumnRef objects if they are equal. Names and dependency type can differ */
-  static #whenColumnRefIsEqual = (fst: ColumnRef, snd: ColumnRef | undefined): boolean => {
+  static #whenClauseColumnRefsAreEqual = (fst: ColumnRef | undefined, snd: ColumnRef | undefined): boolean => {
     if (!fst || !snd) return false;
 
     return (
       fst.alias === snd.alias &&
-      fst.databaseName === snd.databaseName &&
-      fst.isWildcardRef === snd.isWildcardRef &&
       fst.materializationName === snd.materializationName &&
-      fst.context.path === snd.context.path &&
       fst.schemaName === snd.schemaName &&
-      fst.warehouseName === snd.warehouseName
+      fst.databaseName === snd.databaseName &&
+      fst.warehouseName === snd.warehouseName &&
+      fst.isWildcardRef === snd.isWildcardRef &&
+      fst.context.path === snd.context.path
     );
   };
 
@@ -1294,8 +1299,8 @@ export class Logic {
       const nextCol = columns[elementIndex + 1];
 
       const isWhenClause = thisCol.context.path.includes(`${SQLElement.CASE_EXPRESSION}.${SQLElement.WHEN_CLAUSE}`);
-      const singleWhenClause = isWhenClause && !this.#whenColumnRefIsEqual(prevCol, thisCol) && !this.#whenColumnRefIsEqual(thisCol, nextCol);
-      const firstInWhenSequence = isWhenClause && this.#whenColumnRefIsEqual(thisCol, nextCol) && !(prevCol.dependencyType === DependencyType.QUERY);
+      const singleWhenClause = isWhenClause && !this.#whenClauseColumnRefsAreEqual(prevCol, thisCol) && !this.#whenClauseColumnRefsAreEqual(thisCol, nextCol);
+      const firstInWhenSequence = isWhenClause && this.#whenClauseColumnRefsAreEqual(thisCol, nextCol) && !(prevCol.dependencyType === DependencyType.QUERY);
 
       if (firstInWhenSequence || singleWhenClause)
         thisCol.dependencyType = DependencyType.QUERY;
@@ -1307,7 +1312,7 @@ export class Logic {
 
   /* Compares 2 column refs and determines if they represent the same dependency. Context need not
    be equal as their origins may differ */
-  static #dependencyIsEqual = (testCol: ColumnRef, col: ColumnRef): boolean => 
+  static #createdDependenciesAreEqual = (testCol: ColumnRef, col: ColumnRef): boolean => 
     (
       testCol.dependencyType === col.dependencyType &&
       testCol.alias === col.alias &&
@@ -1325,7 +1330,7 @@ export class Logic {
   static #removePossibleDuplicateDependencies = (columns: ColumnRef[]): ColumnRef[] => {
     
     const uniqueDependencies = columns.filter((col, elementIndex, self) =>
-      elementIndex === self.findIndex((testCol) => this.#dependencyIsEqual(testCol, col))
+      elementIndex === self.findIndex((testCol) => this.#createdDependenciesAreEqual(testCol, col))
     );
 
     return uniqueDependencies;
