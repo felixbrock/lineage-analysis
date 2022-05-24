@@ -681,15 +681,8 @@ export class CreateLineage
     const colsFromWildcard = readColumnsResult.value;
 
     const dependencies = colsFromWildcard.map((column) => ({
-      materializationName: dependencyRef.materializationName,
-      dependencyType: dependencyRef.dependencyType,
-      isWildcardRef: dependencyRef.isWildcardRef,
+      ...dependencyRef,
       name: column.name,
-      alias: dependencyRef.alias,
-      schemaName: dependencyRef.schemaName,
-      databaseName: dependencyRef.databaseName,
-      warehouseName: dependencyRef.warehouseName,
-      context: dependencyRef.context,
     }));
 
     return dependencies;

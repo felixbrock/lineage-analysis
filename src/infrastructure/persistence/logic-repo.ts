@@ -208,6 +208,7 @@ export default class LogicRepo implements ILogicRepo {
       warehouseName: column.warehouseName,
       dependencyType: column.dependencyType,
       isWildcardRef: column.isWildcardRef,
+      isCompoundValueRef: column.isCompoundValueRef,
       materializationName: column.materializationName,
       context: column.context,
     }));
@@ -220,6 +221,7 @@ export default class LogicRepo implements ILogicRepo {
       warehouseName: wildcard.warehouseName,
       dependencyType: wildcard.dependencyType,
       isWildcardRef: wildcard.isWildcardRef,
+      isCompoundValueRef: wildcard.isCompoundValueRef,
       materializationName: wildcard.materializationName,
       context: wildcard.context,
     }));
