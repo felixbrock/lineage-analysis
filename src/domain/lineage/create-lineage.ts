@@ -323,8 +323,8 @@ export class CreateLineage
       `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/catalog.json`
     );
     const dbtManifestResources = this.#getDbtResources(
-      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/web-samples/temp-test-manifest.json`
-      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/web-samples/temp-test-manifest.json`
+      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1.json`
+      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1.json`
       `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/manifest.json`
     );
 
@@ -388,15 +388,15 @@ export class CreateLineage
     );
   };
 
-  /* Identifies the statement root (e.g. create_materialization_statement.select_statement) of a specific reference path */
-  #getStatementRoot = (path: string): string => {
-    const lastIndexStatementRoot = path.lastIndexOf(SQLElement.STATEMENT);
-    if (lastIndexStatementRoot === -1 || !lastIndexStatementRoot)
-      // todo - inconsistent usage of Error types. Sometimes Range and sometimes Reference
-      throw new RangeError('Statement root not found for column reference');
+  // /* Identifies the statement root (e.g. create_materialization_statement.select_statement) of a specific reference path */
+  // #getStatementRoot = (path: string): string => {
+  //   const lastIndexStatementRoot = path.lastIndexOf(SQLElement.STATEMENT);
+  //   if (lastIndexStatementRoot === -1 || !lastIndexStatementRoot)
+  //     // todo - inconsistent usage of Error types. Sometimes Range and sometimes Reference
+  //     throw new RangeError('Statement root not found for column reference');
 
-    return path.slice(0, lastIndexStatementRoot + SQLElement.STATEMENT.length);
-  };
+  //   return path.slice(0, lastIndexStatementRoot + SQLElement.STATEMENT.length);
+  // };
 
   /* Checks if parent dependency can be mapped on the provided self column or to another column of the self materialization. */
   // #isDependencyOfTarget = (

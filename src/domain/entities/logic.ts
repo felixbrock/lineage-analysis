@@ -92,7 +92,7 @@ interface TempExtractionData {
 }
 
 interface RefsExtractionDto {
-  temp: TempExtractionData;
+  tempData: TempExtractionData;
   refsPrototype: RefsPrototype;
 }
 
@@ -442,11 +442,11 @@ export class Logic {
 
       return {
         refsPrototype: newRefsPrototype,
-        temp: { alias: subExtractionDto.temp.alias },
+        tempData: { alias: subExtractionDto.tempData.alias },
       };
     }
 
-    if (subExtractionDto.temp.alias)
+    if (subExtractionDto.tempData.alias)
       throw new ReferenceError(
         'Two unmatched aliases at the same time. Unable to assign'
       );
@@ -528,7 +528,7 @@ export class Logic {
 
     return {
       refsPrototype: newRefsPrototype,
-      temp: { alias: localAlias },
+      tempData: { alias: localAlias },
     };
   };
 
@@ -647,7 +647,7 @@ export class Logic {
 
     newPrototype = mergeExtractionDto.refsPrototype;
 
-    newAlias = mergeExtractionDto.temp.alias;
+    newAlias = mergeExtractionDto.tempData.alias;
     return { newAlias, newPrototype };
   };
 
@@ -676,13 +676,108 @@ export class Logic {
 
     const mergeExtractionDto = this.#mergeRefs(
       newPrototype,
-      { refsPrototype: withElementsMerged, temp: {} },
+      { refsPrototype: withElementsMerged, tempData: {} },
       input.alias
     );
     newPrototype = mergeExtractionDto.refsPrototype;
-    newAlias = mergeExtractionDto.temp.alias;
+    newAlias = mergeExtractionDto.tempData.alias;
 
     return { newAlias, newPrototype };
+  };
+
+  /* In case an alias was not initially allocated and is about to expire
+   this function tries to find its targets within given context */
+   static #allocateUnusedAlias = (
+    alias: Alias,
+    refsPrototype: RefsPrototype
+  ): RefsPrototype => {
+    const aliasToAllocate = alias;
+
+    const relevantColumns = refsPrototype.columns.filter(
+      (column) => !column.alias
+    );
+    const relevantMaterializations = refsPrototype.materializations.filter(
+      (materialization) => !materialization.alias
+    );
+    if (!relevantColumns.length && relevantMaterializations.length)
+      throw new RangeError('Unmatched alias - No target found');
+
+    const columnSubContexts = relevantColumns.map((column) => {
+      const { location } = column.context;
+
+      return location.slice(
+        aliasToAllocate.boundedContext.length + 1,
+        aliasToAllocate.boundedContext.length + 2
+      );
+    });
+
+    const numberUniqueColContexts: number = new Set(columnSubContexts).size;
+
+    if (numberUniqueColContexts > 1)
+      throw new RangeError(
+        'Unmatched alias - more than one potential column context identified'
+      );
+
+    const materializationSubContexts = relevantMaterializations
+      .map((materialization) => {
+        const locations = materialization.contexts.map(
+          (context) => context.location
+        );
+
+        const subContexts = locations.map((location) =>
+          location.slice(
+            aliasToAllocate.boundedContext.length + 1,
+            aliasToAllocate.boundedContext.length + 2
+          )
+        );
+        return subContexts;
+      })
+      .flat();
+
+    const numberUniqueMatContexts: number = new Set(materializationSubContexts)
+      .size;
+
+    if (numberUniqueMatContexts > 1)
+      throw new RangeError(
+        'Unmatched alias - more than one potential materialization context identified'
+      );
+
+    if (numberUniqueColContexts && numberUniqueMatContexts)
+      throw new RangeError(
+        'Unmatched alias - matching columns and materializations found'
+      );
+
+    if (numberUniqueColContexts) {
+      const updatedColumns = refsPrototype.columns.map((column) => {
+        const columnToUpdate = column;
+        columnToUpdate.alias = aliasToAllocate.value;
+        return columnToUpdate;
+      });
+
+      const updatedRefsPrototype: RefsPrototype = {
+        materializations: refsPrototype.materializations,
+        wildcards: refsPrototype.wildcards,
+        columns: updatedColumns,
+      };
+
+      return updatedRefsPrototype;
+    }
+
+    const updatedMaterializations = refsPrototype.materializations.map(
+      (materialization) => {
+        const materializationToUpdate = materialization;
+        materializationToUpdate.alias = aliasToAllocate.value;
+        return materializationToUpdate;
+      }
+    );
+
+    const updatedRefsPrototype: RefsPrototype = {
+      materializations: updatedMaterializations,
+      wildcards: refsPrototype.wildcards,
+      columns: refsPrototype.columns,
+    };
+
+    return updatedRefsPrototype;
   };
 
   /* Directly interacts with parsed SQL logic. Calls different handlers based on use-case. 
@@ -844,12 +939,12 @@ export class Logic {
             );
 
             refsPrototype = mergeExtractionDto.refsPrototype;
-            alias = mergeExtractionDto.temp.alias;
+            alias = mergeExtractionDto.tempData.alias;
           });
       }
     });
 
-    if (!alias) return { temp: tempData, refsPrototype };
+    if (!alias) return { tempData, refsPrototype };
 
     const aliasExhausted =
       alias.isUsed &&
@@ -867,12 +962,17 @@ export class Logic {
         })
       );
 
-    else if (aliasExpired && alias.isUsed) return { temp: tempData, refsPrototype };
-    else if (aliasExpired && !alias.isUsed)
-      throw new RangeError('Unmatched alias');
-    else if (!aliasExhausted) tempData.alias = alias;
+    else if (aliasExpired && alias.isUsed) return { tempData, refsPrototype };
+    else if (aliasExpired && !alias.isUsed) {
+      const updatedRefsPrototype = this.#allocateUnusedAlias(
+        alias,
+        refsPrototype
+      );
+      alias.isUsed = true;
+      return { tempData, refsPrototype: updatedRefsPrototype };
+    } else if (!aliasExhausted) tempData.alias = alias;
 
-    return { temp: tempData, refsPrototype };
+    return { tempData, refsPrototype };
   };
 
   /* Identifies the closest materialization reference to a provided column path. 
