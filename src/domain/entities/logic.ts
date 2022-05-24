@@ -72,6 +72,7 @@ interface ColumnRefPrototype extends Ref {
   isWildcardRef: boolean;
   materializationName?: string;
   context: RefContext;
+  usesSelfTable?: boolean
 }
 
 export interface ColumnRef
@@ -922,11 +923,6 @@ export class Logic {
         'No materialization match for column reference found'
       );
 
-    // if(bestMatch.matchingPoints < 2){
-    //   const [selfMat] = materializations.filter((materialization) => materialization.type === 'self')
-    //   bestMatch = {ref: selfMat, matchingPoints: 0};
-    // }
-
     return bestMatch.ref;
   };
 
@@ -1062,6 +1058,15 @@ export class Logic {
     return isEqual;
   };
 
+  static #columnNameIsAnAlias = (
+    columnName: string,
+    columnRefPrototypes: ColumnRefPrototype[]
+  ): boolean => {
+
+    const colNameAppearsAsAlias = columnRefPrototypes.map((prototype) => prototype.alias === columnName);
+    return colNameAppearsAsAlias.includes(true);
+  };
+
   /* Transforming prototypes to columnRefs, by improving information coverage on object level  */
   static #buildColumnRefs = (
     columnRefPrototypes: ColumnRefPrototype[],
@@ -1069,6 +1074,16 @@ export class Logic {
     selfMaterializationRef: MaterializationRef,
     catalog: CatalogModelData[]
   ): ColumnRef[] => {
+
+    columnRefPrototypes.forEach((prototype) => {
+      const thisPrototype = prototype;
+      const columnName = prototype.name;
+
+      const refUsesSelfTable = this.#columnNameIsAnAlias(columnName, columnRefPrototypes);
+      thisPrototype.usesSelfTable = refUsesSelfTable;
+    });
+
+
     const columns: ColumnRef[] = columnRefPrototypes.map((prototype) => {
       const transientMatRepresentations = this.#getTransientRepresentations(
         nonSelfMaterializationRefs
@@ -1121,12 +1136,20 @@ export class Logic {
         selfMaterializationRef
       );
 
-      const materializationRef = this.#getBestMatchingMaterialization(
-        prototype.context.path,
-        materializations,
-        prototype.name,
-        catalog
-      );
+      let materializationRef: MaterializationRef;
+      if (prototype.usesSelfTable) {
+
+        const [selfMaterialization] = materializations.filter((materialization) => materialization.type === 'self');
+        materializationRef = selfMaterialization;
+      } else {
+
+        materializationRef = this.#getBestMatchingMaterialization(
+          prototype.context.path,
+          materializations,
+          prototype.name,
+          catalog
+        );
+      }
 
       const representation = this.#findRepresentedMatName(
         materializationRef.name,
@@ -1312,23 +1335,23 @@ export class Logic {
 
   /* Compares 2 column refs and determines if they represent the same dependency. Context need not
    be equal as their origins may differ */
-  static #createdDependenciesAreEqual = (testCol: ColumnRef, col: ColumnRef): boolean => 
-    (
-      testCol.dependencyType === col.dependencyType &&
-      testCol.alias === col.alias &&
-      testCol.name === col.name &&
-      testCol.materializationName === col.materializationName &&
-      testCol.schemaName === col.schemaName &&
-      testCol.databaseName === col.databaseName &&
-      testCol.warehouseName === col.warehouseName &&
-      testCol.isWildcardRef === col.isWildcardRef
-    );
-  
-  
+  static #createdDependenciesAreEqual = (testCol: ColumnRef, col: ColumnRef): boolean =>
+  (
+    testCol.dependencyType === col.dependencyType &&
+    testCol.alias === col.alias &&
+    testCol.name === col.name &&
+    testCol.materializationName === col.materializationName &&
+    testCol.schemaName === col.schemaName &&
+    testCol.databaseName === col.databaseName &&
+    testCol.warehouseName === col.warehouseName &&
+    testCol.isWildcardRef === col.isWildcardRef
+  );
+
+
 
   /* Removes any dependencies that have been created from both the then and else branches */
   static #removePossibleDuplicateDependencies = (columns: ColumnRef[]): ColumnRef[] => {
-    
+
     const uniqueDependencies = columns.filter((col, elementIndex, self) =>
       elementIndex === self.findIndex((testCol) => this.#createdDependenciesAreEqual(testCol, col))
     );
