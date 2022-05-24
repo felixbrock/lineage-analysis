@@ -1058,13 +1058,13 @@ export class Logic {
     return isEqual;
   };
 
-  static #columnNameIsAnAlias = (
+  static #isColumnFromSelfTable = (
     columnName: string,
     columnRefPrototypes: ColumnRefPrototype[]
   ): boolean => {
 
-    const colNameAppearsAsAlias = columnRefPrototypes.map((prototype) => prototype.alias === columnName);
-    return colNameAppearsAsAlias.includes(true);
+    const nameIsAlsoAlias = columnRefPrototypes.map((prototype) => prototype.alias === columnName);
+    return nameIsAlsoAlias.includes(true);
   };
 
   /* Transforming prototypes to columnRefs, by improving information coverage on object level  */
@@ -1075,17 +1075,15 @@ export class Logic {
     catalog: CatalogModelData[]
   ): ColumnRef[] => {
 
-    columnRefPrototypes.forEach((prototype) => {
+    columnRefPrototypes.forEach(
+      (prototype) => {
       const thisPrototype = prototype;
-      const columnName = prototype.name;
-
-      const refUsesSelfTable = this.#columnNameIsAnAlias(columnName, columnRefPrototypes);
-      thisPrototype.usesSelfTable = refUsesSelfTable;
-
+      const thisRefUsesSelfTable = this.#isColumnFromSelfTable(prototype.name, columnRefPrototypes);
+      thisPrototype.usesSelfTable = thisRefUsesSelfTable;
 
       if(thisPrototype.isWildcardRef && thisPrototype.materializationName){
-       
-        nonSelfMaterializationRefs.forEach((matRef) => {
+        nonSelfMaterializationRefs.forEach(
+          (matRef) => {
           if(matRef.alias === thisPrototype.materializationName)
             thisPrototype.materializationName = matRef.name;
         });
@@ -1146,11 +1144,10 @@ export class Logic {
 
       let materializationRef: MaterializationRef;
       if (prototype.usesSelfTable) {
-
-        const [selfMaterialization] = materializations.filter((materialization) => materialization.type === 'self');
-        materializationRef = selfMaterialization;
+        [materializationRef] = materializations.filter(
+          (materialization) => materialization.type === 'self'
+          );
       } else {
-
         materializationRef = this.#getBestMatchingMaterialization(
           prototype.context.path,
           materializations,
