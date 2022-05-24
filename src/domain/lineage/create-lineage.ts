@@ -318,12 +318,14 @@ export class CreateLineage
   /* Runs through dbt nodes and creates objects like logic, materializations and columns */
   #generateWarehouseResources = async (): Promise<void> => {
     const dbtCatalogResources = this.#getDbtResources(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/temp-test.json`
-      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
+      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/temp-test.json`
+      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/web-samples/temp-test.json`
+      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/catalog.json`
     );
     const dbtManifestResources = this.#getDbtResources(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/web-samples/temp-test-manifest.json`
-      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1-no-v_date_stg.json`
+      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/web-samples/temp-test-manifest.json`
+      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/web-samples/temp-test-manifest.json`
+      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/manifest.json`
     );
 
     const dbtSourceKeys = Object.keys(dbtCatalogResources.sources);
@@ -489,23 +491,6 @@ export class CreateLineage
     // dataDependencyRefs = withColumnRefs.concat(columnRefs);
 
     return dataDependencyRefs;
-  };
-
-  /* Compares two ColumnRef objects if they are equal */
-  #columnRefIsEqual = (fst: ColumnRef, snd: ColumnRef | undefined): boolean => {
-    if (!fst || !snd) return false;
-
-    return (
-      fst.alias === snd.alias &&
-      fst.databaseName === snd.databaseName &&
-      fst.dependencyType === snd.dependencyType &&
-      fst.isWildcardRef === snd.isWildcardRef &&
-      fst.materializationName === snd.materializationName &&
-      fst.name === snd.name &&
-      fst.context.path === snd.context.path &&
-      fst.schemaName === snd.schemaName &&
-      fst.warehouseName === snd.warehouseName
-    );
   };
 
   /* Creates dependency for specific wildcard ref */
@@ -719,7 +704,8 @@ export class CreateLineage
   };
 
   #writeDependenciesToPersistence = async (): Promise<void> => {
-    await this.#dependencyRepo.insertMany(this.#dependencies);
+    if(this.#dependencies.length > 0)
+      await this.#dependencyRepo.insertMany(this.#dependencies);
   };
 
   async execute(

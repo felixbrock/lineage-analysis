@@ -60,4 +60,8 @@ export default class SQLElement {
   static LITERAL = 'literal';
 
   static BARE_FUNCTION = 'bare_function';
+
+  static CASE_EXPRESSION = 'case_expression';
+
+  static WHEN_CLAUSE = 'when_clause';
 }

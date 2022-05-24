@@ -214,6 +214,7 @@ export class Logic {
       ),
     ];
 
+
     if (definitionElements.some((element) => path.includes(element)))
       return DependencyType.DEFINITION;
     if (dataDependencyElementsRegex.some((element) => !!path.match(element)))
@@ -476,7 +477,7 @@ export class Logic {
           );
         }
       );
-      
+
       localAlias.isUsed = true;
     } else if (numberOfColumns > 1) {
       const { columns } = subExtractionDto.refsPrototype;
@@ -561,28 +562,28 @@ export class Logic {
     return refsPrototype;
   };
 
-/* Handles the case where the current key is an identifier */ 
+  /* Handles the case where the current key is an identifier */
   static #handleIdentifiers = (
     input: ExtractRefProperties
   ): HandlerReturn => {
 
-    if (!input.path) 
+    if (!input.path)
       throw new ReferenceError(
         'Path should not be undefined'
       );
-    
+
 
     const newPrototype = input.refsPrototype;
     let newAlias = input.alias;
 
     if (input.path.includes(SQLElement.ALIAS_EXPRESSION)) {
-      newAlias = { 
+      newAlias = {
         key: input.key,
         value: input.value,
         refPath: input.refPath,
-        boundedContext: this.#getContextLocationParent(input.contextLocation),
+        boundedContext: this.#getContextLocationParent(this.#getContextLocationParent(input.contextLocation)),
         isUsed: false,
-       };
+      };
     }
     else if (input.path.includes(SQLElement.COLUMN_REFERENCE)) {
       newPrototype.columns.push(
@@ -595,7 +596,7 @@ export class Logic {
         })
       );
 
-      if(newAlias) newAlias.isUsed = true;
+      if (newAlias) newAlias.isUsed = true;
     } else if (
       input.path.includes(SQLElement.TABLE_REFERENCE) ||
       (input.path.includes(`${SQLElement.COMMON_TABLE_EXPRESSION}`) &&
@@ -609,7 +610,7 @@ export class Logic {
         contextLocation: input.contextLocation,
       });
 
-      if(newAlias) newAlias.isUsed = true;
+      if (newAlias) newAlias.isUsed = true;
       newPrototype.materializations = this.#pushMaterialization(
         ref,
         newPrototype.materializations
@@ -618,7 +619,7 @@ export class Logic {
     return { newAlias, newPrototype };
   };
 
-/* Handles the case where the current value is an arbitrary object */
+  /* Handles the case where the current value is an arbitrary object */
   static #handleValueObject = (
     input: ExtractRefProperties,
     elementIndex: number,
@@ -629,7 +630,7 @@ export class Logic {
       );
 
     let newPrototype = input.refsPrototype;
-    let newAlias = input.alias; 
+    let newAlias = input.alias;
 
     const subExtractionDto = this.#extractRefs(
       input.value,
@@ -646,28 +647,28 @@ export class Logic {
 
     newPrototype = mergeExtractionDto.refsPrototype;
 
-    newAlias = mergeExtractionDto.temp.alias
+    newAlias = mergeExtractionDto.temp.alias;
     return { newAlias, newPrototype };
   };
 
-/* Handles the case where the current key is a with statement */
+  /* Handles the case where the current key is a with statement */
   static #handleWithStatement = (
     input: ExtractRefProperties
   ): HandlerReturn => {
 
     let newPrototype = input.refsPrototype;
-    let newAlias = input.alias 
+    let newAlias = input.alias;
 
     const withElements: RefsExtractionDto[] = input.value.map(
-      (element: { [key: string]: any }, index: number) => 
+      (element: { [key: string]: any }, index: number) =>
         this.#extractRefs(
           element,
           this.#appendPath(`${index}`, input.contextLocation),
           this.#appendPath(input.key, input.refPath),
           input.recursionLevel + 1
-          )
-      
-      );
+        )
+
+    );
 
     const withElementsMerged = this.#mergeWithRefsPrototypes(
       withElements.map((element) => element.refsPrototype)
@@ -679,7 +680,7 @@ export class Logic {
       input.alias
     );
     newPrototype = mergeExtractionDto.refsPrototype;
-    newAlias = mergeExtractionDto.temp.alias
+    newAlias = mergeExtractionDto.temp.alias;
 
     return { newAlias, newPrototype };
   };
@@ -762,6 +763,9 @@ export class Logic {
             contextLocation,
           })
         );
+
+
+        if (alias) alias.isUsed = true;
       }
       else if (value.constructor === Object) {
         const { newAlias, newPrototype } = this.#handleValueObject({
@@ -773,7 +777,7 @@ export class Logic {
           contextLocation,
           recursionLevel: recursionIndex,
         },
-        elementIndex,
+          elementIndex,
         );
 
         alias = newAlias;
@@ -808,7 +812,7 @@ export class Logic {
             refsPrototype.materializations
           );
 
-          if(alias) alias.isUsed = true;
+          if (alias) alias.isUsed = true;
         } else if (key === SQLElement.WITH_COMPOUND_STATEMENT) {
           const { newAlias, newPrototype } = this.#handleWithStatement({
             key,
@@ -823,7 +827,7 @@ export class Logic {
           alias = newAlias;
           refsPrototype = newPrototype;
         }
-        
+
         else
           value.forEach((element: { [key: string]: any }, index: number) => {
             const subExtractionDto = this.#extractRefs(
@@ -863,10 +867,10 @@ export class Logic {
         })
       );
 
-    else if (aliasExpired && alias.isUsed) return {temp: tempData, refsPrototype};
-    else if (aliasExpired && !alias.isUsed) 
+    else if (aliasExpired && alias.isUsed) return { temp: tempData, refsPrototype };
+    else if (aliasExpired && !alias.isUsed)
       throw new RangeError('Unmatched alias');
-    else if (!aliasExhausted) tempData.alias = alias
+    else if (!aliasExhausted) tempData.alias = alias;
 
     return { temp: tempData, refsPrototype };
   };
@@ -917,6 +921,11 @@ export class Logic {
       throw new ReferenceError(
         'No materialization match for column reference found'
       );
+
+    // if(bestMatch.matchingPoints < 2){
+    //   const [selfMat] = materializations.filter((materialization) => materialization.type === 'self')
+    //   bestMatch = {ref: selfMat, matchingPoints: 0};
+    // }
 
     return bestMatch.ref;
   };
@@ -1223,29 +1232,29 @@ export class Logic {
   static #assignAliases = (
     statementRefsPrototype: RefsPrototype,
     catalog: CatalogModelData[],
-    ): RefsPrototype => {
+  ): RefsPrototype => {
 
     statementRefsPrototype.columns.forEach((column, index) => {
       const thisCol = column;
       const nextCol = statementRefsPrototype.columns[index + 1];
 
       if (column.name.includes('$')) {
-        
+
         const columnNumber = column.name.split('$')[1];
         const materializationNames =
           statementRefsPrototype.materializations.map((mat) => mat.name);
 
-        const materializationName = 
-        materializationNames.length === 1
-          ? materializationNames[0]
-          : column.materializationName || '';
-        
+        const materializationName =
+          materializationNames.length === 1
+            ? materializationNames[0]
+            : column.materializationName || '';
+
 
         const filteredCatalog = catalog.filter(
           (model) =>
             materializationName &&
             model.materializationName.toUpperCase() === materializationName.toUpperCase()
-            );
+        );
 
         const [realName] = filteredCatalog.map(
           (model) => model.columnNames[parseInt(columnNumber, 10) - 1]
@@ -1264,6 +1273,67 @@ export class Logic {
     });
 
     return statementRefsPrototype;
+  };
+
+  /* Compares two ColumnRef objects if they are equal. Names and dependency type can differ */
+  static #whenClauseColumnRefsAreEqual = (fst: ColumnRef | undefined, snd: ColumnRef | undefined): boolean => {
+    if (!fst || !snd) return false;
+
+    return (
+      fst.alias === snd.alias &&
+      fst.materializationName === snd.materializationName &&
+      fst.schemaName === snd.schemaName &&
+      fst.databaseName === snd.databaseName &&
+      fst.warehouseName === snd.warehouseName &&
+      fst.isWildcardRef === snd.isWildcardRef &&
+      fst.context.path === snd.context.path
+    );
+  };
+
+  /* Differentiates between the query and data dependency generated by a when clause */
+  static #assignWhenClauseDependencies = (columns: ColumnRef[]): ColumnRef[] => {
+
+    columns.forEach((col, elementIndex) => {
+      const prevCol = columns[elementIndex - 1];
+      const thisCol = col;
+      const nextCol = columns[elementIndex + 1];
+
+      const isWhenClause = thisCol.context.path.includes(`${SQLElement.CASE_EXPRESSION}.${SQLElement.WHEN_CLAUSE}`);
+      const singleWhenClause = isWhenClause && !this.#whenClauseColumnRefsAreEqual(prevCol, thisCol) && !this.#whenClauseColumnRefsAreEqual(thisCol, nextCol);
+      const firstInWhenSequence = isWhenClause && this.#whenClauseColumnRefsAreEqual(thisCol, nextCol) && !(prevCol.dependencyType === DependencyType.QUERY);
+
+      if (firstInWhenSequence || singleWhenClause)
+        thisCol.dependencyType = DependencyType.QUERY;
+
+    });
+
+    return columns;
+  };
+
+  /* Compares 2 column refs and determines if they represent the same dependency. Context need not
+   be equal as their origins may differ */
+  static #createdDependenciesAreEqual = (testCol: ColumnRef, col: ColumnRef): boolean => 
+    (
+      testCol.dependencyType === col.dependencyType &&
+      testCol.alias === col.alias &&
+      testCol.name === col.name &&
+      testCol.materializationName === col.materializationName &&
+      testCol.schemaName === col.schemaName &&
+      testCol.databaseName === col.databaseName &&
+      testCol.warehouseName === col.warehouseName &&
+      testCol.isWildcardRef === col.isWildcardRef
+    );
+  
+  
+
+  /* Removes any dependencies that have been created from both the then and else branches */
+  static #removePossibleDuplicateDependencies = (columns: ColumnRef[]): ColumnRef[] => {
+    
+    const uniqueDependencies = columns.filter((col, elementIndex, self) =>
+      elementIndex === self.findIndex((testCol) => this.#createdDependenciesAreEqual(testCol, col))
+    );
+
+    return uniqueDependencies;
   };
 
   /* Transforms RefsPrototype object to Refs object by identifying missing materialization refs */
@@ -1305,7 +1375,7 @@ export class Logic {
       selfMaterializationRef
     );
 
-    const columns = this.#buildColumnRefs(
+    let columns = this.#buildColumnRefs(
       aliasedRefsPrototype.columns,
       nonSelfMaterializationRefs,
       selfMaterializationRef,
@@ -1318,6 +1388,9 @@ export class Logic {
       selfMaterializationRef,
       catalog
     );
+
+    columns = this.#assignWhenClauseDependencies(columns);
+    columns = this.#removePossibleDuplicateDependencies(columns);
 
     return { materializations, columns, wildcards };
   };
