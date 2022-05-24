@@ -1077,18 +1077,18 @@ export class Logic {
 
     columnRefPrototypes.forEach(
       (prototype) => {
-      const thisPrototype = prototype;
-      const thisRefUsesSelfTable = this.#isColumnFromSelfTable(prototype.name, columnRefPrototypes);
-      thisPrototype.usesSelfTable = thisRefUsesSelfTable;
+        const thisPrototype = prototype;
+        const thisRefUsesSelfTable = this.#isColumnFromSelfTable(prototype.name, columnRefPrototypes);
+        thisPrototype.usesSelfTable = thisRefUsesSelfTable;
 
-      if(thisPrototype.isWildcardRef && thisPrototype.materializationName){
-        nonSelfMaterializationRefs.forEach(
-          (matRef) => {
-          if(matRef.alias === thisPrototype.materializationName)
-            thisPrototype.materializationName = matRef.name;
-        });
-      }
-    });
+        if (thisPrototype.isWildcardRef && thisPrototype.materializationName) {
+          nonSelfMaterializationRefs.forEach(
+            (matRef) => {
+              if (matRef.alias === thisPrototype.materializationName)
+                thisPrototype.materializationName = matRef.name;
+            });
+        }
+      });
 
     const columns: ColumnRef[] = columnRefPrototypes.map((prototype) => {
       const transientMatRepresentations = this.#getTransientRepresentations(
@@ -1142,19 +1142,15 @@ export class Logic {
         selfMaterializationRef
       );
 
-      let materializationRef: MaterializationRef;
-      if (prototype.usesSelfTable) {
-        [materializationRef] = materializations.filter(
-          (materialization) => materialization.type === 'self'
+      const materializationRef: MaterializationRef =
+        prototype.usesSelfTable ?
+          materializations.filter((materialization) => materialization.type === 'self')[0] :
+          this.#getBestMatchingMaterialization(
+            prototype.context.path,
+            materializations,
+            prototype.name,
+            catalog
           );
-      } else {
-        materializationRef = this.#getBestMatchingMaterialization(
-          prototype.context.path,
-          materializations,
-          prototype.name,
-          catalog
-        );
-      }
 
       const representation = this.#findRepresentedMatName(
         materializationRef.name,
