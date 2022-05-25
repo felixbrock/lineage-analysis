@@ -72,6 +72,7 @@ type AmbiguityType = 'potential-compound-val-ref';
 interface ColumnRefPrototype extends Ref {
   dependencyType: DependencyType;
   isWildcardRef: boolean;
+  // todo - to be replaced by generalized isTransient type
   isCompoundValueRef: boolean;
   ambiguityType?: AmbiguityType;
   materializationName?: string;
@@ -1188,14 +1189,19 @@ export class Logic {
     selfMaterializationRef: MaterializationRef,
     catalog: CatalogModelData[]
   ): ColumnRef[] => {
-    const columns: ColumnRef[] = columnRefPrototypes.map((prototype) => {
+    const columns: ColumnRef[] = columnRefPrototypes.map((prototype: ColumnRefPrototype) => {
       const transientMatRepresentations = this.#getTransientRepresentations(
         nonSelfMaterializationRefs
       );
 
       if (prototype.dependencyType === DependencyType.DEFINITION)
         return {
-          ...prototype,
+          alias: prototype.alias,
+          context: prototype.context,
+          dependencyType: prototype.dependencyType,
+          isCompoundValueRef: prototype.isCompoundValueRef,
+          isWildcardRef: prototype.isWildcardRef,
+          name: prototype.name,
           materializationName: selfMaterializationRef.name,
           schemaName: selfMaterializationRef.schemaName,
           databaseName: selfMaterializationRef.databaseName,
@@ -1210,7 +1216,12 @@ export class Logic {
         );
 
         const columnRef: ColumnRef = {
-          ...prototype,
+          alias: prototype.alias,
+          context: prototype.context,
+          dependencyType: prototype.dependencyType,
+          isCompoundValueRef: prototype.isCompoundValueRef,
+          isWildcardRef: prototype.isWildcardRef,
+          name: prototype.name,
           materializationName: representation
             ? representation.representedName
             : originalMaterializationName,
@@ -1469,37 +1480,46 @@ export class Logic {
 
   /* Clears ambiguity of column references */
   static #clearAmbiguity = (refsPrototype: RefsPrototype): RefsPrototype => {
-    const explicitColumnRefs = refsPrototype.columns.map((column: ColumnRefPrototype) => {
-      if (!column.ambiguityType) return column;
+    const explicitColumnRefs = refsPrototype.columns.map(
+      (column: ColumnRefPrototype) => {
+        if (!column.ambiguityType) return column;
 
-      if (column.ambiguityType === 'potential-compound-val-ref') {
-        const compoundValueRefs = refsPrototype.columns.filter(
-          (element) => element.isCompoundValueRef
-        );
-        if (!compoundValueRefs.length) return column;
+        if (column.ambiguityType === 'potential-compound-val-ref') {
+          const compoundValueRefs = refsPrototype.columns.filter(
+            (element) => element.isCompoundValueRef
+          );
+          if (!compoundValueRefs.length) return column;
 
-        const matchingCompoundValueRefs = compoundValueRefs.filter(
-          (ref) =>
-            column.materializationName === ref.alias ||
-            column.materializationName === ref.name
-        );
+          const columnMatName = column.materializationName
+            ? column.materializationName.toLowerCase()
+            : undefined;
 
-        if(!matchingCompoundValueRefs.length) return column;
-        if(matchingCompoundValueRefs.length > 1) throw new RangeError('Multiple matching compound value refs found');
+          const matchingCompoundValueRefs = compoundValueRefs.filter((ref) => {
+            const refAlias = ref.alias ? ref.alias.toLowerCase() : undefined;
+            const refName = ref.name ? ref.name.toLowerCase() : undefined;
 
-        return {
-          ...column,
-          ambiguityType: undefined,
-          name: matchingCompoundValueRefs[0].name,
-          materializationName: matchingCompoundValueRefs[0].materializationName,
-          schemaName: matchingCompoundValueRefs[0].schemaName,
-          databaseName: matchingCompoundValueRefs[0].databaseName,
-          warehouseName: matchingCompoundValueRefs[0].warehouseName,
-        };
+            return columnMatName === refAlias || columnMatName === refName;
+          });
+
+          if (!matchingCompoundValueRefs.length) return column;
+          if (matchingCompoundValueRefs.length > 1)
+            throw new RangeError('Multiple matching compound value refs found');
+
+          return {
+            ...column,
+            ambiguityType: undefined,
+            name: matchingCompoundValueRefs[0].name,
+            materializationName:
+              matchingCompoundValueRefs[0].materializationName,
+            schemaName: matchingCompoundValueRefs[0].schemaName,
+            databaseName: matchingCompoundValueRefs[0].databaseName,
+            warehouseName: matchingCompoundValueRefs[0].warehouseName,
+          };
+        }
+
+        throw new RangeError('Unhandled column ambiguity type');
       }
-
-      throw new RangeError('Unhandled column ambiguity type');
-    });
+    );
 
     const prototypeToClear = refsPrototype;
 
@@ -1554,15 +1574,15 @@ export class Logic {
       catalog
     );
 
+    columns = this.#assignWhenClauseDependencies(columns);
+    columns = this.#removePossibleDuplicateDependencies(columns);
+
     const wildcards = this.#buildColumnRefs(
       aliasedRefsPrototype.wildcards,
       nonSelfMaterializationRefs,
       selfMaterializationRef,
       catalog
     );
-
-    columns = this.#assignWhenClauseDependencies(columns);
-    columns = this.#removePossibleDuplicateDependencies(columns);
 
     return { materializations, columns, wildcards };
   };

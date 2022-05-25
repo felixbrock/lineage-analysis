@@ -36,7 +36,7 @@ interface LogicPersistence {
 }
 
 interface LogicQueryFilter {
-  dbtModelId?: string;
+  dbtModelId?: RegExp;
   lineageId: string;
 }
 
@@ -92,7 +92,7 @@ export default class LogicRepo implements ILogicRepo {
   #buildFilter = (logicQueryDto: LogicQueryDto): LogicQueryFilter => {
     const filter: LogicQueryFilter = { lineageId: logicQueryDto.lineageId };
 
-    if (logicQueryDto.dbtModelId) filter.dbtModelId = logicQueryDto.dbtModelId;
+    if (logicQueryDto.dbtModelId) filter.dbtModelId = new RegExp(`^${logicQueryDto.dbtModelId}$`, 'i');
 
     return filter;
   };
