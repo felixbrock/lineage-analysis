@@ -220,7 +220,7 @@ export class Logic {
 
     if (definitionElements.some((element) => path.includes(element)))
       return DependencyType.DEFINITION;
-    if (dataDependencyElementsRegex.some((element) => !!path.match(element)))
+    if (dataDependencyElementsRegex.some((element) => element.test(path)))
       return DependencyType.DATA;
     return DependencyType.QUERY;
   };
@@ -247,10 +247,7 @@ export class Logic {
       ),
     ];
 
-    if (compoundValueIndicators.some((element) => !!path.match(element)))
-      return true;
-
-    return false;
+    return compoundValueIndicators.some((element) => element.test(path));
   };
 
   /* Checks for specific column references e.g. compound value references (<smthng>.value)
