@@ -52,12 +52,17 @@ export class CreateDependency
     if (!readColumnsResult.value)
       throw new ReferenceError(`Reading of parent columns failed`);
 
-    const potentialParents = readColumnsResult.value;
+    let potentialParents = readColumnsResult.value;
 
     if (!potentialParents.length)
       throw new ReferenceError('No parent found that matches reference');
 
-    if (potentialParents.length > 1)
+    if (potentialParents.length > 1){      
+      potentialParents = potentialParents.filter(
+        (parent) => parent.dbtModelId.includes(dependencyRef.materializationName)
+      );
+    }
+    if(potentialParents.length !== 1)
       throw new ReferenceError('More than one matching parent');
 
     return potentialParents[0].id;
