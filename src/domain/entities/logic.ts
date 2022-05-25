@@ -1058,13 +1058,13 @@ export class Logic {
     return isEqual;
   };
 
-  static #isColumnFromSelfTable = (
+  static #isResourceFromSelfTable = (
     columnName: string,
     columnRefPrototypes: ColumnRefPrototype[]
   ): boolean => {
 
-    const nameIsAlsoAlias = columnRefPrototypes.map((prototype) => prototype.alias === columnName);
-    return nameIsAlsoAlias.includes(true);
+    const areAliasesUsedAsName = columnRefPrototypes.map((prototype) => prototype.alias === columnName);
+    return areAliasesUsedAsName.includes(true);
   };
 
   /* Transforming prototypes to columnRefs, by improving information coverage on object level  */
@@ -1078,16 +1078,16 @@ export class Logic {
     columnRefPrototypes.forEach(
       (prototype) => {
         const thisPrototype = prototype;
-        const thisRefUsesSelfTable = this.#isColumnFromSelfTable(prototype.name, columnRefPrototypes);
-        thisPrototype.usesSelfTable = thisRefUsesSelfTable;
+        thisPrototype.usesSelfTable = this.#isResourceFromSelfTable(prototype.name, columnRefPrototypes);
 
-        if (thisPrototype.isWildcardRef && thisPrototype.materializationName) {
-          nonSelfMaterializationRefs.forEach(
-            (matRef) => {
-              if (matRef.alias === thisPrototype.materializationName)
-                thisPrototype.materializationName = matRef.name;
-            });
-        }
+        if (!(thisPrototype.isWildcardRef && thisPrototype.materializationName))
+          return;
+        
+        nonSelfMaterializationRefs.forEach(
+          (matRef) => {
+            if (matRef.alias === thisPrototype.materializationName)
+              thisPrototype.materializationName = matRef.name;
+          });
       });
 
     const columns: ColumnRef[] = columnRefPrototypes.map((prototype) => {
@@ -1142,15 +1142,22 @@ export class Logic {
         selfMaterializationRef
       );
 
-      const materializationRef: MaterializationRef =
-        prototype.usesSelfTable ?
-          materializations.filter((materialization) => materialization.type === 'self')[0] :
-          this.#getBestMatchingMaterialization(
-            prototype.context.path,
-            materializations,
-            prototype.name,
-            catalog
-          );
+      let materializationRef: MaterializationRef;
+
+      if(prototype.usesSelfTable){
+
+        const selfMaterialization = materializations.filter((materialization) => materialization.type === 'self');
+        if(selfMaterialization.length !== 1)
+          throw new ReferenceError("Multiple or no self materialisations exist");
+        materializationRef = selfMaterialization[0];
+      }else{
+        materializationRef = this.#getBestMatchingMaterialization(
+          prototype.context.path,
+          materializations,
+          prototype.name,
+          catalog
+        );
+      }
 
       const representation = this.#findRepresentedMatName(
         materializationRef.name,
