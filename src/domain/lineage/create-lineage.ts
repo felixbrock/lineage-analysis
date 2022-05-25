@@ -318,14 +318,14 @@ export class CreateLineage
   /* Runs through dbt nodes and creates objects like logic, materializations and columns */
   #generateWarehouseResources = async (): Promise<void> => {
     const dbtCatalogResources = this.#getDbtResources(
-      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/temp-test.json`
+      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/temp-test.json`
       // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/web-samples/temp-test.json`
-      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/catalog.json`
+      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/catalog.json`
     );
     const dbtManifestResources = this.#getDbtResources(
-      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1.json`
+      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1.json`
       // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1.json`
-      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/manifest.json`
+      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/manifest.json`
     );
 
     const dbtSourceKeys = Object.keys(dbtCatalogResources.sources);
@@ -455,7 +455,9 @@ export class CreateLineage
   /* Get all relevant column statement references that are data dependency to self materialization */
   #getColDataDependencyRefs = (statementRefs: Refs): ColumnRef[] => {
     let dataDependencyRefs = statementRefs.columns.filter(
-      (column) => column.dependencyType === DependencyType.DATA
+      (column) =>
+        column.dependencyType === DependencyType.DATA &&
+        !column.isCompoundValueRef
     );
 
     const setColumnRefs = dataDependencyRefs.filter((ref) =>
@@ -644,7 +646,6 @@ export class CreateLineage
     if (!lineage) throw new ReferenceError('Lineage property is undefined');
 
     const catalogMatches = this.#matDefinitionCatalog.filter((dependency) => {
-
       const nameIsEqual =
         dependencyRef.materializationName === dependency.materializationName;
 
@@ -681,15 +682,8 @@ export class CreateLineage
     const colsFromWildcard = readColumnsResult.value;
 
     const dependencies = colsFromWildcard.map((column) => ({
-      materializationName: dependencyRef.materializationName,
-      dependencyType: dependencyRef.dependencyType,
-      isWildcardRef: dependencyRef.isWildcardRef,
+      ...dependencyRef,
       name: column.name,
-      alias: dependencyRef.alias,
-      schemaName: dependencyRef.schemaName,
-      databaseName: dependencyRef.databaseName,
-      warehouseName: dependencyRef.warehouseName,
-      context: dependencyRef.context,
     }));
 
     return dependencies;
@@ -704,7 +698,7 @@ export class CreateLineage
   };
 
   #writeDependenciesToPersistence = async (): Promise<void> => {
-    if(this.#dependencies.length > 0)
+    if (this.#dependencies.length > 0)
       await this.#dependencyRepo.insertMany(this.#dependencies);
   };
 

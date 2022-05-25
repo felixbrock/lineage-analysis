@@ -32,10 +32,10 @@ interface MaterializationPersistence {
 
 interface MaterializationQueryFilter {
   materializationType?: MaterializationType;
-  dbtModelId?: string;
-  name?: string | { [key: string]: string[] };
-  schemaName?: string;
-  databaseName?: string;
+  dbtModelId?: RegExp;
+  name?: RegExp | { [key: string]: RegExp[] };
+  schemaName?: RegExp;
+  databaseName?: RegExp;
   logicId?: string;
   lineageId: string;
 }
@@ -101,20 +101,27 @@ export default class MaterializationRepo implements IMaterializationRepo {
     if (materializationQueryDto.materializationType)
       filter.materializationType = materializationQueryDto.materializationType;
     if (materializationQueryDto.dbtModelId)
-      filter.dbtModelId = materializationQueryDto.dbtModelId;
+      filter.dbtModelId = new RegExp(`^${materializationQueryDto.dbtModelId}$`, 'i');
 
     if (
       typeof materializationQueryDto.name === 'string' &&
       materializationQueryDto.name
     )
-      filter.name = materializationQueryDto.name;
+      filter.name = new RegExp(`^${materializationQueryDto.name}$`, 'i');
     if (materializationQueryDto.name instanceof Array)
-      filter.name = { $in: materializationQueryDto.name };
+      filter.name = {
+        $in: materializationQueryDto.name.map(
+          (element) => new RegExp(`^${element}$`, 'i')
+        ),
+      };
 
     if (materializationQueryDto.schemaName)
-      filter.schemaName = materializationQueryDto.schemaName;
+      filter.schemaName = new RegExp(`^${materializationQueryDto.schemaName}$`, 'i');
     if (materializationQueryDto.databaseName)
-      filter.databaseName = materializationQueryDto.databaseName;
+      filter.databaseName = new RegExp(
+        `^${materializationQueryDto.databaseName}$`,
+        'i'
+      );
     if (materializationQueryDto.logicId)
       filter.logicId = materializationQueryDto.logicId;
 

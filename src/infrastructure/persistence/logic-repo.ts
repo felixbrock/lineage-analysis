@@ -36,7 +36,7 @@ interface LogicPersistence {
 }
 
 interface LogicQueryFilter {
-  dbtModelId?: string;
+  dbtModelId?: RegExp;
   lineageId: string;
 }
 
@@ -92,7 +92,7 @@ export default class LogicRepo implements ILogicRepo {
   #buildFilter = (logicQueryDto: LogicQueryDto): LogicQueryFilter => {
     const filter: LogicQueryFilter = { lineageId: logicQueryDto.lineageId };
 
-    if (logicQueryDto.dbtModelId) filter.dbtModelId = logicQueryDto.dbtModelId;
+    if (logicQueryDto.dbtModelId) filter.dbtModelId = new RegExp(`^${logicQueryDto.dbtModelId}$`, 'i');
 
     return filter;
   };
@@ -208,6 +208,7 @@ export default class LogicRepo implements ILogicRepo {
       warehouseName: column.warehouseName,
       dependencyType: column.dependencyType,
       isWildcardRef: column.isWildcardRef,
+      isCompoundValueRef: column.isCompoundValueRef,
       materializationName: column.materializationName,
       context: column.context,
     }));
@@ -220,6 +221,7 @@ export default class LogicRepo implements ILogicRepo {
       warehouseName: wildcard.warehouseName,
       dependencyType: wildcard.dependencyType,
       isWildcardRef: wildcard.isWildcardRef,
+      isCompoundValueRef: wildcard.isCompoundValueRef,
       materializationName: wildcard.materializationName,
       context: wildcard.context,
     }));

@@ -23,8 +23,8 @@ interface ColumnPersistence {
 }
 
 interface ColumnQueryFilter {
-  dbtModelId?: string | { [key: string]: string[] };
-  name?: string | { [key: string]: string[] };
+  dbtModelId?: RegExp | { [key: string]: RegExp[] };
+  name?: RegExp | { [key: string]: RegExp[] };
   index?: string;
   type?: string;
   materializationId?: string | { [key: string]: string[] };
@@ -87,14 +87,20 @@ export default class ColumnRepo implements IColumnRepo {
       typeof columnQueryDto.dbtModelId === 'string' &&
       columnQueryDto.dbtModelId
     )
-      filter.dbtModelId = columnQueryDto.dbtModelId;
+      filter.dbtModelId = new RegExp(`^${columnQueryDto.dbtModelId}$`, 'i');
     if (columnQueryDto.dbtModelId instanceof Array)
-      filter.dbtModelId = { $in: columnQueryDto.dbtModelId };
+      filter.dbtModelId = {
+        $in: columnQueryDto.dbtModelId.map(
+          (element) => new RegExp(`^${element}$`, 'i')
+        ),
+      };
 
     if (typeof columnQueryDto.name === 'string' && columnQueryDto.name)
-      filter.name = columnQueryDto.name;
+      filter.name = new RegExp(`^${columnQueryDto.name}$`, 'i');
     if (columnQueryDto.name instanceof Array)
-      filter.name = { $in: columnQueryDto.name };
+      filter.name = {
+        $in: columnQueryDto.name.map((element) => new RegExp(`^${element}$`, 'i')),
+      };
 
     if (columnQueryDto.index) filter.index = columnQueryDto.index;
     if (columnQueryDto.type) filter.type = columnQueryDto.type;
@@ -167,7 +173,9 @@ export default class ColumnRepo implements IColumnRepo {
 
       close(client);
 
-      return Object.keys(result.insertedIds).map(key => result.insertedIds[parseInt(key, 10)].toHexString());
+      return Object.keys(result.insertedIds).map((key) =>
+        result.insertedIds[parseInt(key, 10)].toHexString()
+      );
     } catch (error: unknown) {
       if (typeof error === 'string') return Promise.reject(error);
       if (error instanceof Error) return Promise.reject(error.message);
