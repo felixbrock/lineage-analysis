@@ -1610,9 +1610,6 @@ export class Logic {
       catalog
     );
 
-    columns = this.#assignWhenClauseDependencies(columns);
-    columns = this.#removePossibleDuplicateDependencies(columns);
-
     const wildcards = this.#buildColumnRefs(
       aliasedRefsPrototype.wildcards,
       nonSelfMaterializationRefs,
