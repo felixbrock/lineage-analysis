@@ -61,10 +61,9 @@ export class CreateDependency
       potentialParents = potentialParents.filter(
         (parent) => parent.dbtModelId.includes(dependencyRef.materializationName)
       );
-
-      if(potentialParents.length !== 1)
-        throw new ReferenceError('More than one matching parent');
     }
+    if(potentialParents.length !== 1)
+      throw new ReferenceError('More than one matching parent');
 
     return potentialParents[0].id;
   };
