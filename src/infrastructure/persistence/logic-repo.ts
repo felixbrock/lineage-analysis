@@ -18,6 +18,7 @@ import {
   MaterializationRef,
   MaterializationDefinition,
 } from '../../domain/entities/logic';
+import { performance } from 'perf_hooks';
 
 type PersistenceStatementRefs = {
   [key: string]: { [key: string]: any }[];
@@ -51,7 +52,7 @@ export default class LogicRepo implements ILogicRepo {
         .collection(collectionName)
         .findOne({ _id: new ObjectId(sanitize(id)) });
 
-      close(client);
+      await close(client);
 
       if (!result) return null;
 
@@ -75,7 +76,7 @@ export default class LogicRepo implements ILogicRepo {
         .find(this.#buildFilter(sanitize(logicQueryDto)));
       const results = await result.toArray();
 
-      close(client);
+      await close(client);
 
       if (!results || !results.length) return [];
 
@@ -104,7 +105,7 @@ export default class LogicRepo implements ILogicRepo {
       const result: FindCursor = await db.collection(collectionName).find();
       const results = await result.toArray();
 
-      close(client);
+      await close(client);
 
       if (!results || !results.length) return [];
 
@@ -129,7 +130,7 @@ export default class LogicRepo implements ILogicRepo {
       if (!result.acknowledged)
         throw new Error('Logic creation failed. Insert not acknowledged');
 
-      close(client);
+      await close(client);
 
       return result.insertedId.toHexString();
     } catch (error: unknown) {
@@ -140,6 +141,7 @@ export default class LogicRepo implements ILogicRepo {
   };
 
   insertMany = async (logics: Logic[]): Promise<string[]> => {
+    const start = performance.now();
     const client = createClient();
     try {
       const db = await connect(client);
@@ -152,7 +154,13 @@ export default class LogicRepo implements ILogicRepo {
       if (!result.acknowledged)
         throw new Error('Logic creations failed. Inserts not acknowledged');
 
-      close(client);
+      await close(client);
+
+      const end = performance.now();
+      
+      console.log("--------------------------------------");
+      console.log(`logic insert many took ${end - start} milliseconds` );
+      console.log("--------------------------------------");
 
       return Object.keys(result.insertedIds).map((key) =>
         result.insertedIds[parseInt(key, 10)].toHexString()
@@ -175,7 +183,7 @@ export default class LogicRepo implements ILogicRepo {
       if (!result.acknowledged)
         throw new Error('Logic delete failed. Delete not acknowledged');
 
-      close(client);
+      await close(client);
 
       return result.deletedCount.toString();
     } catch (error: unknown) {

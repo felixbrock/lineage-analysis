@@ -152,6 +152,7 @@ export class CreateDependency
         lineageId: request.lineageId,
       });
 
+      console.log(`${request.dependencyRef.alias} depends on ${request.dependencyRef.name}`);
       const readColumnsResult = await this.#readDependencies.execute(
         {
           type: request.dependencyRef.dependencyType,

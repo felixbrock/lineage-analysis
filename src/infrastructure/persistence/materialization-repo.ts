@@ -18,6 +18,7 @@ import {
   Materialization,
   MaterializationProperties,
 } from '../../domain/entities/materialization';
+import { performance } from 'perf_hooks';
 
 interface MaterializationPersistence {
   _id: ObjectId;
@@ -51,7 +52,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
         .collection(collectionName)
         .findOne({ _id: new ObjectId(sanitize(id)) });
 
-      close(client);
+      await close(client);
 
       if (!result) return null;
 
@@ -77,7 +78,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
         .find(this.#buildFilter(sanitize(materializationQueryDto)));
       const results = await result.toArray();
 
-      close(client);
+      await close(client);
 
       if (!results || !results.length) return [];
 
@@ -135,7 +136,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
       const result: FindCursor = await db.collection(collectionName).find();
       const results = await result.toArray();
 
-      close(client);
+      await close(client);
 
       if (!results || !results.length) return [];
 
@@ -162,7 +163,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
           'Materialization creation failed. Insert not acknowledged'
         );
 
-      close(client);
+      await close(client);
 
       return result.insertedId.toHexString();
     } catch (error: unknown) {
@@ -175,6 +176,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
   insertMany = async (
     materializations: Materialization[]
   ): Promise<string[]> => {
+    const start = performance.now();
     const client = createClient();
     try {
       const db = await connect(client);
@@ -189,7 +191,13 @@ export default class MaterializationRepo implements IMaterializationRepo {
       if (!result.acknowledged)
         throw new Error('Logic creations failed. Inserts not acknowledged');
 
-      close(client);
+      await close(client);
+
+      const end = performance.now();
+      
+      console.log("--------------------------------------");
+      console.log(`material insert many took ${end - start} milliseconds` );
+      console.log("--------------------------------------");
 
       return Object.keys(result.insertedIds).map((key) =>
         result.insertedIds[parseInt(key, 10)].toHexString()
@@ -214,7 +222,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
           'Materialization delete failed. Delete not acknowledged'
         );
 
-      close(client);
+      await close(client);
 
       return result.deletedCount.toString();
     } catch (error: unknown) {

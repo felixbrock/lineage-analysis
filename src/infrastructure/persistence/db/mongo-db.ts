@@ -8,4 +8,4 @@ export const connect = async (client: MongoClient): Promise<Db> => {
   return client.db(appConfig.mongodb.dbName);
 };
 
-export const close = async (client: MongoClient): Promise<void> => client.close();
+export const close = async (client: MongoClient): Promise<void> => await client.close();

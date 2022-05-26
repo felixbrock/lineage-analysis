@@ -10,6 +10,7 @@ import sanitize from 'mongo-sanitize';
 import { connect, close, createClient } from './db/mongo-db';
 import { ILineageRepo } from '../../domain/lineage/i-lineage-repo';
 import { Lineage, LineageProperties } from '../../domain/entities/lineage';
+import { performance } from 'perf_hooks';
 
 interface LineagePersistence {
   _id: ObjectId;
@@ -27,7 +28,7 @@ export default class LineageRepo implements ILineageRepo {
         .collection(collectionName)
         .findOne({ _id: new ObjectId(sanitize(id)) });
 
-      close(client);
+      await close(client);
 
       if (!result) return null;
 
@@ -50,7 +51,7 @@ export default class LineageRepo implements ILineageRepo {
         .find()
         .sort({ createdAt: -1 })
         .limit(1);
-      close(client);
+      await close(client);
 
       if (!result) return null;
 
@@ -69,7 +70,7 @@ export default class LineageRepo implements ILineageRepo {
       const result: FindCursor = await db.collection(collectionName).find();
       const results = await result.toArray();
 
-      close(client);
+      await close(client);
 
       if (!results || !results.length) return [];
 
@@ -84,6 +85,7 @@ export default class LineageRepo implements ILineageRepo {
   };
 
   insertOne = async (lineage: Lineage): Promise<string> => {
+    const start = performance.now();
     const client = createClient();
     try {
       const db = await connect(client);
@@ -94,7 +96,12 @@ export default class LineageRepo implements ILineageRepo {
       if (!result.acknowledged)
         throw new Error('Lineage creation failed. Insert not acknowledged');
 
-      close(client);
+      await close(client);
+
+      const end = performance.now();
+      console.log("--------------------------------------");
+      console.log(`lineage insert one took ${end - start} milliseconds` );
+      console.log("--------------------------------------");
 
       return result.insertedId.toHexString();
     } catch (error: unknown) {
@@ -115,7 +122,7 @@ export default class LineageRepo implements ILineageRepo {
       if (!result.acknowledged)
         throw new Error('Lineage delete failed. Delete not acknowledged');
 
-      close(client);
+      await close(client);
 
       return result.deletedCount.toString();
     } catch (error: unknown) {
