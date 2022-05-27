@@ -1,4 +1,3 @@
-import { performance } from 'perf_hooks';
 import {
   Db,
   DeleteResult,
@@ -74,7 +73,6 @@ export default class LineageRepo implements ILineageRepo {
   };
 
   insertOne = async (lineage: Lineage, dbConnection: Db): Promise<string> => {
-    const start = performance.now();
     try {
       const result: InsertOneResult<Document> = await dbConnection
         .collection(collectionName)
@@ -82,11 +80,6 @@ export default class LineageRepo implements ILineageRepo {
 
       if (!result.acknowledged)
         throw new Error('Lineage creation failed. Insert not acknowledged');
-
-      const end = performance.now();
-      console.log("--------------------------------------");
-      console.log(`lineage insert one took ${end - start} milliseconds` );
-      console.log("--------------------------------------");
 
       return result.insertedId.toHexString();
     } catch (error: unknown) {

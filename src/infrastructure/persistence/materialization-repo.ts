@@ -1,4 +1,3 @@
-import { performance } from 'perf_hooks';
 import {
   Db,
   DeleteResult,
@@ -176,8 +175,6 @@ export default class MaterializationRepo implements IMaterializationRepo {
   insertMany = async (
     materializations: Materialization[], dbConnection: Db
   ): Promise<string[]> => {
-    const start = performance.now();
-    
     try {
       
       const result: InsertManyResult<Document> = await dbConnection
@@ -190,14 +187,6 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
       if (!result.acknowledged)
         throw new Error('Logic creations failed. Inserts not acknowledged');
-
-      
-
-      const end = performance.now();
-      
-      console.log("--------------------------------------");
-      console.log(`material insert many took ${end - start} milliseconds` );
-      console.log("--------------------------------------");
 
       return Object.keys(result.insertedIds).map((key) =>
         result.insertedIds[parseInt(key, 10)].toHexString()

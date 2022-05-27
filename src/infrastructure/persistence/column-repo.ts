@@ -1,4 +1,3 @@
-import { performance } from 'perf_hooks';
 import {
   Db,
   DeleteResult,
@@ -55,24 +54,13 @@ export default class ColumnRepo implements IColumnRepo {
   };
 
   findBy = async (columnQueryDto: ColumnQueryDto, dbConnection: Db): Promise<Column[]> => {
-    const start = performance.now();
     try {
-      if (!Object.keys(columnQueryDto).length) return await this.all(dbConnection);
+      if (!Object.keys(columnQueryDto).length) return await this.all(dbConnection);   
 
-      
-
-      
       const result: FindCursor = await dbConnection
         .collection(collectionName)
         .find(this.#buildFilter(sanitize(columnQueryDto)));
       const results = await result.toArray();
-
-      
-
-      const end = performance.now();
-      console.log("--------------------------------------");
-      console.log(`column find by took ${end - start} milliseconds` );
-      console.log("--------------------------------------");
 
       if (!results || !results.length) return [];
 
@@ -165,8 +153,6 @@ export default class ColumnRepo implements IColumnRepo {
   };
 
   insertMany = async (columns: Column[], dbConnection: Db): Promise<string[]> => {
-    const start = performance.now();
-    
     try {
       
       const result: InsertManyResult<Document> = await dbConnection
@@ -177,13 +163,6 @@ export default class ColumnRepo implements IColumnRepo {
 
       if (!result.acknowledged)
         throw new Error('Column creations failed. Inserts not acknowledged');
-
-      
-
-      const end = performance.now();
-      console.log("--------------------------------------");
-      console.log(`column insert many took ${end - start} milliseconds` );
-      console.log("--------------------------------------");
 
       return Object.keys(result.insertedIds).map((key) =>
         result.insertedIds[parseInt(key, 10)].toHexString()

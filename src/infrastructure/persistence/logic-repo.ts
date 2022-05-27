@@ -1,4 +1,3 @@
-import { performance } from 'perf_hooks';
 import {
   Db,
   DeleteResult,
@@ -45,14 +44,10 @@ const collectionName = 'logic';
 
 export default class LogicRepo implements ILogicRepo {
   findOne = async (id: string, dbConnection: Db): Promise<Logic | null> => {
-    
     try {
-      
       const result: any = await dbConnection
         .collection(collectionName)
         .findOne({ _id: new ObjectId(sanitize(id)) });
-
-      
 
       if (!result) return null;
 
@@ -64,19 +59,18 @@ export default class LogicRepo implements ILogicRepo {
     }
   };
 
-  findBy = async (logicQueryDto: LogicQueryDto, dbConnection: Db): Promise<Logic[]> => {
+  findBy = async (
+    logicQueryDto: LogicQueryDto,
+    dbConnection: Db
+  ): Promise<Logic[]> => {
     try {
-      if (!Object.keys(logicQueryDto).length) return await this.all(dbConnection);
+      if (!Object.keys(logicQueryDto).length)
+        return await this.all(dbConnection);
 
-      
-
-      
       const result: FindCursor = await dbConnection
         .collection(collectionName)
         .find(this.#buildFilter(sanitize(logicQueryDto)));
       const results = await result.toArray();
-
-      
 
       if (!results || !results.length) return [];
 
@@ -93,19 +87,18 @@ export default class LogicRepo implements ILogicRepo {
   #buildFilter = (logicQueryDto: LogicQueryDto): LogicQueryFilter => {
     const filter: LogicQueryFilter = { lineageId: logicQueryDto.lineageId };
 
-    if (logicQueryDto.dbtModelId) filter.dbtModelId = new RegExp(`^${logicQueryDto.dbtModelId}$`, 'i');
+    if (logicQueryDto.dbtModelId)
+      filter.dbtModelId = new RegExp(`^${logicQueryDto.dbtModelId}$`, 'i');
 
     return filter;
   };
 
   all = async (dbConnection: Db): Promise<Logic[]> => {
-    
     try {
-      
-      const result: FindCursor = await dbConnection.collection(collectionName).find();
+      const result: FindCursor = await dbConnection
+        .collection(collectionName)
+        .find();
       const results = await result.toArray();
-
-      
 
       if (!results || !results.length) return [];
 
@@ -120,17 +113,13 @@ export default class LogicRepo implements ILogicRepo {
   };
 
   insertOne = async (logic: Logic, dbConnection: Db): Promise<string> => {
-    
     try {
-      
       const result: InsertOneResult<Document> = await dbConnection
         .collection(collectionName)
         .insertOne(this.#toPersistence(sanitize(logic)));
 
       if (!result.acknowledged)
         throw new Error('Logic creation failed. Insert not acknowledged');
-
-      
 
       return result.insertedId.toHexString();
     } catch (error: unknown) {
@@ -141,10 +130,7 @@ export default class LogicRepo implements ILogicRepo {
   };
 
   insertMany = async (logics: Logic[], dbConnection: Db): Promise<string[]> => {
-    const start = performance.now();
-    
     try {
-      
       const result: InsertManyResult<Document> = await dbConnection
         .collection(collectionName)
         .insertMany(
@@ -153,14 +139,6 @@ export default class LogicRepo implements ILogicRepo {
 
       if (!result.acknowledged)
         throw new Error('Logic creations failed. Inserts not acknowledged');
-
-      
-
-      const end = performance.now();
-      
-      console.log("--------------------------------------");
-      console.log(`logic insert many took ${end - start} milliseconds` );
-      console.log("--------------------------------------");
 
       return Object.keys(result.insertedIds).map((key) =>
         result.insertedIds[parseInt(key, 10)].toHexString()
@@ -173,17 +151,13 @@ export default class LogicRepo implements ILogicRepo {
   };
 
   deleteOne = async (id: string, dbConnection: Db): Promise<string> => {
-    
     try {
-      
       const result: DeleteResult = await dbConnection
         .collection(collectionName)
         .deleteOne({ _id: new ObjectId(sanitize(id)) });
 
       if (!result.acknowledged)
         throw new Error('Logic delete failed. Delete not acknowledged');
-
-      
 
       return result.deletedCount.toString();
     } catch (error: unknown) {

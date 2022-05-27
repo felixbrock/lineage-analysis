@@ -1,4 +1,3 @@
-import { performance } from 'perf_hooks';
 import {
   Db,
   DeleteResult,
@@ -38,15 +37,14 @@ interface DependencyQueryFilter {
 const collectionName = 'dependency';
 
 export default class DependencyRepo implements IDependencyRepo {
-  findOne = async (id: string, dbConnection: Db): Promise<Dependency | null> => {
-    
+  findOne = async (
+    id: string,
+    dbConnection: Db
+  ): Promise<Dependency | null> => {
     try {
-      
       const result: any = await dbConnection
         .collection(collectionName)
         .findOne({ _id: new ObjectId(sanitize(id)) });
-
-      
 
       if (!result) return null;
 
@@ -59,31 +57,17 @@ export default class DependencyRepo implements IDependencyRepo {
   };
 
   findBy = async (
-    dependencyQueryDto: DependencyQueryDto, dbConnection: Db
+    dependencyQueryDto: DependencyQueryDto,
+    dbConnection: Db
   ): Promise<Dependency[]> => {
-    const start = performance.now();
     try {
-      if (!Object.keys(dependencyQueryDto).length) return await this.all(dbConnection);
+      if (!Object.keys(dependencyQueryDto).length)
+        return await this.all(dbConnection);
 
-      
-
-      
       const result: FindCursor = await dbConnection
         .collection(collectionName)
         .find(this.#buildFilter(sanitize(dependencyQueryDto)));
       const results = await result.toArray();
-
-      
-
-      const end = performance.now();
-      console.log("--------------------------------------");
-      console.log(`dependency find by took ${end - start} milliseconds` );
-      console.log(`dependency DTO:`);
-      console.log(`head: ${dependencyQueryDto.headId}`);
-      console.log(`tail: ${dependencyQueryDto.tailId}`);
-      console.log(`lineage: ${dependencyQueryDto.lineageId}`);
-      console.log(`type: ${dependencyQueryDto.type}`);
-      console.log("--------------------------------------");
 
       if (!results || !results.length) return [];
 
@@ -105,22 +89,18 @@ export default class DependencyRepo implements IDependencyRepo {
     };
 
     if (dependencyQueryDto.type) filter.type = dependencyQueryDto.type;
-    if (dependencyQueryDto.headId)
-      filter.headId = dependencyQueryDto.headId;
-    if (dependencyQueryDto.tailId)
-      filter.tailId = dependencyQueryDto.tailId;
+    if (dependencyQueryDto.headId) filter.headId = dependencyQueryDto.headId;
+    if (dependencyQueryDto.tailId) filter.tailId = dependencyQueryDto.tailId;
 
     return filter;
   };
 
   all = async (dbConnection: Db): Promise<Dependency[]> => {
-    
     try {
-      
-      const result: FindCursor = await dbConnection.collection(collectionName).find();
+      const result: FindCursor = await dbConnection
+        .collection(collectionName)
+        .find();
       const results = await result.toArray();
-
-      
 
       if (!results || !results.length) return [];
 
@@ -134,11 +114,11 @@ export default class DependencyRepo implements IDependencyRepo {
     }
   };
 
-  insertOne = async (dependency: Dependency,dbConnection: Db): Promise<string> => {
-    const start = performance.now();
-    
+  insertOne = async (
+    dependency: Dependency,
+    dbConnection: Db
+  ): Promise<string> => {
     try {
-      
       const result: InsertOneResult<Document> = await dbConnection
         .collection(collectionName)
         .insertOne(this.#toPersistence(sanitize(dependency)));
@@ -146,12 +126,6 @@ export default class DependencyRepo implements IDependencyRepo {
       if (!result.acknowledged)
         throw new Error('Dependency creation failed. Insert not acknowledged');
 
-      
-
-      const end = performance.now();
-      console.log("--------------------------------------");
-      console.log(`dependency insert one took ${end - start} milliseconds` );
-      console.log("--------------------------------------");
 
       return result.insertedId.toHexString();
     } catch (error: unknown) {
@@ -161,13 +135,12 @@ export default class DependencyRepo implements IDependencyRepo {
     }
   };
 
-  insertMany = async (dependencies: Dependency[], dbConnection: Db): Promise<string[]> => {
+  insertMany = async (
+    dependencies: Dependency[],
+    dbConnection: Db
+  ): Promise<string[]> => {
 
-    const start = performance.now();
-
-    
     try {
-      
       const result: InsertManyResult<Document> = await dbConnection
         .collection(collectionName)
         .insertMany(
@@ -175,17 +148,13 @@ export default class DependencyRepo implements IDependencyRepo {
         );
 
       if (!result.acknowledged)
-        throw new Error('Dependency creations failed. Inserts not acknowledged');
+        throw new Error(
+          'Dependency creations failed. Inserts not acknowledged'
+        );
 
-      
-      const end = performance.now();
-
-      console.log("--------------------------------------");
-      console.log(`dependency insert many took ${end - start} milliseconds` );
-      console.log("--------------------------------------");
-
-
-      return Object.keys(result.insertedIds).map(key => result.insertedIds[parseInt(key, 10)].toHexString());
+      return Object.keys(result.insertedIds).map((key) =>
+        result.insertedIds[parseInt(key, 10)].toHexString()
+      );
     } catch (error: unknown) {
       if (typeof error === 'string') return Promise.reject(error);
       if (error instanceof Error) return Promise.reject(error.message);
@@ -194,17 +163,13 @@ export default class DependencyRepo implements IDependencyRepo {
   };
 
   deleteOne = async (id: string, dbConnection: Db): Promise<string> => {
-    
     try {
-      
       const result: DeleteResult = await dbConnection
         .collection(collectionName)
         .deleteOne({ _id: new ObjectId(sanitize(id)) });
 
       if (!result.acknowledged)
         throw new Error('Dependency delete failed. Delete not acknowledged');
-
-      
 
       return result.deletedCount.toString();
     } catch (error: unknown) {
