@@ -4,6 +4,7 @@ import IUseCase from '../services/use-case';
 import { Column } from '../entities/column';
 import { ReadColumns } from './read-columns';
 import { IColumnRepo } from './i-column-repo';
+import { DbConnection } from '../services/i-db';
 
 export interface CreateColumnRequestDto {
   dbtModelId: string;
@@ -26,12 +27,15 @@ export class CreateColumn
     IUseCase<
       CreateColumnRequestDto,
       CreateColumnResponseDto,
-      CreateColumnAuthDto
+      CreateColumnAuthDto,
+      DbConnection
     >
 {
   readonly #columnRepo: IColumnRepo;
 
   readonly #readColumns: ReadColumns;
+
+  #dbConnection: DbConnection;
 
   constructor(readColumns: ReadColumns, columnRepo: IColumnRepo) {
     this.#readColumns = readColumns;
@@ -40,9 +44,12 @@ export class CreateColumn
 
   async execute(
     request: CreateColumnRequestDto,
-    auth: CreateColumnAuthDto
+    auth: CreateColumnAuthDto,
+    dbConnection: DbConnection
   ): Promise<CreateColumnResponseDto> {
     try {
+      this.#dbConnection = dbConnection;
+
       const column = Column.create({
         id: new ObjectId().toHexString(),
         dbtModelId: request.dbtModelId,
@@ -59,7 +66,8 @@ export class CreateColumn
           materializationId: request.materializationId,
           lineageId: request.lineageId,
         },
-        { organizationId: auth.organizationId }
+        { organizationId: auth.organizationId },
+        this.#dbConnection
       );
 
       if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
@@ -67,7 +75,8 @@ export class CreateColumn
       if (readColumnsResult.value.length)
         throw new Error(`Column for materialization already exists`);
 
-      if (request.writeToPersistence) await this.#columnRepo.insertOne(column);
+      if (request.writeToPersistence)
+        await this.#columnRepo.insertOne(column, this.#dbConnection);
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');

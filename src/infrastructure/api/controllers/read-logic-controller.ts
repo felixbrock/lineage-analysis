@@ -8,6 +8,7 @@ import {
   ReadLogicRequestDto,
   ReadLogicResponseDto,
 } from '../../../domain/logic/read-logic';
+import { IDb } from '../../../domain/services/i-db';
 
 import {
   BaseController,
@@ -20,10 +21,13 @@ export default class ReadLogicController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  constructor(readLogic: ReadLogic, getAccounts: GetAccounts) {
+  readonly #db: IDb;
+
+  constructor(readLogic: ReadLogic, getAccounts: GetAccounts, db: IDb) {
     super();
     this.#readLogic = readLogic;
     this.#getAccounts = getAccounts;
+    this.#db = db;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadLogicRequestDto => ({
@@ -61,13 +65,18 @@ export default class ReadLogicController extends BaseController {
       // const authDto: ReadLogicAuthDto = this.#buildAuthDto(
       //   getUserAccountResult.value
       // );
+      const client = this.#db.createClient();
+      const dbConnection = await this.#db.connect(client);
 
       const useCaseResult: ReadLogicResponseDto = await this.#readLogic.execute(
         requestDto,
         {
           organizationId: 'todo',
-        }
+        },
+        dbConnection
       );
+
+      await this.#db.close(client);
 
       if (!useCaseResult.success) {
         return ReadLogicController.badRequest(res, useCaseResult.error);

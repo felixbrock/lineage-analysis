@@ -6,7 +6,8 @@ const columnsRoutes = Router();
 
 const readColumnsController = new ReadColumnsController(
   app.resolve('readColumns'),
-  app.resolve('getAccounts')
+  app.resolve('getAccounts'),
+  app.resolve('db')
 );
 
 columnsRoutes.get('/', (req, res) => {

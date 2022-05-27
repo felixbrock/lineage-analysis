@@ -8,6 +8,7 @@ import {
   ReadLogicsRequestDto,
   ReadLogicsResponseDto,
 } from '../../../domain/logic/read-logics';
+import { IDb } from '../../../domain/services/i-db';
 
 import {
   BaseController,
@@ -20,20 +21,17 @@ export default class ReadLogicsController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  constructor(
-    readLogics: ReadLogics,
-    getAccounts: GetAccounts
-  ) {
+  readonly #db: IDb;
+
+  constructor(readLogics: ReadLogics, getAccounts: GetAccounts, db: IDb) {
     super();
     this.#readLogics = readLogics;
     this.#getAccounts = getAccounts;
+    this.#db = db;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadLogicsRequestDto => {
-    const {
-      dbtModelId,
-      lineageId,
-    } = httpRequest.query;
+    const { dbtModelId, lineageId } = httpRequest.query;
 
     if (!lineageId)
       throw new TypeError(
@@ -50,9 +48,7 @@ export default class ReadLogicsController extends BaseController {
     };
   };
 
-  #buildAuthDto = (
-    userAccountInfo: UserAccountInfo
-  ): ReadLogicsAuthDto => ({
+  #buildAuthDto = (userAccountInfo: UserAccountInfo): ReadLogicsAuthDto => ({
     organizationId: userAccountInfo.organizationId,
   });
 
@@ -79,22 +75,26 @@ export default class ReadLogicsController extends BaseController {
       // if (!getUserAccountInfoResult.value)
       //   throw new ReferenceError('Authorization failed');
 
-      const requestDto: ReadLogicsRequestDto =
-        this.#buildRequestDto(req);
+      const requestDto: ReadLogicsRequestDto = this.#buildRequestDto(req);
       // const authDto: ReadLogicsAuthDto = this.#buildAuthDto(
       //   getUserAccountResult.value
       // );
+      const client = this.#db.createClient();
+      const dbConnection = await this.#db.connect(client);
 
       const useCaseResult: ReadLogicsResponseDto =
-        await this.#readLogics.execute(requestDto, {
-          organizationId: 'todo',
-        });
+        await this.#readLogics.execute(
+          requestDto,
+          {
+            organizationId: 'todo',
+          },
+          dbConnection
+        );
+
+      await this.#db.close(client);
 
       if (!useCaseResult.success) {
-        return ReadLogicsController.badRequest(
-          res,
-          useCaseResult.error
-        );
+        return ReadLogicsController.badRequest(res, useCaseResult.error);
       }
 
       const resultValue = useCaseResult.value
@@ -105,8 +105,7 @@ export default class ReadLogicsController extends BaseController {
     } catch (error: unknown) {
       if (typeof error === 'string')
         return ReadLogicsController.fail(res, error);
-      if (error instanceof Error)
-        return ReadLogicsController.fail(res, error);
+      if (error instanceof Error) return ReadLogicsController.fail(res, error);
       return ReadLogicsController.fail(res, 'Unknown error occured');
     }
   }

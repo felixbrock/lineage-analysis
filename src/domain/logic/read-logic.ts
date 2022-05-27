@@ -2,6 +2,7 @@ import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { ILogicRepo } from './i-logic-repo';
 import { Logic } from '../entities/logic';
+import { DbConnection } from '../services/i-db';
 
 export interface ReadLogicRequestDto {
   id: string;
@@ -15,9 +16,16 @@ export type ReadLogicResponseDto = Result<Logic>;
 
 export class ReadLogic
   implements
-    IUseCase<ReadLogicRequestDto, ReadLogicResponseDto, ReadLogicAuthDto>
+    IUseCase<
+      ReadLogicRequestDto,
+      ReadLogicResponseDto,
+      ReadLogicAuthDto,
+      DbConnection
+    >
 {
   readonly #logicRepo: ILogicRepo;
+
+  #dbConnection: DbConnection;
 
   constructor(logicRepo: ILogicRepo) {
     this.#logicRepo = logicRepo;
@@ -25,13 +33,19 @@ export class ReadLogic
 
   async execute(
     request: ReadLogicRequestDto,
-    auth: ReadLogicAuthDto
+    auth: ReadLogicAuthDto,
+    dbConnection: DbConnection
   ): Promise<ReadLogicResponseDto> {
     try {
       // todo -replace
       console.log(auth);
 
-      const logic = await this.#logicRepo.findOne(request.id);
+      this.#dbConnection = dbConnection;
+
+      const logic = await this.#logicRepo.findOne(
+        request.id,
+        this.#dbConnection
+      );
       if (!logic) throw new Error(`Logic with id ${request.id} does not exist`);
 
       // if (logic.organizationId !== auth.organizationId)

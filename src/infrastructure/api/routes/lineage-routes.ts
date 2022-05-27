@@ -7,12 +7,14 @@ const lineageRoutes = Router();
 
 const createLineageController = new CreateLineageController(
   app.resolve('createLineage'),
-  app.resolve('getAccounts')
+  app.resolve('getAccounts'),
+  app.resolve('db')
 );
 
 const readLineageController = new ReadLineageController(
   app.resolve('readLineage'),
-  app.resolve('getAccounts')
+  app.resolve('getAccounts'),
+  app.resolve('db')
 );
 
 lineageRoutes.post('/', (req, res) => {

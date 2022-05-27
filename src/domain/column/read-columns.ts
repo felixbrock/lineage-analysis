@@ -1,10 +1,11 @@
 import { Column } from '../entities/column';
+import { DbConnection } from '../services/i-db';
 import IUseCase from '../services/use-case';
 import Result from '../value-types/transient-types/result';
 import { IColumnRepo, ColumnQueryDto } from './i-column-repo';
 
 export interface ReadColumnsRequestDto {
-  dbtModelId?: string | string[],
+  dbtModelId?: string | string[];
   name?: string | string[];
   index?: string;
   type?: string;
@@ -20,9 +21,16 @@ export type ReadColumnsResponseDto = Result<Column[]>;
 
 export class ReadColumns
   implements
-    IUseCase<ReadColumnsRequestDto, ReadColumnsResponseDto, ReadColumnsAuthDto>
+    IUseCase<
+      ReadColumnsRequestDto,
+      ReadColumnsResponseDto,
+      ReadColumnsAuthDto,
+      DbConnection
+    >
 {
   readonly #columnRepo: IColumnRepo;
+
+  #dbConnection: DbConnection;
 
   constructor(columnRepo: IColumnRepo) {
     this.#columnRepo = columnRepo;
@@ -30,11 +38,15 @@ export class ReadColumns
 
   async execute(
     request: ReadColumnsRequestDto,
-    auth: ReadColumnsAuthDto
-  ): Promise<ReadColumnsResponseDto> {
+    auth: ReadColumnsAuthDto,
+    dbConnection: DbConnection
+    ): Promise<ReadColumnsResponseDto> {
     try {
+      this.#dbConnection = dbConnection;
+
       const columns: Column[] = await this.#columnRepo.findBy(
-        this.#buildColumnQueryDto(request, auth.organizationId)
+        this.#buildColumnQueryDto(request, auth.organizationId),
+        this.#dbConnection
       );
       if (!columns) throw new Error(`Queried columns do not exist`);
 
@@ -58,10 +70,11 @@ export class ReadColumns
     // queryDto.organizationId = organizationId;
     if (request.dbtModelId) queryDto.dbtModelId = request.dbtModelId;
     if (request.name) queryDto.name = request.name;
-    if (request.index) queryDto.index  = request.index;
+    if (request.index) queryDto.index = request.index;
     if (request.type) queryDto.type = request.type;
-    if (request.materializationId) queryDto.materializationId = request.materializationId;
-   
+    if (request.materializationId)
+      queryDto.materializationId = request.materializationId;
+
     return queryDto;
   };
 }

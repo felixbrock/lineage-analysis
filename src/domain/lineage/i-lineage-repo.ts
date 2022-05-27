@@ -1,9 +1,10 @@
 import { Lineage } from '../entities/lineage';
+import { DbConnection } from '../services/i-db';
 
 export interface ILineageRepo {
-  findOne(id: string): Promise<Lineage | null>;
-  findCurrent(): Promise<Lineage | null>;
-  all(): Promise<Lineage[]>;
-  insertOne(lineage: Lineage): Promise<string>;
-  deleteOne(id: string): Promise<string>;
+  findOne(id: string, dbConnection: DbConnection): Promise<Lineage | null>;
+  findCurrent(dbConnection: DbConnection): Promise<Lineage | null>;
+  all(dbConnection: DbConnection): Promise<Lineage[]>;
+  insertOne(lineage: Lineage, dbConnection: DbConnection): Promise<string>;
+  deleteOne(id: string, dbConnection: DbConnection): Promise<string>;
 }

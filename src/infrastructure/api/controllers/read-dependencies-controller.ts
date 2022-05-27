@@ -9,6 +9,7 @@ import {
   ReadDependenciesResponseDto,
 } from '../../../domain/dependency/read-dependencies';
 import { DependencyType } from '../../../domain/entities/dependency';
+import { IDb } from '../../../domain/services/i-db';
 
 import {
   BaseController,
@@ -21,10 +22,17 @@ export default class ReadDependenciesController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  constructor(readDependencies: ReadDependencies, getAccounts: GetAccounts) {
+  readonly #db: IDb;
+
+  constructor(
+    readDependencies: ReadDependencies,
+    getAccounts: GetAccounts,
+    db: IDb
+  ) {
     super();
     this.#readDependencies = readDependencies;
     this.#getAccounts = getAccounts;
+    this.#db = db;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadDependenciesRequestDto => {
@@ -97,11 +105,19 @@ export default class ReadDependenciesController extends BaseController {
       // const authDto: ReadDependenciesAuthDto = this.#buildAuthDto(
       //   getUserAccountResult.value
       // );
+      const client = this.#db.createClient();
+      const dbConnection = await this.#db.connect(client);
 
       const useCaseResult: ReadDependenciesResponseDto =
-        await this.#readDependencies.execute(requestDto, {
-          organizationId: 'todo',
-        });
+        await this.#readDependencies.execute(
+          requestDto,
+          {
+            organizationId: 'todo',
+          },
+          dbConnection
+        );
+
+      await this.#db.close(client);
 
       if (!useCaseResult.success) {
         return ReadDependenciesController.badRequest(res, useCaseResult.error);

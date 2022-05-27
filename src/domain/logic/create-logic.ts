@@ -10,6 +10,7 @@ import {
 } from '../entities/logic';
 import { ILogicRepo } from './i-logic-repo';
 import { ReadLogics } from './read-logics';
+import { DbConnection } from '../services/i-db';
 
 export interface CreateLogicRequestDto {
   dbtModelId: string;
@@ -29,11 +30,18 @@ export type CreateLogicResponse = Result<Logic>;
 
 export class CreateLogic
   implements
-    IUseCase<CreateLogicRequestDto, CreateLogicResponse, CreateLogicAuthDto>
+    IUseCase<
+      CreateLogicRequestDto,
+      CreateLogicResponse,
+      CreateLogicAuthDto,
+      DbConnection
+    >
 {
   readonly #readLogics: ReadLogics;
 
   readonly #logicRepo: ILogicRepo;
+
+  #dbConnection: DbConnection;
 
   constructor(readLogics: ReadLogics, logicRepo: ILogicRepo) {
     this.#readLogics = readLogics;
@@ -42,7 +50,7 @@ export class CreateLogic
 
   #getTablesAndCols = (): CatalogModelData[] => {
     const data = fs.readFileSync(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/temp-test.json`,
+      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`,
       // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
       'utf-8'
     );
@@ -72,9 +80,12 @@ export class CreateLogic
 
   async execute(
     request: CreateLogicRequestDto,
-    auth: CreateLogicAuthDto
+    auth: CreateLogicAuthDto,
+    dbConnection: DbConnection
   ): Promise<CreateLogicResponse> {
     try {
+      this.#dbConnection = dbConnection;
+
       const catalog = this.#getTablesAndCols();
 
       const logic = Logic.create({
@@ -93,7 +104,7 @@ export class CreateLogic
           dbtModelId: request.dbtModelId,
           lineageId: request.lineageId,
         },
-        { organizationId: auth.organizationId }
+        { organizationId: auth.organizationId }, this.#dbConnection
       );
 
       if (!readLogicsResult.success) throw new Error(readLogicsResult.error);
@@ -101,7 +112,8 @@ export class CreateLogic
       if (readLogicsResult.value.length)
         throw new ReferenceError('Logic to be created already exists');
 
-      if (request.writeToPersistence) await this.#logicRepo.insertOne(logic);
+      if (request.writeToPersistence)
+        await this.#logicRepo.insertOne(logic, dbConnection);
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');

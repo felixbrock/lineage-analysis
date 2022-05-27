@@ -6,7 +6,8 @@ const logicRoutes = Router();
 
 const readLogicController = new ReadLogicController(
   app.resolve('readLogic'),
-  app.resolve('getAccounts')
+  app.resolve('getAccounts'),
+  app.resolve('db')
 );
 
 logicRoutes.get('/:id', (req, res) => {

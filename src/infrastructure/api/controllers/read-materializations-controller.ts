@@ -9,6 +9,7 @@ import {
   ReadMaterializationsRequestDto,
   ReadMaterializationsResponseDto,
 } from '../../../domain/materialization/read-materializations';
+import { IDb } from '../../../domain/services/i-db';
 
 import {
   BaseController,
@@ -21,13 +22,17 @@ export default class ReadMaterializationsController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
+  readonly #db: IDb;
+
   constructor(
     readMaterializations: ReadMaterializations,
-    getAccounts: GetAccounts
+    getAccounts: GetAccounts,
+    db: IDb
   ) {
     super();
     this.#readMaterializations = readMaterializations;
     this.#getAccounts = getAccounts;
+    this.#db = db;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadMaterializationsRequestDto => {
@@ -114,11 +119,19 @@ export default class ReadMaterializationsController extends BaseController {
       // const authDto: ReadMaterializationsAuthDto = this.#buildAuthDto(
       //   getUserAccountResult.value
       // );
+      const client = this.#db.createClient();
+      const dbConnection = await this.#db.connect(client);
 
       const useCaseResult: ReadMaterializationsResponseDto =
-        await this.#readMaterializations.execute(requestDto, {
-          organizationId: 'todo',
-        });
+        await this.#readMaterializations.execute(
+          requestDto,
+          {
+            organizationId: 'todo',
+          },
+          dbConnection
+        );
+
+      await this.#db.close(client);
 
       if (!useCaseResult.success) {
         return ReadMaterializationsController.badRequest(

@@ -1,4 +1,5 @@
 import { MaterializationType, Materialization } from '../entities/materialization';
+import { DbConnection } from '../services/i-db';
 
 export interface MaterializationQueryDto {
   dbtModelId?: string;
@@ -11,10 +12,10 @@ export interface MaterializationQueryDto {
 }
 
 export interface IMaterializationRepo {
-  findOne(id: string): Promise<Materialization | null>;
-  findBy(materializationQueryDto: MaterializationQueryDto): Promise<Materialization[]>;
-  all(): Promise<Materialization[]>;
-  insertOne(materialization: Materialization): Promise<string>;
-  insertMany(materializations: Materialization[]): Promise<string[]>;
-  deleteOne(id: string): Promise<string>;
+  findOne(id: string, dbConnection: DbConnection): Promise<Materialization | null>;
+  findBy(materializationQueryDto: MaterializationQueryDto, dbConnection: DbConnection): Promise<Materialization[]>;
+  all(dbConnection: DbConnection): Promise<Materialization[]>;
+  insertOne(materialization: Materialization, dbConnection: DbConnection): Promise<string>;
+  insertMany(materializations: Materialization[], dbConnection: DbConnection): Promise<string[]>;
+  deleteOne(id: string, dbConnection: DbConnection): Promise<string>;
 }

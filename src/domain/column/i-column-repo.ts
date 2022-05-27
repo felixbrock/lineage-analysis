@@ -1,4 +1,5 @@
 import { Column } from '../entities/column';
+import { DbConnection } from '../services/i-db';
 
 export interface ColumnQueryDto {
   dbtModelId?: string | string[];
@@ -10,10 +11,10 @@ export interface ColumnQueryDto {
 }
 
 export interface IColumnRepo {
-  findOne(id: string): Promise<Column | null>;
-  findBy(columnQueryDto: ColumnQueryDto): Promise<Column[]>;
-  all(): Promise<Column[]>;
-  insertOne(column: Column): Promise<string>;
-  insertMany(columns: Column[]): Promise<string[]>;
-  deleteOne(id: string): Promise<string>;
+  findOne(id: string, dbConnection: DbConnection): Promise<Column | null>;
+  findBy(columnQueryDto: ColumnQueryDto, dbConnection: DbConnection): Promise<Column[]>;
+  all(dbConnection: DbConnection): Promise<Column[]>;
+  insertOne(column: Column, dbConnection: DbConnection): Promise<string>;
+  insertMany(columns: Column[], dbConnection: DbConnection): Promise<string[]>;
+  deleteOne(id: string, dbConnection: DbConnection): Promise<string>;
 }

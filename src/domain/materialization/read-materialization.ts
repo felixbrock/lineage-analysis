@@ -1,7 +1,11 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { IMaterializationRepo } from './i-materialization-repo';
-import { buildMaterializationDto, MaterializationDto } from './materialization-dto';
+import {
+  buildMaterializationDto,
+  MaterializationDto,
+} from './materialization-dto';
+import { DbConnection } from '../services/i-db';
 
 export interface ReadMaterializationRequestDto {
   id: string;
@@ -15,9 +19,16 @@ export type ReadMaterializationResponseDto = Result<MaterializationDto>;
 
 export class ReadMaterialization
   implements
-    IUseCase<ReadMaterializationRequestDto, ReadMaterializationResponseDto, ReadMaterializationAuthDto>
+    IUseCase<
+      ReadMaterializationRequestDto,
+      ReadMaterializationResponseDto,
+      ReadMaterializationAuthDto,
+      DbConnection
+    >
 {
   readonly #materializationRepo: IMaterializationRepo;
+
+  #dbConnection: DbConnection;
 
   constructor(materializationRepo: IMaterializationRepo) {
     this.#materializationRepo = materializationRepo;
@@ -25,13 +36,20 @@ export class ReadMaterialization
 
   async execute(
     request: ReadMaterializationRequestDto,
-    auth: ReadMaterializationAuthDto
+    auth: ReadMaterializationAuthDto,
+    dbConnection: DbConnection
   ): Promise<ReadMaterializationResponseDto> {
     console.log(auth);
 
     try {
-      const materialization = await this.#materializationRepo.findOne(request.id);
-      if (!materialization) throw new Error(`Materialization with id ${request.id} does not exist`);
+      this.#dbConnection = dbConnection;
+
+      const materialization = await this.#materializationRepo.findOne(
+        request.id,
+        this.#dbConnection
+      );
+      if (!materialization)
+        throw new Error(`Materialization with id ${request.id} does not exist`);
 
       // if (materialization.organizationId !== auth.organizationId)
       //   throw new Error('Not authorized to perform action');

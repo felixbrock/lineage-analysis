@@ -1,4 +1,5 @@
 import { Logic } from '../entities/logic';
+import { DbConnection } from '../services/i-db';
 import IUseCase from '../services/use-case';
 import Result from '../value-types/transient-types/result';
 import { ILogicRepo, LogicQueryDto } from './i-logic-repo';
@@ -16,9 +17,16 @@ export type ReadLogicsResponseDto = Result<Logic[]>;
 
 export class ReadLogics
   implements
-    IUseCase<ReadLogicsRequestDto, ReadLogicsResponseDto, ReadLogicsAuthDto>
+    IUseCase<
+      ReadLogicsRequestDto,
+      ReadLogicsResponseDto,
+      ReadLogicsAuthDto,
+      DbConnection
+    >
 {
   readonly #logicRepo: ILogicRepo;
+
+  #dbConnection: DbConnection;
 
   constructor(logicRepo: ILogicRepo) {
     this.#logicRepo = logicRepo;
@@ -26,11 +34,15 @@ export class ReadLogics
 
   async execute(
     request: ReadLogicsRequestDto,
-    auth: ReadLogicsAuthDto
+    auth: ReadLogicsAuthDto,
+    dbConnection: DbConnection
   ): Promise<ReadLogicsResponseDto> {
     try {
+      this.#dbConnection = dbConnection;
+
       const logics: Logic[] = await this.#logicRepo.findBy(
-        this.#buildLogicQueryDto(request, auth.organizationId)
+        this.#buildLogicQueryDto(request, auth.organizationId),
+        this.#dbConnection
       );
       if (!logics) throw new Error(`Queried logics do not exist`);
 
