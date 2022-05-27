@@ -1,3 +1,4 @@
+import { performance } from 'perf_hooks';
 import {
   DeleteResult,
   Document,
@@ -18,7 +19,6 @@ import {
   Materialization,
   MaterializationProperties,
 } from '../../domain/entities/materialization';
-import { performance } from 'perf_hooks';
 
 interface MaterializationPersistence {
   _id: ObjectId;

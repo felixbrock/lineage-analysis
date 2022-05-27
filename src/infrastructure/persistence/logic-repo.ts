@@ -1,3 +1,4 @@
+import { performance } from 'perf_hooks';
 import {
   DeleteResult,
   Document,
@@ -18,7 +19,6 @@ import {
   MaterializationRef,
   MaterializationDefinition,
 } from '../../domain/entities/logic';
-import { performance } from 'perf_hooks';
 
 type PersistenceStatementRefs = {
   [key: string]: { [key: string]: any }[];

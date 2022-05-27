@@ -1,3 +1,4 @@
+import { performance } from 'perf_hooks';
 import {
   DeleteResult,
   Document,
@@ -10,7 +11,6 @@ import sanitize from 'mongo-sanitize';
 import { connect, close, createClient } from './db/mongo-db';
 import { ILineageRepo } from '../../domain/lineage/i-lineage-repo';
 import { Lineage, LineageProperties } from '../../domain/entities/lineage';
-import { performance } from 'perf_hooks';
 
 interface LineagePersistence {
   _id: ObjectId;

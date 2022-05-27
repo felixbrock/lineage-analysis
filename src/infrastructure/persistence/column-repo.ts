@@ -1,3 +1,4 @@
+import { performance } from 'perf_hooks';
 import {
   DeleteResult,
   Document,
@@ -11,7 +12,6 @@ import sanitize from 'mongo-sanitize';
 import { connect, close, createClient } from './db/mongo-db';
 import { ColumnQueryDto, IColumnRepo } from '../../domain/column/i-column-repo';
 import { Column, ColumnProperties } from '../../domain/entities/column';
-import { performance } from 'perf_hooks';
 
 interface ColumnPersistence {
   _id: ObjectId;
