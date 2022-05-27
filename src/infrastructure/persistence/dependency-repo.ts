@@ -1,5 +1,6 @@
 import { performance } from 'perf_hooks';
 import {
+  Db,
   DeleteResult,
   Document,
   FindCursor,
@@ -9,7 +10,6 @@ import {
 } from 'mongodb';
 import sanitize from 'mongo-sanitize';
 
-import { connect, close, createClient } from './db/mongo-db';
 import {
   DependencyQueryDto,
   IDependencyRepo,
@@ -38,15 +38,15 @@ interface DependencyQueryFilter {
 const collectionName = 'dependency';
 
 export default class DependencyRepo implements IDependencyRepo {
-  findOne = async (id: string): Promise<Dependency | null> => {
-    const client = createClient();
+  findOne = async (id: string, dbConnection: Db): Promise<Dependency | null> => {
+    
     try {
-      const db = await connect(client);
-      const result: any = await db
+      
+      const result: any = await dbConnection
         .collection(collectionName)
         .findOne({ _id: new ObjectId(sanitize(id)) });
 
-      await close(client);
+      
 
       if (!result) return null;
 
@@ -59,21 +59,21 @@ export default class DependencyRepo implements IDependencyRepo {
   };
 
   findBy = async (
-    dependencyQueryDto: DependencyQueryDto
+    dependencyQueryDto: DependencyQueryDto, dbConnection: Db
   ): Promise<Dependency[]> => {
     const start = performance.now();
     try {
-      if (!Object.keys(dependencyQueryDto).length) return await this.all();
+      if (!Object.keys(dependencyQueryDto).length) return await this.all(dbConnection);
 
-      const client = createClient();
+      
 
-      const db = await connect(client);
-      const result: FindCursor = await db
+      
+      const result: FindCursor = await dbConnection
         .collection(collectionName)
         .find(this.#buildFilter(sanitize(dependencyQueryDto)));
       const results = await result.toArray();
 
-      await close(client);
+      
 
       const end = performance.now();
       console.log("--------------------------------------");
@@ -113,14 +113,14 @@ export default class DependencyRepo implements IDependencyRepo {
     return filter;
   };
 
-  all = async (): Promise<Dependency[]> => {
-    const client = createClient();
+  all = async (dbConnection: Db): Promise<Dependency[]> => {
+    
     try {
-      const db = await connect(client);
-      const result: FindCursor = await db.collection(collectionName).find();
+      
+      const result: FindCursor = await dbConnection.collection(collectionName).find();
       const results = await result.toArray();
 
-      await close(client);
+      
 
       if (!results || !results.length) return [];
 
@@ -134,19 +134,19 @@ export default class DependencyRepo implements IDependencyRepo {
     }
   };
 
-  insertOne = async (dependency: Dependency): Promise<string> => {
+  insertOne = async (dependency: Dependency,dbConnection: Db): Promise<string> => {
     const start = performance.now();
-    const client = createClient();
+    
     try {
-      const db = await connect(client);
-      const result: InsertOneResult<Document> = await db
+      
+      const result: InsertOneResult<Document> = await dbConnection
         .collection(collectionName)
         .insertOne(this.#toPersistence(sanitize(dependency)));
 
       if (!result.acknowledged)
         throw new Error('Dependency creation failed. Insert not acknowledged');
 
-      await close(client);
+      
 
       const end = performance.now();
       console.log("--------------------------------------");
@@ -161,14 +161,14 @@ export default class DependencyRepo implements IDependencyRepo {
     }
   };
 
-  insertMany = async (dependencies: Dependency[]): Promise<string[]> => {
+  insertMany = async (dependencies: Dependency[], dbConnection: Db): Promise<string[]> => {
 
     const start = performance.now();
 
-    const client = createClient();
+    
     try {
-      const db = await connect(client);
-      const result: InsertManyResult<Document> = await db
+      
+      const result: InsertManyResult<Document> = await dbConnection
         .collection(collectionName)
         .insertMany(
           dependencies.map((element) => this.#toPersistence(sanitize(element)))
@@ -177,7 +177,7 @@ export default class DependencyRepo implements IDependencyRepo {
       if (!result.acknowledged)
         throw new Error('Dependency creations failed. Inserts not acknowledged');
 
-      await close(client);
+      
       const end = performance.now();
 
       console.log("--------------------------------------");
@@ -193,18 +193,18 @@ export default class DependencyRepo implements IDependencyRepo {
     }
   };
 
-  deleteOne = async (id: string): Promise<string> => {
-    const client = createClient();
+  deleteOne = async (id: string, dbConnection: Db): Promise<string> => {
+    
     try {
-      const db = await connect(client);
-      const result: DeleteResult = await db
+      
+      const result: DeleteResult = await dbConnection
         .collection(collectionName)
         .deleteOne({ _id: new ObjectId(sanitize(id)) });
 
       if (!result.acknowledged)
         throw new Error('Dependency delete failed. Delete not acknowledged');
 
-      await close(client);
+      
 
       return result.deletedCount.toString();
     } catch (error: unknown) {

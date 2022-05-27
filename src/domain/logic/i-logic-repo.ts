@@ -1,4 +1,5 @@
 import { Logic } from '../entities/logic';
+import { DbConnection } from '../services/i-db';
 
 export interface LogicQueryDto {
   dbtModelId?: string;
@@ -6,10 +7,10 @@ export interface LogicQueryDto {
 }
 
 export interface ILogicRepo {
-  findOne(id: string): Promise<Logic | null>;
-  findBy(materializationQueryDto: LogicQueryDto): Promise<Logic[]>;
-  all(): Promise<Logic[]>;
-  insertOne(logic: Logic): Promise<string>;
-  insertMany(logics: Logic[]): Promise<string[]>;
-  deleteOne(id: string): Promise<string>;
+  findOne(id: string, dbConnection: DbConnection): Promise<Logic | null>;
+  findBy(materializationQueryDto: LogicQueryDto, dbConnection: DbConnection): Promise<Logic[]>;
+  all(dbConnection: DbConnection): Promise<Logic[]>;
+  insertOne(logic: Logic, dbConnection: DbConnection): Promise<string>;
+  insertMany(logics: Logic[], dbConnection: DbConnection): Promise<string[]>;
+  deleteOne(id: string, dbConnection: DbConnection): Promise<string>;
 }

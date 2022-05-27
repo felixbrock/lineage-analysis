@@ -8,6 +8,7 @@ import {
   ReadColumnsRequestDto,
   ReadColumnsResponseDto,
 } from '../../../domain/column/read-columns';
+import { IDb } from '../../../domain/services/i-db';
 
 import {
   BaseController,
@@ -20,10 +21,13 @@ export default class ReadColumnsController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  constructor(readColumns: ReadColumns, getAccounts: GetAccounts) {
+  readonly #db: IDb;
+
+  constructor(readColumns: ReadColumns, getAccounts: GetAccounts, db: IDb) {
     super();
     this.#readColumns = readColumns;
     this.#getAccounts = getAccounts;
+    this.#db = db;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadColumnsRequestDto => {
@@ -81,11 +85,19 @@ export default class ReadColumnsController extends BaseController {
       // const authDto: ReadColumnsAuthDto = this.#buildAuthDto(
       //   getUserAccountResult.value
       // );
+      const client = this.#db.createClient();
+      const dbConnection = await this.#db.connect(client);
 
       const useCaseResult: ReadColumnsResponseDto =
-        await this.#readColumns.execute(requestDto, {
-          organizationId: 'todo',
-        });
+        await this.#readColumns.execute(
+          requestDto,
+          {
+            organizationId: 'todo',
+          },
+          dbConnection
+        );
+
+      await this.#db.close(client);
 
       if (!useCaseResult.success) {
         return ReadColumnsController.badRequest(res, useCaseResult.error);

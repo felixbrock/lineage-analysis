@@ -1,4 +1,5 @@
 import { Dependency, DependencyType } from '../entities/dependency';
+import { DbConnection } from '../services/i-db';
 import IUseCase from '../services/use-case';
 import Result from '../value-types/transient-types/result';
 import { IDependencyRepo, DependencyQueryDto } from './i-dependency-repo';
@@ -21,10 +22,13 @@ export class ReadDependencies
     IUseCase<
       ReadDependenciesRequestDto,
       ReadDependenciesResponseDto,
-      ReadDependenciesAuthDto
+      ReadDependenciesAuthDto,
+      DbConnection
     >
 {
   readonly #dependencyRepo: IDependencyRepo;
+
+  #dbConnection: DbConnection;
 
   constructor(dependencyRepo: IDependencyRepo) {
     this.#dependencyRepo = dependencyRepo;
@@ -32,11 +36,15 @@ export class ReadDependencies
 
   async execute(
     request: ReadDependenciesRequestDto,
-    auth: ReadDependenciesAuthDto
+    auth: ReadDependenciesAuthDto,
+    dbConnection: DbConnection
   ): Promise<ReadDependenciesResponseDto> {
     try {
+      this.#dbConnection = dbConnection;
+
       const dependencies: Dependency[] = await this.#dependencyRepo.findBy(
-        this.#buildDependencyQueryDto(request, auth.organizationId)
+        this.#buildDependencyQueryDto(request, auth.organizationId),
+        dbConnection
       );
       if (!dependencies)
         throw new ReferenceError(`Queried dependencies do not exist`);

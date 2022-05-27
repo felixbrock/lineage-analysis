@@ -2,12 +2,13 @@
 import { ObjectId } from 'mongodb';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { Dependency} from '../entities/dependency';
+import { Dependency } from '../entities/dependency';
 import { IDependencyRepo } from './i-dependency-repo';
 import { ReadDependencies } from './read-dependencies';
 import { ColumnRef } from '../entities/logic';
 import { ReadColumns } from '../column/read-columns';
 import { Column } from '../entities/column';
+import { DbConnection } from '../services/i-db';
 
 export interface CreateDependencyRequestDto {
   dependencyRef: ColumnRef;
@@ -28,7 +29,8 @@ export class CreateDependency
     IUseCase<
       CreateDependencyRequestDto,
       CreateDependencyResponse,
-      CreateDependencyAuthDto
+      CreateDependencyAuthDto,
+      DbConnection
     >
 {
   readonly #readColumns: ReadColumns;
@@ -36,6 +38,8 @@ export class CreateDependency
   readonly #readDependencies: ReadDependencies;
 
   readonly #dependencyRepo: IDependencyRepo;
+
+  #dbConnection: DbConnection;
 
   /* Returns the object id of the parent column which self column depends upon */
   #getParentId = async (
@@ -45,7 +49,8 @@ export class CreateDependency
   ): Promise<string> => {
     const readColumnsResult = await this.#readColumns.execute(
       { dbtModelId: parentDbtModelIds, name: dependencyRef.name, lineageId },
-      { organizationId: 'todo' }
+      { organizationId: 'todo' },
+      this.#dbConnection
     );
 
     if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
@@ -57,12 +62,12 @@ export class CreateDependency
     if (!potentialParents.length)
       throw new ReferenceError('No parent found that matches reference');
 
-    if (potentialParents.length > 1){      
-      potentialParents = potentialParents.filter(
-        (parent) => parent.dbtModelId.includes(dependencyRef.materializationName)
+    if (potentialParents.length > 1) {
+      potentialParents = potentialParents.filter((parent) =>
+        parent.dbtModelId.includes(dependencyRef.materializationName)
       );
     }
-    if(potentialParents.length !== 1)
+    if (potentialParents.length !== 1)
       throw new ReferenceError('More than one matching parent');
 
     return potentialParents[0].id;
@@ -79,7 +84,8 @@ export class CreateDependency
         lineageId,
         name: dependencyRef.alias || dependencyRef.name,
       },
-      { organizationId: 'todo' }
+      { organizationId: 'todo' },
+      this.#dbConnection
     );
 
     if (!readSelfColumnResult.success)
@@ -89,8 +95,7 @@ export class CreateDependency
 
     const selfColumnMatches = readSelfColumnResult.value;
 
-    if (!selfColumnMatches.length)
-    throw new RangeError('No self column found');
+    if (!selfColumnMatches.length) throw new RangeError('No self column found');
 
     if (selfColumnMatches.length === 1) return selfColumnMatches[0];
 
@@ -122,15 +127,18 @@ export class CreateDependency
 
   async execute(
     request: CreateDependencyRequestDto,
-    auth: CreateDependencyAuthDto
-  ): Promise<CreateDependencyResponse> {
+    auth: CreateDependencyAuthDto,
+    dbConnection: DbConnection
+    ): Promise<CreateDependencyResponse> {
     console.log(auth);
 
     try {
+      this.#dbConnection = dbConnection;
+
       const headColumn = await this.#getSelfColumn(
         request.selfDbtModelId,
         request.dependencyRef,
-        request.lineageId
+        request.lineageId,
       );
 
       // const parentName =
@@ -141,7 +149,7 @@ export class CreateDependency
       const parentId = await this.#getParentId(
         request.dependencyRef,
         request.parentDbtModelIds,
-        request.lineageId
+        request.lineageId,
       );
 
       const dependency = Dependency.create({
@@ -152,7 +160,9 @@ export class CreateDependency
         lineageId: request.lineageId,
       });
 
-      console.log(`${request.dependencyRef.alias} depends on ${request.dependencyRef.name}`);
+      console.log(
+        `${request.dependencyRef.alias} depends on ${request.dependencyRef.name}`
+      );
       const readColumnsResult = await this.#readDependencies.execute(
         {
           type: request.dependencyRef.dependencyType,
@@ -160,7 +170,8 @@ export class CreateDependency
           tailId: parentId,
           lineageId: request.lineageId,
         },
-        { organizationId: auth.organizationId }
+        { organizationId: auth.organizationId },
+        dbConnection
       );
 
       if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
@@ -169,7 +180,7 @@ export class CreateDependency
         throw new Error(`Column for materialization already exists`);
 
       if (request.writeToPersistence)
-        await this.#dependencyRepo.insertOne(dependency);
+        await this.#dependencyRepo.insertOne(dependency, this.#dbConnection);
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');

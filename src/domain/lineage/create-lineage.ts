@@ -28,6 +28,7 @@ import { IColumnRepo } from '../column/i-column-repo';
 import { IMaterializationRepo } from '../materialization/i-materialization-repo';
 import { IDependencyRepo } from '../dependency/i-dependency-repo';
 import { ILogicRepo } from '../logic/i-logic-repo';
+import { DbConnection } from '../services/i-db';
 
 export interface CreateLineageRequestDto {
   lineageId?: string;
@@ -52,7 +53,8 @@ export class CreateLineage
     IUseCase<
       CreateLineageRequestDto,
       CreateLineageResponseDto,
-      CreateLineageAuthDto
+      CreateLineageAuthDto,
+      DbConnection
     >
 {
   readonly #createLogic: CreateLogic;
@@ -76,6 +78,8 @@ export class CreateLineage
   readonly #dependencyRepo: IDependencyRepo;
 
   readonly #readColumns: ReadColumns;
+
+  #dbConnection: DbConnection;
 
   #lineage?: Lineage;
 
@@ -141,7 +145,7 @@ export class CreateLineage
     this.#lineage = Lineage.create({ id: new ObjectId().toHexString() });
 
     if (!(lineageId && lineageCreatedAt))
-      await this.#lineageRepo.insertOne(this.#lineage);
+      await this.#lineageRepo.insertOne(this.#lineage, this.#dbConnection);
   };
 
   /* Sends sql to parse SQL microservices and receives parsed SQL logic back */
@@ -178,7 +182,8 @@ export class CreateLineage
         lineageId: lineage.id,
         writeToPersistence: false,
       },
-      { organizationId: 'todo' }
+      { organizationId: 'todo' },
+      this.#dbConnection
     );
 
     if (!createColumnResult.success) throw new Error(createColumnResult.error);
@@ -205,7 +210,8 @@ export class CreateLineage
           lineageId: lineage.id,
           writeToPersistence: false,
         },
-        { organizationId: 'todo' }
+        { organizationId: 'todo' },
+        this.#dbConnection
       );
 
     if (!createMaterializationResult.success)
@@ -253,7 +259,8 @@ export class CreateLineage
         parsedLogic,
         writeToPersistence: false,
       },
-      { organizationId: 'todo' }
+      { organizationId: 'todo' },
+      this.#dbConnection
     );
 
     if (!createLogicResult.success) throw new Error(createLogicResult.error);
@@ -276,7 +283,8 @@ export class CreateLineage
           lineageId: lineage.id,
           writeToPersistence: false,
         },
-        { organizationId: 'todo' }
+        { organizationId: 'todo' },
+        this.#dbConnection
       );
 
     if (!createMaterializationResult.success)
@@ -318,7 +326,7 @@ export class CreateLineage
   /* Runs through dbt nodes and creates objects like logic, materializations and columns */
   #generateWarehouseResources = async (): Promise<void> => {
     const dbtCatalogResources = this.#getDbtResources(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/temp-test.json`
+      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
       // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/web-samples/temp-test.json`
       // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/catalog.json`
     );
@@ -534,7 +542,8 @@ export class CreateLineage
               lineageId: lineage.id,
               writeToPersistence: false,
             },
-            { organizationId: 'todo' }
+            { organizationId: 'todo' },
+            this.#dbConnection
           );
 
           return createDependencyResult;
@@ -588,7 +597,8 @@ export class CreateLineage
         lineageId: lineage.id,
         writeToPersistence: false,
       },
-      { organizationId: 'todo' }
+      { organizationId: 'todo' },
+      this.#dbConnection
     );
 
     if (!createDependencyResult.success)
@@ -672,7 +682,8 @@ export class CreateLineage
         dbtModelId,
         lineageId: lineage.id,
       },
-      { organizationId: 'todo' }
+      { organizationId: 'todo' },
+      this.#dbConnection
     );
 
     if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
@@ -690,25 +701,34 @@ export class CreateLineage
   };
 
   #writeWhResourcesToPersistence = async (): Promise<void> => {
-    await this.#logicRepo.insertMany(this.#logics);
+    await this.#logicRepo.insertMany(this.#logics, this.#dbConnection);
 
-    await this.#materializationRepo.insertMany(this.#materializations);
+    await this.#materializationRepo.insertMany(
+      this.#materializations,
+      this.#dbConnection
+    );
 
-    await this.#columnRepo.insertMany(this.#columns);
+    await this.#columnRepo.insertMany(this.#columns, this.#dbConnection);
   };
 
   #writeDependenciesToPersistence = async (): Promise<void> => {
     if (this.#dependencies.length > 0)
-      await this.#dependencyRepo.insertMany(this.#dependencies);
+      await this.#dependencyRepo.insertMany(
+        this.#dependencies,
+        this.#dbConnection
+      );
   };
 
   async execute(
     request: CreateLineageRequestDto,
-    auth: CreateLineageAuthDto
+    auth: CreateLineageAuthDto,
+    dbConnection: DbConnection
   ): Promise<CreateLineageResponseDto> {
     // todo-replace
     console.log(auth);
     try {
+      this.#dbConnection = dbConnection;
+
       // todo - Workaround. Fix ioc container
       this.#lineage = undefined;
       this.#logics = [];

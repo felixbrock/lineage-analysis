@@ -1,5 +1,6 @@
 import { performance } from 'perf_hooks';
 import {
+  Db,
   DeleteResult,
   Document,
   FindCursor,
@@ -9,7 +10,6 @@ import {
 } from 'mongodb';
 import sanitize from 'mongo-sanitize';
 
-import { connect, close, createClient } from './db/mongo-db';
 import { ILogicRepo, LogicQueryDto } from '../../domain/logic/i-logic-repo';
 import {
   ColumnRef,
@@ -44,15 +44,15 @@ interface LogicQueryFilter {
 const collectionName = 'logic';
 
 export default class LogicRepo implements ILogicRepo {
-  findOne = async (id: string): Promise<Logic | null> => {
-    const client = createClient();
+  findOne = async (id: string, dbConnection: Db): Promise<Logic | null> => {
+    
     try {
-      const db = await connect(client);
-      const result: any = await db
+      
+      const result: any = await dbConnection
         .collection(collectionName)
         .findOne({ _id: new ObjectId(sanitize(id)) });
 
-      await close(client);
+      
 
       if (!result) return null;
 
@@ -64,19 +64,19 @@ export default class LogicRepo implements ILogicRepo {
     }
   };
 
-  findBy = async (logicQueryDto: LogicQueryDto): Promise<Logic[]> => {
+  findBy = async (logicQueryDto: LogicQueryDto, dbConnection: Db): Promise<Logic[]> => {
     try {
-      if (!Object.keys(logicQueryDto).length) return await this.all();
+      if (!Object.keys(logicQueryDto).length) return await this.all(dbConnection);
 
-      const client = createClient();
+      
 
-      const db = await connect(client);
-      const result: FindCursor = await db
+      
+      const result: FindCursor = await dbConnection
         .collection(collectionName)
         .find(this.#buildFilter(sanitize(logicQueryDto)));
       const results = await result.toArray();
 
-      await close(client);
+      
 
       if (!results || !results.length) return [];
 
@@ -98,14 +98,14 @@ export default class LogicRepo implements ILogicRepo {
     return filter;
   };
 
-  all = async (): Promise<Logic[]> => {
-    const client = createClient();
+  all = async (dbConnection: Db): Promise<Logic[]> => {
+    
     try {
-      const db = await connect(client);
-      const result: FindCursor = await db.collection(collectionName).find();
+      
+      const result: FindCursor = await dbConnection.collection(collectionName).find();
       const results = await result.toArray();
 
-      await close(client);
+      
 
       if (!results || !results.length) return [];
 
@@ -119,18 +119,18 @@ export default class LogicRepo implements ILogicRepo {
     }
   };
 
-  insertOne = async (logic: Logic): Promise<string> => {
-    const client = createClient();
+  insertOne = async (logic: Logic, dbConnection: Db): Promise<string> => {
+    
     try {
-      const db = await connect(client);
-      const result: InsertOneResult<Document> = await db
+      
+      const result: InsertOneResult<Document> = await dbConnection
         .collection(collectionName)
         .insertOne(this.#toPersistence(sanitize(logic)));
 
       if (!result.acknowledged)
         throw new Error('Logic creation failed. Insert not acknowledged');
 
-      await close(client);
+      
 
       return result.insertedId.toHexString();
     } catch (error: unknown) {
@@ -140,12 +140,12 @@ export default class LogicRepo implements ILogicRepo {
     }
   };
 
-  insertMany = async (logics: Logic[]): Promise<string[]> => {
+  insertMany = async (logics: Logic[], dbConnection: Db): Promise<string[]> => {
     const start = performance.now();
-    const client = createClient();
+    
     try {
-      const db = await connect(client);
-      const result: InsertManyResult<Document> = await db
+      
+      const result: InsertManyResult<Document> = await dbConnection
         .collection(collectionName)
         .insertMany(
           logics.map((element) => this.#toPersistence(sanitize(element)))
@@ -154,7 +154,7 @@ export default class LogicRepo implements ILogicRepo {
       if (!result.acknowledged)
         throw new Error('Logic creations failed. Inserts not acknowledged');
 
-      await close(client);
+      
 
       const end = performance.now();
       
@@ -172,18 +172,18 @@ export default class LogicRepo implements ILogicRepo {
     }
   };
 
-  deleteOne = async (id: string): Promise<string> => {
-    const client = createClient();
+  deleteOne = async (id: string, dbConnection: Db): Promise<string> => {
+    
     try {
-      const db = await connect(client);
-      const result: DeleteResult = await db
+      
+      const result: DeleteResult = await dbConnection
         .collection(collectionName)
         .deleteOne({ _id: new ObjectId(sanitize(id)) });
 
       if (!result.acknowledged)
         throw new Error('Logic delete failed. Delete not acknowledged');
 
-      await close(client);
+      
 
       return result.deletedCount.toString();
     } catch (error: unknown) {

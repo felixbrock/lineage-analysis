@@ -1,5 +1,6 @@
 import { performance } from 'perf_hooks';
 import {
+  Db,
   DeleteResult,
   Document,
   FindCursor,
@@ -9,7 +10,6 @@ import {
 } from 'mongodb';
 import sanitize from 'mongo-sanitize';
 
-import { connect, close, createClient } from './db/mongo-db';
 import { ColumnQueryDto, IColumnRepo } from '../../domain/column/i-column-repo';
 import { Column, ColumnProperties } from '../../domain/entities/column';
 
@@ -35,15 +35,14 @@ interface ColumnQueryFilter {
 const collectionName = 'column';
 
 export default class ColumnRepo implements IColumnRepo {
-  findOne = async (id: string): Promise<Column | null> => {
-    const client = createClient();
+  findOne = async (id: string, dbConnection: Db): Promise<Column | null> => {
     try {
-      const db = await connect(client);
-      const result: any = await db
+      
+      const result: any = await dbConnection
         .collection(collectionName)
         .findOne({ _id: new ObjectId(sanitize(id)) });
 
-      await close(client);
+      
 
       if (!result) return null;
 
@@ -55,20 +54,20 @@ export default class ColumnRepo implements IColumnRepo {
     }
   };
 
-  findBy = async (columnQueryDto: ColumnQueryDto): Promise<Column[]> => {
+  findBy = async (columnQueryDto: ColumnQueryDto, dbConnection: Db): Promise<Column[]> => {
     const start = performance.now();
     try {
-      if (!Object.keys(columnQueryDto).length) return await this.all();
+      if (!Object.keys(columnQueryDto).length) return await this.all(dbConnection);
 
-      const client = createClient();
+      
 
-      const db = await connect(client);
-      const result: FindCursor = await db
+      
+      const result: FindCursor = await dbConnection
         .collection(collectionName)
         .find(this.#buildFilter(sanitize(columnQueryDto)));
       const results = await result.toArray();
 
-      await close(client);
+      
 
       const end = performance.now();
       console.log("--------------------------------------");
@@ -123,14 +122,14 @@ export default class ColumnRepo implements IColumnRepo {
     return filter;
   };
 
-  all = async (): Promise<Column[]> => {
-    const client = createClient();
+  all = async (dbConnection: Db): Promise<Column[]> => {
+    
     try {
-      const db = await connect(client);
-      const result: FindCursor = await db.collection(collectionName).find();
+      
+      const result: FindCursor = await dbConnection.collection(collectionName).find();
       const results = await result.toArray();
 
-      await close(client);
+      
 
       if (!results || !results.length) return [];
 
@@ -144,18 +143,18 @@ export default class ColumnRepo implements IColumnRepo {
     }
   };
 
-  insertOne = async (column: Column): Promise<string> => {
-    const client = createClient();
+  insertOne = async (column: Column, dbConnection: Db): Promise<string> => {
+    
     try {
-      const db = await connect(client);
-      const result: InsertOneResult<Document> = await db
+      
+      const result: InsertOneResult<Document> = await dbConnection
         .collection(collectionName)
         .insertOne(this.#toPersistence(sanitize(column)));
 
       if (!result.acknowledged)
         throw new Error('Column creation failed. Insert not acknowledged');
 
-      await close(client);
+      
 
       return result.insertedId.toHexString();
     } catch (error: unknown) {
@@ -165,12 +164,12 @@ export default class ColumnRepo implements IColumnRepo {
     }
   };
 
-  insertMany = async (columns: Column[]): Promise<string[]> => {
+  insertMany = async (columns: Column[], dbConnection: Db): Promise<string[]> => {
     const start = performance.now();
-    const client = createClient();
+    
     try {
-      const db = await connect(client);
-      const result: InsertManyResult<Document> = await db
+      
+      const result: InsertManyResult<Document> = await dbConnection
         .collection(collectionName)
         .insertMany(
           columns.map((element) => this.#toPersistence(sanitize(element)))
@@ -179,7 +178,7 @@ export default class ColumnRepo implements IColumnRepo {
       if (!result.acknowledged)
         throw new Error('Column creations failed. Inserts not acknowledged');
 
-      await close(client);
+      
 
       const end = performance.now();
       console.log("--------------------------------------");
@@ -196,18 +195,18 @@ export default class ColumnRepo implements IColumnRepo {
     }
   };
 
-  deleteOne = async (id: string): Promise<string> => {
-    const client = createClient();
+  deleteOne = async (id: string, dbConnection: Db): Promise<string> => {
+    
     try {
-      const db = await connect(client);
-      const result: DeleteResult = await db
+      
+      const result: DeleteResult = await dbConnection
         .collection(collectionName)
         .deleteOne({ _id: new ObjectId(sanitize(id)) });
 
       if (!result.acknowledged)
         throw new Error('Column delete failed. Delete not acknowledged');
 
-      await close(client);
+      
 
       return result.deletedCount.toString();
     } catch (error: unknown) {

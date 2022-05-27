@@ -1,7 +1,14 @@
-import { MaterializationType, Materialization } from '../entities/materialization';
+import {
+  MaterializationType,
+  Materialization,
+} from '../entities/materialization';
+import { DbConnection } from '../services/i-db';
 import IUseCase from '../services/use-case';
 import Result from '../value-types/transient-types/result';
-import { IMaterializationRepo, MaterializationQueryDto } from './i-materialization-repo';
+import {
+  IMaterializationRepo,
+  MaterializationQueryDto,
+} from './i-materialization-repo';
 
 export interface ReadMaterializationsRequestDto {
   dbtModelId?: string;
@@ -21,9 +28,16 @@ export type ReadMaterializationsResponseDto = Result<Materialization[]>;
 
 export class ReadMaterializations
   implements
-    IUseCase<ReadMaterializationsRequestDto, ReadMaterializationsResponseDto, ReadMaterializationsAuthDto>
+    IUseCase<
+      ReadMaterializationsRequestDto,
+      ReadMaterializationsResponseDto,
+      ReadMaterializationsAuthDto,
+      DbConnection
+    >
 {
   readonly #materializationRepo: IMaterializationRepo;
+
+  #dbConnection: DbConnection;
 
   constructor(materializationRepo: IMaterializationRepo) {
     this.#materializationRepo = materializationRepo;
@@ -31,13 +45,19 @@ export class ReadMaterializations
 
   async execute(
     request: ReadMaterializationsRequestDto,
-    auth: ReadMaterializationsAuthDto
+    auth: ReadMaterializationsAuthDto,
+    dbConnection: DbConnection
   ): Promise<ReadMaterializationsResponseDto> {
     try {
-      const materializations: Materialization[] = await this.#materializationRepo.findBy(
-        this.#buildMaterializationQueryDto(request, auth.organizationId)
-      );
-      if (!materializations) throw new Error(`Queried materializations do not exist`);
+      this.#dbConnection = dbConnection;
+
+      const materializations: Materialization[] =
+        await this.#materializationRepo.findBy(
+          this.#buildMaterializationQueryDto(request, auth.organizationId),
+          this.#dbConnection
+        );
+      if (!materializations)
+        throw new Error(`Queried materializations do not exist`);
 
       return Result.ok(materializations);
     } catch (error: unknown) {
@@ -53,7 +73,7 @@ export class ReadMaterializations
   ): MaterializationQueryDto => {
     console.log(organizationId);
 
-    const queryDto: MaterializationQueryDto = {lineageId: request.lineageId};
+    const queryDto: MaterializationQueryDto = { lineageId: request.lineageId };
 
     // todo - add organizationId
     // queryDto.organizationId = organizationId;

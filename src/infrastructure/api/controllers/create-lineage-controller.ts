@@ -8,6 +8,7 @@ import {
   CreateLineageResponseDto,
 } from '../../../domain/lineage/create-lineage';
 import { buildLineageDto } from '../../../domain/lineage/lineage-dto';
+import { IDb } from '../../../domain/services/i-db';
 
 import {
   BaseController,
@@ -20,14 +21,17 @@ export default class CreateLineageController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  constructor(createLineage: CreateLineage, getAccounts: GetAccounts) {
+  readonly #db: IDb;
+
+  constructor(createLineage: CreateLineage, getAccounts: GetAccounts, db: IDb) {
     super();
     this.#createLineage = createLineage;
     this.#getAccounts = getAccounts;
+    this.#db = db;
   }
 
   #buildRequestDto = (httpRequest: Request): CreateLineageRequestDto => ({
-    lineageId: httpRequest.params.lineageCreatedAt
+    lineageId: httpRequest.params.lineageCreatedAt,
   });
 
   #buildAuthDto = (userAccountInfo: UserAccountInfo): CreateLineageAuthDto => ({
@@ -62,18 +66,27 @@ export default class CreateLineageController extends BaseController {
       //   getUserAccountResult.value
       // );
 
+      const client = this.#db.createClient();
+      const dbConnection = await this.#db.connect(client);
+
       const useCaseResult: CreateLineageResponseDto =
-        await this.#createLineage.execute(requestDto, {
-          organizationId: 'todo',
-        });
+        await this.#createLineage.execute(
+          requestDto,
+          {
+            organizationId: 'todo',
+          },
+          dbConnection
+        );
+
+      await this.#db.close(client);
 
       if (!useCaseResult.success) {
         return CreateLineageController.badRequest(res, useCaseResult.error);
       }
 
       const resultValue = useCaseResult.value
-      ? buildLineageDto(useCaseResult.value)
-      : useCaseResult.value;
+        ? buildLineageDto(useCaseResult.value)
+        : useCaseResult.value;
 
       return CreateLineageController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {

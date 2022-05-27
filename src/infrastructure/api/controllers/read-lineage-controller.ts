@@ -8,6 +8,7 @@ import {
   ReadLineageRequestDto,
   ReadLineageResponseDto,
 } from '../../../domain/lineage/read-lineage';
+import { IDb } from '../../../domain/services/i-db';
 
 import {
   BaseController,
@@ -20,10 +21,13 @@ export default class ReadLineageController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  constructor(readLineage: ReadLineage, getAccounts: GetAccounts) {
+  readonly #db: IDb;
+
+  constructor(readLineage: ReadLineage, getAccounts: GetAccounts, db: IDb) {
     super();
     this.#readLineage = readLineage;
     this.#getAccounts = getAccounts;
+    this.#db = db;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadLineageRequestDto => ({
@@ -61,11 +65,19 @@ export default class ReadLineageController extends BaseController {
       // const authDto: ReadLineageAuthDto = this.#buildAuthDto(
       //   getUserAccountResult.value
       // );
+      const client = this.#db.createClient();
+      const dbConnection = await this.#db.connect(client);
 
       const useCaseResult: ReadLineageResponseDto =
-        await this.#readLineage.execute(requestDto, {
-          organizationId: 'todo',
-        });
+        await this.#readLineage.execute(
+          requestDto,
+          {
+            organizationId: 'todo',
+          },
+          dbConnection
+        );
+
+      await this.#db.close(client);
 
       if (!useCaseResult.success) {
         return ReadLineageController.badRequest(res, useCaseResult.error);

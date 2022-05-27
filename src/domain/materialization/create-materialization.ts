@@ -8,6 +8,7 @@ import {
 } from '../entities/materialization';
 import { ReadMaterializations } from './read-materializations';
 import { IMaterializationRepo } from './i-materialization-repo';
+import { DbConnection } from '../services/i-db';
 
 export interface CreateMaterializationRequestDto {
   dbtModelId: string;
@@ -31,12 +32,15 @@ export class CreateMaterialization
     IUseCase<
       CreateMaterializationRequestDto,
       CreateMaterializationResponseDto,
-      CreateMaterializationAuthDto
+      CreateMaterializationAuthDto,
+      DbConnection
     >
 {
   readonly #readMaterializations: ReadMaterializations;
 
   readonly #materializationRepo: IMaterializationRepo;
+
+  #dbConnection: DbConnection;
 
   constructor(
     readMaterializations: ReadMaterializations,
@@ -48,9 +52,12 @@ export class CreateMaterialization
 
   async execute(
     request: CreateMaterializationRequestDto,
-    auth: CreateMaterializationAuthDto
+    auth: CreateMaterializationAuthDto,
+    dbConnection: DbConnection
   ): Promise<CreateMaterializationResponseDto> {
     try {
+      this.#dbConnection = dbConnection;
+
       const materialization = Materialization.create({
         id: new ObjectId().toHexString(),
         dbtModelId: request.dbtModelId,
@@ -68,7 +75,7 @@ export class CreateMaterialization
             dbtModelId: request.dbtModelId,
             lineageId: request.lineageId,
           },
-          { organizationId: auth.organizationId }
+          { organizationId: auth.organizationId }, this.#dbConnection
         );
 
       if (!readMaterializationsResult.success)
@@ -79,7 +86,10 @@ export class CreateMaterialization
         throw new Error(`Materialization already exists`);
 
       if (request.writeToPersistence)
-        await this.#materializationRepo.insertOne(materialization);
+        await this.#materializationRepo.insertOne(
+          materialization,
+          this.#dbConnection
+        );
 
       // if (auth.organizationId !== 'TODO')
       //   throw new Error('Not authorized to perform action');
