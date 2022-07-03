@@ -8,7 +8,7 @@ import {
   ReadColumnsRequestDto,
   ReadColumnsResponseDto,
 } from '../../../domain/column/read-columns';
-import { IDb } from '../../../domain/services/i-db';
+import Dbo from '../../persistence/db/mongo-db';
 
 import {
   BaseController,
@@ -21,13 +21,13 @@ export default class ReadColumnsController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  readonly #db: IDb;
+  readonly #dbo: Dbo;
 
-  constructor(readColumns: ReadColumns, getAccounts: GetAccounts, db: IDb) {
+  constructor(readColumns: ReadColumns, getAccounts: GetAccounts, dbo: Dbo) {
     super();
     this.#readColumns = readColumns;
     this.#getAccounts = getAccounts;
-    this.#db = db;
+    this.#dbo = dbo;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadColumnsRequestDto => {
@@ -85,8 +85,6 @@ export default class ReadColumnsController extends BaseController {
       // const authDto: ReadColumnsAuthDto = this.#buildAuthDto(
       //   getUserAccountResult.value
       // );
-      const client = this.#db.createClient();
-      const dbConnection = await this.#db.connect(client);
 
       const useCaseResult: ReadColumnsResponseDto =
         await this.#readColumns.execute(
@@ -94,10 +92,8 @@ export default class ReadColumnsController extends BaseController {
           {
             organizationId: 'todo',
           },
-          dbConnection
+          this.#dbo.dbConnection
         );
-
-      await this.#db.close(client);
 
       if (!useCaseResult.success) {
         return ReadColumnsController.badRequest(res, useCaseResult.error);

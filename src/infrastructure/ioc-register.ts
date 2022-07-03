@@ -21,7 +21,7 @@ import DependencyRepo from './persistence/dependency-repo';
 import { CreateDependency } from '../domain/dependency/create-dependency';
 import { ReadLineage } from '../domain/lineage/read-lineage';
 import { ReadLogic } from '../domain/logic/read-logic';
-import MongoDb from './persistence/db/mongo-db';
+import Dbo from './persistence/db/mongo-db';
 
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
@@ -53,7 +53,7 @@ iocRegister.register({
   accountApiRepo: asClass(AccountApiRepo),
   sqlParserApiRepo: asClass(SQLParserApiRepo),
 
-  db: asClass(MongoDb),
+  dbo: asClass(Dbo).singleton()
 });
 
 export default iocRegister;

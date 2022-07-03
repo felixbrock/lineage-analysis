@@ -2,6 +2,8 @@ import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import v1Router from './routes/v1';
+import iocRegister from '../ioc-register';
+import Dbo from '../persistence/db/mongo-db';
 
 interface AppConfig {
   port: number;
@@ -18,19 +20,27 @@ export default class ExpressApp {
     this.#config = config;
   }
 
-  start(): Application {
+  start = (): Application => {
+    const dbo: Dbo = iocRegister.resolve('dbo');
+
+    dbo.connectToServer((err) => {
+      if (err) {
+        console.error(err);
+        process.exit();
+      }
+
+      this.#expressApp.listen(this.#config.port, () => {
+        console.log(
+          `App listening on port: ${this.#config.port} in ${
+            this.#config.mode
+          } mode`
+        );
+      });
+    });
     this.configApp();
 
-    this.#expressApp.listen(this.#config.port, () => {
-      console.log(
-        `App listening on port: ${this.#config.port} in ${
-          this.#config.mode
-        } mode`
-      );
-    });
-
     return this.#expressApp;
-  }
+  };
 
   private configApp(): void {
     this.#expressApp.use(express.json());

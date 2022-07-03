@@ -7,7 +7,7 @@ const dependenciesRoutes = Router();
 const readDependenciesController = new ReadDependenciesController(
   app.resolve('readDependencies'),
   app.resolve('getAccounts'),
-  app.resolve('db')
+  app.resolve('dbo')
 );
 
 dependenciesRoutes.get('/', (req, res) => {

@@ -8,7 +8,7 @@ import {
   ReadLogicsRequestDto,
   ReadLogicsResponseDto,
 } from '../../../domain/logic/read-logics';
-import { IDb } from '../../../domain/services/i-db';
+import Dbo from '../../persistence/db/mongo-db';
 
 import {
   BaseController,
@@ -21,13 +21,13 @@ export default class ReadLogicsController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  readonly #db: IDb;
+  readonly #dbo: Dbo;
 
-  constructor(readLogics: ReadLogics, getAccounts: GetAccounts, db: IDb) {
+  constructor(readLogics: ReadLogics, getAccounts: GetAccounts, dbo: Dbo) {
     super();
     this.#readLogics = readLogics;
     this.#getAccounts = getAccounts;
-    this.#db = db;
+    this.#dbo = dbo;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadLogicsRequestDto => {
@@ -79,8 +79,6 @@ export default class ReadLogicsController extends BaseController {
       // const authDto: ReadLogicsAuthDto = this.#buildAuthDto(
       //   getUserAccountResult.value
       // );
-      const client = this.#db.createClient();
-      const dbConnection = await this.#db.connect(client);
 
       const useCaseResult: ReadLogicsResponseDto =
         await this.#readLogics.execute(
@@ -88,10 +86,8 @@ export default class ReadLogicsController extends BaseController {
           {
             organizationId: 'todo',
           },
-          dbConnection
+          this.#dbo.dbConnection
         );
-
-      await this.#db.close(client);
 
       if (!useCaseResult.success) {
         return ReadLogicsController.badRequest(res, useCaseResult.error);

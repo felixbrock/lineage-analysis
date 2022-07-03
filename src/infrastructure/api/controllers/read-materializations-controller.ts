@@ -9,7 +9,7 @@ import {
   ReadMaterializationsRequestDto,
   ReadMaterializationsResponseDto,
 } from '../../../domain/materialization/read-materializations';
-import { IDb } from '../../../domain/services/i-db';
+import Dbo from '../../persistence/db/mongo-db';
 
 import {
   BaseController,
@@ -22,17 +22,17 @@ export default class ReadMaterializationsController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  readonly #db: IDb;
+  readonly #dbo: Dbo;
 
   constructor(
     readMaterializations: ReadMaterializations,
     getAccounts: GetAccounts,
-    db: IDb
+    dbo: Dbo
   ) {
     super();
     this.#readMaterializations = readMaterializations;
     this.#getAccounts = getAccounts;
-    this.#db = db;
+    this.#dbo = dbo;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadMaterializationsRequestDto => {
@@ -119,8 +119,6 @@ export default class ReadMaterializationsController extends BaseController {
       // const authDto: ReadMaterializationsAuthDto = this.#buildAuthDto(
       //   getUserAccountResult.value
       // );
-      const client = this.#db.createClient();
-      const dbConnection = await this.#db.connect(client);
 
       const useCaseResult: ReadMaterializationsResponseDto =
         await this.#readMaterializations.execute(
@@ -128,10 +126,8 @@ export default class ReadMaterializationsController extends BaseController {
           {
             organizationId: 'todo',
           },
-          dbConnection
+          this.#dbo.dbConnection
         );
-
-      await this.#db.close(client);
 
       if (!useCaseResult.success) {
         return ReadMaterializationsController.badRequest(

@@ -1,17 +1,29 @@
 import { Db, MongoClient, ServerApiVersion } from 'mongodb';
 import { appConfig } from '../../../config';
-import { IDb } from '../../../domain/services/i-db';
 
-export default class MongoDb implements IDb {
-  createClient = (): MongoClient =>
-    new MongoClient(appConfig.mongodb.url, { serverApi: ServerApiVersion.v1 });
+export default class Dbo {
+	#client = new MongoClient(appConfig.mongodb.url, {
+		serverApi: ServerApiVersion.v1,
+	});
+	
+	#dbConnection: Db | undefined;
 
-  connect = async (client: MongoClient): Promise<Db> => {
-    await client.connect();
-    return client.db(appConfig.mongodb.dbName);
+	get dbConnection(): Db {
+		if(!this.#dbConnection) throw Error('Undefined db connection. Please connect to server first');
+		return this.#dbConnection;
+	}
+
+	connectToServer = (callback: (err?: any) => any): any => {
+    this.#client.connect((err, db) =>  {
+      if (err || !db) {
+        return callback(err);
+      }
+
+      this.#dbConnection = db.db(appConfig.mongodb.dbName);
+      console.log('Successfully connected to MongoDB.');
+
+      return callback();
+    });
   };
 
-  close = async (client: MongoClient): Promise<void> => {
-    await client.close();
-  };
-}
+};
