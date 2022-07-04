@@ -9,7 +9,7 @@ import {
   ReadDependenciesResponseDto,
 } from '../../../domain/dependency/read-dependencies';
 import { DependencyType } from '../../../domain/entities/dependency';
-import { IDb } from '../../../domain/services/i-db';
+import Dbo from '../../persistence/db/mongo-db';
 
 import {
   BaseController,
@@ -22,17 +22,17 @@ export default class ReadDependenciesController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  readonly #db: IDb;
+  readonly #dbo: Dbo;
 
   constructor(
     readDependencies: ReadDependencies,
     getAccounts: GetAccounts,
-    db: IDb
+    dbo: Dbo
   ) {
     super();
     this.#readDependencies = readDependencies;
     this.#getAccounts = getAccounts;
-    this.#db = db;
+    this.#dbo = dbo;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadDependenciesRequestDto => {
@@ -105,8 +105,6 @@ export default class ReadDependenciesController extends BaseController {
       // const authDto: ReadDependenciesAuthDto = this.#buildAuthDto(
       //   getUserAccountResult.value
       // );
-      const client = this.#db.createClient();
-      const dbConnection = await this.#db.connect(client);
 
       const useCaseResult: ReadDependenciesResponseDto =
         await this.#readDependencies.execute(
@@ -114,10 +112,9 @@ export default class ReadDependenciesController extends BaseController {
           {
             organizationId: 'todo',
           },
-          dbConnection
+          this.#dbo.dbConnection
         );
 
-      await this.#db.close(client);
 
       if (!useCaseResult.success) {
         return ReadDependenciesController.badRequest(res, useCaseResult.error);

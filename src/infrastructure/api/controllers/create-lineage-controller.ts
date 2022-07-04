@@ -8,7 +8,7 @@ import {
   CreateLineageResponseDto,
 } from '../../../domain/lineage/create-lineage';
 import { buildLineageDto } from '../../../domain/lineage/lineage-dto';
-import { IDb } from '../../../domain/services/i-db';
+import Dbo from '../../persistence/db/mongo-db';
 
 import {
   BaseController,
@@ -21,13 +21,13 @@ export default class CreateLineageController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  readonly #db: IDb;
+  readonly #dbo: Dbo;
 
-  constructor(createLineage: CreateLineage, getAccounts: GetAccounts, db: IDb) {
+  constructor(createLineage: CreateLineage, getAccounts: GetAccounts, dbo: Dbo) {
     super();
     this.#createLineage = createLineage;
     this.#getAccounts = getAccounts;
-    this.#db = db;
+    this.#dbo = dbo;
   }
 
   #buildRequestDto = (httpRequest: Request): CreateLineageRequestDto => ({
@@ -66,8 +66,6 @@ export default class CreateLineageController extends BaseController {
       //   getUserAccountResult.value
       // );
 
-      const client = this.#db.createClient();
-      const dbConnection = await this.#db.connect(client);
 
       const useCaseResult: CreateLineageResponseDto =
         await this.#createLineage.execute(
@@ -75,10 +73,8 @@ export default class CreateLineageController extends BaseController {
           {
             organizationId: 'todo',
           },
-          dbConnection
+          this.#dbo.dbConnection
         );
-
-      await this.#db.close(client);
 
       if (!useCaseResult.success) {
         return CreateLineageController.badRequest(res, useCaseResult.error);

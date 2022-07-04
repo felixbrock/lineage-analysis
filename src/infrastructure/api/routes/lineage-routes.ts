@@ -5,16 +5,19 @@ import ReadLineageController from '../controllers/read-lineage-controller';
 
 const lineageRoutes = Router();
 
+const getAccounts = app.resolve('getAccounts');
+const dbo = app.resolve('dbo');
+
 const createLineageController = new CreateLineageController(
   app.resolve('createLineage'),
-  app.resolve('getAccounts'),
-  app.resolve('db')
+  getAccounts,
+  dbo
 );
 
 const readLineageController = new ReadLineageController(
   app.resolve('readLineage'),
-  app.resolve('getAccounts'),
-  app.resolve('db')
+  getAccounts,
+  dbo
 );
 
 lineageRoutes.post('/', (req, res) => {

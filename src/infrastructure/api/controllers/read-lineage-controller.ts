@@ -8,7 +8,7 @@ import {
   ReadLineageRequestDto,
   ReadLineageResponseDto,
 } from '../../../domain/lineage/read-lineage';
-import { IDb } from '../../../domain/services/i-db';
+import Dbo from '../../persistence/db/mongo-db';
 
 import {
   BaseController,
@@ -21,13 +21,13 @@ export default class ReadLineageController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  readonly #db: IDb;
+  readonly #dbo: Dbo; 
 
-  constructor(readLineage: ReadLineage, getAccounts: GetAccounts, db: IDb) {
+  constructor(readLineage: ReadLineage, getAccounts: GetAccounts, dbo: Dbo) {
     super();
     this.#readLineage = readLineage;
     this.#getAccounts = getAccounts;
-    this.#db = db;
+    this.#dbo = dbo;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadLineageRequestDto => ({
@@ -65,8 +65,6 @@ export default class ReadLineageController extends BaseController {
       // const authDto: ReadLineageAuthDto = this.#buildAuthDto(
       //   getUserAccountResult.value
       // );
-      const client = this.#db.createClient();
-      const dbConnection = await this.#db.connect(client);
 
       const useCaseResult: ReadLineageResponseDto =
         await this.#readLineage.execute(
@@ -74,10 +72,8 @@ export default class ReadLineageController extends BaseController {
           {
             organizationId: 'todo',
           },
-          dbConnection
+          this.#dbo.dbConnection
         );
-
-      await this.#db.close(client);
 
       if (!useCaseResult.success) {
         return ReadLineageController.badRequest(res, useCaseResult.error);
