@@ -22,6 +22,8 @@ import { CreateDependency } from '../domain/dependency/create-dependency';
 import { ReadLineage } from '../domain/lineage/read-lineage';
 import { ReadLogic } from '../domain/logic/read-logic';
 import Dbo from './persistence/db/mongo-db';
+import { QueryHistory } from '../domain/query-history-api/query-history';
+import QueryHistoryApiRepoImpl from './persistence/query-history-repo';
 
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
@@ -43,6 +45,7 @@ iocRegister.register({
 
   parseSQL: asClass(ParseSQL),
   getAccounts: asClass(GetAccounts),
+  queryHistory: asClass(QueryHistory),
 
   logicRepo: asClass(LogicRepo),
   materializationRepo: asClass(MaterializationRepo),
@@ -52,6 +55,7 @@ iocRegister.register({
 
   accountApiRepo: asClass(AccountApiRepo),
   sqlParserApiRepo: asClass(SQLParserApiRepo),
+  queryHistoryApiRepo: asClass(QueryHistoryApiRepoImpl),
 
   dbo: asClass(Dbo).singleton()
 });

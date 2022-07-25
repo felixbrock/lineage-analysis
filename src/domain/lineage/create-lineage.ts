@@ -29,6 +29,7 @@ import { IMaterializationRepo } from '../materialization/i-materialization-repo'
 import { IDependencyRepo } from '../dependency/i-dependency-repo';
 import { ILogicRepo } from '../logic/i-logic-repo';
 import { DbConnection } from '../services/i-db';
+import { QueryHistory, QueryHistoryResponseDto } from '../query-history-api/query-history';
 
 export interface CreateLineageRequestDto {
   lineageId?: string;
@@ -67,6 +68,8 @@ export class CreateLineage
 
   readonly #parseSQL: ParseSQL;
 
+  readonly #queryHistory: QueryHistory;
+
   readonly #lineageRepo: ILineageRepo;
 
   readonly #logicRepo: ILogicRepo;
@@ -95,12 +98,14 @@ export class CreateLineage
 
   #matDefinitionCatalog: MaterializationDefinition[];
 
+
   constructor(
     createLogic: CreateLogic,
     createMaterialization: CreateMaterialization,
     createColumn: CreateColumn,
     createDependency: CreateDependency,
     parseSQL: ParseSQL,
+    queryHistory: QueryHistory,
     lineageRepo: ILineageRepo,
     logicRepo: ILogicRepo,
     materializationRepo: IMaterializationRepo,
@@ -113,6 +118,7 @@ export class CreateLineage
     this.#createColumn = createColumn;
     this.#createDependency = createDependency;
     this.#parseSQL = parseSQL;
+    this.#queryHistory = queryHistory;
     this.#lineageRepo = lineageRepo;
     this.#logicRepo = logicRepo;
     this.#materializationRepo = materializationRepo;
@@ -326,14 +332,12 @@ export class CreateLineage
   /* Runs through dbt nodes and creates objects like logic, materializations and columns */
   #generateWarehouseResources = async (): Promise<void> => {
     const dbtCatalogResources = this.#getDbtResources(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
-      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/web-samples/temp-test.json`
-      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/catalog.json`
+      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
+      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/catalog.json`
     );
     const dbtManifestResources = this.#getDbtResources(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1.json`
-      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1.json`
-      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/manifest.json`
+      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1-no-v_date_stg.json`
+      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/manifest.json`
     );
 
     const dbtSourceKeys = Object.keys(dbtCatalogResources.sources);
@@ -454,6 +458,17 @@ export class CreateLineage
   //   );
   // };
 
+  /* Get all relevant dashboards that are data dependency to self materialization */
+  #getDashboardDataDependencyRefs = async (): Promise<any> =>{
+    
+    const queryHistoryResult: QueryHistoryResponseDto =
+    await this.#queryHistory.execute(
+      {biLayer: 'mode', limit: 10},
+      {jwt: 'todo'}
+    );
+    return queryHistoryResult;
+  };
+  
   /* Get all relevant wildcard statement references that are data dependency to self materialization */
   #getWildcardDataDependencyRefs = (statementRefs: Refs): ColumnRef[] =>
     statementRefs.wildcards.filter(
@@ -644,6 +659,20 @@ export class CreateLineage
             )
           )
         );
+
+        // const dashboardDataDependencyRefs = 
+        this.#getDashboardDataDependencyRefs(
+        );
+
+        // await Promise.all(
+        //   dashboardDataDependencyRefs.map(async (dependencyRef) =>
+        //     this.#buildDashboardRefDependency(
+        //       dependencyRef,
+        //       logic.dbtModelId,
+        //       logic.dependentOn.map((element) => element.dbtModelId)
+        //     )
+        //   )
+        // );
       })
     );
   };
