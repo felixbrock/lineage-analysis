@@ -14,6 +14,7 @@ import {
   ColumnRef,
   Refs,
   MaterializationDefinition,
+  DashboardRef,
 } from '../entities/logic';
 import {
   CreateDependency,
@@ -458,15 +459,45 @@ export class CreateLineage
   //   );
   // };
 
-  /* Get all relevant dashboards that are data dependency to self materialization */
-  #getDashboardDataDependencyRefs = async (): Promise<any> =>{
-    
-    const queryHistoryResult: QueryHistoryResponseDto =
-    await this.#queryHistory.execute(
-      {biLayer: 'mode', limit: 10},
-      {jwt: 'todo'}
+  #retriveQueryHistory = async (): Promise<any> => {
+    const queryHistoryResult: QueryHistoryResponseDto = await this.#queryHistory.execute(
+      { biLayer: 'mode', limit: 10 },
+      { jwt: 'todo' }
     );
-    return queryHistoryResult;
+
+    if (!queryHistoryResult.success)
+      throw new Error(queryHistoryResult.error);
+    if (!queryHistoryResult.value)
+      throw new SyntaxError(`Retrival of query history failed`);
+      
+    return queryHistoryResult.value;
+  };
+
+  /* Get all relevant dashboards that are data dependency to self materialization */
+  #getDashboardDataDependencyRefs = async (statementRefs: Refs): Promise<DashboardRef[]> =>{
+    
+    const dependentDashboards:DashboardRef[] = [];
+    const queryHistory = await this.#retriveQueryHistory();
+
+    statementRefs.columns.forEach((column) => {
+      queryHistory.forEach((entry: any) => {
+
+            const sqlText:string = entry.QUERY_TEXT;
+          
+            const testUrl = sqlText.match(/"(https?:[^\s]+),/); 
+            const dashboardUrl = testUrl ? testUrl[1] : undefined;
+
+            const matName = column.materializationName.toUpperCase();
+            const colName = column.alias ? column.alias.toUpperCase() : column.name.toUpperCase();
+            
+            if(sqlText.includes(matName) && sqlText.includes(colName)) 
+              dependentDashboards.push({url: dashboardUrl});
+          });
+
+    });
+    return dependentDashboards;
+
+   
   };
   
   /* Get all relevant wildcard statement references that are data dependency to self materialization */
@@ -662,6 +693,7 @@ export class CreateLineage
 
         // const dashboardDataDependencyRefs = 
         this.#getDashboardDataDependencyRefs(
+          logic.statementRefs
         );
 
         // await Promise.all(

@@ -29,16 +29,17 @@ export class QueryHistory
   ): Promise<QueryHistoryResponseDto> {
     console.log(auth);
 
-    let searchParam;
-    switch(request.biLayer) { 
-        case 'mode': { 
-            searchParam = '%modeanalytics%'
-           break; 
-        }
-     };
+    // let searchParam;
+    // switch(request.biLayer) { 
+    //     case 'mode': { 
+    //         searchParam = '%modeanalytics%'
+    //        break; 
+    //     }
+    //  };
     
-    const limit = request.limit;
-    const sqlQuery = "select QUERY_TEXT from snowflake.account_usage.query_history where QUERY_TEXT LIKE '%modeanalytics%' limit 10";
+    // const limit = request.limit;
+    const sqlQuery = `select QUERY_TEXT from snowflake.account_usage.query_history
+     where CHARINDEX('modeanalytics.com', QUERY_TEXT) > 0 limit 10`;
  
     try {
       const parseSQLResponse: QueryHistoryDto =
