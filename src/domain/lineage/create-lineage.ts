@@ -491,13 +491,17 @@ export class CreateLineage
             const colName = column.alias ? column.alias.toUpperCase() : column.name.toUpperCase();
             
             if(sqlText.includes(matName) && sqlText.includes(colName)) 
-              dependentDashboards.push({url: dashboardUrl});
+              dependentDashboards.push(
+                {
+                  url: dashboardUrl,
+                  materialisation: matName,
+                  column: colName
+                });
           });
 
     });
     return dependentDashboards;
 
-   
   };
   
   /* Get all relevant wildcard statement references that are data dependency to self materialization */
@@ -548,6 +552,43 @@ export class CreateLineage
 
     return dataDependencyRefs;
   };
+
+  #buildDashboardRefDependency = async (
+    dependencyRef: DashboardRef,
+    dbtModelId: string,
+    parentDbtModelIds: string[]
+  ): Promise<void> => {
+    
+    // const lineage = this.#lineage;
+
+    // if (!lineage) throw new ReferenceError('Lineage property is undefined');
+
+    // const dbtModelIdElements = dbtModelId.split('.');
+    // if (dbtModelIdElements.length !== 3)
+    //   throw new RangeError('Unexpected number of dbt model id elements');
+
+    // const createDependencyResult = await this.#createDependency.execute(
+    //   {
+    //     dependencyRef,
+    //     selfDbtModelId: dbtModelId,
+    //     parentDbtModelIds,
+    //     lineageId: lineage.id,
+    //     writeToPersistence: false,
+    //   },
+    //   { organizationId: 'todo' },
+    //   this.#dbConnection
+    // );
+
+    // if (!createDependencyResult.success)
+    //   throw new Error(createDependencyResult.error);
+    // if (!createDependencyResult.value)
+    //   throw new ReferenceError(`Creating dependency failed`);
+
+    // const dependency = createDependencyResult.value;
+
+    // this.#dependencies.push(dependency);
+
+  }
 
   /* Creates dependency for specific wildcard ref */
   #buildWildcardRefDependency = async (
@@ -691,20 +732,19 @@ export class CreateLineage
           )
         );
 
-        // const dashboardDataDependencyRefs = 
-        this.#getDashboardDataDependencyRefs(
+        const dashboardDataDependencyRefs = await this.#getDashboardDataDependencyRefs(
           logic.statementRefs
         );
 
-        // await Promise.all(
-        //   dashboardDataDependencyRefs.map(async (dependencyRef) =>
-        //     this.#buildDashboardRefDependency(
-        //       dependencyRef,
-        //       logic.dbtModelId,
-        //       logic.dependentOn.map((element) => element.dbtModelId)
-        //     )
-        //   )
-        // );
+        await Promise.all(
+          dashboardDataDependencyRefs.map(async (dependencyRef) =>
+            this.#buildDashboardRefDependency(
+              dependencyRef,
+              logic.dbtModelId,
+              logic.dependentOn.map((element) => element.dbtModelId)
+            )
+          )
+        );
       })
     );
   };
