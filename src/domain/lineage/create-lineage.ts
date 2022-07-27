@@ -589,11 +589,23 @@ export class CreateLineage
 
 
       const id = new ObjectId().toHexString();   
-      const materialisation = await this.#materializationRepo.findBy({name: dashboardRef.materialisation, dbtModelId: parentDbtModelIds[0], lineageId}, this.#dbConnection);
+      const materialisation = await this.#materializationRepo.findBy({
+        name: dashboardRef.materialisation,
+        dbtModelId: parentDbtModelIds[0],
+        lineageId
+      },
+       this.#dbConnection
+      );
       const matId = materialisation[0].id;
       //  matId = parent model ids?
       
-      const column = await this.#columnRepo.findBy({name: dashboardRef.column, materializationId: matId, lineageId} , this.#dbConnection);
+      const column = await this.#columnRepo.findBy({
+        name: dashboardRef.column, 
+        materializationId: matId, 
+        lineageId
+      }, 
+        this.#dbConnection
+      );
       const columnId = column[0].id; 
 
       const dashboard = Dashboard.create({
@@ -607,7 +619,6 @@ export class CreateLineage
       });
 
     //   saveToPersistence(dashboard)
-      // externalDependency = ExternalDependency.create(lineageId, …)
 
       const createExternalDependencyResult = await this.#createExternalDependency.execute(
         {
