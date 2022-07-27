@@ -24,6 +24,7 @@ import { ReadLogic } from '../domain/logic/read-logic';
 import Dbo from './persistence/db/mongo-db';
 import { QueryHistory } from '../domain/query-history-api/query-history';
 import QueryHistoryApiRepoImpl from './persistence/query-history-repo';
+import { CreateExternalDependency } from '../domain/dependency/create-external-dependency';
 
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
@@ -33,6 +34,7 @@ iocRegister.register({
   createMaterialization: asClass(CreateMaterialization),
   createColumn: asClass(CreateColumn),
   createDependency: asClass(CreateDependency),
+  createExternalDependency: asClass(CreateExternalDependency),
 
   readMaterialization: asClass(ReadMaterialization),
   readLineage: asClass(ReadLineage),

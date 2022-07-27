@@ -31,6 +31,8 @@ import { IDependencyRepo } from '../dependency/i-dependency-repo';
 import { ILogicRepo } from '../logic/i-logic-repo';
 import { DbConnection } from '../services/i-db';
 import { QueryHistory, QueryHistoryResponseDto } from '../query-history-api/query-history';
+import { Dashboard } from '../entities/dashboard';
+import { CreateExternalDependency } from '../dependency/create-external-dependency';
 
 export interface CreateLineageRequestDto {
   lineageId?: string;
@@ -67,6 +69,8 @@ export class CreateLineage
 
   readonly #createDependency: CreateDependency;
 
+  readonly #createExternalDependency: CreateExternalDependency;
+
   readonly #parseSQL: ParseSQL;
 
   readonly #queryHistory: QueryHistory;
@@ -98,6 +102,7 @@ export class CreateLineage
   #lastQueryDependency?: ColumnRef;
 
   #matDefinitionCatalog: MaterializationDefinition[];
+  
 
 
   constructor(
@@ -105,6 +110,7 @@ export class CreateLineage
     createMaterialization: CreateMaterialization,
     createColumn: CreateColumn,
     createDependency: CreateDependency,
+    createExternalDependency: CreateExternalDependency,
     parseSQL: ParseSQL,
     queryHistory: QueryHistory,
     lineageRepo: ILineageRepo,
@@ -118,6 +124,7 @@ export class CreateLineage
     this.#createMaterialization = createMaterialization;
     this.#createColumn = createColumn;
     this.#createDependency = createDependency;
+    this.#createExternalDependency = createExternalDependency;
     this.#parseSQL = parseSQL;
     this.#queryHistory = queryHistory;
     this.#lineageRepo = lineageRepo;
@@ -490,13 +497,14 @@ export class CreateLineage
             const matName = column.materializationName.toUpperCase();
             const colName = column.alias ? column.alias.toUpperCase() : column.name.toUpperCase();
             
-            if(sqlText.includes(matName) && sqlText.includes(colName)) 
-              dependentDashboards.push(
-                {
-                  url: dashboardUrl,
-                  materialisation: matName,
-                  column: colName
-                });
+            if(sqlText.includes(matName) && sqlText.includes(colName)){
+
+              dependentDashboards.push({
+                url: dashboardUrl,
+                materialisation: matName,
+                column: colName
+              });
+            } 
           });
 
     });
@@ -554,18 +562,18 @@ export class CreateLineage
   };
 
   #buildDashboardRefDependency = async (
-    dependencyRef: DashboardRef,
+    dashboardRef: DashboardRef,
     dbtModelId: string,
     parentDbtModelIds: string[]
   ): Promise<void> => {
     
-    // const lineage = this.#lineage;
+    const lineage = this.#lineage;
+    if (!lineage) throw new ReferenceError('Lineage property is undefined');
 
-    // if (!lineage) throw new ReferenceError('Lineage property is undefined');
-
-    // const dbtModelIdElements = dbtModelId.split('.');
-    // if (dbtModelIdElements.length !== 3)
-    //   throw new RangeError('Unexpected number of dbt model id elements');
+    const lineageId = lineage.id;
+    const dbtModelIdElements = dbtModelId.split('.');
+    if (dbtModelIdElements.length !== 3)
+      throw new RangeError('Unexpected number of dbt model id elements');
 
     // const createDependencyResult = await this.#createDependency.execute(
     //   {
@@ -579,16 +587,49 @@ export class CreateLineage
     //   this.#dbConnection
     // );
 
-    // if (!createDependencyResult.success)
-    //   throw new Error(createDependencyResult.error);
-    // if (!createDependencyResult.value)
-    //   throw new ReferenceError(`Creating dependency failed`);
 
-    // const dependency = createDependencyResult.value;
+      const id = new ObjectId().toHexString();   
+      const materialisation = await this.#materializationRepo.findBy({name: dashboardRef.materialisation, dbtModelId: parentDbtModelIds[0], lineageId}, this.#dbConnection);
+      const matId = materialisation[0].id;
+      //  matId = parent model ids?
+      
+      const column = await this.#columnRepo.findBy({name: dashboardRef.column, materializationId: matId, lineageId} , this.#dbConnection);
+      const columnId = column[0].id; 
 
-    // this.#dependencies.push(dependency);
+      const dashboard = Dashboard.create({
+        id,  
+        lineageId,
+        url: dashboardRef.url,
+        materialisation: dashboardRef.materialisation,
+        column: dashboardRef.column,
+        columnId,
+        matId,
+      });
 
-  }
+    //   saveToPersistence(dashboard)
+      // externalDependency = ExternalDependency.create(lineageId, …)
+
+      const createExternalDependencyResult = await this.#createExternalDependency.execute(
+        {
+          dashboard,
+          selfDbtModelId: dbtModelId,
+          parentDbtModelIds,
+          lineageId: lineage.id,
+          writeToPersistence: false,
+        },
+        { organizationId: 'todo' },
+        this.#dbConnection
+      );
+      
+      if (!createExternalDependencyResult.success)
+        throw new Error(createExternalDependencyResult.error);
+      if (!createExternalDependencyResult.value)
+        throw new ReferenceError(`Creating external dependency failed`);
+
+      const dependency = createExternalDependencyResult.value;
+      this.#dependencies.push(dependency);
+
+  };
 
   /* Creates dependency for specific wildcard ref */
   #buildWildcardRefDependency = async (
@@ -735,11 +776,12 @@ export class CreateLineage
         const dashboardDataDependencyRefs = await this.#getDashboardDataDependencyRefs(
           logic.statementRefs
         );
+        
 
         await Promise.all(
-          dashboardDataDependencyRefs.map(async (dependencyRef) =>
+          dashboardDataDependencyRefs.map(async (dashboardRef) =>
             this.#buildDashboardRefDependency(
-              dependencyRef,
+              dashboardRef,
               logic.dbtModelId,
               logic.dependentOn.map((element) => element.dbtModelId)
             )

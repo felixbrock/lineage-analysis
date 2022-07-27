@@ -1,7 +1,8 @@
 export enum DependencyType {
   DATA = 'DATA',
   QUERY = 'QUERY',
-  DEFINITION = 'DEFINITION'
+  DEFINITION = 'DEFINITION',
+  EXTERNAL = 'EXTERNAL'
 }
 
 export interface DependencyProperties {
