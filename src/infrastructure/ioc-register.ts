@@ -25,6 +25,7 @@ import Dbo from './persistence/db/mongo-db';
 import { QueryHistory } from '../domain/query-history-api/query-history';
 import QueryHistoryApiRepoImpl from './persistence/query-history-repo';
 import { CreateExternalDependency } from '../domain/dependency/create-external-dependency';
+import DashboardRepo from './persistence/dashboard-repo';
 
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
@@ -54,6 +55,7 @@ iocRegister.register({
   columnRepo: asClass(ColumnRepo),
   dependencyRepo: asClass(DependencyRepo),
   lineageRepo: asClass(LineageRepo),
+  dashboardRepo: asClass(DashboardRepo),
 
   accountApiRepo: asClass(AccountApiRepo),
   sqlParserApiRepo: asClass(SQLParserApiRepo),

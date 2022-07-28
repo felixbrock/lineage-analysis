@@ -33,6 +33,7 @@ import { DbConnection } from '../services/i-db';
 import { QueryHistory, QueryHistoryResponseDto } from '../query-history-api/query-history';
 import { Dashboard } from '../entities/dashboard';
 import { CreateExternalDependency } from '../dependency/create-external-dependency';
+import { IDashboardRepo } from '../dashboard/i-dashboard-repo';
 
 export interface CreateLineageRequestDto {
   lineageId?: string;
@@ -85,6 +86,8 @@ export class CreateLineage
 
   readonly #dependencyRepo: IDependencyRepo;
 
+  readonly #dashboardRepo: IDashboardRepo;
+
   readonly #readColumns: ReadColumns;
 
   #dbConnection: DbConnection;
@@ -99,10 +102,11 @@ export class CreateLineage
 
   #dependencies: Dependency[];
 
+  #dashboards: Dashboard[];
+
   #lastQueryDependency?: ColumnRef;
 
-  #matDefinitionCatalog: MaterializationDefinition[];
-  
+  #matDefinitionCatalog: MaterializationDefinition[]; 
 
 
   constructor(
@@ -118,6 +122,7 @@ export class CreateLineage
     materializationRepo: IMaterializationRepo,
     columnRepo: IColumnRepo,
     dependencyRepo: IDependencyRepo,
+    dashboardRepo: IDashboardRepo,
     readColumns: ReadColumns
   ) {
     this.#createLogic = createLogic;
@@ -132,11 +137,13 @@ export class CreateLineage
     this.#materializationRepo = materializationRepo;
     this.#columnRepo = columnRepo;
     this.#dependencyRepo = dependencyRepo;
+    this.#dashboardRepo = dashboardRepo;
     this.#readColumns = readColumns;
     this.#logics = [];
     this.#materializations = [];
     this.#columns = [];
     this.#dependencies = [];
+    this.#dashboards = [];
     this.#matDefinitionCatalog = [];
     this.#lineage = undefined;
     this.#lastQueryDependency = undefined;
@@ -481,10 +488,12 @@ export class CreateLineage
   };
 
   /* Get all relevant dashboards that are data dependency to self materialization */
-  #getDashboardDataDependencyRefs = async (statementRefs: Refs): Promise<DashboardRef[]> =>{
+  #getDashboardDataDependencyRefs = async (
+    statementRefs: Refs,
+    queryHistory: any,
+    ): Promise<DashboardRef[]> =>{
     
-    const dependentDashboards:DashboardRef[] = [];
-    const queryHistory = await this.#retriveQueryHistory();
+    const dependentDashboards: DashboardRef[] = [];
 
     statementRefs.columns.forEach((column) => {
       queryHistory.forEach((entry: any) => {
@@ -575,70 +584,56 @@ export class CreateLineage
     if (dbtModelIdElements.length !== 3)
       throw new RangeError('Unexpected number of dbt model id elements');
 
-    // const createDependencyResult = await this.#createDependency.execute(
-    //   {
-    //     dependencyRef,
-    //     selfDbtModelId: dbtModelId,
-    //     parentDbtModelIds,
-    //     lineageId: lineage.id,
-    //     writeToPersistence: false,
-    //   },
-    //   { organizationId: 'todo' },
-    //   this.#dbConnection
-    // );
+    const id = new ObjectId().toHexString();   
+    
+    const materialisation = await this.#materializationRepo.findBy({
+      name: dashboardRef.materialisation,
+      dbtModelId: parentDbtModelIds[0],
+      lineageId
+    },
+      this.#dbConnection
+    );
+    const matId = materialisation[0].id;
+    
+    const column = await this.#columnRepo.findBy({
+      name: dashboardRef.column, 
+      materializationId: matId, 
+      lineageId
+    }, 
+      this.#dbConnection
+    );
+    const columnId = column[0].id; 
 
+    const dashboard = Dashboard.create({
+      id,  
+      lineageId,
+      url: dashboardRef.url,
+      materialisation: dashboardRef.materialisation,
+      column: dashboardRef.column,
+      columnId,
+      matId,
+    });
+    this.#dashboards.push(dashboard);
 
-      const id = new ObjectId().toHexString();   
-      const materialisation = await this.#materializationRepo.findBy({
-        name: dashboardRef.materialisation,
-        dbtModelId: parentDbtModelIds[0],
-        lineageId
+    const createExternalDependencyResult = await this.#createExternalDependency.execute(
+      {
+        dashboard,
+        selfDbtModelId: dbtModelId,
+        parentDbtModelIds,
+        lineageId: lineage.id,
+        writeToPersistence: false,
       },
-       this.#dbConnection
-      );
-      const matId = materialisation[0].id;
-      //  matId = parent model ids?
-      
-      const column = await this.#columnRepo.findBy({
-        name: dashboardRef.column, 
-        materializationId: matId, 
-        lineageId
-      }, 
-        this.#dbConnection
-      );
-      const columnId = column[0].id; 
+      { organizationId: 'todo' },
+      this.#dbConnection
+    );
+    
+    if (!createExternalDependencyResult.success)
+      throw new Error(createExternalDependencyResult.error);
+    if (!createExternalDependencyResult.value)
+      throw new ReferenceError(`Creating external dependency failed`);
 
-      const dashboard = Dashboard.create({
-        id,  
-        lineageId,
-        url: dashboardRef.url,
-        materialisation: dashboardRef.materialisation,
-        column: dashboardRef.column,
-        columnId,
-        matId,
-      });
-
-    //   saveToPersistence(dashboard)
-
-      const createExternalDependencyResult = await this.#createExternalDependency.execute(
-        {
-          dashboard,
-          selfDbtModelId: dbtModelId,
-          parentDbtModelIds,
-          lineageId: lineage.id,
-          writeToPersistence: false,
-        },
-        { organizationId: 'todo' },
-        this.#dbConnection
-      );
-      
-      if (!createExternalDependencyResult.success)
-        throw new Error(createExternalDependencyResult.error);
-      if (!createExternalDependencyResult.value)
-        throw new ReferenceError(`Creating external dependency failed`);
-
-      const dependency = createExternalDependencyResult.value;
-      this.#dependencies.push(dependency);
+    const dependency = createExternalDependencyResult.value;
+    this.#dependencies.push(dependency);
 
   };
 
@@ -754,6 +749,8 @@ export class CreateLineage
   #buildDependencies = async (): Promise<void> => {
     // todo - should method be completely sync? Probably resolves once transformed into batch job.
 
+    
+    const queryHistory = await this.#retriveQueryHistory();
     await Promise.all(
       this.#logics.map(async (logic) => {
         const colDataDependencyRefs = this.#getColDataDependencyRefs(
@@ -785,7 +782,8 @@ export class CreateLineage
         );
 
         const dashboardDataDependencyRefs = await this.#getDashboardDataDependencyRefs(
-          logic.statementRefs
+          logic.statementRefs,
+          queryHistory
         );
         
 
@@ -865,6 +863,14 @@ export class CreateLineage
     await this.#columnRepo.insertMany(this.#columns, this.#dbConnection);
   };
 
+  #writeDashboardsToPersistence = async(): Promise<void> => {
+    if (this.#dashboards.length > 0)
+      await this.#dashboardRepo.insertMany(
+        this.#dashboards,
+        this.#dbConnection
+      );
+  };
+
   #writeDependenciesToPersistence = async (): Promise<void> => {
     if (this.#dependencies.length > 0)
       await this.#dependencyRepo.insertMany(
@@ -899,6 +905,8 @@ export class CreateLineage
       await this.#writeWhResourcesToPersistence();
 
       await this.#buildDependencies();
+
+      await this.#writeDashboardsToPersistence();
 
       await this.#writeDependenciesToPersistence();
 

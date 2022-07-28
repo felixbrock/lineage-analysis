@@ -58,24 +58,6 @@ export class CreateExternalDependency
     try {
       this.#dbConnection = dbConnection;
 
-    //   const headColumn = await this.#getSelfColumn(
-    //     request.selfDbtModelId,
-    //     request.dependencyRef,
-    //     request.lineageId,
-    //   );
-
-      // const parentName =
-      //   request.parentRef.name.includes('$') && request.parentRef.alias
-      //     ? request.parentRef.alias
-      //     : request.parentRef.name;
-
-    //   const parentId = await this.#getParentId(
-    //     request.dependencyRef,
-    //     request.parentDbtModelIds,
-    //     request.lineageId,
-    //   );
-
-
       const dependency = Dependency.create({
         id: new ObjectId().toHexString(),
         type: DependencyType.EXTERNAL,
