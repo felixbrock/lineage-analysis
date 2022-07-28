@@ -32,11 +32,11 @@ import {
   interface DashboardQueryFilter {
     url?: string;
     name?: string;
-    materialisation: string;
-    column: string; 
+    materialisation?: string;
+    column?: string; 
     lineageId: string;
-    columnId: string,
-    matId: string;
+    columnId?: string,
+    matId?: string;
   }
   
   const collectionName = 'dashboard';

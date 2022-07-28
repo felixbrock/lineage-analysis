@@ -26,6 +26,7 @@ import { QueryHistory } from '../domain/query-history-api/query-history';
 import QueryHistoryApiRepoImpl from './persistence/query-history-repo';
 import { CreateExternalDependency } from '../domain/dependency/create-external-dependency';
 import DashboardRepo from './persistence/dashboard-repo';
+import { ReadDashboards } from '../domain/dashboard/read-dashboards';
 
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
@@ -45,6 +46,7 @@ iocRegister.register({
   readMaterializations: asClass(ReadMaterializations),
   readColumns: asClass(ReadColumns),
   readDependencies: asClass(ReadDependencies),
+  readDashboards: asClass(ReadDashboards),
 
   parseSQL: asClass(ParseSQL),
   getAccounts: asClass(GetAccounts),

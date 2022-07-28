@@ -40,7 +40,7 @@ export class QueryHistory
     // const limit = request.limit;
     const sqlQuery = `select QUERY_TEXT from snowflake.account_usage.query_history
      where CHARINDEX('modeanalytics.com', QUERY_TEXT) > 0
-     AND CHARINDEX('CHARINDEX', QUERY_TEXT) = 0 limit 10`;
+     AND CHARINDEX('CHARINDEX', QUERY_TEXT) = 0 limit 40`;
  
     try {
       const parseSQLResponse: QueryHistoryDto =

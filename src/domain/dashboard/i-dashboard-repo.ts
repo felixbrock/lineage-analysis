@@ -4,12 +4,12 @@ import { DbConnection } from '../services/i-db';
 export interface DashboardQueryDto {
     url?: string;
     name?: string;
-    materialisation: string;
-    column: string; 
-    id: string;
+    materialisation?: string;
+    column?: string; 
+    id?: string;
+    columnId?: string,
+    matId?: string;
     lineageId: string;
-    columnId: string,
-    matId: string;
 }
 
 export interface IDashboardRepo {
