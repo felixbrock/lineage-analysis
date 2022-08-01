@@ -786,9 +786,19 @@ export class CreateLineage
           queryHistory
         );
         
+        const uniqueDashboardRefs = 
+        dashboardDataDependencyRefs
+        .filter((value, index, self) =>
+          index === self.findIndex((dashboard) => (
+          dashboard.name === value.name &&
+          dashboard.column === value.column &&
+          dashboard.materialisation === value.materialisation
+          ))
+        );
+        
 
         await Promise.all(
-          dashboardDataDependencyRefs.map(async (dashboardRef) =>
+          uniqueDashboardRefs.map(async (dashboardRef) =>
             this.#buildDashboardRefDependency(
               dashboardRef,
               logic.dbtModelId,
