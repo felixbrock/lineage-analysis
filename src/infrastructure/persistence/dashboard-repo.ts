@@ -91,15 +91,15 @@ import {
     ): DashboardQueryFilter => {
       const filter: DashboardQueryFilter = {
         lineageId: dashboardQueryDto.lineageId,
-        materialisation: dashboardQueryDto.materialisation,
-        column: dashboardQueryDto.column, 
-        columnId: dashboardQueryDto.columnId,
-        matId: dashboardQueryDto.matId,
-
       };
-  
+      
       if (dashboardQueryDto.url) filter.url = dashboardQueryDto.url;
       if (dashboardQueryDto.name) filter.name = dashboardQueryDto.name;
+  
+      if (dashboardQueryDto.materialisation) filter.materialisation = dashboardQueryDto.materialisation;
+      if (dashboardQueryDto.column) filter.column = dashboardQueryDto.column;
+      if (dashboardQueryDto.columnId) filter.name = dashboardQueryDto.name;
+      if (dashboardQueryDto.matId) filter.matId = dashboardQueryDto.matId;
   
       return filter;
     };
@@ -208,7 +208,7 @@ import {
   
     #toPersistence = (dashboard: Dashboard): Document => ({
       _id: ObjectId.createFromHexString(dashboard.id),
-      ineageId: dashboard.lineageId,
+      lineageId: dashboard.lineageId,
       materialisation: dashboard.materialisation,
       column: dashboard.column,
       columnId: dashboard.columnId,
