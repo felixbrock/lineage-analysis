@@ -138,6 +138,13 @@ interface HandlerReturn {
   newPrototype: RefsPrototype;
 }
 
+export interface DashboardRef {
+  url?: string;
+  name?: string;
+  materializationName: string;
+  columnName: string;
+}
+
 export class Logic {
   #id: string;
 

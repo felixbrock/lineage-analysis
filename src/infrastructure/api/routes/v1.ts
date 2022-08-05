@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { apiRoot } from '../../../config';
 import columnsRoutes from './columns-routes';
+import dashboardsRoutes from './dashboard-routes';
 import dependenciesRoutes from './dependencies-routes';
 import lineageRoutes from './lineage-routes';
 import logicRoutes from './logic-routes';
@@ -19,5 +20,6 @@ v1Router.use(`/${apiRoot}/${version}/logics`, logicsRoutes);
 v1Router.use(`/${apiRoot}/${version}/materializations`, materializationsRoutes);
 v1Router.use(`/${apiRoot}/${version}/columns`, columnsRoutes);
 v1Router.use(`/${apiRoot}/${version}/dependencies`, dependenciesRoutes);
+v1Router.use(`/${apiRoot}/${version}/dashboards`, dashboardsRoutes);
 
 export default v1Router;

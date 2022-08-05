@@ -163,7 +163,7 @@ export class CreateDependency
       console.log(
         `${request.dependencyRef.alias} depends on ${request.dependencyRef.name}`
       );
-      const readColumnsResult = await this.#readDependencies.execute(
+      const readDependencyResult = await this.#readDependencies.execute(
         {
           type: request.dependencyRef.dependencyType,
           headId: headColumn.id,
@@ -174,10 +174,10 @@ export class CreateDependency
         dbConnection
       );
 
-      if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
-      if (!readColumnsResult.value) throw new Error('Reading columns failed');
-      if (readColumnsResult.value.length)
-        throw new Error(`Column for materialization already exists`);
+      if (!readDependencyResult.success) throw new Error(readDependencyResult.error);
+      if (!readDependencyResult.value) throw new Error('Creating dependency failed');
+      if (readDependencyResult.value.length)
+        throw new Error(`Attempting to create a dependency that already exists`);
 
       if (request.writeToPersistence)
         await this.#dependencyRepo.insertOne(dependency, this.#dbConnection);
