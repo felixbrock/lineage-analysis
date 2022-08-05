@@ -1,7 +1,7 @@
 import axios from 'axios';
-import { IQueryHistoryApiRepo } from '../../domain/query-history-api/i-query-history-api-repo';
+import { IQueryHistoryApiRepo } from '../../domain/query-snowflake-history-api/i-query-history-api-repo';
 
-export default class QueryHistoryApiRepo
+export default class QuerySnowflakeHistoryApiRepo
   implements IQueryHistoryApiRepo
 {
 

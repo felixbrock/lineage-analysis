@@ -30,7 +30,7 @@ import { IMaterializationRepo } from '../materialization/i-materialization-repo'
 import { IDependencyRepo } from '../dependency/i-dependency-repo';
 import { ILogicRepo } from '../logic/i-logic-repo';
 import { DbConnection } from '../services/i-db';
-import { QuerySnowflakeHistory, QueryHistoryResponseDto } from '../query-history-api/query-history';
+import { QuerySnowflakeHistory, QueryHistoryResponseDto } from '../query-snowflake-history-api/query-snowflake-history';
 import { Dashboard } from '../entities/dashboard';
 import { CreateExternalDependency } from '../dependency/create-external-dependency';
 import { IDashboardRepo } from '../dashboard/i-dashboard-repo';
@@ -597,7 +597,7 @@ export class CreateLineage
     
     const column = await this.#columnRepo.findBy({
       name: dashboardRef.columnName, 
-      materializationId: materializationId, 
+      materializationId, 
       lineageId
     }, 
       this.#dbConnection
@@ -618,8 +618,6 @@ export class CreateLineage
     const createExternalDependencyResult = await this.#createExternalDependency.execute(
       {
         dashboard,
-        selfDbtModelId: dbtModelId,
-        parentDbtModelIds,
         lineageId: lineage.id,
         writeToPersistence: false,
       },

@@ -8,14 +8,14 @@ export interface QueryHistoryRequestDto {
   limit: number;
 }
 
-export interface QueryHistoryAuthDto {
+export interface QuerySnowflakeHistoryAuthDto {
   jwt: string;
 }
 
 export type QueryHistoryResponseDto = Result<QueryHistoryDto>;
 
 export class QuerySnowflakeHistory
-  implements IUseCase<QueryHistoryRequestDto, QueryHistoryResponseDto, QueryHistoryAuthDto>
+  implements IUseCase<QueryHistoryRequestDto, QueryHistoryResponseDto, QuerySnowflakeHistoryAuthDto>
 {
   readonly #queryHistoryApiRepo: IQueryHistoryApiRepo;
 
@@ -25,7 +25,7 @@ export class QuerySnowflakeHistory
 
   async execute(
     request: QueryHistoryRequestDto,
-    auth: QueryHistoryAuthDto
+    auth: QuerySnowflakeHistoryAuthDto
   ): Promise<QueryHistoryResponseDto> {
     console.log(auth);
 

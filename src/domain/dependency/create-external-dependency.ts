@@ -10,8 +10,6 @@ import { ReadDependencies } from './read-dependencies';
 
 export interface CreateExternalDependencyRequestDto {
   dashboard: Dashboard;
-  selfDbtModelId: string;
-  parentDbtModelIds: string[];
   lineageId: string;
   writeToPersistence: boolean;
 }
