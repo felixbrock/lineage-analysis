@@ -7,11 +7,11 @@ import { IDashboardRepo, DashboardQueryDto } from './i-dashboard-repo';
 export interface ReadDashboardsRequestDto {
     url?: string;
     name?: string;
-    materialisation?: string;
-    column?: string; 
+    materializationName?: string;
+    columnName?: string; 
     id?: string;
     columnId?: string,
-    matId?: string;
+    materializationId?: string;
     lineageId: string;
 }
 
@@ -73,11 +73,11 @@ export class ReadDashboards
     // queryDto.organizationId = organizationId;
     if (request.url) queryDto.url = request.url; 
     if (request.name) queryDto.name = request.name;
-    if (request.materialisation) queryDto.materialisation = request.materialisation;
-    if (request.column) queryDto.column = request.column; 
+    if (request.materializationName) queryDto.materializationName = request.materializationName;
+    if (request.columnName) queryDto.columnName = request.columnName; 
     if (request.id) queryDto.id = request.id;
     if (request.columnId) queryDto.columnId = request.columnId;
-    if (request.matId) queryDto.matId = request.matId;
+    if (request.materializationId) queryDto.materializationId = request.materializationId;
 
     return queryDto;
   };

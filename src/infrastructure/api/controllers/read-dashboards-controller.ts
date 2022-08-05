@@ -35,8 +35,8 @@ export default class ReadDashboardsController extends BaseController {
   }
 
   #buildRequestDto = (httpRequest: Request): ReadDashboardsRequestDto => {
-    const {url, name, materialisation, column,
-        id, columnId, matId, lineageId
+    const {url, name, materializationName, columnName,
+        id, columnId, materializationId, lineageId
      } = httpRequest.query;
 
     if (!lineageId)
@@ -51,11 +51,11 @@ export default class ReadDashboardsController extends BaseController {
     return {
       url: typeof url === 'string' ? url : undefined,
       name: typeof name === 'string' ? name : undefined,
-      materialisation: typeof materialisation === 'string' ? materialisation : undefined,
-      column: typeof column === 'string' ? column : undefined,
+      materializationName: typeof materializationName === 'string' ? materializationName : undefined,
+      columnName: typeof columnName === 'string' ? columnName : undefined,
       id: typeof id === 'string' ? id : undefined,
       columnId: typeof columnId === 'string' ? columnId : undefined,
-      matId: typeof matId === 'string' ? matId : undefined,
+      materializationId: typeof materializationId === 'string' ? materializationId : undefined,
       lineageId,
     };
   };

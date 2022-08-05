@@ -21,22 +21,22 @@ import {
   interface DashboardPersistence {
     url?: string;
     name?: string;
-    materialisation: string;
-    column: string; 
+    materializationName: string;
+    columnName: string; 
     _id: ObjectId;
     lineageId: string;
     columnId: string,
-    matId: string;
+    materializationId: string;
   }
   
   interface DashboardQueryFilter {
     url?: string;
     name?: string;
-    materialisation?: string;
-    column?: string; 
+    materializationName?: string;
+    columnName?: string; 
     lineageId: string;
     columnId?: string,
-    matId?: string;
+    materializationId?: string;
   }
   
   const collectionName = 'dashboard';
@@ -96,10 +96,10 @@ import {
       if (dashboardQueryDto.url) filter.url = dashboardQueryDto.url;
       if (dashboardQueryDto.name) filter.name = dashboardQueryDto.name;
   
-      if (dashboardQueryDto.materialisation) filter.materialisation = dashboardQueryDto.materialisation;
-      if (dashboardQueryDto.column) filter.column = dashboardQueryDto.column;
+      if (dashboardQueryDto.materializationName) filter.materializationName = dashboardQueryDto.materializationName;
+      if (dashboardQueryDto.columnName) filter.columnName = dashboardQueryDto.columnName;
       if (dashboardQueryDto.columnId) filter.name = dashboardQueryDto.name;
-      if (dashboardQueryDto.matId) filter.matId = dashboardQueryDto.matId;
+      if (dashboardQueryDto.materializationId) filter.materializationId = dashboardQueryDto.materializationId;
   
       return filter;
     };
@@ -197,10 +197,10 @@ import {
       // eslint-disable-next-line no-underscore-dangle
       id: dashboard._id.toHexString(),
       lineageId: dashboard.lineageId,
-      materialisation: dashboard.materialisation,
-      column: dashboard.column,
+      materializationName: dashboard.materializationName,
+      columnName: dashboard.columnName,
       columnId: dashboard.columnId,
-      matId: dashboard.matId,
+      materializationId: dashboard.materializationId,
       url: dashboard.url,
       name: dashboard.name
 
@@ -209,10 +209,10 @@ import {
     #toPersistence = (dashboard: Dashboard): Document => ({
       _id: ObjectId.createFromHexString(dashboard.id),
       lineageId: dashboard.lineageId,
-      materialisation: dashboard.materialisation,
-      column: dashboard.column,
+      materialisation: dashboard.materializationName,
+      column: dashboard.columnName,
       columnId: dashboard.columnId,
-      matId: dashboard.matId,
+      matId: dashboard.materializationId,
       url: dashboard.url,
       name: dashboard.name
     });

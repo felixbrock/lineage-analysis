@@ -1,12 +1,12 @@
 export interface DashboardProperties {
     url?: string;
     name?: string;
-    materialisation: string;
-    column: string; 
+    materializationName: string;
+    columnName: string; 
     id: string;
     lineageId: string;
     columnId: string,
-    matId: string;
+    materializationId: string;
   }
 
 export class Dashboard {
@@ -15,11 +15,11 @@ export class Dashboard {
     
     #name?: string;
     
-    #materialisation: string;
+    #materializationName: string;
 
-    #matId: string;
+    #materializationId: string;
     
-    #column: string;
+    #columnName: string;
 
     #columnId: string;
 
@@ -36,12 +36,12 @@ export class Dashboard {
         return this.#name;
     }
 
-    get materialisation(): string {
-        return this.#materialisation;
+    get materializationName(): string {
+        return this.#materializationName;
     }
 
-    get column(): string {
-        return this.#column;
+    get columnName(): string {
+        return this.#columnName;
     }
   
     get id(): string {
@@ -56,30 +56,30 @@ export class Dashboard {
         return this.#columnId;
     }
 
-    get matId(): string {
-        return this.#matId;
+    get materializationId(): string {
+        return this.#materializationId;
     }
         
   
     private constructor(properties: DashboardProperties) {
         this.#url = properties.url;
         this.#name = properties.name;
-        this.#materialisation = properties.materialisation;
-        this.#column = properties.column;
+        this.#materializationName = properties.materializationName;
+        this.#columnName = properties.columnName;
         this.#id = properties.id;
         this.#lineageId = properties.lineageId;
         this.#columnId = properties.columnId;
-        this.#matId = properties.matId;
+        this.#materializationId = properties.materializationId;
     }
   
     static create = (properties: DashboardProperties): Dashboard => {
 
-        if(!properties.materialisation) throw new TypeError('Dashboard must have materialisation');
-        if(!properties.column) throw new TypeError('Dashboard must have column');
+        if(!properties.materializationName) throw new TypeError('Dashboard must have materialisation');
+        if(!properties.columnName) throw new TypeError('Dashboard must have column');
         if(!properties.id) throw new TypeError('Dashboard must have id');
         if(!properties.lineageId) throw new TypeError('Dashboard must have lineageId');
         if(!properties.columnId) throw new TypeError('Dashboard must have columnId');
-        if(!properties.matId) throw new TypeError('Dashboard must have matId');
+        if(!properties.materializationId) throw new TypeError('Dashboard must have materializationId');
   
   
       const dashboard = new Dashboard(properties);

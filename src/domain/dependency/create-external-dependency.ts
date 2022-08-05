@@ -6,6 +6,7 @@ import { Dependency, DependencyType } from '../entities/dependency';
 import { IDependencyRepo } from './i-dependency-repo';
 import { DbConnection } from '../services/i-db';
 import { Dashboard } from '../entities/dashboard';
+import { ReadDependencies } from './read-dependencies';
 
 export interface CreateExternalDependencyRequestDto {
   dashboard: Dashboard;
@@ -30,21 +31,18 @@ export class CreateExternalDependency
       DbConnection
     >
 {
-//   readonly #readColumns: ReadColumns;
 
-//   readonly #readDependencies: ReadDependencies;
+  readonly #readDependencies: ReadDependencies;
 
   readonly #dependencyRepo: IDependencyRepo;
 
   #dbConnection: DbConnection;
 
   constructor(
-    // readColumns: ReadColumns,
-    // readDependencies: ReadDependencies,
+    readDependencies: ReadDependencies,
     dependencyRepo: IDependencyRepo
   ) {
-    // this.#readColumns = readColumns;
-    // this.#readDependencies = readDependencies;
+    this.#readDependencies = readDependencies;
     this.#dependencyRepo = dependencyRepo;
   }
 
@@ -68,23 +66,24 @@ export class CreateExternalDependency
 
 
       console.log(
-        `${request.dashboard.url} depends on ${request.dashboard.column} from ${request.dashboard.materialisation}`
+        `${request.dashboard.url} depends on ${request.dashboard.columnName} from ${request.dashboard.materializationName}`
       );
-    //   const readColumnsResult = await this.#readDependencies.execute(
-    //     {
-    //       type: request.dependencyRef.dependencyType,
-    //       headId: headColumn.id,
-    //       tailId: parentId,
-    //       lineageId: request.lineageId,
-    //     },
-    //     { organizationId: auth.organizationId },
-    //     dbConnection
-    //   );
 
-    //   if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
-    //   if (!readColumnsResult.value) throw new Error('Reading columns failed');
-    //   if (readColumnsResult.value.length)
-    //     throw new Error(`Column for materialization already exists`);
+      const readExternalDependenciesResult = await this.#readDependencies.execute(
+        {
+          type: DependencyType.EXTERNAL,
+          headId: request.dashboard.id,
+          tailId: request.dashboard.columnId,
+          lineageId: request.lineageId,
+        },
+        { organizationId: auth.organizationId },
+        dbConnection
+      );
+
+      if (!readExternalDependenciesResult.success) throw new Error(readExternalDependenciesResult.error);
+      if (!readExternalDependenciesResult.value) throw new Error('Creating external dependency failed');
+      if (readExternalDependenciesResult.value.length)
+        throw new Error(`Attempting to create an external dependency that already exists`);
 
       if (request.writeToPersistence)
         await this.#dependencyRepo.insertOne(dependency, this.#dbConnection);

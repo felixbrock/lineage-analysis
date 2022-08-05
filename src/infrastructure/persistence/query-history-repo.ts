@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { IQueryHistoryApiRepo } from '../../domain/query-history-api/i-query-history-api-repo';
 
-export default class QueryHistoryApiRepoImpl
+export default class QueryHistoryApiRepo
   implements IQueryHistoryApiRepo
 {
 

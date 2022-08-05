@@ -141,8 +141,8 @@ interface HandlerReturn {
 export interface DashboardRef {
   url?: string;
   name?: string;
-  materialisation: string;
-  column: string;
+  materializationName: string;
+  columnName: string;
 }
 
 export class Logic {

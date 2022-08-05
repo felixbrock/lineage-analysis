@@ -30,7 +30,7 @@ import { IMaterializationRepo } from '../materialization/i-materialization-repo'
 import { IDependencyRepo } from '../dependency/i-dependency-repo';
 import { ILogicRepo } from '../logic/i-logic-repo';
 import { DbConnection } from '../services/i-db';
-import { QueryHistory, QueryHistoryResponseDto } from '../query-history-api/query-history';
+import { QuerySnowflakeHistory, QueryHistoryResponseDto } from '../query-history-api/query-history';
 import { Dashboard } from '../entities/dashboard';
 import { CreateExternalDependency } from '../dependency/create-external-dependency';
 import { IDashboardRepo } from '../dashboard/i-dashboard-repo';
@@ -74,7 +74,7 @@ export class CreateLineage
 
   readonly #parseSQL: ParseSQL;
 
-  readonly #queryHistory: QueryHistory;
+  readonly #querySnowflakeHistory: QuerySnowflakeHistory;
 
   readonly #lineageRepo: ILineageRepo;
 
@@ -116,7 +116,7 @@ export class CreateLineage
     createDependency: CreateDependency,
     createExternalDependency: CreateExternalDependency,
     parseSQL: ParseSQL,
-    queryHistory: QueryHistory,
+    querySnowflakeHistory: QuerySnowflakeHistory,
     lineageRepo: ILineageRepo,
     logicRepo: ILogicRepo,
     materializationRepo: IMaterializationRepo,
@@ -131,7 +131,7 @@ export class CreateLineage
     this.#createDependency = createDependency;
     this.#createExternalDependency = createExternalDependency;
     this.#parseSQL = parseSQL;
-    this.#queryHistory = queryHistory;
+    this.#querySnowflakeHistory = querySnowflakeHistory;
     this.#lineageRepo = lineageRepo;
     this.#logicRepo = logicRepo;
     this.#materializationRepo = materializationRepo;
@@ -473,8 +473,8 @@ export class CreateLineage
   //   );
   // };
 
-  #retriveQueryHistory = async (): Promise<any> => {
-    const queryHistoryResult: QueryHistoryResponseDto = await this.#queryHistory.execute(
+  #retrieveQueryHistory = async (): Promise<any> => {
+    const queryHistoryResult: QueryHistoryResponseDto = await this.#querySnowflakeHistory.execute(
       { biLayer: 'mode', limit: 10 },
       { jwt: 'todo' }
     );
@@ -510,8 +510,8 @@ export class CreateLineage
 
               dependentDashboards.push({
                 url: dashboardUrl,
-                materialisation: matName,
-                column: colName
+                materializationName: matName,
+                columnName: colName
               });
             } 
           });
@@ -586,18 +586,18 @@ export class CreateLineage
 
     const id = new ObjectId().toHexString();   
     
-    const materialisation = await this.#materializationRepo.findBy({
-      name: dashboardRef.materialisation,
+    const materialization = await this.#materializationRepo.findBy({
+      name: dashboardRef.materializationName,
       dbtModelId: parentDbtModelIds[0],
       lineageId
     },
       this.#dbConnection
     );
-    const matId = materialisation[0].id;
+    const materializationId = materialization[0].id;
     
     const column = await this.#columnRepo.findBy({
-      name: dashboardRef.column, 
-      materializationId: matId, 
+      name: dashboardRef.columnName, 
+      materializationId: materializationId, 
       lineageId
     }, 
       this.#dbConnection
@@ -608,10 +608,10 @@ export class CreateLineage
       id,  
       lineageId,
       url: dashboardRef.url,
-      materialisation: dashboardRef.materialisation,
-      column: dashboardRef.column,
+      materializationName: dashboardRef.materializationName,
+      columnName: dashboardRef.columnName,
       columnId,
-      matId,
+      materializationId,
     });
     this.#dashboards.push(dashboard);
 
@@ -750,7 +750,7 @@ export class CreateLineage
     // todo - should method be completely sync? Probably resolves once transformed into batch job.
 
     
-    const queryHistory = await this.#retriveQueryHistory();
+    const queryHistory = await this.#retrieveQueryHistory();
     await Promise.all(
       this.#logics.map(async (logic) => {
         const colDataDependencyRefs = this.#getColDataDependencyRefs(
@@ -791,8 +791,8 @@ export class CreateLineage
         .filter((value, index, self) =>
           index === self.findIndex((dashboard) => (
           dashboard.name === value.name &&
-          dashboard.column === value.column &&
-          dashboard.materialisation === value.materialisation
+          dashboard.columnName === value.columnName &&
+          dashboard.materializationName === value.materializationName
           ))
         );
         
