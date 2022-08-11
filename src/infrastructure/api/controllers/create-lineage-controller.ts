@@ -30,9 +30,16 @@ export default class CreateLineageController extends BaseController {
     this.#dbo = dbo;
   }
 
-  #buildRequestDto = (httpRequest: Request): CreateLineageRequestDto => ({
-    lineageId: httpRequest.params.lineageCreatedAt,
-  });
+  #buildRequestDto = (httpRequest: Request): CreateLineageRequestDto => {
+    const {catalog, manifest} = httpRequest.query;
+    const lineageId = httpRequest.params.lineageCreatedAt;
+
+    return {
+      lineageId,
+      catalog: typeof catalog === 'string' ? catalog : undefined,
+      manifest: typeof manifest === 'string' ? manifest : undefined,
+    };
+  };
 
   #buildAuthDto = (userAccountInfo: UserAccountInfo): CreateLineageAuthDto => ({
     organizationId: userAccountInfo.organizationId,

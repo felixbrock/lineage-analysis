@@ -38,6 +38,8 @@ import { IDashboardRepo } from '../dashboard/i-dashboard-repo';
 export interface CreateLineageRequestDto {
   lineageId?: string;
   lineageCreatedAt?: number;
+  catalog?: string,
+  manifest?: string
 }
 
 export interface CreateLineageAuthDto {
@@ -331,9 +333,9 @@ export class CreateLineage
   };
 
   /* Get dbt nodes from catalog.json or manifest.json */
-  #getDbtResources = (location: string): DbtResources => {
-    const data = fs.readFileSync(location, 'utf-8');
-
+  #getDbtResources = (location: string, file?:string): DbtResources => {
+    const data = file || fs.readFileSync(location, 'utf-8');
+    
     const catalog = JSON.parse(data);
 
     const { nodes } = catalog;
@@ -345,14 +347,16 @@ export class CreateLineage
   };
 
   /* Runs through dbt nodes and creates objects like logic, materializations and columns */
-  #generateWarehouseResources = async (): Promise<void> => {
+  #generateWarehouseResources = async (catalog?:any, manifest?:any): Promise<void> => {
     const dbtCatalogResources = this.#getDbtResources(
       // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
-      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/catalog.json`
+      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/catalog.json`,
+      catalog
     );
     const dbtManifestResources = this.#getDbtResources(
       // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1-no-v_date_stg.json`
-      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/manifest.json`
+      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/manifest.json`,
+      manifest
     );
 
     const dbtSourceKeys = Object.keys(dbtCatalogResources.sources);
@@ -908,7 +912,7 @@ export class CreateLineage
 
       await this.#buildLineage(request.lineageId, request.lineageCreatedAt);
 
-      await this.#generateWarehouseResources();
+      await this.#generateWarehouseResources(request.catalog, request.manifest);
 
       await this.#writeWhResourcesToPersistence();
 
