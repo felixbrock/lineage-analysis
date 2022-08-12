@@ -8,6 +8,7 @@ import {
   ReadDashboardsRequestDto,
   ReadDashboardsResponseDto,
 } from '../../../domain/dashboard/read-dashboards';
+import Result from '../../../domain/value-types/transient-types/result';
 import Dbo from '../../persistence/db/mongo-db';
 
 import {
@@ -63,43 +64,42 @@ export default class ReadDashboardsController extends BaseController {
   #buildAuthDto = (
     userAccountInfo: UserAccountInfo
   ): ReadDashboardsAuthDto => ({
-    organizationId: userAccountInfo.organizationId,
+    callerOrganizationId: userAccountInfo.callerOrganizationId,
+    isSystemInternal: userAccountInfo.isSystemInternal
   });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {
-      // const authHeader = req.headers.authorization;
+      const authHeader = req.headers.authorization;
 
-      // if (!authHeader)
-      //   return ReadDependenciesController.unauthorized(res, 'Unauthorized');
+      if (!authHeader)
+        return ReadDashboardsController.unauthorized(res, 'Unauthorized');
 
-      // const jwt = authHeader.split(' ')[1];
+      const jwt = authHeader.split(' ')[1];
 
-      // const getUserAccountInfoResult: Result<UserAccountInfo> =
-      //   await ReadDependenciesInfoController.getUserAccountInfo(
-      //     jwt,
-      //     this.#getAccounts
-      //   );
+      const getUserAccountInfoResult: Result<UserAccountInfo> =
+        await ReadDashboardsController.getUserAccountInfo(
+          jwt,
+          this.#getAccounts
+        );
 
-      // if (!getUserAccountInfoResult.success)
-      //   return ReadDependenciesInfoController.unauthorized(
-      //     res,
-      //     getUserAccountInfoResult.error
-      //   );
-      // if (!getUserAccountInfoResult.value)
-      //   throw new ReferenceError('Authorization failed');
+      if (!getUserAccountInfoResult.success)
+        return ReadDashboardsController.unauthorized(
+          res,
+          getUserAccountInfoResult.error
+        );
+      if (!getUserAccountInfoResult.value)
+        throw new ReferenceError('Authorization failed');
 
       const requestDto: ReadDashboardsRequestDto = this.#buildRequestDto(req);
-      // const authDto: ReadDependenciesAuthDto = this.#buildAuthDto(
-      //   getUserAccountResult.value
-      // );
+      const authDto = this.#buildAuthDto(
+        getUserAccountInfoResult.value
+      );
 
       const useCaseResult: ReadDashboardsResponseDto =
         await this.#readDashboards.execute(
           requestDto,
-          {
-            organizationId: 'todo',
-          },
+          authDto,
           this.#dbo.dbConnection
         );
 

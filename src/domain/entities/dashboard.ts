@@ -7,6 +7,7 @@ export interface DashboardProperties {
     lineageId: string;
     columnId: string,
     materializationId: string;
+    organizationId: string;
   }
 
 export class Dashboard {
@@ -26,6 +27,8 @@ export class Dashboard {
     #id: string;
   
     #lineageId: string;
+
+    #organizationId: string;
     
     
     get url(): string|undefined {
@@ -59,7 +62,10 @@ export class Dashboard {
     get materializationId(): string {
         return this.#materializationId;
     }
-        
+     
+    get organizationId(): string {
+      return this.#organizationId;
+  }
   
     private constructor(properties: DashboardProperties) {
         this.#url = properties.url;
@@ -70,6 +76,7 @@ export class Dashboard {
         this.#lineageId = properties.lineageId;
         this.#columnId = properties.columnId;
         this.#materializationId = properties.materializationId;
+        this.#organizationId = properties.organizationId;
     }
   
     static create = (properties: DashboardProperties): Dashboard => {
@@ -80,6 +87,7 @@ export class Dashboard {
         if(!properties.lineageId) throw new TypeError('Dashboard must have lineageId');
         if(!properties.columnId) throw new TypeError('Dashboard must have columnId');
         if(!properties.materializationId) throw new TypeError('Dashboard must have materializationId');
+        if(!properties.organizationId) throw new TypeError('Dashboard must have organizationId');
   
   
       const dashboard = new Dashboard(properties);

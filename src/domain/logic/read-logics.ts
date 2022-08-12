@@ -7,10 +7,12 @@ import { ILogicRepo, LogicQueryDto } from './i-logic-repo';
 export interface ReadLogicsRequestDto {
   dbtModelId?: string;
   lineageId: string;
+  targetOrganizationId?: string;
 }
 
 export interface ReadLogicsAuthDto {
-  organizationId: string;
+  callerOrganizationId: string;
+  isSystemInternal: boolean
 }
 
 export type ReadLogicsResponseDto = Result<Logic[]>;
@@ -38,10 +40,15 @@ export class ReadLogics
     dbConnection: DbConnection
   ): Promise<ReadLogicsResponseDto> {
     try {
+      if(auth.isSystemInternal && !request.targetOrganizationId)
+      throw new Error('Target organization id missing');
+
       this.#dbConnection = dbConnection;
 
+      const organizationId = auth.isSystemInternal && request.targetOrganizationId ? request.targetOrganizationId: auth.callerOrganizationId;
+
       const logics: Logic[] = await this.#logicRepo.findBy(
-        this.#buildLogicQueryDto(request, auth.organizationId),
+        this.#buildLogicQueryDto(request, organizationId),
         this.#dbConnection
       );
       if (!logics) throw new Error(`Queried logics do not exist`);
@@ -58,12 +65,15 @@ export class ReadLogics
     request: ReadLogicsRequestDto,
     organizationId: string
   ): LogicQueryDto => {
-    console.log(organizationId);
+    
 
-    const queryDto: LogicQueryDto = { lineageId: request.lineageId };
+    const queryDto: LogicQueryDto = {
+      lineageId: request.lineageId,
+      organizationId,
+    };
 
-    // todo - add organizationId
-    // queryDto.organizationId = organizationId;
+    
+    
     if (request.dbtModelId) queryDto.dbtModelId = request.dbtModelId;
 
     return queryDto;

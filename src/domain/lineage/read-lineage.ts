@@ -9,7 +9,7 @@ export interface ReadLineageRequestDto {
 }
 
 export interface ReadLineageAuthDto {
-  organizationId: string;
+  callerOrganizationId: string;
 }
 
 export type ReadLineageResponseDto = Result<Lineage>;
@@ -38,7 +38,7 @@ export class ReadLineage
   ): Promise<ReadLineageResponseDto> {
     try {
       // todo -replace
-      console.log(auth);
+      ;
 
       this.#dbConnection = dbConnection;
 
@@ -49,8 +49,8 @@ export class ReadLineage
       if (!lineage)
         throw new Error(`Lineage with id ${request.id} does not exist`);
 
-      // if (lineage.organizationId !== auth.organizationId)
-      //   throw new Error('Not authorized to perform action');
+      if (lineage.organizationId !== auth.callerOrganizationId)
+        throw new Error('Not authorized to perform action');
 
       return Result.ok(lineage);
     } catch (error: unknown) {

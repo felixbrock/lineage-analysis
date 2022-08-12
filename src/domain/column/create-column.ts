@@ -14,10 +14,12 @@ export interface CreateColumnRequestDto {
   materializationId: string;
   lineageId: string;
   writeToPersistence: boolean;
+  targetOrganizationId: string;
 }
 
 export interface CreateColumnAuthDto {
-  organizationId: string;
+  isSystemInternal: boolean;
+  callerOrganizationId: string;
 }
 
 export type CreateColumnResponseDto = Result<Column>;
@@ -48,6 +50,8 @@ export class CreateColumn
     dbConnection: DbConnection
   ): Promise<CreateColumnResponseDto> {
     try {
+      if (!auth.isSystemInternal) throw new Error('Unauthorized');
+
       this.#dbConnection = dbConnection;
 
       const column = Column.create({
@@ -58,6 +62,7 @@ export class CreateColumn
         type: request.type,
         materializationId: request.materializationId,
         lineageId: request.lineageId,
+        organizationId: request.targetOrganizationId,
       });
 
       const readColumnsResult = await this.#readColumns.execute(
@@ -65,8 +70,9 @@ export class CreateColumn
           name: request.name,
           materializationId: request.materializationId,
           lineageId: request.lineageId,
+          targetOrganizationId: request.targetOrganizationId,
         },
-        { organizationId: auth.organizationId },
+        { callerOrganizationId: auth.callerOrganizationId, isSystemInternal: auth.isSystemInternal },
         this.#dbConnection
       );
 
@@ -77,9 +83,6 @@ export class CreateColumn
 
       if (request.writeToPersistence)
         await this.#columnRepo.insertOne(column, this.#dbConnection);
-
-      // if (auth.organizationId !== 'TODO')
-      //   throw new Error('Not authorized to perform action');
 
       return Result.ok(column);
     } catch (error: unknown) {

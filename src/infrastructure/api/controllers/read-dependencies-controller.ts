@@ -9,6 +9,7 @@ import {
   ReadDependenciesResponseDto,
 } from '../../../domain/dependency/read-dependencies';
 import { DependencyType } from '../../../domain/entities/dependency';
+import Result from '../../../domain/value-types/transient-types/result';
 import Dbo from '../../persistence/db/mongo-db';
 
 import {
@@ -75,43 +76,42 @@ export default class ReadDependenciesController extends BaseController {
   #buildAuthDto = (
     userAccountInfo: UserAccountInfo
   ): ReadDependenciesAuthDto => ({
-    organizationId: userAccountInfo.organizationId,
+    callerOrganizationId: userAccountInfo.callerOrganizationId,
+    isSystemInternal: userAccountInfo.isSystemInternal
   });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {
-      // const authHeader = req.headers.authorization;
+      const authHeader = req.headers.authorization;
 
-      // if (!authHeader)
-      //   return ReadDependenciesController.unauthorized(res, 'Unauthorized');
+      if (!authHeader)
+        return ReadDependenciesController.unauthorized(res, 'Unauthorized');
 
-      // const jwt = authHeader.split(' ')[1];
+      const jwt = authHeader.split(' ')[1];
 
-      // const getUserAccountInfoResult: Result<UserAccountInfo> =
-      //   await ReadDependenciesInfoController.getUserAccountInfo(
-      //     jwt,
-      //     this.#getAccounts
-      //   );
+      const getUserAccountInfoResult: Result<UserAccountInfo> =
+        await ReadDependenciesController.getUserAccountInfo(
+          jwt,
+          this.#getAccounts
+        );
 
-      // if (!getUserAccountInfoResult.success)
-      //   return ReadDependenciesInfoController.unauthorized(
-      //     res,
-      //     getUserAccountInfoResult.error
-      //   );
-      // if (!getUserAccountInfoResult.value)
-      //   throw new ReferenceError('Authorization failed');
+      if (!getUserAccountInfoResult.success)
+        return ReadDependenciesController.unauthorized(
+          res,
+          getUserAccountInfoResult.error
+        );
+      if (!getUserAccountInfoResult.value)
+        throw new ReferenceError('Authorization failed');
 
       const requestDto: ReadDependenciesRequestDto = this.#buildRequestDto(req);
-      // const authDto: ReadDependenciesAuthDto = this.#buildAuthDto(
-      //   getUserAccountResult.value
-      // );
+      const authDto = this.#buildAuthDto(
+        getUserAccountInfoResult.value
+      );
 
       const useCaseResult: ReadDependenciesResponseDto =
         await this.#readDependencies.execute(
           requestDto,
-          {
-            organizationId: 'todo',
-          },
+          authDto,
           this.#dbo.dbConnection
         );
 

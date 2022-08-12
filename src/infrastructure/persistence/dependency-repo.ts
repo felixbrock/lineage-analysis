@@ -25,6 +25,7 @@ interface DependencyPersistence {
   headId: string;
   tailId: string;
   lineageId: string;
+  organizationId: string;
 }
 
 interface DependencyQueryFilter {
@@ -32,6 +33,7 @@ interface DependencyQueryFilter {
   headId?: string;
   tailId?: string;
   lineageId: string;
+  organizationId: string;
 }
 
 const collectionName = 'dependency';
@@ -86,6 +88,7 @@ export default class DependencyRepo implements IDependencyRepo {
   ): DependencyQueryFilter => {
     const filter: DependencyQueryFilter = {
       lineageId: dependencyQueryDto.lineageId,
+      organizationId: dependencyQueryDto.organizationId
     };
 
     if (dependencyQueryDto.type) filter.type = dependencyQueryDto.type;
@@ -191,6 +194,7 @@ export default class DependencyRepo implements IDependencyRepo {
     headId: dependency.headId,
     tailId: dependency.tailId,
     lineageId: dependency.lineageId,
+    organizationId: dependency.organizationId
   });
 
   #toPersistence = (dependency: Dependency): Document => ({
@@ -199,5 +203,6 @@ export default class DependencyRepo implements IDependencyRepo {
     headId: dependency.headId,
     tailId: dependency.tailId,
     lineageId: dependency.lineageId,
+    organizationId: dependency.organizationId
   });
 }

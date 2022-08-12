@@ -8,6 +8,7 @@ import {
   ReadColumnsRequestDto,
   ReadColumnsResponseDto,
 } from '../../../domain/column/read-columns';
+import Result from '../../../domain/value-types/transient-types/result';
 import Dbo from '../../persistence/db/mongo-db';
 
 import {
@@ -55,43 +56,42 @@ export default class ReadColumnsController extends BaseController {
   };
 
   #buildAuthDto = (userAccountInfo: UserAccountInfo): ReadColumnsAuthDto => ({
-    organizationId: userAccountInfo.organizationId,
+    callerOrganizationId: userAccountInfo.callerOrganizationId,
+    isSystemInternal: userAccountInfo.isSystemInternal
   });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {
-      // const authHeader = req.headers.authorization;
+      const authHeader = req.headers.authorization;
 
-      // if (!authHeader)
-      //   return ReadColumnsController.unauthorized(res, 'Unauthorized');
+      if (!authHeader)
+        return ReadColumnsController.unauthorized(res, 'Unauthorized');
 
-      // const jwt = authHeader.split(' ')[1];
+      const jwt = authHeader.split(' ')[1];
 
-      // const getUserAccountInfoResult: Result<UserAccountInfo> =
-      //   await ReadColumnsInfoController.getUserAccountInfo(
-      //     jwt,
-      //     this.#getAccounts
-      //   );
+      const getUserAccountInfoResult: Result<UserAccountInfo> =
+        await ReadColumnsController.getUserAccountInfo(
+          jwt,
+          this.#getAccounts
+        );
 
-      // if (!getUserAccountInfoResult.success)
-      //   return ReadColumnsInfoController.unauthorized(
-      //     res,
-      //     getUserAccountInfoResult.error
-      //   );
-      // if (!getUserAccountInfoResult.value)
-      //   throw new ReferenceError('Authorization failed');
+      if (!getUserAccountInfoResult.success)
+        return ReadColumnsController.unauthorized(
+          res,
+          getUserAccountInfoResult.error
+        );
+      if (!getUserAccountInfoResult.value)
+        throw new ReferenceError('Authorization failed');
 
       const requestDto: ReadColumnsRequestDto = this.#buildRequestDto(req);
-      // const authDto: ReadColumnsAuthDto = this.#buildAuthDto(
-      //   getUserAccountResult.value
-      // );
+      const authDto = this.#buildAuthDto(
+        getUserAccountInfoResult.value
+      );
 
       const useCaseResult: ReadColumnsResponseDto =
         await this.#readColumns.execute(
           requestDto,
-          {
-            organizationId: 'todo',
-          },
+          authDto,
           this.#dbo.dbConnection
         );
 

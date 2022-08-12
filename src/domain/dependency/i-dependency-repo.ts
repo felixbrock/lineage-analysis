@@ -6,6 +6,7 @@ export interface DependencyQueryDto {
   headId?: string;
   tailId?: string;
   lineageId: string;
+  organizationId: string;
 }
 
 export interface IDependencyRepo {

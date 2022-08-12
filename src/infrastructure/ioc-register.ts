@@ -27,6 +27,7 @@ import QuerySnowflakeHistoryApiRepo from './persistence/query-snowflake-history-
 import { CreateExternalDependency } from '../domain/dependency/create-external-dependency';
 import DashboardRepo from './persistence/dashboard-repo';
 import { ReadDashboards } from '../domain/dashboard/read-dashboards';
+import { CreateDashboard } from '../domain/dashboard/create-dashboard';
 
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
@@ -37,6 +38,7 @@ iocRegister.register({
   createColumn: asClass(CreateColumn),
   createDependency: asClass(CreateDependency),
   createExternalDependency: asClass(CreateExternalDependency),
+  createDashboard: asClass(CreateDashboard),
 
   readMaterialization: asClass(ReadMaterialization),
   readLineage: asClass(ReadLineage),

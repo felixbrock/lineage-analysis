@@ -12,6 +12,7 @@ export interface MaterializationProperties {
   materializationType: MaterializationType;
   logicId: string;
   lineageId: string;
+  organizationId: string; 
 }
 
 export class Materialization {
@@ -30,6 +31,8 @@ export class Materialization {
   #logicId: string;
 
   #lineageId: string;
+
+  #organizationId: string;
 
   get id(): string {
     return this.#id;
@@ -63,6 +66,10 @@ export class Materialization {
     return this.#lineageId;
   }
 
+  get organizationId(): string {
+    return this.#organizationId;
+  }
+
   private constructor(properties: MaterializationProperties) {
     this.#id = properties.id;
     this.#dbtModelId = properties.dbtModelId;
@@ -72,6 +79,7 @@ export class Materialization {
     this.#materializationType = properties.materializationType;
     this.#logicId = properties.logicId;
     this.#lineageId = properties.lineageId;
+    this.#organizationId = properties.organizationId;
   }
 
   static create = (properties: MaterializationProperties): Materialization => {
@@ -87,6 +95,7 @@ export class Materialization {
       throw new TypeError('Materialization must have materialization type');
     if (!properties.logicId) throw new TypeError('Materialization must have logicId');
     if (!properties.lineageId) throw new TypeError('Materialization must have lineageId');
+    if (!properties.organizationId) throw new TypeError('Materialization must have organization id');
 
     const materialization = new Materialization(properties);
 

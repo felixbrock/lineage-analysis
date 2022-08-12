@@ -9,6 +9,7 @@ export interface LogicDto {
   // todo - Should be turned into a value-type and returned as a dto?
   statementRefs: any;
   lineageId: string;
+  organizationId: string;
 }
 
 export const buildLogicDto = (logic: Logic): LogicDto => ({
@@ -19,4 +20,5 @@ export const buildLogicDto = (logic: Logic): LogicDto => ({
   parsedLogic: logic.parsedLogic,
   statementRefs: logic.statementRefs,
   lineageId: logic.lineageId,
+  organizationId: logic.organizationId
 });

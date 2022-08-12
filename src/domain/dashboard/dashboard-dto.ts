@@ -9,6 +9,7 @@ export interface DashboardDto {
     lineageId: string;
     columnId: string,
     materializationId: string;
+    organizationId: string;
 }
 
 export const buildDashboardDto = (dashboard: Dashboard): DashboardDto => ({
@@ -20,4 +21,5 @@ export const buildDashboardDto = (dashboard: Dashboard): DashboardDto => ({
     lineageId: dashboard.lineageId,
     columnId: dashboard.columnId,
     materializationId: dashboard.materializationId,
+    organizationId: dashboard.organizationId
 });

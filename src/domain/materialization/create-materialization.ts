@@ -19,10 +19,12 @@ export interface CreateMaterializationRequestDto {
   logicId: string;
   lineageId: string;
   writeToPersistence: boolean;
+  targetOrganizationId: string;
 }
 
 export interface CreateMaterializationAuthDto {
-  organizationId: string;
+  isSystemInternal: boolean;
+  callerOrganizationId: string;
 }
 
 export type CreateMaterializationResponseDto = Result<Materialization>;
@@ -56,6 +58,8 @@ export class CreateMaterialization
     dbConnection: DbConnection
   ): Promise<CreateMaterializationResponseDto> {
     try {
+      if (!auth.isSystemInternal) throw new Error('Unauthorized');
+
       this.#dbConnection = dbConnection;
 
       const materialization = Materialization.create({
@@ -67,6 +71,7 @@ export class CreateMaterialization
         databaseName: request.databaseName,
         logicId: request.logicId,
         lineageId: request.lineageId,
+        organizationId: request.targetOrganizationId
       });
 
       const readMaterializationsResult =
@@ -74,8 +79,9 @@ export class CreateMaterialization
           {
             dbtModelId: request.dbtModelId,
             lineageId: request.lineageId,
+            targetOrganizationId: request.targetOrganizationId
           },
-          { organizationId: auth.organizationId }, this.#dbConnection
+          { callerOrganizationId: auth.callerOrganizationId, isSystemInternal: auth.isSystemInternal }, this.#dbConnection
         );
 
       if (!readMaterializationsResult.success)
@@ -90,9 +96,6 @@ export class CreateMaterialization
           materialization,
           this.#dbConnection
         );
-
-      // if (auth.organizationId !== 'TODO')
-      //   throw new Error('Not authorized to perform action');
 
       return Result.ok(materialization);
     } catch (error: unknown) {

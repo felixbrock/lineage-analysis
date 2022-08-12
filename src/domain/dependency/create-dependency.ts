@@ -16,10 +16,12 @@ export interface CreateDependencyRequestDto {
   parentDbtModelIds: string[];
   lineageId: string;
   writeToPersistence: boolean;
+  targetOrganizationId: string;
 }
 
 export interface CreateDependencyAuthDto {
-  organizationId: string;
+  isSystemInternal: boolean;
+  callerOrganizationId: string;
 }
 
 export type CreateDependencyResponse = Result<Dependency>;
@@ -45,11 +47,14 @@ export class CreateDependency
   #getParentId = async (
     dependencyRef: ColumnRef,
     parentDbtModelIds: string[],
-    lineageId: string
+    lineageId: string,
+    callerOrganizationId: string,
+    isSystemInternal: boolean,
+    targetOrganizationId: string
   ): Promise<string> => {
     const readColumnsResult = await this.#readColumns.execute(
-      { dbtModelId: parentDbtModelIds, name: dependencyRef.name, lineageId },
-      { organizationId: 'todo' },
+      { dbtModelId: parentDbtModelIds, name: dependencyRef.name, lineageId, targetOrganizationId },
+      { callerOrganizationId, isSystemInternal},
       this.#dbConnection
     );
 
@@ -76,15 +81,19 @@ export class CreateDependency
   #getSelfColumn = async (
     selfDbtModelId: string,
     dependencyRef: ColumnRef,
-    lineageId: string
+    lineageId: string,
+    callerOrganizationId: string,
+    isSystemInternal: boolean,
+    targetOrganizationId: string
   ): Promise<Column> => {
     const readSelfColumnResult = await this.#readColumns.execute(
       {
         dbtModelId: selfDbtModelId,
         lineageId,
         name: dependencyRef.alias || dependencyRef.name,
+        targetOrganizationId
       },
-      { organizationId: 'todo' },
+      { callerOrganizationId , isSystemInternal},
       this.#dbConnection
     );
 
@@ -130,15 +139,20 @@ export class CreateDependency
     auth: CreateDependencyAuthDto,
     dbConnection: DbConnection
     ): Promise<CreateDependencyResponse> {
-    console.log(auth);
+    ;
 
     try {
+      if (!auth.isSystemInternal) throw new Error('Unauthorized');
+
       this.#dbConnection = dbConnection;
 
       const headColumn = await this.#getSelfColumn(
         request.selfDbtModelId,
         request.dependencyRef,
         request.lineageId,
+        auth.callerOrganizationId,
+        auth.isSystemInternal,
+        request.targetOrganizationId
       );
 
       // const parentName =
@@ -150,6 +164,9 @@ export class CreateDependency
         request.dependencyRef,
         request.parentDbtModelIds,
         request.lineageId,
+        auth.callerOrganizationId,
+        auth.isSystemInternal,
+        request.targetOrganizationId
       );
 
       const dependency = Dependency.create({
@@ -158,6 +175,7 @@ export class CreateDependency
         headId: headColumn.id,
         tailId: parentId,
         lineageId: request.lineageId,
+        organizationId: request.targetOrganizationId
       });
 
       console.log(
@@ -169,8 +187,9 @@ export class CreateDependency
           headId: headColumn.id,
           tailId: parentId,
           lineageId: request.lineageId,
+          targetOrganizationId: request.targetOrganizationId
         },
-        { organizationId: auth.organizationId },
+        { callerOrganizationId: auth.callerOrganizationId, isSystemInternal: auth.isSystemInternal },
         dbConnection
       );
 
@@ -182,8 +201,7 @@ export class CreateDependency
       if (request.writeToPersistence)
         await this.#dependencyRepo.insertOne(dependency, this.#dbConnection);
 
-      // if (auth.organizationId !== 'TODO')
-      //   throw new Error('Not authorized to perform action');
+      
 
       return Result.ok(dependency);
     } catch (error: unknown) {

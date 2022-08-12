@@ -28,6 +28,7 @@ interface MaterializationPersistence {
   databaseName: string;
   logicId: string;
   lineageId: string;
+  organizationId: string;
 }
 
 interface MaterializationQueryFilter {
@@ -38,20 +39,20 @@ interface MaterializationQueryFilter {
   databaseName?: RegExp;
   logicId?: string;
   lineageId: string;
+  organizationId: string;
 }
 
 const collectionName = 'materialization';
 
 export default class MaterializationRepo implements IMaterializationRepo {
-  findOne = async (id: string, dbConnection: Db): Promise<Materialization | null> => {
-    
+  findOne = async (
+    id: string,
+    dbConnection: Db
+  ): Promise<Materialization | null> => {
     try {
-      
       const result: any = await dbConnection
         .collection(collectionName)
         .findOne({ _id: new ObjectId(sanitize(id)) });
-
-      
 
       if (!result) return null;
 
@@ -64,20 +65,17 @@ export default class MaterializationRepo implements IMaterializationRepo {
   };
 
   findBy = async (
-    materializationQueryDto: MaterializationQueryDto, dbConnection: Db
+    materializationQueryDto: MaterializationQueryDto,
+    dbConnection: Db
   ): Promise<Materialization[]> => {
     try {
-      if (!Object.keys(materializationQueryDto).length) return await this.all(dbConnection);
+      if (!Object.keys(materializationQueryDto).length)
+        return await this.all(dbConnection);
 
-      
-
-      
       const result: FindCursor = await dbConnection
         .collection(collectionName)
         .find(this.#buildFilter(sanitize(materializationQueryDto)));
       const results = await result.toArray();
-
-      
 
       if (!results || !results.length) return [];
 
@@ -96,12 +94,16 @@ export default class MaterializationRepo implements IMaterializationRepo {
   ): MaterializationQueryFilter => {
     const filter: MaterializationQueryFilter = {
       lineageId: materializationQueryDto.lineageId,
+      organizationId: materializationQueryDto.organizationId,
     };
 
     if (materializationQueryDto.materializationType)
       filter.materializationType = materializationQueryDto.materializationType;
     if (materializationQueryDto.dbtModelId)
-      filter.dbtModelId = new RegExp(`^${materializationQueryDto.dbtModelId}$`, 'i');
+      filter.dbtModelId = new RegExp(
+        `^${materializationQueryDto.dbtModelId}$`,
+        'i'
+      );
 
     if (
       typeof materializationQueryDto.name === 'string' &&
@@ -116,7 +118,10 @@ export default class MaterializationRepo implements IMaterializationRepo {
       };
 
     if (materializationQueryDto.schemaName)
-      filter.schemaName = new RegExp(`^${materializationQueryDto.schemaName}$`, 'i');
+      filter.schemaName = new RegExp(
+        `^${materializationQueryDto.schemaName}$`,
+        'i'
+      );
     if (materializationQueryDto.databaseName)
       filter.databaseName = new RegExp(
         `^${materializationQueryDto.databaseName}$`,
@@ -129,13 +134,11 @@ export default class MaterializationRepo implements IMaterializationRepo {
   };
 
   all = async (dbConnection: Db): Promise<Materialization[]> => {
-    
     try {
-      
-      const result: FindCursor = await dbConnection.collection(collectionName).find();
+      const result: FindCursor = await dbConnection
+        .collection(collectionName)
+        .find();
       const results = await result.toArray();
-
-      
 
       if (!results || !results.length) return [];
 
@@ -149,10 +152,11 @@ export default class MaterializationRepo implements IMaterializationRepo {
     }
   };
 
-  insertOne = async (materialization: Materialization, dbConnection: Db): Promise<string> => {
-    
+  insertOne = async (
+    materialization: Materialization,
+    dbConnection: Db
+  ): Promise<string> => {
     try {
-      
       const result: InsertOneResult<Document> = await dbConnection
         .collection(collectionName)
         .insertOne(this.#toPersistence(sanitize(materialization)));
@@ -161,8 +165,6 @@ export default class MaterializationRepo implements IMaterializationRepo {
         throw new Error(
           'Materialization creation failed. Insert not acknowledged'
         );
-
-      
 
       return result.insertedId.toHexString();
     } catch (error: unknown) {
@@ -173,10 +175,10 @@ export default class MaterializationRepo implements IMaterializationRepo {
   };
 
   insertMany = async (
-    materializations: Materialization[], dbConnection: Db
+    materializations: Materialization[],
+    dbConnection: Db
   ): Promise<string[]> => {
     try {
-      
       const result: InsertManyResult<Document> = await dbConnection
         .collection(collectionName)
         .insertMany(
@@ -199,9 +201,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
   };
 
   deleteOne = async (id: string, dbConnection: Db): Promise<string> => {
-    
     try {
-      
       const result: DeleteResult = await dbConnection
         .collection(collectionName)
         .deleteOne({ _id: new ObjectId(sanitize(id)) });
@@ -210,8 +210,6 @@ export default class MaterializationRepo implements IMaterializationRepo {
         throw new Error(
           'Materialization delete failed. Delete not acknowledged'
         );
-
-      
 
       return result.deletedCount.toString();
     } catch (error: unknown) {
@@ -237,6 +235,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
     databaseName: materialization.databaseName,
     logicId: materialization.logicId,
     lineageId: materialization.lineageId,
+    organizationId: materialization.organizationId,
   });
 
   #toPersistence = (materialization: Materialization): Document => ({
@@ -248,5 +247,6 @@ export default class MaterializationRepo implements IMaterializationRepo {
     databaseName: materialization.databaseName,
     logicId: materialization.logicId,
     lineageId: materialization.lineageId,
+    organizationId: materialization.organizationId,
   });
 }

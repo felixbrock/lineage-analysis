@@ -30,18 +30,25 @@ import { IMaterializationRepo } from '../materialization/i-materialization-repo'
 import { IDependencyRepo } from '../dependency/i-dependency-repo';
 import { ILogicRepo } from '../logic/i-logic-repo';
 import { DbConnection } from '../services/i-db';
-import { QuerySnowflakeHistory, QueryHistoryResponseDto } from '../query-snowflake-history-api/query-snowflake-history';
+import {
+  QuerySnowflakeHistory,
+  QueryHistoryResponseDto,
+} from '../query-snowflake-history-api/query-snowflake-history';
 import { Dashboard } from '../entities/dashboard';
 import { CreateExternalDependency } from '../dependency/create-external-dependency';
 import { IDashboardRepo } from '../dashboard/i-dashboard-repo';
+import { CreateDashboard } from '../dashboard/create-dashboard';
 
 export interface CreateLineageRequestDto {
   lineageId?: string;
   lineageCreatedAt?: number;
+  targetOrganizationId: string;
 }
 
 export interface CreateLineageAuthDto {
-  organizationId: string;
+  jwt: string;
+  callerOrganizationId: string;
+  isSystemInternal: boolean;
 }
 
 export type CreateLineageResponseDto = Result<Lineage>;
@@ -67,6 +74,8 @@ export class CreateLineage
   readonly #createMaterialization: CreateMaterialization;
 
   readonly #createColumn: CreateColumn;
+
+  readonly #createDashboard: CreateDashboard;
 
   readonly #createDependency: CreateDependency;
 
@@ -106,8 +115,15 @@ export class CreateLineage
 
   #lastQueryDependency?: ColumnRef;
 
-  #matDefinitionCatalog: MaterializationDefinition[]; 
+  #matDefinitionCatalog: MaterializationDefinition[];
 
+  #targetOrganizationId: string;
+
+  #jwt: string;
+
+  #isSystemInternal: boolean;
+
+  #callerOrganizationId: string;
 
   constructor(
     createLogic: CreateLogic,
@@ -123,13 +139,15 @@ export class CreateLineage
     columnRepo: IColumnRepo,
     dependencyRepo: IDependencyRepo,
     dashboardRepo: IDashboardRepo,
-    readColumns: ReadColumns
+    readColumns: ReadColumns,
+    createDashboard: CreateDashboard
   ) {
     this.#createLogic = createLogic;
     this.#createMaterialization = createMaterialization;
     this.#createColumn = createColumn;
     this.#createDependency = createDependency;
     this.#createExternalDependency = createExternalDependency;
+    this.#createDashboard = createDashboard;
     this.#parseSQL = parseSQL;
     this.#querySnowflakeHistory = querySnowflakeHistory;
     this.#lineageRepo = lineageRepo;
@@ -147,6 +165,10 @@ export class CreateLineage
     this.#matDefinitionCatalog = [];
     this.#lineage = undefined;
     this.#lastQueryDependency = undefined;
+    this.#targetOrganizationId = '';
+    this.#jwt = '';
+    this.#isSystemInternal = false;
+    this.#callerOrganizationId = '';
   }
 
   /* Building a new lineage object that is referenced by resources like columns and materializations */
@@ -163,7 +185,10 @@ export class CreateLineage
     //       })
     //     : Lineage.create({ id: new ObjectId().toHexString() });
 
-    this.#lineage = Lineage.create({ id: new ObjectId().toHexString() });
+    this.#lineage = Lineage.create({
+      id: new ObjectId().toHexString(),
+      organizationId: this.#targetOrganizationId,
+    });
 
     if (!(lineageId && lineageCreatedAt))
       await this.#lineageRepo.insertOne(this.#lineage, this.#dbConnection);
@@ -171,10 +196,10 @@ export class CreateLineage
 
   /* Sends sql to parse SQL microservices and receives parsed SQL logic back */
   #parseLogic = async (sql: string): Promise<string> => {
-    const parseSQLResult: ParseSQLResponseDto = await this.#parseSQL.execute(
-      { dialect: 'snowflake', sql },
-      { jwt: 'todo' }
-    );
+    const parseSQLResult: ParseSQLResponseDto = await this.#parseSQL.execute({
+      dialect: 'snowflake',
+      sql,
+    });
 
     if (!parseSQLResult.success) throw new Error(parseSQLResult.error);
     if (!parseSQLResult.value)
@@ -202,8 +227,9 @@ export class CreateLineage
         materializationId,
         lineageId: lineage.id,
         writeToPersistence: false,
+        targetOrganizationId: this.#targetOrganizationId,
       },
-      { organizationId: 'todo' },
+      { callerOrganizationId: this.#callerOrganizationId, isSystemInternal: this.#isSystemInternal },
       this.#dbConnection
     );
 
@@ -229,9 +255,10 @@ export class CreateLineage
           databaseName: source.metadata.database,
           logicId: 'todo - read from snowflake',
           lineageId: lineage.id,
+          targetOrganizationId: this.#targetOrganizationId,
           writeToPersistence: false,
         },
-        { organizationId: 'todo' },
+        { callerOrganizationId: this.#callerOrganizationId, isSystemInternal: this.#isSystemInternal },
         this.#dbConnection
       );
 
@@ -278,9 +305,10 @@ export class CreateLineage
         dependentOn,
         lineageId: lineage.id,
         parsedLogic,
+        targetOrganizationId: this.#targetOrganizationId,
         writeToPersistence: false,
       },
-      { organizationId: 'todo' },
+      { callerOrganizationId: this.#callerOrganizationId, isSystemInternal: this.#isSystemInternal },
       this.#dbConnection
     );
 
@@ -302,9 +330,10 @@ export class CreateLineage
           databaseName: model.metadata.database,
           logicId: logic.id,
           lineageId: lineage.id,
+          targetOrganizationId: this.#targetOrganizationId,
           writeToPersistence: false,
         },
-        { organizationId: 'todo' },
+        { callerOrganizationId: this.#callerOrganizationId, isSystemInternal: this.#isSystemInternal },
         this.#dbConnection
       );
 
@@ -474,53 +503,50 @@ export class CreateLineage
   // };
 
   #retrieveQueryHistory = async (): Promise<any> => {
-    const queryHistoryResult: QueryHistoryResponseDto = await this.#querySnowflakeHistory.execute(
-      { biLayer: 'mode', limit: 10 },
-      { jwt: 'todo' }
-    );
+    const queryHistoryResult: QueryHistoryResponseDto =
+      await this.#querySnowflakeHistory.execute(
+        { biLayer: 'mode', limit: 10 },
+        { jwt: this.#jwt }
+      );
 
-    if (!queryHistoryResult.success)
-      throw new Error(queryHistoryResult.error);
+    if (!queryHistoryResult.success) throw new Error(queryHistoryResult.error);
     if (!queryHistoryResult.value)
       throw new SyntaxError(`Retrival of query history failed`);
-      
+
     return queryHistoryResult.value;
   };
 
   /* Get all relevant dashboards that are data dependency to self materialization */
   #getDashboardDataDependencyRefs = async (
     statementRefs: Refs,
-    queryHistory: any,
-    ): Promise<DashboardRef[]> =>{
-    
+    queryHistory: any
+  ): Promise<DashboardRef[]> => {
     const dependentDashboards: DashboardRef[] = [];
 
     statementRefs.columns.forEach((column) => {
       queryHistory.forEach((entry: any) => {
+        const sqlText: string = entry.QUERY_TEXT;
 
-            const sqlText:string = entry.QUERY_TEXT;
-          
-            const testUrl = sqlText.match(/"(https?:[^\s]+),/); 
-            const dashboardUrl = testUrl ? testUrl[1] : undefined;
+        const testUrl = sqlText.match(/"(https?:[^\s]+),/);
+        const dashboardUrl = testUrl ? testUrl[1] : undefined;
 
-            const matName = column.materializationName.toUpperCase();
-            const colName = column.alias ? column.alias.toUpperCase() : column.name.toUpperCase();
-            
-            if(sqlText.includes(matName) && sqlText.includes(colName)){
+        const matName = column.materializationName.toUpperCase();
+        const colName = column.alias
+          ? column.alias.toUpperCase()
+          : column.name.toUpperCase();
 
-              dependentDashboards.push({
-                url: dashboardUrl,
-                materializationName: matName,
-                columnName: colName
-              });
-            } 
+        if (sqlText.includes(matName) && sqlText.includes(colName)) {
+          dependentDashboards.push({
+            url: dashboardUrl,
+            materializationName: matName,
+            columnName: colName,
           });
-
+        }
+      });
     });
     return dependentDashboards;
-
   };
-  
+
   /* Get all relevant wildcard statement references that are data dependency to self materialization */
   #getWildcardDataDependencyRefs = (statementRefs: Refs): ColumnRef[] =>
     statementRefs.wildcards.filter(
@@ -575,7 +601,6 @@ export class CreateLineage
     dbtModelId: string,
     parentDbtModelIds: string[]
   ): Promise<void> => {
-    
     const lineage = this.#lineage;
     if (!lineage) throw new ReferenceError('Lineage property is undefined');
 
@@ -584,47 +609,64 @@ export class CreateLineage
     if (dbtModelIdElements.length !== 3)
       throw new RangeError('Unexpected number of dbt model id elements');
 
-    const id = new ObjectId().toHexString();   
-    
-    const materialization = await this.#materializationRepo.findBy({
-      name: dashboardRef.materializationName,
-      dbtModelId: parentDbtModelIds[0],
-      lineageId
-    },
+    const materialization = await this.#materializationRepo.findBy(
+      {
+        name: dashboardRef.materializationName,
+        dbtModelId: parentDbtModelIds[0],
+        lineageId,
+        organizationId: this.#targetOrganizationId,
+      },
       this.#dbConnection
     );
     const materializationId = materialization[0].id;
-    
-    const column = await this.#columnRepo.findBy({
-      name: dashboardRef.columnName, 
-      materializationId, 
-      lineageId
-    }, 
+
+    const column = await this.#columnRepo.findBy(
+      {
+        name: dashboardRef.columnName,
+        materializationId,
+        lineageId,
+        organizationId: this.#targetOrganizationId,
+      },
       this.#dbConnection
     );
-    const columnId = column[0].id; 
+    const columnId = column[0].id;
 
-    const dashboard = Dashboard.create({
-      id,  
-      lineageId,
-      url: dashboardRef.url,
-      materializationName: dashboardRef.materializationName,
-      columnName: dashboardRef.columnName,
-      columnId,
-      materializationId,
-    });
-    this.#dashboards.push(dashboard);
-
-    const createExternalDependencyResult = await this.#createExternalDependency.execute(
+    const createDashboardResult = await this.#createDashboard.execute(
       {
-        dashboard,
-        lineageId: lineage.id,
+        columnId,
+        columnName: dashboardRef.columnName,
+        lineageId,
+        materializationId,
+        materializationName: dashboardRef.materializationName,
+        url: dashboardRef.url,
+        targetOrganizationId: this.#targetOrganizationId,
         writeToPersistence: false,
       },
-      { organizationId: 'todo' },
+      { callerOrganizationId: this.#callerOrganizationId, isSystemInternal: this.#isSystemInternal },
       this.#dbConnection
     );
-    
+
+    if (!createDashboardResult.success)
+      throw new Error(createDashboardResult.error);
+    if (!createDashboardResult.value)
+      throw new Error('Creating dashboard failed');
+
+    const dashboard = createDashboardResult.value;
+
+    this.#dashboards.push(dashboard);
+
+    const createExternalDependencyResult =
+      await this.#createExternalDependency.execute(
+        {
+          dashboard,
+          lineageId: lineage.id,
+          targetOrganizationId: this.#targetOrganizationId,
+          writeToPersistence: false,
+        },
+        { callerOrganizationId: this.#callerOrganizationId, isSystemInternal: this.#isSystemInternal },
+        this.#dbConnection
+      );
+
     if (!createExternalDependencyResult.success)
       throw new Error(createExternalDependencyResult.error);
     if (!createExternalDependencyResult.value)
@@ -632,7 +674,6 @@ export class CreateLineage
 
     const dependency = createExternalDependencyResult.value;
     this.#dependencies.push(dependency);
-
   };
 
   /* Creates dependency for specific wildcard ref */
@@ -672,9 +713,10 @@ export class CreateLineage
               selfDbtModelId: dbtModelId,
               parentDbtModelIds,
               lineageId: lineage.id,
+              targetOrganizationId: this.#targetOrganizationId,
               writeToPersistence: false,
             },
-            { organizationId: 'todo' },
+            { callerOrganizationId: this.#callerOrganizationId, isSystemInternal: this.#isSystemInternal },
             this.#dbConnection
           );
 
@@ -727,9 +769,10 @@ export class CreateLineage
         selfDbtModelId: dbtModelId,
         parentDbtModelIds,
         lineageId: lineage.id,
+        targetOrganizationId: this.#targetOrganizationId,
         writeToPersistence: false,
       },
-      { organizationId: 'todo' },
+      { callerOrganizationId: this.#callerOrganizationId, isSystemInternal: this.#isSystemInternal },
       this.#dbConnection
     );
 
@@ -747,7 +790,6 @@ export class CreateLineage
   #buildDependencies = async (): Promise<void> => {
     // todo - should method be completely sync? Probably resolves once transformed into batch job.
 
-    
     const queryHistory = await this.#retrieveQueryHistory();
     await Promise.all(
       this.#logics.map(async (logic) => {
@@ -779,21 +821,22 @@ export class CreateLineage
           )
         );
 
-        const dashboardDataDependencyRefs = await this.#getDashboardDataDependencyRefs(
-          logic.statementRefs,
-          queryHistory
+        const dashboardDataDependencyRefs =
+          await this.#getDashboardDataDependencyRefs(
+            logic.statementRefs,
+            queryHistory
+          );
+
+        const uniqueDashboardRefs = dashboardDataDependencyRefs.filter(
+          (value, index, self) =>
+            index ===
+            self.findIndex(
+              (dashboard) =>
+                dashboard.name === value.name &&
+                dashboard.columnName === value.columnName &&
+                dashboard.materializationName === value.materializationName
+            )
         );
-        
-        const uniqueDashboardRefs = 
-        dashboardDataDependencyRefs
-        .filter((value, index, self) =>
-          index === self.findIndex((dashboard) => (
-          dashboard.name === value.name &&
-          dashboard.columnName === value.columnName &&
-          dashboard.materializationName === value.materializationName
-          ))
-        );
-        
 
         await Promise.all(
           uniqueDashboardRefs.map(async (dashboardRef) =>
@@ -841,8 +884,9 @@ export class CreateLineage
       {
         dbtModelId,
         lineageId: lineage.id,
+        targetOrganizationId: this.#targetOrganizationId
       },
-      { organizationId: 'todo' },
+      { callerOrganizationId: this.#callerOrganizationId, isSystemInternal: this.#isSystemInternal },
       this.#dbConnection
     );
 
@@ -871,7 +915,7 @@ export class CreateLineage
     await this.#columnRepo.insertMany(this.#columns, this.#dbConnection);
   };
 
-  #writeDashboardsToPersistence = async(): Promise<void> => {
+  #writeDashboardsToPersistence = async (): Promise<void> => {
     if (this.#dashboards.length > 0)
       await this.#dashboardRepo.insertMany(
         this.#dashboards,
@@ -892,10 +936,16 @@ export class CreateLineage
     auth: CreateLineageAuthDto,
     dbConnection: DbConnection
   ): Promise<CreateLineageResponseDto> {
-    // todo-replace
-    console.log(auth);
     try {
+      if (!auth.isSystemInternal)
+        throw new Error('Unauthorized');
+
       this.#dbConnection = dbConnection;
+
+      this.#targetOrganizationId = request.targetOrganizationId;
+      this.#jwt = auth.jwt;
+      this.#isSystemInternal = auth.isSystemInternal;
+      this.#callerOrganizationId = auth.callerOrganizationId;
 
       // todo - Workaround. Fix ioc container
       this.#lineage = undefined;
@@ -917,9 +967,6 @@ export class CreateLineage
       await this.#writeDashboardsToPersistence();
 
       await this.#writeDependenciesToPersistence();
-
-      // if (auth.organizationId !== 'TODO')
-      //   throw new Error('Not authorized to perform action');
 
       // todo - how to avoid checking if property exists. A sub-method created the property
       if (!this.#lineage)

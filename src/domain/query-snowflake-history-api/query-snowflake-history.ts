@@ -27,7 +27,7 @@ export class QuerySnowflakeHistory
     request: QueryHistoryRequestDto,
     auth: QuerySnowflakeHistoryAuthDto
   ): Promise<QueryHistoryResponseDto> {
-    console.log(auth);
+    ;
 
     // let searchParam;
     // switch(request.biLayer) { 
@@ -45,7 +45,8 @@ export class QuerySnowflakeHistory
     try {
       const parseSQLResponse: QueryHistoryDto =
         await this.#queryHistoryApiRepo.getQueryHistory(
-          sqlQuery
+          sqlQuery,
+          auth.jwt
         );
 
       if (!parseSQLResponse) throw new Error(`SQL parsing failed`);

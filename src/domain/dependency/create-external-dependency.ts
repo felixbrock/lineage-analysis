@@ -12,10 +12,12 @@ export interface CreateExternalDependencyRequestDto {
   dashboard: Dashboard;
   lineageId: string;
   writeToPersistence: boolean;
+  targetOrganizationId: string;
 }
 
 export interface CreateExternalDependencyAuthDto {
-  organizationId: string;
+  isSystemInternal: boolean;
+  callerOrganizationId: string;
 }
 
 export type CreateExternalDependencyResponse = Result<Dependency>;
@@ -49,9 +51,10 @@ export class CreateExternalDependency
     auth: CreateExternalDependencyAuthDto,
     dbConnection: DbConnection
     ): Promise<CreateExternalDependencyResponse> {
-    console.log(auth);
 
     try {
+      if (!auth.isSystemInternal) throw new Error('Unauthorized');
+
       this.#dbConnection = dbConnection;
 
       const dependency = Dependency.create({
@@ -60,12 +63,8 @@ export class CreateExternalDependency
         headId: request.dashboard.id,
         tailId: request.dashboard.columnId,
         lineageId: request.lineageId,
+        organizationId: request.targetOrganizationId
       });
-
-
-      console.log(
-        `${request.dashboard.url} depends on ${request.dashboard.columnName} from ${request.dashboard.materializationName}`
-      );
 
       const readExternalDependenciesResult = await this.#readDependencies.execute(
         {
@@ -73,8 +72,9 @@ export class CreateExternalDependency
           headId: request.dashboard.id,
           tailId: request.dashboard.columnId,
           lineageId: request.lineageId,
+          targetOrganizationId: request.targetOrganizationId
         },
-        { organizationId: auth.organizationId },
+        { callerOrganizationId: auth.callerOrganizationId, isSystemInternal: auth.isSystemInternal },
         dbConnection
       );
 
@@ -86,8 +86,6 @@ export class CreateExternalDependency
       if (request.writeToPersistence)
         await this.#dependencyRepo.insertOne(dependency, this.#dbConnection);
 
-      // if (auth.organizationId !== 'TODO')
-      //   throw new Error('Not authorized to perform action');
 
       return Result.ok(dependency);
     } catch (error: unknown) {

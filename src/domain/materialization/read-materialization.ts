@@ -12,7 +12,7 @@ export interface ReadMaterializationRequestDto {
 }
 
 export interface ReadMaterializationAuthDto {
-  organizationId: string;
+  callerOrganizationId: string;
 }
 
 export type ReadMaterializationResponseDto = Result<MaterializationDto>;
@@ -39,7 +39,7 @@ export class ReadMaterialization
     auth: ReadMaterializationAuthDto,
     dbConnection: DbConnection
   ): Promise<ReadMaterializationResponseDto> {
-    console.log(auth);
+    ;
 
     try {
       this.#dbConnection = dbConnection;
@@ -51,8 +51,8 @@ export class ReadMaterialization
       if (!materialization)
         throw new Error(`Materialization with id ${request.id} does not exist`);
 
-      // if (materialization.organizationId !== auth.organizationId)
-      //   throw new Error('Not authorized to perform action');
+      if (materialization.organizationId !== auth.callerOrganizationId)
+        throw new Error('Not authorized to perform action');
 
       return Result.ok(buildMaterializationDto(materialization));
     } catch (error: unknown) {

@@ -20,10 +20,12 @@ export interface CreateLogicRequestDto {
   parsedLogic: string;
   lineageId: string;
   writeToPersistence: boolean;
+  targetOrganizationId: string;
 }
 
 export interface CreateLogicAuthDto {
-  organizationId: string;
+  isSystemInternal: boolean;
+  callerOrganizationId: string;
 }
 
 export type CreateLogicResponse = Result<Logic>;
@@ -84,6 +86,8 @@ export class CreateLogic
     dbConnection: DbConnection
   ): Promise<CreateLogicResponse> {
     try {
+      if (!auth.isSystemInternal) throw new Error('Unauthorized');
+
       this.#dbConnection = dbConnection;
 
       const catalog = this.#getTablesAndCols();
@@ -96,6 +100,7 @@ export class CreateLogic
         dependentOn: request.dependentOn,
         parsedLogic: request.parsedLogic,
         lineageId: request.lineageId,
+        organizationId: auth.callerOrganizationId,
         catalog,
       });
 
@@ -103,8 +108,13 @@ export class CreateLogic
         {
           dbtModelId: request.dbtModelId,
           lineageId: request.lineageId,
+          targetOrganizationId: request.targetOrganizationId,
         },
-        { organizationId: auth.organizationId }, this.#dbConnection
+        {
+          callerOrganizationId: auth.callerOrganizationId,
+          isSystemInternal: auth.isSystemInternal,
+        },
+        this.#dbConnection
       );
 
       if (!readLogicsResult.success) throw new Error(readLogicsResult.error);
@@ -114,9 +124,6 @@ export class CreateLogic
 
       if (request.writeToPersistence)
         await this.#logicRepo.insertOne(logic, dbConnection);
-
-      // if (auth.organizationId !== 'TODO')
-      //   throw new Error('Not authorized to perform action');
 
       return Result.ok(logic);
     } catch (error: unknown) {

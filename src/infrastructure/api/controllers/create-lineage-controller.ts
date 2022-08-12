@@ -8,6 +8,7 @@ import {
   CreateLineageResponseDto,
 } from '../../../domain/lineage/create-lineage';
 import { buildLineageDto } from '../../../domain/lineage/lineage-dto';
+import Result from '../../../domain/value-types/transient-types/result';
 import Dbo from '../../persistence/db/mongo-db';
 
 import {
@@ -23,7 +24,11 @@ export default class CreateLineageController extends BaseController {
 
   readonly #dbo: Dbo;
 
-  constructor(createLineage: CreateLineage, getAccounts: GetAccounts, dbo: Dbo) {
+  constructor(
+    createLineage: CreateLineage,
+    getAccounts: GetAccounts,
+    dbo: Dbo
+  ) {
     super();
     this.#createLineage = createLineage;
     this.#getAccounts = getAccounts;
@@ -31,48 +36,53 @@ export default class CreateLineageController extends BaseController {
   }
 
   #buildRequestDto = (httpRequest: Request): CreateLineageRequestDto => ({
-    lineageId: httpRequest.params.lineageCreatedAt,
+    lineageId: httpRequest.body.lineageId,
+    lineageCreatedAt: httpRequest.body.lineageCreatedAt,
+    targetOrganizationId: httpRequest.body.targetOrganizationId,
   });
 
-  #buildAuthDto = (userAccountInfo: UserAccountInfo): CreateLineageAuthDto => ({
-    organizationId: userAccountInfo.organizationId,
+  #buildAuthDto = (
+    jwt: string,
+    userAccountInfo: UserAccountInfo
+  ): CreateLineageAuthDto => ({
+    jwt,
+    isSystemInternal: userAccountInfo.isSystemInternal,
+    callerOrganizationId: userAccountInfo.callerOrganizationId,
   });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {
-      // const authHeader = req.headers.authorization;
+      const authHeader = req.headers.authorization;
 
-      // if (!authHeader)
-      //   return CreateLineageController.unauthorized(res, 'Unauthorized');
+      if (!authHeader)
+        return CreateLineageController.unauthorized(res, 'Unauthorized');
 
-      // const jwt = authHeader.split(' ')[1];
+      const jwt = authHeader.split(' ')[1];
 
-      // const getUserAccountInfoResult: Result<UserAccountInfo> =
-      //   await CreateLineageInfoController.getUserAccountInfo(
-      //     jwt,
-      //     this.#getAccounts
-      //   );
+      const getUserAccountInfoResult: Result<UserAccountInfo> =
+        await CreateLineageController.getUserAccountInfo(
+          jwt,
+          this.#getAccounts
+        );
 
-      // if (!getUserAccountInfoResult.success)
-      //   return CreateLineageInfoController.unauthorized(
-      //     res,
-      //     getUserAccountInfoResult.error
-      //   );
-      // if (!getUserAccountInfoResult.value)
-      //   throw new ReferenceError('Authorization failed');
+      if (!getUserAccountInfoResult.success)
+        return CreateLineageController.unauthorized(
+          res,
+          getUserAccountInfoResult.error
+        );
+      if (!getUserAccountInfoResult.value)
+        throw new ReferenceError('Authorization failed');
+
+      if (!getUserAccountInfoResult.value.isSystemInternal)
+        return CreateLineageController.unauthorized(res, 'Unauthorized');
 
       const requestDto: CreateLineageRequestDto = this.#buildRequestDto(req);
-      // const authDto: CreateLineageAuthDto = this.#buildAuthDto(
-      //   getUserAccountResult.value
-      // );
-
+      const authDto = this.#buildAuthDto(jwt, getUserAccountInfoResult.value);
 
       const useCaseResult: CreateLineageResponseDto =
         await this.#createLineage.execute(
           requestDto,
-          {
-            organizationId: 'todo',
-          },
+          authDto,
           this.#dbo.dbConnection
         );
 

@@ -16,6 +16,7 @@ export interface LogicProperties {
   parsedLogic: string;
   statementRefs: Refs;
   lineageId: string;
+  organizationId: string
 }
 
 export interface LogicPrototype {
@@ -27,6 +28,7 @@ export interface LogicPrototype {
   parsedLogic: string;
   lineageId: string;
   catalog: CatalogModelData[];
+  organizationId: string
 }
 
 export interface CatalogModelData {
@@ -160,6 +162,8 @@ export class Logic {
 
   #lineageId: string;
 
+  #organizationId: string; 
+
   get id(): string {
     return this.#id;
   }
@@ -188,6 +192,10 @@ export class Logic {
     return this.#lineageId;
   }
 
+  get organizationId(): string {
+    return this.#organizationId;
+  }
+
   private constructor(properties: LogicProperties) {
     this.#id = properties.id;
     this.#dbtModelId = properties.dbtModelId;
@@ -196,6 +204,7 @@ export class Logic {
     this.#parsedLogic = properties.parsedLogic;
     this.#statementRefs = properties.statementRefs;
     this.#lineageId = properties.lineageId;
+    this.#organizationId = properties.organizationId;
   }
 
   /* Adds a key to an already existing path that describes the current exploration route through a json tree */
@@ -1693,6 +1702,7 @@ export class Logic {
     if (!prototype.parsedLogic)
       throw new TypeError('Logic  prototype must have parsed SQL logic');
     if (!prototype.lineageId) throw new TypeError('Logic must have lineageId');
+    if (!prototype.organizationId) throw new TypeError('Logic must have organization id');
     if (!prototype.catalog)
       throw new TypeError('Logic prototype must have catalog data');
 
@@ -1712,6 +1722,7 @@ export class Logic {
       parsedLogic: prototype.parsedLogic,
       statementRefs,
       lineageId: prototype.lineageId,
+      organizationId: prototype.organizationId
     });
 
     return logic;
@@ -1733,6 +1744,7 @@ export class Logic {
       parsedLogic: properties.parsedLogic,
       statementRefs: properties.statementRefs,
       lineageId: properties.lineageId,
+      organizationId: properties.organizationId
     });
 
     return logic;

@@ -6,6 +6,7 @@ export interface ColumnProperties {
   type: string;
   materializationId: string;
   lineageId: string;
+  organizationId: string;
 }
 
 export class Column {
@@ -22,6 +23,8 @@ export class Column {
   #materializationId: string;
 
   #lineageId: string;
+
+  #organizationId: string;
 
   get id(): string {
     return this.#id;
@@ -51,6 +54,10 @@ export class Column {
     return this.#lineageId;
   }
 
+  get organizationId(): string {
+    return this.#organizationId;
+  }
+
   private constructor(properties: ColumnProperties) {
     this.#id = properties.id;
     this.#dbtModelId = properties.dbtModelId;
@@ -59,6 +66,7 @@ export class Column {
     this.#type = properties.type;
     this.#materializationId = properties.materializationId;
     this.#lineageId = properties.lineageId;
+    this.#organizationId = properties.organizationId;
   }
 
   static create = (properties: ColumnProperties): Column => {
@@ -71,7 +79,9 @@ export class Column {
     if (!properties.materializationId)
       throw new TypeError('Column must have materializationId');
     if (!properties.lineageId)
-      throw new TypeError('Column must have lineage version');
+      throw new TypeError('Column must have lineage id');
+    if (!properties.organizationId)
+      throw new TypeError('Column must have organizationId');
 
     const column = new Column({
       id: properties.id,
@@ -81,6 +91,7 @@ export class Column {
       type: properties.type,
       materializationId: properties.materializationId,
       lineageId: properties.lineageId,
+      organizationId: properties.organizationId
     });
 
     return column;

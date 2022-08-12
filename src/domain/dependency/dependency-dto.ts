@@ -6,6 +6,7 @@ export interface DependencyDto {
   headId: string;
   tailId: string;
   lineageId: string;
+  organizationId: string;
 }
 
 export const buildDependencyDto = (dependency: Dependency): DependencyDto => ({
@@ -14,4 +15,5 @@ export const buildDependencyDto = (dependency: Dependency): DependencyDto => ({
   headId: dependency.headId,
   tailId: dependency.tailId,
   lineageId: dependency.lineageId,
+  organizationId: dependency.organizationId
 });

@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import jsonwebtoken from 'jsonwebtoken';
+import jwksClient from 'jwks-rsa';
+import { appConfig } from '../../config';
 import {
   GetAccounts,
   GetAccountsResponseDto,
@@ -20,15 +22,12 @@ export enum CodeHttp {
 export interface UserAccountInfo {
   userId: string;
   accountId: string;
-  organizationId: string;
+  callerOrganizationId: string;
+  isSystemInternal: boolean;
 }
 
 export abstract class BaseController {
-  static jsonResponse(
-    res: Response,
-    code: number,
-    message: string
-  ): Response {
+  static jsonResponse(res: Response, code: number, message: string): Response {
     return res.status(code).json({ message });
   }
 
@@ -46,11 +45,32 @@ export abstract class BaseController {
   ): Promise<Result<UserAccountInfo>> {
     if (!jwt) return Result.fail('Unauthorized');
 
-    const authPayload = jsonwebtoken.decode(jwt, { json: true });
-
-    if (!authPayload) return Result.fail('Unauthorized - No auth payload');
-
     try {
+      const client = jwksClient({
+        jwksUri: `https://cognito-idp.${appConfig.cloud.region}.amazonaws.com/${appConfig.cloud.authEnvConfig.userPoolId}/.well-known/jwks.json`,
+      });
+
+      const unverifiedDecodedAuthPayload = jsonwebtoken.decode(jwt, {
+        json: true,
+        complete: true,
+      });
+
+      if (!unverifiedDecodedAuthPayload) return Result.fail('Unauthorized');
+
+      const { kid } = unverifiedDecodedAuthPayload.header;
+
+      if (!kid) return Result.fail('Unauthorized');
+
+      const key = await client.getSigningKey(kid);
+      const signingKey = key.getPublicKey();
+
+      const authPayload = jsonwebtoken.verify(jwt, signingKey, {
+        algorithms: ['RS256'],
+      });
+
+      if (typeof authPayload === 'string')
+        return Result.fail('Unexpected auth payload format');
+
       const getAccountsResult: GetAccountsResponseDto =
         await getAccounts.execute(
           {
@@ -60,14 +80,21 @@ export abstract class BaseController {
         );
 
       if (!getAccountsResult.value)
-        throw new ReferenceError(`No account found for ${authPayload.username}`);
+        throw new ReferenceError(
+          `No account found for ${authPayload.username}`
+        );
       if (!getAccountsResult.value.length)
-        throw new ReferenceError(`No account found for ${authPayload.username}`);
+        throw new ReferenceError(
+          `No account found for ${authPayload.username}`
+        );
 
       return Result.ok({
         userId: authPayload.username,
         accountId: getAccountsResult.value[0].id,
-        organizationId: getAccountsResult.value[0].organizationId,
+        callerOrganizationId: getAccountsResult.value[0].organizationId,
+        isSystemInternal: authPayload['cognito:groups']
+          ? authPayload['cognito:groups'].includes('system-internal')
+          : false,
       });
     } catch (error: unknown) {
       if (typeof error === 'string') return Result.fail(error);

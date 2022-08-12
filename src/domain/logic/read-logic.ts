@@ -9,7 +9,7 @@ export interface ReadLogicRequestDto {
 }
 
 export interface ReadLogicAuthDto {
-  organizationId: string;
+  callerOrganizationId: string;
 }
 
 export type ReadLogicResponseDto = Result<Logic>;
@@ -37,8 +37,6 @@ export class ReadLogic
     dbConnection: DbConnection
   ): Promise<ReadLogicResponseDto> {
     try {
-      // todo -replace
-      console.log(auth);
 
       this.#dbConnection = dbConnection;
 
@@ -48,8 +46,8 @@ export class ReadLogic
       );
       if (!logic) throw new Error(`Logic with id ${request.id} does not exist`);
 
-      // if (logic.organizationId !== auth.organizationId)
-      //   throw new Error('Not authorized to perform action');
+      if (logic.organizationId !== auth.callerOrganizationId)
+        throw new Error('Not authorized to perform action');
 
       return Result.ok(logic);
     } catch (error: unknown) {

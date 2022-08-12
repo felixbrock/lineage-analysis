@@ -14,6 +14,7 @@ import { Lineage, LineageProperties } from '../../domain/entities/lineage';
 interface LineagePersistence {
   _id: ObjectId;
   createdAt: number;
+  organizationId: string;
 }
 
 
@@ -113,10 +114,12 @@ export default class LineageRepo implements ILineageRepo {
     // eslint-disable-next-line no-underscore-dangle
     id: lineage._id.toHexString(),
     createdAt: lineage.createdAt,
+    organizationId: lineage.organizationId
   });
 
   #toPersistence = (lineage: Lineage): Document => ({
     _id: ObjectId.createFromHexString(lineage.id),
     createdAt: lineage.createdAt,
+    organizationId: lineage.organizationId
   });
 }
