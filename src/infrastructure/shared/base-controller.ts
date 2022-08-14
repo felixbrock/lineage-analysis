@@ -47,7 +47,7 @@ export abstract class BaseController {
 
     try {
       const client = jwksClient({
-        jwksUri: `https://cognito-idp.${appConfig.cloud.region}.amazonaws.com/${appConfig.cloud.authEnvConfig.userPoolId}/.well-known/jwks.json`,
+        jwksUri: `https://cognito-idp.${appConfig.cloud.region}.amazonaws.com/${appConfig.cloud.userPoolId}/.well-known/jwks.json`,
       });
 
       const unverifiedDecodedAuthPayload = jsonwebtoken.decode(jwt, {
@@ -76,6 +76,7 @@ export abstract class BaseController {
           {
             userId: authPayload.username,
           },
+
           { jwt }
         );
 
