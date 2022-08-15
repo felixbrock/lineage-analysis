@@ -36,8 +36,8 @@ export default class CreateLineageController extends BaseController {
 
     return {
       lineageId,
-      catalog: typeof catalog === 'string' ? catalog : undefined,
-      manifest: typeof manifest === 'string' ? manifest : undefined,
+      catalog,
+      manifest
     };
   };
 

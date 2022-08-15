@@ -38,8 +38,8 @@ import { IDashboardRepo } from '../dashboard/i-dashboard-repo';
 export interface CreateLineageRequestDto {
   lineageId?: string;
   lineageCreatedAt?: number;
-  catalog?: string,
-  manifest?: string
+  catalog: string,
+  manifest: string
 }
 
 export interface CreateLineageAuthDto {
@@ -263,7 +263,7 @@ export class CreateLineage
     model: any,
     modelManifest: any,
     dependentOn: MaterializationDefinition[],
-    catalogFile?:string
+    catalogFile:string
   ): Promise<void> => {
     if (!this.#lineage)
       throw new ReferenceError('Lineage property is undefined');
@@ -335,8 +335,8 @@ export class CreateLineage
   };
 
   /* Get dbt nodes from catalog.json or manifest.json */
-  #getDbtResources = (location: string, file?:string): DbtResources => {
-    const data = file || fs.readFileSync(location, 'utf-8');
+  #getDbtResources = (file:string): DbtResources => {
+    const data = file;
     
     const catalog = JSON.parse(data);
 
@@ -349,17 +349,9 @@ export class CreateLineage
   };
 
   /* Runs through dbt nodes and creates objects like logic, materializations and columns */
-  #generateWarehouseResources = async (catalog?:any, manifest?:any): Promise<void> => {
-    const dbtCatalogResources = this.#getDbtResources(
-      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
-      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/catalog.json`,
-      catalog
-    );
-    const dbtManifestResources = this.#getDbtResources(
-      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/web-samples/sample-1-no-v_date_stg.json`
-      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/manifest.json`,
-      manifest
-    );
+  #generateWarehouseResources = async (catalog:any, manifest:any): Promise<void> => {
+    const dbtCatalogResources = this.#getDbtResources(catalog);
+    const dbtManifestResources = this.#getDbtResources(manifest);
 
     const dbtSourceKeys = Object.keys(dbtCatalogResources.sources);
 
