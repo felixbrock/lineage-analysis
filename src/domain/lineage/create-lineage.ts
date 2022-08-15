@@ -43,6 +43,8 @@ export interface CreateLineageRequestDto {
   lineageId?: string;
   lineageCreatedAt?: number;
   targetOrganizationId: string;
+  catalog: string,
+  manifest: string
 }
 
 export interface CreateLineageAuthDto {
@@ -287,7 +289,8 @@ export class CreateLineage
   #generateDbtModel = async (
     model: any,
     modelManifest: any,
-    dependentOn: MaterializationDefinition[]
+    dependentOn: MaterializationDefinition[],
+    catalogFile:string
   ): Promise<void> => {
     if (!this.#lineage)
       throw new ReferenceError('Lineage property is undefined');
@@ -307,6 +310,7 @@ export class CreateLineage
         parsedLogic,
         targetOrganizationId: this.#targetOrganizationId,
         writeToPersistence: false,
+        catalogFile,
       },
       { callerOrganizationId: this.#callerOrganizationId, isSystemInternal: this.#isSystemInternal },
       this.#dbConnection
@@ -360,9 +364,9 @@ export class CreateLineage
   };
 
   /* Get dbt nodes from catalog.json or manifest.json */
-  #getDbtResources = (location: string): DbtResources => {
-    const data = fs.readFileSync(location, 'utf-8');
-
+  #getDbtResources = (file:string): DbtResources => {
+    const data = file;
+    
     const catalog = JSON.parse(data);
 
     const { nodes } = catalog;
@@ -374,15 +378,9 @@ export class CreateLineage
   };
 
   /* Runs through dbt nodes and creates objects like logic, materializations and columns */
-  #generateWarehouseResources = async (): Promise<void> => {
-    const dbtCatalogResources = this.#getDbtResources(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/catalog.json`
-      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/catalog.json`
-    );
-    const dbtManifestResources = this.#getDbtResources(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/manifest/manifest.json`
-      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/manifest/manifest.json`
-    );
+  #generateWarehouseResources = async (catalog:any, manifest:any): Promise<void> => {
+    const dbtCatalogResources = this.#getDbtResources(catalog);
+    const dbtManifestResources = this.#getDbtResources(manifest);
 
     const dbtSourceKeys = Object.keys(dbtCatalogResources.sources);
 
@@ -438,7 +436,8 @@ export class CreateLineage
         return this.#generateDbtModel(
           dbtCatalogResources.nodes[key],
           dbtManifestResources.nodes[key],
-          dependentOn
+          dependentOn,
+          catalog
         );
       })
     );
@@ -958,7 +957,7 @@ export class CreateLineage
 
       await this.#buildLineage(request.lineageId, request.lineageCreatedAt);
 
-      await this.#generateWarehouseResources();
+      await this.#generateWarehouseResources(request.catalog, request.manifest);
 
       await this.#writeWhResourcesToPersistence();
 
