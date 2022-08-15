@@ -22,7 +22,7 @@ export default class ReadLineageController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  readonly #dbo: Dbo; 
+  readonly #dbo: Dbo;
 
   constructor(readLineage: ReadLineage, getAccounts: GetAccounts, dbo: Dbo) {
     super();
@@ -35,9 +35,13 @@ export default class ReadLineageController extends BaseController {
     id: httpRequest.params.id,
   });
 
-  #buildAuthDto = (userAccountInfo: UserAccountInfo): ReadLineageAuthDto => ({
-    callerOrganizationId: userAccountInfo.callerOrganizationId,
-  });
+  #buildAuthDto = (userAccountInfo: UserAccountInfo): ReadLineageAuthDto => {
+    if (!userAccountInfo.callerOrganizationId) throw new Error('Unauthorized');
+
+    return {
+      callerOrganizationId: userAccountInfo.callerOrganizationId,
+    };
+  };
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {
@@ -49,10 +53,7 @@ export default class ReadLineageController extends BaseController {
       const jwt = authHeader.split(' ')[1];
 
       const getUserAccountInfoResult: Result<UserAccountInfo> =
-        await ReadLineageController.getUserAccountInfo(
-          jwt,
-          this.#getAccounts
-        );
+        await ReadLineageController.getUserAccountInfo(jwt, this.#getAccounts);
 
       if (!getUserAccountInfoResult.success)
         return ReadLineageController.unauthorized(
@@ -63,9 +64,7 @@ export default class ReadLineageController extends BaseController {
         throw new ReferenceError('Authorization failed');
 
       const requestDto: ReadLineageRequestDto = this.#buildRequestDto(req);
-      const authDto = this.#buildAuthDto(
-        getUserAccountInfoResult.value
-      );
+      const authDto = this.#buildAuthDto(getUserAccountInfoResult.value);
 
       const useCaseResult: ReadLineageResponseDto =
         await this.#readLineage.execute(
