@@ -88,10 +88,14 @@ export default class ReadMaterializationsController extends BaseController {
 
   #buildAuthDto = (
     userAccountInfo: UserAccountInfo
-  ): ReadMaterializationsAuthDto => ({
-    callerOrganizationId: userAccountInfo.callerOrganizationId,
-    isSystemInternal: userAccountInfo.isSystemInternal
-  });
+  ): ReadMaterializationsAuthDto => {
+    if (!userAccountInfo.callerOrganizationId) throw new Error('Unauthorized');
+
+    return {
+      callerOrganizationId: userAccountInfo.callerOrganizationId,
+      isSystemInternal: userAccountInfo.isSystemInternal,
+    };
+  };
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {
@@ -118,9 +122,7 @@ export default class ReadMaterializationsController extends BaseController {
 
       const requestDto: ReadMaterializationsRequestDto =
         this.#buildRequestDto(req);
-      const authDto = this.#buildAuthDto(
-        getUserAccountInfoResult.value
-      );
+      const authDto = this.#buildAuthDto(getUserAccountInfoResult.value);
 
       const useCaseResult: ReadMaterializationsResponseDto =
         await this.#readMaterializations.execute(

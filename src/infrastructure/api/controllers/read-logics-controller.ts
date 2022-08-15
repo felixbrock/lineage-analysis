@@ -49,11 +49,14 @@ export default class ReadLogicsController extends BaseController {
     };
   };
 
-  #buildAuthDto = (userAccountInfo: UserAccountInfo): ReadLogicsAuthDto => ({
-    callerOrganizationId: userAccountInfo.callerOrganizationId,
-    isSystemInternal: userAccountInfo.isSystemInternal
+  #buildAuthDto = (userAccountInfo: UserAccountInfo): ReadLogicsAuthDto => {
+    if (!userAccountInfo.callerOrganizationId) throw new Error('Unauthorized');
 
-  });
+    return {
+      callerOrganizationId: userAccountInfo.callerOrganizationId,
+      isSystemInternal: userAccountInfo.isSystemInternal,
+    };
+  };
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {
@@ -65,10 +68,7 @@ export default class ReadLogicsController extends BaseController {
       const jwt = authHeader.split(' ')[1];
 
       const getUserAccountInfoResult: Result<UserAccountInfo> =
-        await ReadLogicsController.getUserAccountInfo(
-          jwt,
-          this.#getAccounts
-        );
+        await ReadLogicsController.getUserAccountInfo(jwt, this.#getAccounts);
 
       if (!getUserAccountInfoResult.success)
         return ReadLogicsController.unauthorized(
@@ -79,9 +79,7 @@ export default class ReadLogicsController extends BaseController {
         throw new ReferenceError('Authorization failed');
 
       const requestDto: ReadLogicsRequestDto = this.#buildRequestDto(req);
-      const authDto = this.#buildAuthDto(
-        getUserAccountInfoResult.value
-      );
+      const authDto = this.#buildAuthDto(getUserAccountInfoResult.value);
 
       const useCaseResult: ReadLogicsResponseDto =
         await this.#readLogics.execute(

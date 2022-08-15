@@ -75,10 +75,13 @@ export default class ReadDependenciesController extends BaseController {
 
   #buildAuthDto = (
     userAccountInfo: UserAccountInfo
-  ): ReadDependenciesAuthDto => ({
+  ): ReadDependenciesAuthDto => {
+    if (!userAccountInfo.callerOrganizationId) throw new Error('Unauthorized');
+
+    return {
     callerOrganizationId: userAccountInfo.callerOrganizationId,
     isSystemInternal: userAccountInfo.isSystemInternal
-  });
+  }};
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {

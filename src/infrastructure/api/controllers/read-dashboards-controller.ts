@@ -36,9 +36,16 @@ export default class ReadDashboardsController extends BaseController {
   }
 
   #buildRequestDto = (httpRequest: Request): ReadDashboardsRequestDto => {
-    const {url, name, materializationName, columnName,
-        id, columnId, materializationId, lineageId
-     } = httpRequest.query;
+    const {
+      url,
+      name,
+      materializationName,
+      columnName,
+      id,
+      columnId,
+      materializationId,
+      lineageId,
+    } = httpRequest.query;
 
     if (!lineageId)
       throw new TypeError(
@@ -52,21 +59,27 @@ export default class ReadDashboardsController extends BaseController {
     return {
       url: typeof url === 'string' ? url : undefined,
       name: typeof name === 'string' ? name : undefined,
-      materializationName: typeof materializationName === 'string' ? materializationName : undefined,
+      materializationName:
+        typeof materializationName === 'string'
+          ? materializationName
+          : undefined,
       columnName: typeof columnName === 'string' ? columnName : undefined,
       id: typeof id === 'string' ? id : undefined,
       columnId: typeof columnId === 'string' ? columnId : undefined,
-      materializationId: typeof materializationId === 'string' ? materializationId : undefined,
+      materializationId:
+        typeof materializationId === 'string' ? materializationId : undefined,
       lineageId,
     };
   };
 
-  #buildAuthDto = (
-    userAccountInfo: UserAccountInfo
-  ): ReadDashboardsAuthDto => ({
-    callerOrganizationId: userAccountInfo.callerOrganizationId,
-    isSystemInternal: userAccountInfo.isSystemInternal
-  });
+  #buildAuthDto = (userAccountInfo: UserAccountInfo): ReadDashboardsAuthDto => {
+    if (!userAccountInfo.callerOrganizationId) throw new Error('Unauthorized');
+
+    return {
+      callerOrganizationId: userAccountInfo.callerOrganizationId,
+      isSystemInternal: userAccountInfo.isSystemInternal,
+    };
+  };
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {
@@ -92,9 +105,7 @@ export default class ReadDashboardsController extends BaseController {
         throw new ReferenceError('Authorization failed');
 
       const requestDto: ReadDashboardsRequestDto = this.#buildRequestDto(req);
-      const authDto = this.#buildAuthDto(
-        getUserAccountInfoResult.value
-      );
+      const authDto = this.#buildAuthDto(getUserAccountInfoResult.value);
 
       const useCaseResult: ReadDashboardsResponseDto =
         await this.#readDashboards.execute(
@@ -102,7 +113,6 @@ export default class ReadDashboardsController extends BaseController {
           authDto,
           this.#dbo.dbConnection
         );
-
 
       if (!useCaseResult.success) {
         return ReadDashboardsController.badRequest(res, useCaseResult.error);
