@@ -262,7 +262,8 @@ export class CreateLineage
   #generateDbtModel = async (
     model: any,
     modelManifest: any,
-    dependentOn: MaterializationDefinition[]
+    dependentOn: MaterializationDefinition[],
+    catalogFile?:string
   ): Promise<void> => {
     if (!this.#lineage)
       throw new ReferenceError('Lineage property is undefined');
@@ -281,6 +282,7 @@ export class CreateLineage
         lineageId: lineage.id,
         parsedLogic,
         writeToPersistence: false,
+        catalogFile,
       },
       { organizationId: 'todo' },
       this.#dbConnection
@@ -413,7 +415,8 @@ export class CreateLineage
         return this.#generateDbtModel(
           dbtCatalogResources.nodes[key],
           dbtManifestResources.nodes[key],
-          dependentOn
+          dependentOn,
+          catalog
         );
       })
     );

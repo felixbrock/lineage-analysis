@@ -31,7 +31,7 @@ export default class CreateLineageController extends BaseController {
   }
 
   #buildRequestDto = (httpRequest: Request): CreateLineageRequestDto => {
-    const {catalog, manifest} = httpRequest.query;
+    const {catalog, manifest} = httpRequest.body;
     const lineageId = httpRequest.params.lineageCreatedAt;
 
     return {

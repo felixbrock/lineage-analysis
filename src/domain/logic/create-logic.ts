@@ -20,6 +20,7 @@ export interface CreateLogicRequestDto {
   parsedLogic: string;
   lineageId: string;
   writeToPersistence: boolean;
+  catalogFile?:string;
 }
 
 export interface CreateLogicAuthDto {
@@ -48,10 +49,10 @@ export class CreateLogic
     this.#logicRepo = logicRepo;
   }
 
-  #getTablesAndCols = (): CatalogModelData[] => {
-    const data = fs.readFileSync(
-      `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`,
-      // `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`
+  #getTablesAndCols = (catalogFile?:string): CatalogModelData[] => {
+    const data = catalogFile || fs.readFileSync(
+      // `C:/Users/felix-pc/Documents/Repositories/lineage-analysis/test/use-cases/dbt/catalog/web-samples/sample-1-no-v_date_stg.json`,
+      `C:/Users/nasir/OneDrive/Desktop/lineage-analysis/test/use-cases/dbt/catalog/catalog.json`,
       'utf-8'
     );
     const catalog = JSON.parse(data);
@@ -86,7 +87,7 @@ export class CreateLogic
     try {
       this.#dbConnection = dbConnection;
 
-      const catalog = this.#getTablesAndCols();
+      const catalog = this.#getTablesAndCols(request.catalogFile);
 
       const logic = Logic.create({
         id: new ObjectId().toHexString(),
