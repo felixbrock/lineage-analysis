@@ -1,5 +1,4 @@
 // todo clean architecture violation
-import fs from 'fs'; // 'todo - dependency rule violation'
 import { ObjectId } from 'mongodb';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
