@@ -43,8 +43,8 @@ export default class ExpressApp {
   };
 
   private configApp(): void {
-    this.#expressApp.use(express.json());
-    this.#expressApp.use(express.urlencoded({ extended: true }));
+    this.#expressApp.use(express.json({limit: '10mb'}));
+    this.#expressApp.use(express.urlencoded({ extended: true, limit: '10mb' }));
     this.#expressApp.use(cors());
     // this.#expressApp.use(compression());
     // // this.#expressApp.use(morgan("combined"));
