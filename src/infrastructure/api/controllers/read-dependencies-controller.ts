@@ -79,9 +79,10 @@ export default class ReadDependenciesController extends BaseController {
     if (!userAccountInfo.callerOrganizationId) throw new Error('Unauthorized');
 
     return {
-    callerOrganizationId: userAccountInfo.callerOrganizationId,
-    isSystemInternal: userAccountInfo.isSystemInternal
-  }};
+      callerOrganizationId: userAccountInfo.callerOrganizationId,
+      isSystemInternal: userAccountInfo.isSystemInternal,
+    };
+  };
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {
@@ -107,9 +108,7 @@ export default class ReadDependenciesController extends BaseController {
         throw new ReferenceError('Authorization failed');
 
       const requestDto: ReadDependenciesRequestDto = this.#buildRequestDto(req);
-      const authDto = this.#buildAuthDto(
-        getUserAccountInfoResult.value
-      );
+      const authDto = this.#buildAuthDto(getUserAccountInfoResult.value);
 
       const useCaseResult: ReadDependenciesResponseDto =
         await this.#readDependencies.execute(
@@ -117,7 +116,6 @@ export default class ReadDependenciesController extends BaseController {
           authDto,
           this.#dbo.dbConnection
         );
-
 
       if (!useCaseResult.success) {
         return ReadDependenciesController.badRequest(res, useCaseResult.error);
