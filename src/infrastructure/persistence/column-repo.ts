@@ -20,6 +20,7 @@ interface ColumnPersistence {
   type: string;
   materializationId: string;
   lineageId: string;
+  organizationId: string;
 }
 
 interface ColumnQueryFilter {
@@ -29,6 +30,7 @@ interface ColumnQueryFilter {
   type?: string;
   materializationId?: string | { [key: string]: string[] };
   lineageId: string;
+  organizationId: string;
 }
 
 const collectionName = 'column';
@@ -75,7 +77,7 @@ export default class ColumnRepo implements IColumnRepo {
   };
 
   #buildFilter = (columnQueryDto: ColumnQueryDto): ColumnQueryFilter => {
-    const filter: ColumnQueryFilter = { lineageId: columnQueryDto.lineageId };
+    const filter: ColumnQueryFilter = { lineageId: columnQueryDto.lineageId, organizationId: columnQueryDto.organizationId };
 
     if (
       typeof columnQueryDto.dbtModelId === 'string' &&
@@ -207,6 +209,7 @@ export default class ColumnRepo implements IColumnRepo {
     type: column.type,
     materializationId: column.materializationId,
     lineageId: column.lineageId,
+    organizationId: column.organizationId
   });
 
   #toPersistence = (column: Column): Document => ({
@@ -217,5 +220,6 @@ export default class ColumnRepo implements IColumnRepo {
     type: column.type,
     materializationId: column.materializationId,
     lineageId: column.lineageId,
+    organizationId: column.organizationId
   });
 }

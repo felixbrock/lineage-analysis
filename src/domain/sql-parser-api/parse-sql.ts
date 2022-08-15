@@ -9,9 +9,7 @@ export interface ParseSQLRequestDto {
   sql: string;
 }
 
-export interface ParseSQLAuthDto {
-  jwt: string;
-}
+export type ParseSQLAuthDto = null;
 
 export type ParseSQLResponseDto = Result<ParsedSQLDto>;
 
@@ -24,12 +22,7 @@ export class ParseSQL
     this.#sqlParserApiRepo = sqlParserApiRepo;
   }
 
-  async execute(
-    request: ParseSQLRequestDto,
-    auth: ParseSQLAuthDto
-  ): Promise<ParseSQLResponseDto> {
-    console.log(auth);
-
+  async execute(request: ParseSQLRequestDto): Promise<ParseSQLResponseDto> {
     const base64SQL =
       Buffer.from(request.sql, 'base64').toString('base64') === request.sql
         ? request.sql

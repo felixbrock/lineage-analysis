@@ -4,6 +4,7 @@ import { DbConnection } from '../services/i-db';
 export interface LogicQueryDto {
   dbtModelId?: string;
   lineageId: string;
+  organizationId: string;
 }
 
 export interface ILogicRepo {

@@ -1,35 +1,27 @@
-export const nodeEnv = process.env.NODE_ENV || 'development';
-export const defaultPort = 3000;
-export const port = process.env.PORT
-  ? parseInt(process.env.PORT, 10)
-  : defaultPort;
-export const apiRoot = process.env.API_ROOT || 'api';
+const nodeEnv = process.env.NODE_ENV || 'development';
+const defaultPort = 8081;
+const port = process.env.PORT ? parseInt(process.env.PORT, 10) : defaultPort;
+const apiRoot = process.env.API_ROOT || 'api';
 
-const getServiceDiscoveryNamespace = (): string => {
-  let namespace = '';
-
+const getServiceDiscoveryNamespace = (): string | null => {
   switch (nodeEnv) {
+    case 'development':
+      return null;
     case 'test':
-      namespace = 'hivedive-test';
-      break;
+      return 'lineage-staging';
     case 'production':
-      namespace = 'hivedive';
-      break;
+      return 'lineage';
     default:
-      break;
+      throw new Error('No valid nodenv value provided');
   }
-
-  return namespace;
 };
-
-export const serviceDiscoveryNamespace = getServiceDiscoveryNamespace();
 
 export interface MongoDbConfig {
   url: string;
   dbName: string;
 }
 
-const getMongodbConfig = (): MongoDbConfig => {  
+const getMongodbConfig = (): MongoDbConfig => {
   switch (nodeEnv) {
     case 'development':
       return {
@@ -48,9 +40,22 @@ const getMongodbConfig = (): MongoDbConfig => {
       };
     default:
       return {
-        url: process.env.DATABASE_DEV_URL || '',
-        dbName: process.env.DATABASE_DEV_URL || '',
+        url: '',
+        dbName: '',
       };
+  }
+};
+
+const getCognitoUserPoolId = (): string => {
+  switch (nodeEnv) {
+    case 'development':
+      return 'eu-central-1_0Z8JhFj8z';
+    case 'test':
+      return '';
+    case 'production':
+      return '';
+    default:
+      throw new Error('No valid nodenv provided');
   }
 };
 
@@ -58,6 +63,12 @@ export const appConfig = {
   express: {
     port,
     mode: nodeEnv,
+    apiRoot,
+  },
+  cloud: {
+    serviceDiscoveryNamespace: getServiceDiscoveryNamespace(),
+    userPoolId: getCognitoUserPoolId(),
+    region: 'eu-central-1',
   },
   mongodb: {
     ...getMongodbConfig(),

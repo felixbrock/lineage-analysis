@@ -27,7 +27,8 @@ import {
     lineageId: string;
     columnId: string,
     materializationId: string;
-  }
+  organizationId: string;
+}
   
   interface DashboardQueryFilter {
     url?: string;
@@ -37,7 +38,8 @@ import {
     lineageId: string;
     columnId?: string,
     materializationId?: string;
-  }
+  organizationId: string;
+}
   
   const collectionName = 'dashboard';
   
@@ -90,7 +92,7 @@ import {
       dashboardQueryDto: DashboardQueryDto
     ): DashboardQueryFilter => {
       const filter: DashboardQueryFilter = {
-        lineageId: dashboardQueryDto.lineageId,
+        lineageId: dashboardQueryDto.lineageId, organizationId: dashboardQueryDto.organizationId
       };
       
       if (dashboardQueryDto.url) filter.url = dashboardQueryDto.url;
@@ -202,7 +204,8 @@ import {
       columnId: dashboard.columnId,
       materializationId: dashboard.materializationId,
       url: dashboard.url,
-      name: dashboard.name
+      name: dashboard.name,
+      organizationId: dashboard.organizationId
 
     });
   
@@ -214,7 +217,8 @@ import {
       columnId: dashboard.columnId,
       matId: dashboard.materializationId,
       url: dashboard.url,
-      name: dashboard.name
+      name: dashboard.name,
+      organizationId: dashboard.organizationId
     });
   }
   

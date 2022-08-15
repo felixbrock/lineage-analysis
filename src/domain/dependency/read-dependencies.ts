@@ -9,10 +9,12 @@ export interface ReadDependenciesRequestDto {
   headId?: string;
   tailId?: string;
   lineageId: string;
+  targetOrganizationId?: string;
 }
 
 export interface ReadDependenciesAuthDto {
-  organizationId: string;
+  callerOrganizationId: string;
+  isSystemInternal: boolean
 }
 
 export type ReadDependenciesResponseDto = Result<Dependency[]>;
@@ -40,10 +42,15 @@ export class ReadDependencies
     dbConnection: DbConnection
   ): Promise<ReadDependenciesResponseDto> {
     try {
+      if(auth.isSystemInternal && !request.targetOrganizationId)
+        throw new Error('Target organization id missing');
+
       this.#dbConnection = dbConnection;
 
+      const organizationId = auth.isSystemInternal && request.targetOrganizationId ? request.targetOrganizationId: auth.callerOrganizationId;
+
       const dependencies: Dependency[] = await this.#dependencyRepo.findBy(
-        this.#buildDependencyQueryDto(request, auth.organizationId),
+        this.#buildDependencyQueryDto(request, organizationId),
         dbConnection
       );
       if (!dependencies)
@@ -61,12 +68,12 @@ export class ReadDependencies
     request: ReadDependenciesRequestDto,
     organizationId: string
   ): DependencyQueryDto => {
-    console.log(organizationId);
+    
 
-    const queryDto: DependencyQueryDto = { lineageId: request.lineageId };
+    const queryDto: DependencyQueryDto = { lineageId: request.lineageId, organizationId };
 
-    // todo - add organizationId
-    // queryDto.organizationId = organizationId;
+    
+    
     if (request.type) queryDto.type = request.type;
     if (request.headId) queryDto.headId = request.headId;
     if (request.tailId) queryDto.tailId = request.tailId;

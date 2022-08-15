@@ -8,6 +8,7 @@ export interface ColumnQueryDto {
   type?: string;
   materializationId?: string | string[];
   lineageId: string;
+  organizationId: string;
 }
 
 export interface IColumnRepo {

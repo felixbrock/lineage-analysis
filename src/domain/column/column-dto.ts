@@ -8,6 +8,7 @@ export interface ColumnDto {
   type: string;
   materializationId: string;
   lineageId: string;
+  organizationId: string;
 }
 
 export const buildColumnDto = (column: Column): ColumnDto => ({
@@ -18,4 +19,5 @@ export const buildColumnDto = (column: Column): ColumnDto => ({
   type: column.type,
   materializationId: column.materializationId,
   lineageId: column.lineageId,
+  organizationId: column.organizationId
 });

@@ -11,10 +11,12 @@ export interface ReadColumnsRequestDto {
   type?: string;
   materializationId?: string | string[];
   lineageId: string;
+  targetOrganizationId?: string;
 }
 
 export interface ReadColumnsAuthDto {
-  organizationId: string;
+  callerOrganizationId: string;
+  isSystemInternal: boolean
 }
 
 export type ReadColumnsResponseDto = Result<Column[]>;
@@ -44,8 +46,13 @@ export class ReadColumns
     try {
       this.#dbConnection = dbConnection;
 
+      if(auth.isSystemInternal && !request.targetOrganizationId)
+        throw new Error('Target organization id missing');
+
+      const organizationId = auth.isSystemInternal && request.targetOrganizationId ? request.targetOrganizationId: auth.callerOrganizationId;
+
       const columns: Column[] = await this.#columnRepo.findBy(
-        this.#buildColumnQueryDto(request, auth.organizationId),
+        this.#buildColumnQueryDto(request, organizationId),
         this.#dbConnection
       );
       if (!columns) throw new Error(`Queried columns do not exist`);
@@ -62,12 +69,12 @@ export class ReadColumns
     request: ReadColumnsRequestDto,
     organizationId: string
   ): ColumnQueryDto => {
-    console.log(organizationId);
+    
 
-    const queryDto: ColumnQueryDto = { lineageId: request.lineageId };
+    const queryDto: ColumnQueryDto = { lineageId: request.lineageId, organizationId};
 
-    // todo - add organizationId
-    // queryDto.organizationId = organizationId;
+    
+    
     if (request.dbtModelId) queryDto.dbtModelId = request.dbtModelId;
     if (request.name) queryDto.name = request.name;
     if (request.index) queryDto.index = request.index;

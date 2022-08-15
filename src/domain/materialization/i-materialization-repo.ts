@@ -9,6 +9,7 @@ export interface MaterializationQueryDto {
   databaseName?: string;
   logicId?: string;
   lineageId: string;
+  organizationId: string;
 }
 
 export interface IMaterializationRepo {

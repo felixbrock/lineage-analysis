@@ -10,6 +10,7 @@ export interface DashboardQueryDto {
     columnId?: string,
     materializationId?: string;
     lineageId: string;
+    organizationId: string;
 }
 
 export interface IDashboardRepo {

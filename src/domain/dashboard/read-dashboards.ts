@@ -5,18 +5,20 @@ import Result from '../value-types/transient-types/result';
 import { IDashboardRepo, DashboardQueryDto } from './i-dashboard-repo';
 
 export interface ReadDashboardsRequestDto {
-    url?: string;
-    name?: string;
-    materializationName?: string;
-    columnName?: string; 
-    id?: string;
-    columnId?: string,
-    materializationId?: string;
-    lineageId: string;
+  url?: string;
+  name?: string;
+  materializationName?: string;
+  columnName?: string;
+  id?: string;
+  columnId?: string;
+  materializationId?: string;
+  lineageId: string;
+  targetOrganizationId?: string;
 }
 
 export interface ReadDashboardsAuthDto {
-  organizationId: string;
+  isSystemInternal: boolean;
+  callerOrganizationId: string;
 }
 
 export type ReadDashboardsResponseDto = Result<Dashboard[]>;
@@ -46,8 +48,16 @@ export class ReadDashboards
     try {
       this.#dbConnection = dbConnection;
 
+      if (auth.isSystemInternal && !request.targetOrganizationId)
+        throw new Error('Target organization id missing');
+
+      const organizationId =
+        auth.isSystemInternal && request.targetOrganizationId
+          ? request.targetOrganizationId
+          : auth.callerOrganizationId;
+
       const dashboards: Dashboard[] = await this.#dashboardRepo.findBy(
-        this.#buildDashboardQueryDto(request, auth.organizationId),
+        this.#buildDashboardQueryDto(request, organizationId),
         dbConnection
       );
       if (!dashboards)
@@ -65,19 +75,20 @@ export class ReadDashboards
     request: ReadDashboardsRequestDto,
     organizationId: string
   ): DashboardQueryDto => {
-    console.log(organizationId);
+    const queryDto: DashboardQueryDto = {
+      lineageId: request.lineageId,
+      organizationId,
+    };
 
-    const queryDto: DashboardQueryDto = { lineageId: request.lineageId };
-
-    // todo - add organizationId
-    // queryDto.organizationId = organizationId;
-    if (request.url) queryDto.url = request.url; 
+    if (request.url) queryDto.url = request.url;
     if (request.name) queryDto.name = request.name;
-    if (request.materializationName) queryDto.materializationName = request.materializationName;
-    if (request.columnName) queryDto.columnName = request.columnName; 
+    if (request.materializationName)
+      queryDto.materializationName = request.materializationName;
+    if (request.columnName) queryDto.columnName = request.columnName;
     if (request.id) queryDto.id = request.id;
     if (request.columnId) queryDto.columnId = request.columnId;
-    if (request.materializationId) queryDto.materializationId = request.materializationId;
+    if (request.materializationId)
+      queryDto.materializationId = request.materializationId;
 
     return queryDto;
   };

@@ -8,6 +8,7 @@ import {
   ReadLogicRequestDto,
   ReadLogicResponseDto,
 } from '../../../domain/logic/read-logic';
+import Result from '../../../domain/value-types/transient-types/result';
 import Dbo from '../../persistence/db/mongo-db';
 
 import {
@@ -34,43 +35,40 @@ export default class ReadLogicController extends BaseController {
     id: httpRequest.params.id,
   });
 
-  #buildAuthDto = (userAccountInfo: UserAccountInfo): ReadLogicAuthDto => ({
-    organizationId: userAccountInfo.organizationId,
-  });
+  #buildAuthDto = (userAccountInfo: UserAccountInfo): ReadLogicAuthDto => {
+    if (!userAccountInfo.callerOrganizationId) throw new Error('Unauthorized');
+
+    return {
+      callerOrganizationId: userAccountInfo.callerOrganizationId,
+    };
+  };
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {
-      // const authHeader = req.headers.authorization;
+      const authHeader = req.headers.authorization;
 
-      // if (!authHeader)
-      //   return ReadLogicController.unauthorized(res, 'Unauthorized');
+      if (!authHeader)
+        return ReadLogicController.unauthorized(res, 'Unauthorized');
 
-      // const jwt = authHeader.split(' ')[1];
+      const jwt = authHeader.split(' ')[1];
 
-      // const getUserAccountInfoResult: Result<UserAccountInfo> =
-      //   await ReadLogicInfoController.getUserAccountInfo(
-      //     jwt,
-      //     this.#getAccounts
-      //   );
+      const getUserAccountInfoResult: Result<UserAccountInfo> =
+        await ReadLogicController.getUserAccountInfo(jwt, this.#getAccounts);
 
-      // if (!getUserAccountInfoResult.success)
-      //   return ReadLogicInfoController.unauthorized(
-      //     res,
-      //     getUserAccountInfoResult.error
-      //   );
-      // if (!getUserAccountInfoResult.value)
-      //   throw new ReferenceError('Authorization failed');
+      if (!getUserAccountInfoResult.success)
+        return ReadLogicController.unauthorized(
+          res,
+          getUserAccountInfoResult.error
+        );
+      if (!getUserAccountInfoResult.value)
+        throw new ReferenceError('Authorization failed');
 
       const requestDto: ReadLogicRequestDto = this.#buildRequestDto(req);
-      // const authDto: ReadLogicAuthDto = this.#buildAuthDto(
-      //   getUserAccountResult.value
-      // );
+      const authDto = this.#buildAuthDto(getUserAccountInfoResult.value);
 
       const useCaseResult: ReadLogicResponseDto = await this.#readLogic.execute(
         requestDto,
-        {
-          organizationId: 'todo',
-        },
+        authDto,
         this.#dbo.dbConnection
       );
 

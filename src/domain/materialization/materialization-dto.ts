@@ -9,6 +9,7 @@ export interface MaterializationDto {
   databaseName: string;
   logicId: string;
   lineageId: string;
+  organizationId: string;
 }
 
 export const buildMaterializationDto = (
@@ -22,4 +23,5 @@ export const buildMaterializationDto = (
   databaseName: materialization.databaseName,
   logicId: materialization.logicId,
   lineageId: materialization.lineageId,
+  organizationId: materialization.organizationId
 });

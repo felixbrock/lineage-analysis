@@ -18,10 +18,12 @@ export interface ReadMaterializationsRequestDto {
   databaseName?: string;
   logicId?: string;
   lineageId: string;
+  targetOrganizationId?: string;
 }
 
 export interface ReadMaterializationsAuthDto {
-  organizationId: string;
+  callerOrganizationId: string;
+  isSystemInternal: boolean
 }
 
 export type ReadMaterializationsResponseDto = Result<Materialization[]>;
@@ -49,11 +51,16 @@ export class ReadMaterializations
     dbConnection: DbConnection
   ): Promise<ReadMaterializationsResponseDto> {
     try {
+      if(auth.isSystemInternal && !request.targetOrganizationId)
+      throw new Error('Target organization id missing');
+
       this.#dbConnection = dbConnection;
+
+      const organizationId = auth.isSystemInternal && request.targetOrganizationId ? request.targetOrganizationId: auth.callerOrganizationId;
 
       const materializations: Materialization[] =
         await this.#materializationRepo.findBy(
-          this.#buildMaterializationQueryDto(request, auth.organizationId),
+          this.#buildMaterializationQueryDto(request, organizationId),
           this.#dbConnection
         );
       if (!materializations)
@@ -71,12 +78,11 @@ export class ReadMaterializations
     request: ReadMaterializationsRequestDto,
     organizationId: string
   ): MaterializationQueryDto => {
-    console.log(organizationId);
+    const queryDto: MaterializationQueryDto = {
+      lineageId: request.lineageId,
+      organizationId,
+    };
 
-    const queryDto: MaterializationQueryDto = { lineageId: request.lineageId };
-
-    // todo - add organizationId
-    // queryDto.organizationId = organizationId;
     if (request.dbtModelId) queryDto.dbtModelId = request.dbtModelId;
     if (request.name) queryDto.name = request.name;
     if (request.logicId) queryDto.logicId = request.logicId;
