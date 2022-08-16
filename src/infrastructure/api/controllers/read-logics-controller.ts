@@ -32,7 +32,7 @@ export default class ReadLogicsController extends BaseController {
   }
 
   #buildRequestDto = (httpRequest: Request): ReadLogicsRequestDto => {
-    const { dbtModelId, lineageId } = httpRequest.query;
+    const { dbtModelId, lineageId, targetOrganizationId } = httpRequest.query;
 
     if (!lineageId)
       throw new TypeError(
@@ -46,17 +46,14 @@ export default class ReadLogicsController extends BaseController {
     return {
       dbtModelId: typeof dbtModelId === 'string' ? dbtModelId : undefined,
       lineageId,
+      targetOrganizationId: typeof targetOrganizationId === 'string' ? targetOrganizationId : undefined,
     };
   };
 
-  #buildAuthDto = (userAccountInfo: UserAccountInfo): ReadLogicsAuthDto => {
-    if (!userAccountInfo.callerOrganizationId) throw new Error('Unauthorized');
-
-    return {
+  #buildAuthDto = (userAccountInfo: UserAccountInfo): ReadLogicsAuthDto => ({
       callerOrganizationId: userAccountInfo.callerOrganizationId,
       isSystemInternal: userAccountInfo.isSystemInternal,
-    };
-  };
+    });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {

@@ -37,7 +37,7 @@ export default class ReadDependenciesController extends BaseController {
   }
 
   #buildRequestDto = (httpRequest: Request): ReadDependenciesRequestDto => {
-    const { type, headId, tailId, lineageId } = httpRequest.query;
+    const { type, headId, tailId, lineageId, targetOrganizationId } = httpRequest.query;
 
     const isDependencyType = (
       queryParam: string
@@ -68,21 +68,17 @@ export default class ReadDependenciesController extends BaseController {
       type: type && isDependencyType(type) ? type : undefined,
       headId: typeof headId === 'string' ? headId : undefined,
       tailId: typeof tailId === 'string' ? tailId : undefined,
-
       lineageId,
+      targetOrganizationId: typeof targetOrganizationId === 'string' ? targetOrganizationId : undefined,
     };
   };
 
   #buildAuthDto = (
     userAccountInfo: UserAccountInfo
-  ): ReadDependenciesAuthDto => {
-    if (!userAccountInfo.callerOrganizationId) throw new Error('Unauthorized');
-
-    return {
+  ): ReadDependenciesAuthDto => ({
       callerOrganizationId: userAccountInfo.callerOrganizationId,
       isSystemInternal: userAccountInfo.isSystemInternal,
-    };
-  };
+    });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {

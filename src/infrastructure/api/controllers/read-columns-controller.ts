@@ -32,7 +32,7 @@ export default class ReadColumnsController extends BaseController {
   }
 
   #buildRequestDto = (httpRequest: Request): ReadColumnsRequestDto => {
-    const { dbtModelId, name, index, type, materializationId, lineageId } =
+    const { dbtModelId, name, index, type, materializationId, lineageId, targetOrganizationId } =
       httpRequest.query;
 
     if (!lineageId)
@@ -52,17 +52,14 @@ export default class ReadColumnsController extends BaseController {
       materializationId:
         typeof materializationId === 'string' ? materializationId : undefined,
       lineageId,
+      targetOrganizationId: typeof targetOrganizationId === 'string' ? targetOrganizationId : undefined,
     };
   };
 
-  #buildAuthDto = (userAccountInfo: UserAccountInfo): ReadColumnsAuthDto => {
-    if (!userAccountInfo.callerOrganizationId) throw new Error('Unauthorized');
-
-    return {
+  #buildAuthDto = (userAccountInfo: UserAccountInfo): ReadColumnsAuthDto => ({
       callerOrganizationId: userAccountInfo.callerOrganizationId,
       isSystemInternal: userAccountInfo.isSystemInternal,
-    };
-  };
+    });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {
