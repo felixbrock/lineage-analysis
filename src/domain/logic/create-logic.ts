@@ -25,7 +25,6 @@ export interface CreateLogicRequestDto {
 
 export interface CreateLogicAuthDto {
   isSystemInternal: boolean;
-  callerOrganizationId: string;
 }
 
 export type CreateLogicResponse = Result<Logic>;
@@ -97,7 +96,7 @@ export class CreateLogic
         dependentOn: request.dependentOn,
         parsedLogic: request.parsedLogic,
         lineageId: request.lineageId,
-        organizationId: auth.callerOrganizationId,
+        organizationId: request.targetOrganizationId,
         catalog,
       });
 
@@ -108,7 +107,6 @@ export class CreateLogic
           targetOrganizationId: request.targetOrganizationId,
         },
         {
-          callerOrganizationId: auth.callerOrganizationId,
           isSystemInternal: auth.isSystemInternal,
         },
         this.#dbConnection

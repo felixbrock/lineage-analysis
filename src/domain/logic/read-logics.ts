@@ -11,8 +11,8 @@ export interface ReadLogicsRequestDto {
 }
 
 export interface ReadLogicsAuthDto {
-  callerOrganizationId: string;
-  isSystemInternal: boolean
+  callerOrganizationId?: string;
+  isSystemInternal: boolean;
 }
 
 export type ReadLogicsResponseDto = Result<Logic[]>;
@@ -40,12 +40,21 @@ export class ReadLogics
     dbConnection: DbConnection
   ): Promise<ReadLogicsResponseDto> {
     try {
-      if(auth.isSystemInternal && !request.targetOrganizationId)
-      throw new Error('Target organization id missing');
+      if (auth.isSystemInternal && !request.targetOrganizationId)
+        throw new Error('Target organization id missing');
+      if (!auth.isSystemInternal && !auth.callerOrganizationId)
+        throw new Error('Caller organization id missing');
+      if (!request.targetOrganizationId && !auth.callerOrganizationId)
+        throw new Error('No organization Id instance provided');
+
+      let organizationId;
+      if (auth.isSystemInternal && request.targetOrganizationId)
+        organizationId = request.targetOrganizationId;
+      else if (auth.callerOrganizationId)
+        organizationId = auth.callerOrganizationId;
+      else throw new Error('Unhandled organizationId allocation');
 
       this.#dbConnection = dbConnection;
-
-      const organizationId = auth.isSystemInternal && request.targetOrganizationId ? request.targetOrganizationId: auth.callerOrganizationId;
 
       const logics: Logic[] = await this.#logicRepo.findBy(
         this.#buildLogicQueryDto(request, organizationId),
@@ -65,15 +74,11 @@ export class ReadLogics
     request: ReadLogicsRequestDto,
     organizationId: string
   ): LogicQueryDto => {
-    
-
     const queryDto: LogicQueryDto = {
       lineageId: request.lineageId,
       organizationId,
     };
 
-    
-    
     if (request.dbtModelId) queryDto.dbtModelId = request.dbtModelId;
 
     return queryDto;

@@ -42,13 +42,12 @@ export interface CreateLineageRequestDto {
   lineageId?: string;
   lineageCreatedAt?: number;
   targetOrganizationId: string;
-  catalog: string,
-  manifest: string
+  catalog: string;
+  manifest: string;
 }
 
 export interface CreateLineageAuthDto {
   jwt: string;
-  callerOrganizationId: string;
   isSystemInternal: boolean;
 }
 
@@ -124,8 +123,6 @@ export class CreateLineage
 
   #isSystemInternal: boolean;
 
-  #callerOrganizationId: string;
-
   constructor(
     createLogic: CreateLogic,
     createMaterialization: CreateMaterialization,
@@ -169,7 +166,6 @@ export class CreateLineage
     this.#targetOrganizationId = '';
     this.#jwt = '';
     this.#isSystemInternal = false;
-    this.#callerOrganizationId = '';
   }
 
   /* Building a new lineage object that is referenced by resources like columns and materializations */
@@ -230,7 +226,7 @@ export class CreateLineage
         writeToPersistence: false,
         targetOrganizationId: this.#targetOrganizationId,
       },
-      { callerOrganizationId: this.#callerOrganizationId, isSystemInternal: this.#isSystemInternal },
+      { isSystemInternal: this.#isSystemInternal },
       this.#dbConnection
     );
 
@@ -259,7 +255,7 @@ export class CreateLineage
           targetOrganizationId: this.#targetOrganizationId,
           writeToPersistence: false,
         },
-        { callerOrganizationId: this.#callerOrganizationId, isSystemInternal: this.#isSystemInternal },
+        { isSystemInternal: this.#isSystemInternal },
         this.#dbConnection
       );
 
@@ -289,7 +285,7 @@ export class CreateLineage
     model: any,
     modelManifest: any,
     dependentOn: MaterializationDefinition[],
-    catalogFile:string
+    catalogFile: string
   ): Promise<void> => {
     if (!this.#lineage)
       throw new ReferenceError('Lineage property is undefined');
@@ -311,7 +307,7 @@ export class CreateLineage
         writeToPersistence: false,
         catalogFile,
       },
-      { callerOrganizationId: this.#callerOrganizationId, isSystemInternal: this.#isSystemInternal },
+      { isSystemInternal: this.#isSystemInternal },
       this.#dbConnection
     );
 
@@ -336,7 +332,7 @@ export class CreateLineage
           targetOrganizationId: this.#targetOrganizationId,
           writeToPersistence: false,
         },
-        { callerOrganizationId: this.#callerOrganizationId, isSystemInternal: this.#isSystemInternal },
+        { isSystemInternal: this.#isSystemInternal },
         this.#dbConnection
       );
 
@@ -363,9 +359,9 @@ export class CreateLineage
   };
 
   /* Get dbt nodes from catalog.json or manifest.json */
-  #getDbtResources = (file:string): DbtResources => {
+  #getDbtResources = (file: string): DbtResources => {
     const data = file;
-    
+
     const catalog = JSON.parse(data);
 
     const { nodes } = catalog;
@@ -377,7 +373,10 @@ export class CreateLineage
   };
 
   /* Runs through dbt nodes and creates objects like logic, materializations and columns */
-  #generateWarehouseResources = async (catalog:any, manifest:any): Promise<void> => {
+  #generateWarehouseResources = async (
+    catalog: any,
+    manifest: any
+  ): Promise<void> => {
     const dbtCatalogResources = this.#getDbtResources(catalog);
     const dbtManifestResources = this.#getDbtResources(manifest);
 
@@ -640,7 +639,7 @@ export class CreateLineage
         targetOrganizationId: this.#targetOrganizationId,
         writeToPersistence: false,
       },
-      { callerOrganizationId: this.#callerOrganizationId, isSystemInternal: this.#isSystemInternal },
+      { isSystemInternal: this.#isSystemInternal },
       this.#dbConnection
     );
 
@@ -661,7 +660,7 @@ export class CreateLineage
           targetOrganizationId: this.#targetOrganizationId,
           writeToPersistence: false,
         },
-        { callerOrganizationId: this.#callerOrganizationId, isSystemInternal: this.#isSystemInternal },
+        { isSystemInternal: this.#isSystemInternal },
         this.#dbConnection
       );
 
@@ -714,7 +713,7 @@ export class CreateLineage
               targetOrganizationId: this.#targetOrganizationId,
               writeToPersistence: false,
             },
-            { callerOrganizationId: this.#callerOrganizationId, isSystemInternal: this.#isSystemInternal },
+            { isSystemInternal: this.#isSystemInternal },
             this.#dbConnection
           );
 
@@ -770,7 +769,7 @@ export class CreateLineage
         targetOrganizationId: this.#targetOrganizationId,
         writeToPersistence: false,
       },
-      { callerOrganizationId: this.#callerOrganizationId, isSystemInternal: this.#isSystemInternal },
+      { isSystemInternal: this.#isSystemInternal },
       this.#dbConnection
     );
 
@@ -882,9 +881,9 @@ export class CreateLineage
       {
         dbtModelId,
         lineageId: lineage.id,
-        targetOrganizationId: this.#targetOrganizationId
+        targetOrganizationId: this.#targetOrganizationId,
       },
-      { callerOrganizationId: this.#callerOrganizationId, isSystemInternal: this.#isSystemInternal },
+      { isSystemInternal: this.#isSystemInternal },
       this.#dbConnection
     );
 
@@ -935,15 +934,13 @@ export class CreateLineage
     dbConnection: DbConnection
   ): Promise<CreateLineageResponseDto> {
     try {
-      if (!auth.isSystemInternal)
-        throw new Error('Unauthorized');
+      if (!auth.isSystemInternal) throw new Error('Unauthorized');
 
       this.#dbConnection = dbConnection;
 
       this.#targetOrganizationId = request.targetOrganizationId;
       this.#jwt = auth.jwt;
       this.#isSystemInternal = auth.isSystemInternal;
-      this.#callerOrganizationId = auth.callerOrganizationId;
 
       // todo - Workaround. Fix ioc container
       this.#lineage = undefined;

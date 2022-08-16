@@ -19,7 +19,6 @@ export interface CreateDashboardRequestDto {
 
 export interface CreateDashboardAuthDto {
   isSystemInternal: boolean;
-  callerOrganizationId: string;
 }
 
 export type CreateDashboardResponseDto = Result<Dashboard>;
@@ -73,7 +72,7 @@ export class CreateDashboard
           lineageId: request.lineageId,
           targetOrganizationId: request.targetOrganizationId,
         },
-        { callerOrganizationId: auth.callerOrganizationId, isSystemInternal: auth.isSystemInternal },
+        {  isSystemInternal: auth.isSystemInternal },
         this.#dbConnection
       );
 
