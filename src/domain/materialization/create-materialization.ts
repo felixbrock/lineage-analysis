@@ -24,7 +24,6 @@ export interface CreateMaterializationRequestDto {
 
 export interface CreateMaterializationAuthDto {
   isSystemInternal: boolean;
-  callerOrganizationId: string;
 }
 
 export type CreateMaterializationResponseDto = Result<Materialization>;
@@ -81,7 +80,7 @@ export class CreateMaterialization
             lineageId: request.lineageId,
             targetOrganizationId: request.targetOrganizationId
           },
-          { callerOrganizationId: auth.callerOrganizationId, isSystemInternal: auth.isSystemInternal }, this.#dbConnection
+          { isSystemInternal: auth.isSystemInternal }, this.#dbConnection
         );
 
       if (!readMaterializationsResult.success)

@@ -21,7 +21,6 @@ export interface CreateDependencyRequestDto {
 
 export interface CreateDependencyAuthDto {
   isSystemInternal: boolean;
-  callerOrganizationId: string;
 }
 
 export type CreateDependencyResponse = Result<Dependency>;
@@ -48,13 +47,18 @@ export class CreateDependency
     dependencyRef: ColumnRef,
     parentDbtModelIds: string[],
     lineageId: string,
-    callerOrganizationId: string,
     isSystemInternal: boolean,
-    targetOrganizationId: string
+    targetOrganizationId: string,
+    callerOrganizationId?: string
   ): Promise<string> => {
     const readColumnsResult = await this.#readColumns.execute(
-      { dbtModelId: parentDbtModelIds, name: dependencyRef.name, lineageId, targetOrganizationId },
-      { callerOrganizationId, isSystemInternal},
+      {
+        dbtModelId: parentDbtModelIds,
+        name: dependencyRef.name,
+        lineageId,
+        targetOrganizationId,
+      },
+      { callerOrganizationId, isSystemInternal },
       this.#dbConnection
     );
 
@@ -82,18 +86,18 @@ export class CreateDependency
     selfDbtModelId: string,
     dependencyRef: ColumnRef,
     lineageId: string,
-    callerOrganizationId: string,
     isSystemInternal: boolean,
-    targetOrganizationId: string
+    targetOrganizationId: string,
+    callerOrganizationId?: string
   ): Promise<Column> => {
     const readSelfColumnResult = await this.#readColumns.execute(
       {
         dbtModelId: selfDbtModelId,
         lineageId,
         name: dependencyRef.alias || dependencyRef.name,
-        targetOrganizationId
+        targetOrganizationId,
       },
-      { callerOrganizationId , isSystemInternal},
+      { callerOrganizationId, isSystemInternal },
       this.#dbConnection
     );
 
@@ -138,9 +142,7 @@ export class CreateDependency
     request: CreateDependencyRequestDto,
     auth: CreateDependencyAuthDto,
     dbConnection: DbConnection
-    ): Promise<CreateDependencyResponse> {
-    ;
-
+  ): Promise<CreateDependencyResponse> {
     try {
       if (!auth.isSystemInternal) throw new Error('Unauthorized');
 
@@ -150,9 +152,8 @@ export class CreateDependency
         request.selfDbtModelId,
         request.dependencyRef,
         request.lineageId,
-        auth.callerOrganizationId,
         auth.isSystemInternal,
-        request.targetOrganizationId
+        request.targetOrganizationId,
       );
 
       // const parentName =
@@ -164,9 +165,8 @@ export class CreateDependency
         request.dependencyRef,
         request.parentDbtModelIds,
         request.lineageId,
-        auth.callerOrganizationId,
         auth.isSystemInternal,
-        request.targetOrganizationId
+        request.targetOrganizationId,
       );
 
       const dependency = Dependency.create({
@@ -175,7 +175,7 @@ export class CreateDependency
         headId: headColumn.id,
         tailId: parentId,
         lineageId: request.lineageId,
-        organizationId: request.targetOrganizationId
+        organizationId: request.targetOrganizationId,
       });
 
       console.log(
@@ -187,21 +187,25 @@ export class CreateDependency
           headId: headColumn.id,
           tailId: parentId,
           lineageId: request.lineageId,
-          targetOrganizationId: request.targetOrganizationId
+          targetOrganizationId: request.targetOrganizationId,
         },
-        { callerOrganizationId: auth.callerOrganizationId, isSystemInternal: auth.isSystemInternal },
+        {
+          isSystemInternal: auth.isSystemInternal,
+        },
         dbConnection
       );
 
-      if (!readDependencyResult.success) throw new Error(readDependencyResult.error);
-      if (!readDependencyResult.value) throw new Error('Creating dependency failed');
+      if (!readDependencyResult.success)
+        throw new Error(readDependencyResult.error);
+      if (!readDependencyResult.value)
+        throw new Error('Creating dependency failed');
       if (readDependencyResult.value.length)
-        throw new Error(`Attempting to create a dependency that already exists`);
+        throw new Error(
+          `Attempting to create a dependency that already exists`
+        );
 
       if (request.writeToPersistence)
         await this.#dependencyRepo.insertOne(dependency, this.#dbConnection);
-
-      
 
       return Result.ok(dependency);
     } catch (error: unknown) {

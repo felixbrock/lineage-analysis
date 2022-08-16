@@ -17,7 +17,6 @@ export interface CreateExternalDependencyRequestDto {
 
 export interface CreateExternalDependencyAuthDto {
   isSystemInternal: boolean;
-  callerOrganizationId: string;
 }
 
 export type CreateExternalDependencyResponse = Result<Dependency>;
@@ -74,7 +73,7 @@ export class CreateExternalDependency
           lineageId: request.lineageId,
           targetOrganizationId: request.targetOrganizationId
         },
-        { callerOrganizationId: auth.callerOrganizationId, isSystemInternal: auth.isSystemInternal },
+        { isSystemInternal: auth.isSystemInternal },
         dbConnection
       );
 

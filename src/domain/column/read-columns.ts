@@ -15,8 +15,8 @@ export interface ReadColumnsRequestDto {
 }
 
 export interface ReadColumnsAuthDto {
-  callerOrganizationId: string;
-  isSystemInternal: boolean
+  callerOrganizationId?: string;
+  isSystemInternal: boolean;
 }
 
 export type ReadColumnsResponseDto = Result<Column[]>;
@@ -42,14 +42,24 @@ export class ReadColumns
     request: ReadColumnsRequestDto,
     auth: ReadColumnsAuthDto,
     dbConnection: DbConnection
-    ): Promise<ReadColumnsResponseDto> {
+  ): Promise<ReadColumnsResponseDto> {
     try {
       this.#dbConnection = dbConnection;
 
-      if(auth.isSystemInternal && !request.targetOrganizationId)
+      if (auth.isSystemInternal && !request.targetOrganizationId)
         throw new Error('Target organization id missing');
+      if (!auth.isSystemInternal && !auth.callerOrganizationId)
+        throw new Error('Caller organization id missing');
+      if(!request.targetOrganizationId && !auth.callerOrganizationId)
+        throw new Error('No organization Id instance provided'); 
 
-      const organizationId = auth.isSystemInternal && request.targetOrganizationId ? request.targetOrganizationId: auth.callerOrganizationId;
+      let organizationId;
+      if(auth.isSystemInternal && request.targetOrganizationId)
+        organizationId = request.targetOrganizationId;
+      else if(auth.callerOrganizationId)
+        organizationId = auth.callerOrganizationId;
+      else
+        throw new Error('Unhandled organizationId allocation');
 
       const columns: Column[] = await this.#columnRepo.findBy(
         this.#buildColumnQueryDto(request, organizationId),
@@ -69,12 +79,11 @@ export class ReadColumns
     request: ReadColumnsRequestDto,
     organizationId: string
   ): ColumnQueryDto => {
-    
+    const queryDto: ColumnQueryDto = {
+      lineageId: request.lineageId,
+      organizationId,
+    };
 
-    const queryDto: ColumnQueryDto = { lineageId: request.lineageId, organizationId};
-
-    
-    
     if (request.dbtModelId) queryDto.dbtModelId = request.dbtModelId;
     if (request.name) queryDto.name = request.name;
     if (request.index) queryDto.index = request.index;

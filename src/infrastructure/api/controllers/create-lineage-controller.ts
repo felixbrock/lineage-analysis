@@ -46,15 +46,10 @@ export default class CreateLineageController extends BaseController {
   #buildAuthDto = (
     jwt: string,
     userAccountInfo: UserAccountInfo
-  ): CreateLineageAuthDto => {
-    if (!userAccountInfo.callerOrganizationId) throw new Error('Unauthorized');
-
-    return {
+  ): CreateLineageAuthDto => ({
       jwt,
       isSystemInternal: userAccountInfo.isSystemInternal,
-      callerOrganizationId: userAccountInfo.callerOrganizationId,
-    };
-  };
+    });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {

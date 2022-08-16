@@ -19,7 +19,6 @@ export interface CreateColumnRequestDto {
 
 export interface CreateColumnAuthDto {
   isSystemInternal: boolean;
-  callerOrganizationId: string;
 }
 
 export type CreateColumnResponseDto = Result<Column>;
@@ -72,7 +71,7 @@ export class CreateColumn
           lineageId: request.lineageId,
           targetOrganizationId: request.targetOrganizationId,
         },
-        { callerOrganizationId: auth.callerOrganizationId, isSystemInternal: auth.isSystemInternal },
+        {  isSystemInternal: auth.isSystemInternal },
         this.#dbConnection
       );
 
