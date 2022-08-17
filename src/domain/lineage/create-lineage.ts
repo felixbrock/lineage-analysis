@@ -45,6 +45,7 @@ export interface CreateLineageRequestDto {
   targetOrganizationId: string;
   catalog: string;
   manifest: string;
+  biType?: string;
 }
 
 export interface CreateLineageAuthDto {
@@ -785,10 +786,10 @@ export class CreateLineage
   };
 
   /* Creates all dependencies that exist between DWH resources */
-  #buildDependencies = async (): Promise<void> => {
+  #buildDependencies = async (biType?: string): Promise<void> => {
     // todo - should method be completely sync? Probably resolves once transformed into batch job.
 
-    const biLayer = BiLayer.tableau;
+    const biLayer = biType as BiLayer || BiLayer.mode;
     const queryHistory = await this.#retrieveQueryHistory(biLayer);
     await Promise.all(
       this.#logics.map(async (logic) => {
@@ -959,7 +960,7 @@ export class CreateLineage
 
       await this.#writeWhResourcesToPersistence();
 
-      await this.#buildDependencies();
+      await this.#buildDependencies(request.biType);
 
       await this.#writeDashboardsToPersistence();
 
