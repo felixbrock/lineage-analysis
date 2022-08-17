@@ -499,13 +499,13 @@ export class CreateLineage
   //   );
   // };
 
-  #retrieveQueryHistory = async (): Promise<any> => {
+  #retrieveQueryHistory = async (biLayer: BiLayer): Promise<any> => {
     const queryHistoryResult: QueryHistoryResponseDto =
       await this.#querySnowflakeHistory.execute(
-        { biLayer: 'mode', limit: 10 },
+        { biLayer, limit: 10 },
         { jwt: this.#jwt }
       );
-
+    
     if (!queryHistoryResult.success) throw new Error(queryHistoryResult.error);
     if (!queryHistoryResult.value)
       throw new SyntaxError(`Retrival of query history failed`);
@@ -525,7 +525,7 @@ export class CreateLineage
         const sqlText: string = entry.QUERY_TEXT;
 
         const testUrl = sqlText.match(/"(https?:[^\s]+),/);
-        const dashboardUrl = testUrl ? testUrl[1] : undefined;
+        const dashboardUrl = testUrl ? testUrl[1] : new ObjectId().toHexString();
 
         const matName = column.materializationName.toUpperCase();
         const colName = column.alias
@@ -787,7 +787,8 @@ export class CreateLineage
   #buildDependencies = async (): Promise<void> => {
     // todo - should method be completely sync? Probably resolves once transformed into batch job.
 
-    const queryHistory = await this.#retrieveQueryHistory();
+    const biLayer = BiLayer.tableau;
+    const queryHistory = await this.#retrieveQueryHistory(biLayer);
     await Promise.all(
       this.#logics.map(async (logic) => {
         const colDataDependencyRefs = this.#getColDataDependencyRefs(

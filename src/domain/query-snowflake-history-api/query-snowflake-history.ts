@@ -4,7 +4,7 @@ import { IQueryHistoryApiRepo } from './i-query-history-api-repo';
 import { QueryHistoryDto } from './query-history-dto';
 
 export interface QueryHistoryRequestDto {
-  biLayer: string;
+  biLayer: BiLayer;
   limit: number;
 }
 
@@ -27,20 +27,27 @@ export class QuerySnowflakeHistory
     request: QueryHistoryRequestDto,
     auth: QuerySnowflakeHistoryAuthDto
   ): Promise<QueryHistoryResponseDto> {
-    ;
-
-    // let searchParam;
-    // switch(request.biLayer) { 
-    //     case 'mode': { 
-    //         searchParam = '%modeanalytics%'
-    //        break; 
-    //     }
-    //  };
     
-    // const limit = request.limit;
+    let searchTerm = '';
+    const limitNumber = request.limit;
+    switch(request.biLayer) { 
+      case BiLayer.mode: { 
+        searchTerm = 'modeanalytics.com'
+         break; 
+      } 
+      case BiLayer.tableau: { 
+         searchTerm = 'TableauSQL' 
+         break; 
+      } 
+      default: { 
+         searchTerm = ''; 
+         break; 
+      } 
+   }; 
+    
     const sqlQuery = `select QUERY_TEXT from snowflake.account_usage.query_history
-     where CHARINDEX('modeanalytics.com', QUERY_TEXT) > 0
-     AND CHARINDEX('CHARINDEX', QUERY_TEXT) = 0 limit 40`;
+     where CHARINDEX('${searchTerm}', QUERY_TEXT) > 0
+     AND CHARINDEX('CHARINDEX', QUERY_TEXT) = 0 limit ${limitNumber}`;
  
     try {
       const parseSQLResponse: QueryHistoryDto =
