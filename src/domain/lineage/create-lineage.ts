@@ -37,6 +37,7 @@ import { Dashboard } from '../entities/dashboard';
 import { CreateExternalDependency } from '../dependency/create-external-dependency';
 import { IDashboardRepo } from '../dashboard/i-dashboard-repo';
 import { CreateDashboard } from '../dashboard/create-dashboard';
+import  BiLayer from '../value-types/bilayer';
 
 export interface CreateLineageRequestDto {
   lineageId?: string;
