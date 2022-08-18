@@ -2,7 +2,7 @@ import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { IQueryHistoryApiRepo } from './i-query-history-api-repo';
 import { QueryHistoryDto } from './query-history-dto';
-import BiLayer from '../value-types/bilayer';
+import { BiLayer } from '../value-types/bilayer';
 
 export interface QueryHistoryRequestDto {
   biLayer: BiLayer;
@@ -32,11 +32,11 @@ export class QuerySnowflakeHistory
     let searchTerm = '';
     const limitNumber = request.limit;
     switch(request.biLayer) { 
-      case BiLayer.mode: { 
+      case 'Mode': { 
         searchTerm = 'modeanalytics.com';
          break; 
       } 
-      case BiLayer.tableau: { 
+      case 'Tableau': { 
          searchTerm = 'TableauSQL';
          break; 
       } 
