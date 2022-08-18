@@ -28,4 +28,8 @@ lineageRoutes.get('/:id', (req, res) => {
   readLineageController.execute(req, res);
 });
 
+lineageRoutes.get('/org/:organizationId', (req, res) => {
+  readLineageController.execute(req, res);
+});
+
 export default lineageRoutes;
