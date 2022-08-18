@@ -1,6 +1,6 @@
 enum BiLayer {
-    mode = 'mode',
-    tableau = 'tableau',
+    mode = 'Mode',
+    tableau = 'Tableau',
   }
 
 export default BiLayer;

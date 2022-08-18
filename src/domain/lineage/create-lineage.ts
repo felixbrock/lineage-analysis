@@ -518,7 +518,8 @@ export class CreateLineage
   /* Get all relevant dashboards that are data dependency to self materialization */
   #getDashboardDataDependencyRefs = async (
     statementRefs: Refs,
-    queryHistory: any
+    queryHistory: any,
+    biLayer: BiLayer
   ): Promise<DashboardRef[]> => {
     const dependentDashboards: DashboardRef[] = [];
 
@@ -527,7 +528,7 @@ export class CreateLineage
         const sqlText: string = entry.QUERY_TEXT;
 
         const testUrl = sqlText.match(/"(https?:[^\s]+),/);
-        const dashboardUrl = testUrl ? testUrl[1] : new ObjectId().toHexString();
+        const dashboardUrl = testUrl ? testUrl[1] : `${biLayer} dashboard: ${new ObjectId().toHexString()}`;
 
         const matName = column.materializationName.toUpperCase();
         const colName = column.alias
@@ -824,7 +825,8 @@ export class CreateLineage
         const dashboardDataDependencyRefs =
           await this.#getDashboardDataDependencyRefs(
             logic.statementRefs,
-            queryHistory
+            queryHistory,
+            biLayer
           );
 
         const uniqueDashboardRefs = dashboardDataDependencyRefs.filter(
