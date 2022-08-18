@@ -21,11 +21,21 @@ interface LineagePersistence {
 const collectionName = 'lineage';
 
 export default class LineageRepo implements ILineageRepo {
-  findOne = async (id: string, dbConnection: Db): Promise<Lineage | null> => {
+  findOne = async (dbConnection: Db, id?: string, organizationId?: string): Promise<Lineage | null> => {
     try {
-      const result: any = await dbConnection
-        .collection(collectionName)
-        .findOne({ _id: new ObjectId(sanitize(id)) });
+
+      let result: any;
+      if(id){
+
+        result = await dbConnection
+          .collection(collectionName)
+          .findOne({ _id: new ObjectId(sanitize(id)) });
+      }
+      if(organizationId){
+        result = await dbConnection
+          .collection(collectionName)
+          .findOne({ organizationId: new ObjectId(sanitize(organizationId)) });
+      }
 
       if (!result) return null;
 

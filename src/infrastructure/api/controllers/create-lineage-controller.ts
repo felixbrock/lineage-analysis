@@ -40,7 +40,8 @@ export default class CreateLineageController extends BaseController {
     lineageCreatedAt: httpRequest.body.lineageCreatedAt,
     targetOrganizationId: httpRequest.body.targetOrganizationId,
     catalog: httpRequest.body.catalog,
-    manifest: httpRequest.body.manifest
+    manifest: httpRequest.body.manifest,
+    biType: httpRequest.body.biType
   });
 
   #buildAuthDto = (

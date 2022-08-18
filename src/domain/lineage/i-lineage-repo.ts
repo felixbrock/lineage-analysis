@@ -2,7 +2,7 @@ import { Lineage } from '../entities/lineage';
 import { DbConnection } from '../services/i-db';
 
 export interface ILineageRepo {
-  findOne(id: string, dbConnection: DbConnection): Promise<Lineage | null>;
+  findOne(dbConnection: DbConnection, id?: string, organizationId?: string): Promise<Lineage | null>;
   findCurrent(dbConnection: DbConnection): Promise<Lineage | null>;
   all(dbConnection: DbConnection): Promise<Lineage[]>;
   insertOne(lineage: Lineage, dbConnection: DbConnection): Promise<string>;
