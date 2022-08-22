@@ -122,6 +122,7 @@ export default class ReadDashboardsController extends BaseController {
 
       return ReadDashboardsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
+      console.error(error);
       if (typeof error === 'string')
         return ReadDashboardsController.fail(res, error);
       if (error instanceof Error)

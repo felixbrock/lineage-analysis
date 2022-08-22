@@ -101,6 +101,7 @@ export default class ReadColumnsController extends BaseController {
 
       return ReadColumnsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
+      console.error(error);
       if (typeof error === 'string')
         return ReadColumnsController.fail(res, error);
       if (error instanceof Error) return ReadColumnsController.fail(res, error);

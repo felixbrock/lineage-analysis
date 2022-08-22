@@ -95,6 +95,7 @@ export default class ReadLogicsController extends BaseController {
 
       return ReadLogicsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
+      console.error(error);
       if (typeof error === 'string')
         return ReadLogicsController.fail(res, error);
       if (error instanceof Error) return ReadLogicsController.fail(res, error);
