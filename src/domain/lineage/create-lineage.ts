@@ -986,6 +986,7 @@ export class CreateLineage
 
     return Result.ok(this.#lineage);
   } catch(error: unknown) {
+    console.trace(error);
     if (typeof error === 'string') return Result.fail(error);
     if (error instanceof Error) return Result.fail(error.message);
     return Result.fail('Unknown error occured');

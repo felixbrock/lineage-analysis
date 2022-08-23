@@ -1,15 +1,17 @@
 import axios, { AxiosRequestConfig } from 'axios';
 import { URLSearchParams } from 'url';
+import { appConfig } from '../../config';
 import { ISQLParserApiRepo } from '../../domain/sql-parser-api/i-sql-parser-api-repo';
+import getRoot from '../shared/api-root-builder';
 
 export default class SQLParserApiRepoImpl
   implements ISQLParserApiRepo
 {
-  // #path = 'api/v1';
+  #path = 'sql';
 
-  // #serviceName = 'account';
+  #port = '3037';
 
-  // #port = '8081';
+  #prodGateway = 'rteezzzwn6.execute-api.eu-central-1.amazonaws.com/Prod';
 
   parseOne = async (
     params: URLSearchParams,
@@ -17,8 +19,10 @@ export default class SQLParserApiRepoImpl
     // jwt: string
   ): Promise<any> => {
     try {
-      // const apiRoot = await getRoot(this.#serviceName, this.#port, this.#path);
-      const apiRoot = 'http://127.0.0.1:5000/';
+      let gateway = this.#port;
+      if(appConfig.express.mode === 'production') gateway = this.#prodGateway;
+
+      const apiRoot = await getRoot(gateway, this.#path, true);
 
       const config: AxiosRequestConfig = {
         // headers: { Authorization: `Bearer ${jwt}` },
@@ -26,7 +30,7 @@ export default class SQLParserApiRepoImpl
       };
 
       const response = await axios.post(
-        `${apiRoot}/sql`,
+        `${apiRoot}`,
         { sql: base64SQL },
         config
       );
