@@ -958,21 +958,31 @@ export class CreateLineage
     this.#matDefinitionCatalog = [];
     this.#lastQueryDependency = undefined;
 
+    console.log('starting lineage creation...');
+
+    console.log('...building lineage object');
     await this.#buildLineage(request.lineageId, request.lineageCreatedAt);
 
+    console.log('...generating warehouse resources');
     await this.#generateWarehouseResources(request.catalog, request.manifest);
 
+    console.log('...writing dw resources to persistence');
     await this.#writeWhResourcesToPersistence();
 
+    console.log('...building dependencies');
     await this.#buildDependencies(request.biType);
 
+    console.log('...writing dashboards to persistence');
     await this.#writeDashboardsToPersistence();
 
+    console.log('...writing dependencies to persistence');
     await this.#writeDependenciesToPersistence();
 
     // todo - how to avoid checking if property exists. A sub-method created the property
     if(!this.#lineage)
     throw new ReferenceError('Lineage property is undefined');
+
+    console.log('finished lineage creation.');
 
     return Result.ok(this.#lineage);
   } catch(error: unknown) {
