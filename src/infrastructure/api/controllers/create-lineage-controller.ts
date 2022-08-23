@@ -5,9 +5,7 @@ import {
   CreateLineage,
   CreateLineageAuthDto,
   CreateLineageRequestDto,
-  CreateLineageResponseDto,
 } from '../../../domain/lineage/create-lineage';
-import { buildLineageDto } from '../../../domain/lineage/lineage-dto';
 import Result from '../../../domain/value-types/transient-types/result';
 import Dbo from '../../persistence/db/mongo-db';
 
@@ -41,16 +39,16 @@ export default class CreateLineageController extends BaseController {
     targetOrganizationId: httpRequest.body.targetOrganizationId,
     catalog: httpRequest.body.catalog,
     manifest: httpRequest.body.manifest,
-    biType: httpRequest.body.biType
+    biType: httpRequest.body.biType,
   });
 
   #buildAuthDto = (
     jwt: string,
     userAccountInfo: UserAccountInfo
   ): CreateLineageAuthDto => ({
-      jwt,
-      isSystemInternal: userAccountInfo.isSystemInternal,
-    });
+    jwt,
+    isSystemInternal: userAccountInfo.isSystemInternal,
+  });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {
@@ -81,23 +79,24 @@ export default class CreateLineageController extends BaseController {
       const requestDto: CreateLineageRequestDto = this.#buildRequestDto(req);
       const authDto = this.#buildAuthDto(jwt, getUserAccountInfoResult.value);
 
-      const useCaseResult: CreateLineageResponseDto =
-        await this.#createLineage.execute(
-          requestDto,
-          authDto,
-          this.#dbo.dbConnection
-        );
+      this.#createLineage
+        .execute(requestDto, authDto, this.#dbo.dbConnection)
+        .then((result) => {
+          if (!result.success) console.error(result.error);
+        })
+        .catch((err) => console.error(err));
 
-      if (!useCaseResult.success) {
-        return CreateLineageController.badRequest(res, useCaseResult.error);
-      }
+      // if (!useCaseResult.success) {
+      //   return CreateLineageController.badRequest(res, useCaseResult.error);
+      // }
 
-      const resultValue = useCaseResult.value
-        ? buildLineageDto(useCaseResult.value)
-        : useCaseResult.value;
+      // const resultValue = useCaseResult.value
+      //   ? buildLineageDto(useCaseResult.value)
+      //   : useCaseResult.value;
 
-      return CreateLineageController.ok(res, resultValue, CodeHttp.OK);
+      return CreateLineageController.ok(res, 'Lineage creation is in progress...', CodeHttp.OK);
     } catch (error: unknown) {
+      console.error(error);
       if (typeof error === 'string')
         return CreateLineageController.fail(res, error);
       if (error instanceof Error)

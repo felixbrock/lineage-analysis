@@ -1,12 +1,23 @@
 import axios, { AxiosRequestConfig } from 'axios';
+import { appConfig } from '../../config';
 import { IQueryHistoryApiRepo } from '../../domain/query-snowflake-history-api/i-query-history-api-repo';
+import getRoot from '../shared/api-root-builder';
 
 export default class QuerySnowflakeHistoryApiRepo
   implements IQueryHistoryApiRepo
 {
+  #path = 'api/v1';
+
+  #port = '3002';
+
+  #prodGateway = 'wej7xjkvug.execute-api.eu-central-1.amazonaws.com/production';
+
   getQueryHistory = async (sqlQuery: string, jwt: string): Promise<any> => {
     try {
-      const apiRoot = 'http://localhost:3002/api/v1';
+      let gateway = this.#port;
+      if(appConfig.express.mode === 'production') gateway = this.#prodGateway;
+
+      const apiRoot = await getRoot(gateway, this.#path, false);
 
       const config: AxiosRequestConfig = {
         headers: {

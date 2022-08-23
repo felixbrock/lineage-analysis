@@ -123,6 +123,7 @@ export default class ReadDependenciesController extends BaseController {
 
       return ReadDependenciesController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
+      console.error(error);
       if (typeof error === 'string')
         return ReadDependenciesController.fail(res, error);
       if (error instanceof Error)

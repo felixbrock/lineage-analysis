@@ -140,6 +140,7 @@ export default class ReadMaterializationsController extends BaseController {
 
       return ReadMaterializationsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
+      console.error(error);
       if (typeof error === 'string')
         return ReadMaterializationsController.fail(res, error);
       if (error instanceof Error)
