@@ -1,4 +1,4 @@
-export const BiLayers = ['Mode', 'Tableau'] as const;
+export const BiLayers = ['Mode', 'Tableau', 'Metabase'] as const;
 export type BiLayer = typeof BiLayers[number];
 
 export const parseBiLayer = (
