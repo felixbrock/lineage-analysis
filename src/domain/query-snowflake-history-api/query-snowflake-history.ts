@@ -30,25 +30,46 @@ export class QuerySnowflakeHistory
   ): Promise<QueryHistoryResponseDto> {
     
     let searchTerm = '';
+    let condition = '';
     const limitNumber = request.limit;
     switch(request.biLayer) { 
       case 'Mode': { 
         searchTerm = 'modeanalytics.com';
-         break; 
+        condition = 
+        `CHARINDEX('${searchTerm}', QUERY_TEXT) > 0
+        AND CHARINDEX('CHARINDEX', QUERY_TEXT) = 0 
+        limit ${limitNumber}`;
+        break; 
       } 
       case 'Tableau': { 
          searchTerm = 'TableauSQL';
+         condition = 
+         `CHARINDEX('${searchTerm}', QUERY_TEXT) > 0
+         AND CHARINDEX('CHARINDEX', QUERY_TEXT) = 0 
+         limit ${limitNumber}`;
          break; 
-      } 
+      }
+      case 'Metabase': {
+        // eslint-disable-next-line no-useless-escape
+        const regex = '("[A-Za-z0-9_$]+"\.){2}("[A-Za-z0-9_$]+")';
+        condition = 
+        `REGEXP_COUNT(QUERY_TEXT,'FROM ${regex}') > 0
+        AND REGEXP_COUNT(QUERY_TEXT,'${regex} AS') > 0
+        AND CHARINDEX('WHERE 1 <> 1 LIMIT 0', QUERY_TEXT) = 0
+        AND CHARINDEX('source', QUERY_TEXT) = 0
+        AND WAREHOUSE_ID IS NOT NULL
+        limit ${limitNumber}`;
+        break;
+      }
       default: { 
          searchTerm = ''; 
          break; 
       } 
    }; 
     
-    const sqlQuery = `select QUERY_TEXT from snowflake.account_usage.query_history
-     where CHARINDEX('${searchTerm}', QUERY_TEXT) > 0
-     AND CHARINDEX('CHARINDEX', QUERY_TEXT) = 0 limit ${limitNumber}`;
+    const sqlQuery = 
+    `select QUERY_TEXT from snowflake.account_usage.query_history
+     where ${condition}`;
  
     try {
       const parseSQLResponse: QueryHistoryDto =
