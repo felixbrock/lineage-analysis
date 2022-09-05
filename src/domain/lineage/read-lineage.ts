@@ -38,9 +38,6 @@ export class ReadLineage
     dbConnection: DbConnection
   ): Promise<ReadLineageResponseDto> {
     try {
-      // todo -replace
-      ;
-
       this.#dbConnection = dbConnection;
 
       const lineage = await this.#lineageRepo.findOne(

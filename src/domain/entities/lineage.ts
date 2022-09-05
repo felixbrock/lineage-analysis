@@ -1,13 +1,13 @@
 export interface LineageProperties {
   id: string;
-  createdAt?: number;
+  createdAt?: string;
   organizationId: string;
 }
 
 export class Lineage {
   #id: string;
 
-  #createdAt: number;
+  #createdAt: string;
 
   #organizationId: string;
 
@@ -15,7 +15,7 @@ export class Lineage {
     return this.#id;
   }
 
-  get createdAt(): number {
+  get createdAt(): string {
     return this.#createdAt;
   }
 
@@ -25,7 +25,7 @@ export class Lineage {
 
   private constructor(properties: LineageProperties) {
     this.#id = properties.id;
-    this.#createdAt = properties.createdAt || Date.now();
+    this.#createdAt = properties.createdAt || new Date().toISOString();
     this.#organizationId = properties.organizationId;
   }
 

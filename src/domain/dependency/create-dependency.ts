@@ -178,9 +178,6 @@ export class CreateDependency
         organizationId: request.targetOrganizationId,
       });
 
-      console.log(
-        `${request.dependencyRef.alias} depends on ${request.dependencyRef.name}`
-      );
       const readDependencyResult = await this.#readDependencies.execute(
         {
           type: request.dependencyRef.dependencyType,

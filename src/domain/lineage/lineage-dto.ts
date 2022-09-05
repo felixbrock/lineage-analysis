@@ -2,7 +2,7 @@ import { Lineage } from '../entities/lineage';
 
 export interface LineageDto {
   id: string;
-  createdAt: number;
+  createdAt: string;
   organizationId: string
 }
 

@@ -41,7 +41,7 @@ import { BiLayer, parseBiLayer } from '../value-types/bilayer';
 
 export interface CreateLineageRequestDto {
   lineageId?: string;
-  lineageCreatedAt?: number;
+  lineageCreatedAt?: string;
   targetOrganizationId: string;
   catalog: string;
   manifest: string;
@@ -173,7 +173,7 @@ export class CreateLineage
   /* Building a new lineage object that is referenced by resources like columns and materializations */
   #buildLineage = async (
     lineageId?: string,
-    lineageCreatedAt?: number
+    lineageCreatedAt?: string
   ): Promise<void> => {
     // todo - enable lineage updating
     // this.#lineage =
@@ -524,7 +524,7 @@ export class CreateLineage
     const dependentDashboards: DashboardRef[] = [];
 
     statementRefs.columns.forEach((column) => {
-      queryHistory.forEach((entry: any) => {
+      queryHistory[Object.keys(queryHistory)[0]].forEach((entry: any) => {
         const sqlText: string = entry.QUERY_TEXT;
 
         const testUrl = sqlText.match(/"(https?:[^\s]+),/);

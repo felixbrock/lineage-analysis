@@ -22,7 +22,7 @@ export default class SQLParserApiRepoImpl
       let gateway = this.#port;
       if(appConfig.express.mode === 'production') gateway = this.#prodGateway;
 
-      const apiRoot = await getRoot(gateway, this.#path, true);
+      const apiRoot = await getRoot(gateway, this.#path, false);
 
       const config: AxiosRequestConfig = {
         // headers: { Authorization: `Bearer ${jwt}` },

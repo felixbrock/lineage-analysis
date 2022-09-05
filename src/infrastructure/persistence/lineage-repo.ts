@@ -13,7 +13,7 @@ import { Lineage, LineageProperties } from '../../domain/entities/lineage';
 
 interface LineagePersistence {
   _id: ObjectId;
-  createdAt: number;
+  createdAt: string;
   organizationId: string;
 }
 
@@ -34,7 +34,7 @@ export default class LineageRepo implements ILineageRepo {
       if(organizationId){
         result = await dbConnection
           .collection(collectionName)
-          .findOne({ organizationId: new ObjectId(sanitize(organizationId)) });
+          .findOne({ organizationId: sanitize(organizationId) });
       }
 
       if (!result) return null;
