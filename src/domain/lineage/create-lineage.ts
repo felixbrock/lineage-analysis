@@ -65,10 +65,10 @@ interface DbtResources {
 export class CreateLineage
   implements
   IUseCase<
-  CreateLineageRequestDto,
-  CreateLineageResponseDto,
-  CreateLineageAuthDto,
-  DbConnection
+    CreateLineageRequestDto,
+    CreateLineageResponseDto,
+    CreateLineageAuthDto,
+    DbConnection
   >
 {
   readonly #createLogic: CreateLogic;
@@ -788,208 +788,218 @@ export class CreateLineage
 
 
 
-/* Creates all dependencies that exist between DWH resources */
-#buildDependencies = async (biType?: string): Promise<void> => {
-  // todo - should method be completely sync? Probably resolves once transformed into batch job.
+  /* Creates all dependencies that exist between DWH resources */
+  #buildDependencies = async (biType?: string): Promise<void> => {
+    // todo - should method be completely sync? Probably resolves once transformed into batch job.
 
-  const biLayer: BiLayer = biType ? parseBiLayer(biType) : 'Mode';
-  const queryHistory = await this.#retrieveQueryHistory(biLayer);
-  await Promise.all(
-    this.#logics.map(async (logic) => {
-      const colDataDependencyRefs = this.#getColDataDependencyRefs(
-        logic.statementRefs
-      );
+    let biLayer: BiLayer | undefined;
+    let queryHistory: any | undefined;
 
-      await Promise.all(
-        colDataDependencyRefs.map(async (dependencyRef) =>
-          this.#buildColumnRefDependency(
-            dependencyRef,
-            logic.dbtModelId,
-            logic.dependentOn.map((element) => element.dbtModelId)
-          )
-        )
-      );
+    if (biType) {
+      biLayer = parseBiLayer(biType);
+      queryHistory = await this.#retrieveQueryHistory(biLayer);
+    }
 
-      const wildcardDataDependencyRefs = this.#getWildcardDataDependencyRefs(
-        logic.statementRefs
-      );
-
-      await Promise.all(
-        wildcardDataDependencyRefs.map(async (dependencyRef) =>
-          this.#buildWildcardRefDependency(
-            dependencyRef,
-            logic.dbtModelId,
-            logic.dependentOn.map((element) => element.dbtModelId)
-          )
-        )
-      );
-
-      const dashboardDataDependencyRefs =
-        await this.#getDashboardDataDependencyRefs(
-          logic.statementRefs,
-          queryHistory,
-          biLayer
+    await Promise.all(
+      this.#logics.map(async (logic) => {
+        const colDataDependencyRefs = this.#getColDataDependencyRefs(
+          logic.statementRefs
         );
 
-      const uniqueDashboardRefs = dashboardDataDependencyRefs.filter(
-        (value, index, self) =>
-          index ===
-          self.findIndex(
-            (dashboard) =>
-              dashboard.name === value.name &&
-              dashboard.columnName === value.columnName &&
-              dashboard.materializationName === value.materializationName
+        await Promise.all(
+          colDataDependencyRefs.map(async (dependencyRef) =>
+            this.#buildColumnRefDependency(
+              dependencyRef,
+              logic.dbtModelId,
+              logic.dependentOn.map((element) => element.dbtModelId)
+            )
           )
+        );
+
+        const wildcardDataDependencyRefs = this.#getWildcardDataDependencyRefs(
+          logic.statementRefs
+        );
+
+        await Promise.all(
+          wildcardDataDependencyRefs.map(async (dependencyRef) =>
+            this.#buildWildcardRefDependency(
+              dependencyRef,
+              logic.dbtModelId,
+              logic.dependentOn.map((element) => element.dbtModelId)
+            )
+          )
+        );
+
+        if (biLayer && queryHistory) {
+
+          const dashboardDataDependencyRefs =
+            await this.#getDashboardDataDependencyRefs(
+              logic.statementRefs,
+              queryHistory,
+              biLayer
+            );
+
+          const uniqueDashboardRefs = dashboardDataDependencyRefs.filter(
+            (value, index, self) =>
+              index ===
+              self.findIndex(
+                (dashboard) =>
+                  dashboard.name === value.name &&
+                  dashboard.columnName === value.columnName &&
+                  dashboard.materializationName === value.materializationName
+              )
+          );
+
+          await Promise.all(
+            uniqueDashboardRefs.map(async (dashboardRef) =>
+              this.#buildDashboardRefDependency(
+                dashboardRef,
+                logic.dbtModelId,
+                logic.dependentOn.map((element) => element.dbtModelId)
+              )
+            )
+          );
+        }
+
+      })
+    );
+  };
+
+  #getDependenciesForWildcard = async (
+    dependencyRef: ColumnRef
+  ): Promise<ColumnRef[]> => {
+    const lineage = this.#lineage;
+
+    if (!lineage) throw new ReferenceError('Lineage property is undefined');
+
+    const catalogMatches = this.#matDefinitionCatalog.filter((dependency) => {
+      const nameIsEqual =
+        dependencyRef.materializationName === dependency.materializationName;
+
+      const schemaNameIsEqual =
+        !dependencyRef.schemaName ||
+        dependencyRef.schemaName === dependency.schemaName;
+
+      const databaseNameIsEqual =
+        !dependencyRef.databaseName ||
+        dependencyRef.databaseName === dependency.databaseName;
+
+      return nameIsEqual && schemaNameIsEqual && databaseNameIsEqual;
+    });
+
+    if (catalogMatches.length !== 1)
+      throw new RangeError(
+        'Inconsistencies in materialization dependency catalog'
       );
 
-      await Promise.all(
-        uniqueDashboardRefs.map(async (dashboardRef) =>
-          this.#buildDashboardRefDependency(
-            dashboardRef,
-            logic.dbtModelId,
-            logic.dependentOn.map((element) => element.dbtModelId)
-          )
-        )
+    const { dbtModelId } = catalogMatches[0];
+
+    const readColumnsResult = await this.#readColumns.execute(
+      {
+        dbtModelId,
+        lineageId: lineage.id,
+        targetOrganizationId: this.#targetOrganizationId,
+      },
+      { isSystemInternal: this.#isSystemInternal },
+      this.#dbConnection
+    );
+
+    if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
+    if (!readColumnsResult.value)
+      throw new ReferenceError(`Reading of columns failed`);
+
+    const colsFromWildcard = readColumnsResult.value;
+
+    const dependencies = colsFromWildcard.map((column) => ({
+      ...dependencyRef,
+      name: column.name,
+    }));
+
+    return dependencies;
+  };
+
+  #writeWhResourcesToPersistence = async (): Promise<void> => {
+    await this.#logicRepo.insertMany(this.#logics, this.#dbConnection);
+
+    await this.#materializationRepo.insertMany(
+      this.#materializations,
+      this.#dbConnection
+    );
+
+    await this.#columnRepo.insertMany(this.#columns, this.#dbConnection);
+  };
+
+  #writeDashboardsToPersistence = async (): Promise<void> => {
+    if (this.#dashboards.length > 0)
+      await this.#dashboardRepo.insertMany(
+        this.#dashboards,
+        this.#dbConnection
       );
-    })
-  );
-};
+  };
 
-#getDependenciesForWildcard = async (
-  dependencyRef: ColumnRef
-): Promise<ColumnRef[]> => {
-  const lineage = this.#lineage;
-
-  if (!lineage) throw new ReferenceError('Lineage property is undefined');
-
-  const catalogMatches = this.#matDefinitionCatalog.filter((dependency) => {
-    const nameIsEqual =
-      dependencyRef.materializationName === dependency.materializationName;
-
-    const schemaNameIsEqual =
-      !dependencyRef.schemaName ||
-      dependencyRef.schemaName === dependency.schemaName;
-
-    const databaseNameIsEqual =
-      !dependencyRef.databaseName ||
-      dependencyRef.databaseName === dependency.databaseName;
-
-    return nameIsEqual && schemaNameIsEqual && databaseNameIsEqual;
-  });
-
-  if (catalogMatches.length !== 1)
-    throw new RangeError(
-      'Inconsistencies in materialization dependency catalog'
-    );
-
-  const { dbtModelId } = catalogMatches[0];
-
-  const readColumnsResult = await this.#readColumns.execute(
-    {
-      dbtModelId,
-      lineageId: lineage.id,
-      targetOrganizationId: this.#targetOrganizationId,
-    },
-    { isSystemInternal: this.#isSystemInternal },
-    this.#dbConnection
-  );
-
-  if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
-  if (!readColumnsResult.value)
-    throw new ReferenceError(`Reading of columns failed`);
-
-  const colsFromWildcard = readColumnsResult.value;
-
-  const dependencies = colsFromWildcard.map((column) => ({
-    ...dependencyRef,
-    name: column.name,
-  }));
-
-  return dependencies;
-};
-
-#writeWhResourcesToPersistence = async (): Promise<void> => {
-  await this.#logicRepo.insertMany(this.#logics, this.#dbConnection);
-
-  await this.#materializationRepo.insertMany(
-    this.#materializations,
-    this.#dbConnection
-  );
-
-  await this.#columnRepo.insertMany(this.#columns, this.#dbConnection);
-};
-
-#writeDashboardsToPersistence = async (): Promise<void> => {
-  if (this.#dashboards.length > 0)
-    await this.#dashboardRepo.insertMany(
-      this.#dashboards,
-      this.#dbConnection
-    );
-};
-
-#writeDependenciesToPersistence = async (): Promise<void> => {
-  if (this.#dependencies.length > 0)
-    await this.#dependencyRepo.insertMany(
-      this.#dependencies,
-      this.#dbConnection
-    );
-};
+  #writeDependenciesToPersistence = async (): Promise<void> => {
+    if (this.#dependencies.length > 0)
+      await this.#dependencyRepo.insertMany(
+        this.#dependencies,
+        this.#dbConnection
+      );
+  };
 
   async execute(
-  request: CreateLineageRequestDto,
-  auth: CreateLineageAuthDto,
-  dbConnection: DbConnection
-): Promise < CreateLineageResponseDto > {
-  try {
-    if(!auth.isSystemInternal) throw new Error('Unauthorized');
+    request: CreateLineageRequestDto,
+    auth: CreateLineageAuthDto,
+    dbConnection: DbConnection
+  ): Promise<CreateLineageResponseDto> {
+    try {
+      if (!auth.isSystemInternal) throw new Error('Unauthorized');
 
-    this.#dbConnection = dbConnection;
+      this.#dbConnection = dbConnection;
 
-    this.#targetOrganizationId = request.targetOrganizationId;
-    this.#jwt = auth.jwt;
-    this.#isSystemInternal = auth.isSystemInternal;
+      this.#targetOrganizationId = request.targetOrganizationId;
+      this.#jwt = auth.jwt;
+      this.#isSystemInternal = auth.isSystemInternal;
 
-    // todo - Workaround. Fix ioc container
-    this.#lineage = undefined;
-    this.#logics = [];
-    this.#materializations = [];
-    this.#columns = [];
-    this.#dependencies = [];
-    this.#matDefinitionCatalog = [];
-    this.#lastQueryDependency = undefined;
+      // todo - Workaround. Fix ioc container
+      this.#lineage = undefined;
+      this.#logics = [];
+      this.#materializations = [];
+      this.#columns = [];
+      this.#dependencies = [];
+      this.#matDefinitionCatalog = [];
+      this.#lastQueryDependency = undefined;
 
-    console.log('starting lineage creation...');
+      console.log('starting lineage creation...');
 
-    console.log('...building lineage object');
-    await this.#buildLineage(request.lineageId, request.lineageCreatedAt);
+      console.log('...building lineage object');
+      await this.#buildLineage(request.lineageId, request.lineageCreatedAt);
 
-    console.log('...generating warehouse resources');
-    await this.#generateWarehouseResources(request.catalog, request.manifest);
+      console.log('...generating warehouse resources');
+      await this.#generateWarehouseResources(request.catalog, request.manifest);
 
-    console.log('...writing dw resources to persistence');
-    await this.#writeWhResourcesToPersistence();
+      console.log('...writing dw resources to persistence');
+      await this.#writeWhResourcesToPersistence();
 
-    console.log('...building dependencies');
-    await this.#buildDependencies(request.biType);
+      console.log('...building dependencies');
+      await this.#buildDependencies(request.biType);
 
-    console.log('...writing dashboards to persistence');
-    await this.#writeDashboardsToPersistence();
+      console.log('...writing dashboards to persistence');
+      await this.#writeDashboardsToPersistence();
 
-    console.log('...writing dependencies to persistence');
-    await this.#writeDependenciesToPersistence();
+      console.log('...writing dependencies to persistence');
+      await this.#writeDependenciesToPersistence();
 
-    // todo - how to avoid checking if property exists. A sub-method created the property
-    if(!this.#lineage)
-    throw new ReferenceError('Lineage property is undefined');
+      // todo - how to avoid checking if property exists. A sub-method created the property
+      if (!this.#lineage)
+        throw new ReferenceError('Lineage property is undefined');
 
-    console.log('finished lineage creation.');
+      console.log('finished lineage creation.');
 
-    return Result.ok(this.#lineage);
-  } catch(error: unknown) {
-    console.trace(error);
-    if (typeof error === 'string') return Result.fail(error);
-    if (error instanceof Error) return Result.fail(error.message);
-    return Result.fail('Unknown error occured');
+      return Result.ok(this.#lineage);
+    } catch (error: unknown) {
+      console.trace(error);
+      if (typeof error === 'string') return Result.fail(error);
+      if (error instanceof Error) return Result.fail(error.message);
+      return Result.fail('Unknown error occured');
+    }
   }
-}
 }
