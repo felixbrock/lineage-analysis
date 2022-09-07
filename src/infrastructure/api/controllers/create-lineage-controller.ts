@@ -1,5 +1,4 @@
 // TODO: Violation of control flow. DI for express instead
-import { Request, Response } from 'express';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
 import {
   CreateLineage,
@@ -12,12 +11,14 @@ import Result from '../../../domain/value-types/transient-types/result';
 import Dbo from '../../persistence/db/mongo-db';
 
 import {
-  BaseController,
   CodeHttp,
+  InternalInvokeController,
+  Request,
+  Response,
   UserAccountInfo,
-} from '../../shared/base-controller';
+} from '../../shared/internal-invoke-controller';
 
-export default class CreateLineageController extends BaseController {
+export default class CreateLineageController extends InternalInvokeController<CreateLineageRequestDto> {
   readonly #createLineage: CreateLineage;
 
   readonly #getAccounts: GetAccounts;
@@ -35,15 +36,6 @@ export default class CreateLineageController extends BaseController {
     this.#dbo = dbo;
   }
 
-  #buildRequestDto = (httpRequest: Request): CreateLineageRequestDto => ({
-    lineageId: httpRequest.body.lineageId,
-    lineageCreatedAt: httpRequest.body.lineageCreatedAt,
-    targetOrganizationId: httpRequest.body.targetOrganizationId,
-    catalog: httpRequest.body.catalog,
-    manifest: httpRequest.body.manifest,
-    biType: httpRequest.body.biType,
-  });
-
   #buildAuthDto = (
     jwt: string,
     userAccountInfo: UserAccountInfo
@@ -52,14 +44,11 @@ export default class CreateLineageController extends BaseController {
     isSystemInternal: userAccountInfo.isSystemInternal,
   });
 
-  protected async executeImpl(req: Request, res: Response): Promise<Response> {
+  protected async executeImpl(
+    req: Request<CreateLineageRequestDto>
+  ): Promise<Response> {
     try {
-      const authHeader = req.headers.authorization;
-
-      if (!authHeader)
-        return CreateLineageController.unauthorized(res, 'Unauthorized');
-
-      const jwt = authHeader.split(' ')[1];
+      const { jwt } = req.auth;
 
       const getUserAccountInfoResult: Result<UserAccountInfo> =
         await CreateLineageController.getUserAccountInfo(
@@ -69,34 +58,32 @@ export default class CreateLineageController extends BaseController {
 
       if (!getUserAccountInfoResult.success)
         return CreateLineageController.unauthorized(
-          res,
           getUserAccountInfoResult.error
         );
       if (!getUserAccountInfoResult.value)
         throw new ReferenceError('Authorization failed');
 
       if (!getUserAccountInfoResult.value.isSystemInternal)
-        return CreateLineageController.unauthorized(res, 'Unauthorized');
+        return CreateLineageController.unauthorized('Unauthorized');
 
-      const requestDto: CreateLineageRequestDto = this.#buildRequestDto(req);
       const authDto = this.#buildAuthDto(jwt, getUserAccountInfoResult.value);
 
       const useCaseResult: CreateLineageResponseDto =
         await this.#createLineage.execute(
-          requestDto,
+          req.req,
           authDto,
           this.#dbo.dbConnection
         );
 
       if (!useCaseResult.success) {
-        return CreateLineageController.badRequest(res, useCaseResult.error);
+        return CreateLineageController.badRequest(useCaseResult.error);
       }
 
       const resultValue = useCaseResult.value
         ? buildLineageDto(useCaseResult.value)
         : useCaseResult.value;
 
-      return CreateLineageController.ok(res, resultValue, CodeHttp.CREATED);
+      return CreateLineageController.ok(resultValue, CodeHttp.CREATED);
 
       // this.#createLineage
       //   .execute(requestDto, authDto, this.#dbo.dbConnection)
@@ -116,11 +103,9 @@ export default class CreateLineageController extends BaseController {
       // return CreateLineageController.ok(res, 'Lineage creation is in progress...', CodeHttp.CREATED);
     } catch (error: unknown) {
       console.error(error);
-      if (typeof error === 'string')
-        return CreateLineageController.fail(res, error);
-      if (error instanceof Error)
-        return CreateLineageController.fail(res, error);
-      return CreateLineageController.fail(res, 'Unknown error occured');
+      if (typeof error === 'string') return CreateLineageController.fail(error);
+      if (error instanceof Error) return CreateLineageController.fail(error.message);
+      return CreateLineageController.fail('Unknown error occured');
     }
   }
 }
