@@ -108,7 +108,8 @@ export class CreateDependency
 
     const selfColumnMatches = readSelfColumnResult.value;
 
-    if (!selfColumnMatches.length) throw new RangeError('No self column found');
+    if (!selfColumnMatches.length) 
+    throw new RangeError('No self column found');
 
     if (selfColumnMatches.length === 1) return selfColumnMatches[0];
 

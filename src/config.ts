@@ -1,51 +1,40 @@
 import dotenv from 'dotenv';
 
-dotenv.config();
+import path from 'path';
+
+const dotenvConfig =
+  process.env.NODE_ENV === 'development'
+    ? { path: path.resolve(process.cwd(), `${process.env.NODE_ENV}.env`) }
+    : {};
+dotenv.config(dotenvConfig);
 
 const nodeEnv = process.env.NODE_ENV || 'development';
 const defaultPort = 8081;
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : defaultPort;
 const apiRoot = process.env.API_ROOT || 'api';
 
-const getServiceDiscoveryNamespace = (): string | null => {
-  switch (nodeEnv) {
-    case 'development':
-      return null;
-    case 'test':
-      return 'lineage-staging';
-    case 'production':
-      return 'lineage';
-    default:
-      throw new Error('No valid nodenv value provided');
-  }
-};
+// const getServiceDiscoveryNamespace = (): string | null => {
+//   switch (nodeEnv) {
+//     case 'development':
+//       return null;
+//     case 'test':
+//       return 'lineage-staging';
+//     case 'production':
+//       return 'lineage';
+//     default:
+//       throw new Error('No valid nodenv value provided');
+//   }
+// };
 
 export interface MongoDbConfig {
   url: string;
   dbName: string;
 }
 
-const getMongodbConfig = (): MongoDbConfig => {
-  switch (nodeEnv) {
-    case 'development':
-      return {
-        url: process.env.DATABASE_DEV_URL || '',
-        dbName: process.env.DATABASE_DEV_NAME || '',
-      };
-    case 'test':
-      return {
-        url: process.env.DATABASE_TEST_URL || '',
-        dbName: process.env.DATABASE_TEST_NAME || '',
-      };
-    case 'production':
-      return {
-        url: process.env.DATABASE_URL_PROD || '',
-        dbName: process.env.DATABASE_NAME_PROD || '',
-      };
-    default:
-      throw new Error('Node environment mismatch');
-  }
-};
+const getMongodbConfig = (): MongoDbConfig => ({
+  url: process.env.DATABASE_URL || '',
+  dbName: process.env.DATABASE_NAME || '',
+});
 
 const getCognitoUserPoolId = (): string => {
   switch (nodeEnv) {
@@ -67,11 +56,9 @@ export const appConfig = {
     apiRoot,
   },
   cloud: {
-    serviceDiscoveryNamespace: getServiceDiscoveryNamespace(),
+    // serviceDiscoveryNamespace: getServiceDiscoveryNamespace(),
     userPoolId: getCognitoUserPoolId(),
     region: 'eu-central-1',
   },
-  mongodb: {
-    ...getMongodbConfig(),
-  },
+  mongodb: getMongodbConfig(),
 };

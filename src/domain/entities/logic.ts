@@ -16,7 +16,7 @@ export interface LogicProperties {
   parsedLogic: string;
   statementRefs: Refs;
   lineageId: string;
-  organizationId: string
+  organizationId: string;
 }
 
 export interface LogicPrototype {
@@ -28,7 +28,7 @@ export interface LogicPrototype {
   parsedLogic: string;
   lineageId: string;
   catalog: CatalogModelData[];
-  organizationId: string
+  organizationId: string;
 }
 
 export interface CatalogModelData {
@@ -79,7 +79,7 @@ interface ColumnRefPrototype extends Ref {
   ambiguityType?: AmbiguityType;
   materializationName?: string;
   context: RefContext;
-  usesSelfMaterialization?: boolean
+  usesSelfMaterialization?: boolean;
 }
 
 export interface ColumnRef
@@ -162,7 +162,7 @@ export class Logic {
 
   #lineageId: string;
 
-  #organizationId: string; 
+  #organizationId: string;
 
   get id(): string {
     return this.#id;
@@ -246,10 +246,15 @@ export class Logic {
   (e.g. for for table_expressions or column_expressions) */
   static #joinArrayValue = (value: [{ [key: string]: string }]): string => {
     const valueElements = value.map((element) => {
-      const identifierKey = 'identifier';
       const dotKey = 'dot';
-      if (identifierKey in element) return element[identifierKey];
+      if (SQLElement.IDENTIFIER in element)
+        return element[SQLElement.IDENTIFIER];
+      if (SQLElement.IDENTIFIER_NAKED in element)
+        return element[SQLElement.IDENTIFIER_NAKED];
+      if (SQLElement.IDENTIFIER_QUOTED in element)
+        return element[SQLElement.IDENTIFIER_QUOTED].replace('"', '');
       if (dotKey in element) return element[dotKey];
+
       throw new RangeError('Unhandled value chaining error');
     });
 
@@ -338,27 +343,55 @@ export class Logic {
   ): ColumnRefPrototype => {
     const wildcardElementKeys = Object.keys(props.value);
 
-    const isDotNoation = [
-      SQLElement.WILDCARD_IDENTIFIER_DOT,
+    const identifiers = [
       SQLElement.WILDCARD_IDENTIFIER_IDENTIFIER,
-      SQLElement.WILDCARD_IDENTIFIER_STAR,
-    ].every((wildcardElementKey) =>
-      wildcardElementKeys.includes(wildcardElementKey)
-    );
+      SQLElement.WILDCARD_IDENTIFIER_NAKED,
+      SQLElement.WILDCARD_IDENTIFIER_QUOTED,
+    ]
+      .map((key) => {
+        if (wildcardElementKeys.includes(key)) return key;
+        return undefined;
+      })
+      .filter((el): el is string => !!el);
+
+    if (identifiers.length > 1)
+      throw new SyntaxError(
+        'Unhandled wildcard syntax - multiple identifier found'
+      );
+
+    const isDotNoation =
+      identifiers.length &&
+      [
+        SQLElement.WILDCARD_IDENTIFIER_DOT,
+        SQLElement.WILDCARD_IDENTIFIER_STAR,
+      ].every((wildcardElementKey) =>
+        wildcardElementKeys.includes(wildcardElementKey)
+      );
 
     const path = this.#appendPath(props.key, props.path);
 
-    if (isDotNoation)
+    if (isDotNoation) {
+      const identifier = identifiers[0];
+      const identifierValue = props.value[identifier];
+
+      if (typeof identifierValue !== 'string')
+        throw new SyntaxError(
+          `Unhandled wildcard identifier value type: ${typeof identifierValue} `
+        );
+
       return {
         dependencyType: this.#getColumnDependencyType(path),
         name: SQLElement.WILDCARD_IDENTIFIER_STAR,
         materializationName:
-          props.value[SQLElement.WILDCARD_IDENTIFIER_IDENTIFIER],
+          identifier === SQLElement.WILDCARD_IDENTIFIER_QUOTED
+            ? identifierValue.replace('"', '')
+            : identifierValue,
         isWildcardRef: true,
         isCompoundValueRef: this.#isCompoundValueRef(path),
         ambiguityType: undefined,
         context: { path, location: props.contextLocation },
       };
+    }
     if (
       wildcardElementKeys.length === 1 &&
       wildcardElementKeys.includes(SQLElement.WILDCARD_IDENTIFIER_STAR)
@@ -1195,8 +1228,9 @@ export class Logic {
     columnName: string,
     columnRefPrototypes: ColumnRefPrototype[]
   ): boolean => {
-
-    const areAliasesUsedAsName = columnRefPrototypes.map((prototype) => prototype.alias === columnName);
+    const areAliasesUsedAsName = columnRefPrototypes.map(
+      (prototype) => prototype.alias === columnName
+    );
     return areAliasesUsedAsName.includes(true);
   };
 
@@ -1207,21 +1241,22 @@ export class Logic {
     selfMaterializationRef: MaterializationRef,
     catalog: CatalogModelData[]
   ): ColumnRef[] => {
+    columnRefPrototypes.forEach((prototype) => {
+      const thisPrototype = prototype;
+      thisPrototype.usesSelfMaterialization =
+        this.#isResourceFromSelfMaterialization(
+          prototype.name,
+          columnRefPrototypes
+        );
 
-    columnRefPrototypes.forEach(
-      (prototype) => {
-        const thisPrototype = prototype;
-        thisPrototype.usesSelfMaterialization = this.#isResourceFromSelfMaterialization(prototype.name, columnRefPrototypes);
+      if (!thisPrototype.isWildcardRef || !thisPrototype.materializationName)
+        return;
 
-        if (!thisPrototype.isWildcardRef || !thisPrototype.materializationName)
-          return;
-        
-        nonSelfMaterializationRefs.forEach(
-          (matRef) => {
-            if (thisPrototype.materializationName === matRef.alias)
-              thisPrototype.materializationName = matRef.name;
-          });
+      nonSelfMaterializationRefs.forEach((matRef) => {
+        if (thisPrototype.materializationName === matRef.alias)
+          thisPrototype.materializationName = matRef.name;
       });
+    });
 
     const columns: ColumnRef[] = columnRefPrototypes.map((prototype) => {
       const transientMatRepresentations = this.#getTransientRepresentations(
@@ -1287,13 +1322,16 @@ export class Logic {
 
       let materializationRef: MaterializationRef;
 
-      if(prototype.usesSelfMaterialization){
-
-        const selfMaterialization = materializations.filter((materialization) => materialization.type === 'self');
-        if(selfMaterialization.length !== 1)
-          throw new ReferenceError("Multiple or no self materialisations exist");
+      if (prototype.usesSelfMaterialization) {
+        const selfMaterialization = materializations.filter(
+          (materialization) => materialization.type === 'self'
+        );
+        if (selfMaterialization.length !== 1)
+          throw new ReferenceError(
+            'Multiple or no self materialisations exist'
+          );
         [materializationRef] = selfMaterialization;
-      }else{
+      } else {
         materializationRef = this.#getBestMatchingMaterialization(
           prototype.context.path,
           materializations,
@@ -1465,8 +1503,9 @@ export class Logic {
   };
 
   /* Differentiates between the query and data dependency generated by a when clause */
-  static #assignWhenClauseDependencies = (columnPrototypes: ColumnRefPrototype[]): ColumnRefPrototype[] => {
-
+  static #assignWhenClauseDependencies = (
+    columnPrototypes: ColumnRefPrototype[]
+  ): ColumnRefPrototype[] => {
     columnPrototypes.forEach((colPrototype, elementIndex) => {
       const prevPrototype = columnPrototypes[elementIndex - 1];
       const thisPrototype = colPrototype;
@@ -1475,20 +1514,19 @@ export class Logic {
       const isWhenClause = thisPrototype.context.path.includes(
         `${SQLElement.CASE_EXPRESSION}.${SQLElement.WHEN_CLAUSE}`
       );
-      
-      const singleWhenClause = 
-      isWhenClause && 
-      !this.#whenClauseColumnRefProtoAreEqual(prevPrototype, thisPrototype) && 
-      !this.#whenClauseColumnRefProtoAreEqual(thisPrototype, nextPrototype);
-      
-      const firstInWhenSequence = 
-      isWhenClause && 
-      this.#whenClauseColumnRefProtoAreEqual(thisPrototype, nextPrototype) &&
-      !(prevPrototype.dependencyType === DependencyType.QUERY);
+
+      const singleWhenClause =
+        isWhenClause &&
+        !this.#whenClauseColumnRefProtoAreEqual(prevPrototype, thisPrototype) &&
+        !this.#whenClauseColumnRefProtoAreEqual(thisPrototype, nextPrototype);
+
+      const firstInWhenSequence =
+        isWhenClause &&
+        this.#whenClauseColumnRefProtoAreEqual(thisPrototype, nextPrototype) &&
+        !(prevPrototype.dependencyType === DependencyType.QUERY);
 
       if (firstInWhenSequence || singleWhenClause)
         thisPrototype.dependencyType = DependencyType.QUERY;
-
     });
 
     return columnPrototypes;
@@ -1500,7 +1538,6 @@ export class Logic {
     testCol: ColumnRefPrototype,
     col: ColumnRefPrototype
   ): boolean =>
-  (
     testCol.dependencyType === col.dependencyType &&
     testCol.alias === col.alias &&
     testCol.name === col.name &&
@@ -1508,9 +1545,7 @@ export class Logic {
     testCol.schemaName === col.schemaName &&
     testCol.databaseName === col.databaseName &&
     testCol.warehouseName === col.warehouseName &&
-    testCol.isWildcardRef === col.isWildcardRef
-  );
-
+    testCol.isWildcardRef === col.isWildcardRef;
 
   /* Removes any dependencies that have been created from both the then and else branches */
   static #removePossibleDuplicateDependencies = (
@@ -1518,10 +1553,10 @@ export class Logic {
   ): ColumnRefPrototype[] => {
     const uniqueDependencies = columnPrototypes.filter(
       (colPrototype, elementIndex, self) =>
-      elementIndex === 
-      self.findIndex((testColPrototype) => 
-         this.#createdDependenciesAreEqual(testColPrototype, colPrototype)
-       )
+        elementIndex ===
+        self.findIndex((testColPrototype) =>
+          this.#createdDependenciesAreEqual(testColPrototype, colPrototype)
+        )
     );
 
     return uniqueDependencies;
@@ -1616,8 +1651,12 @@ export class Logic {
       selfMaterializationRef
     );
 
-    aliasedRefsPrototype.columns = this.#assignWhenClauseDependencies(aliasedRefsPrototype.columns);
-    aliasedRefsPrototype.columns = this.#removePossibleDuplicateDependencies(aliasedRefsPrototype.columns);
+    aliasedRefsPrototype.columns = this.#assignWhenClauseDependencies(
+      aliasedRefsPrototype.columns
+    );
+    aliasedRefsPrototype.columns = this.#removePossibleDuplicateDependencies(
+      aliasedRefsPrototype.columns
+    );
 
     const columns = this.#buildColumnRefs(
       aliasedRefsPrototype.columns,
@@ -1702,7 +1741,8 @@ export class Logic {
     if (!prototype.parsedLogic)
       throw new TypeError('Logic  prototype must have parsed SQL logic');
     if (!prototype.lineageId) throw new TypeError('Logic must have lineageId');
-    if (!prototype.organizationId) throw new TypeError('Logic must have organization id');
+    if (!prototype.organizationId)
+      throw new TypeError('Logic must have organization id');
     if (!prototype.catalog)
       throw new TypeError('Logic prototype must have catalog data');
 
@@ -1722,7 +1762,7 @@ export class Logic {
       parsedLogic: prototype.parsedLogic,
       statementRefs,
       lineageId: prototype.lineageId,
-      organizationId: prototype.organizationId
+      organizationId: prototype.organizationId,
     });
 
     return logic;
@@ -1744,7 +1784,7 @@ export class Logic {
       parsedLogic: properties.parsedLogic,
       statementRefs: properties.statementRefs,
       lineageId: properties.lineageId,
-      organizationId: properties.organizationId
+      organizationId: properties.organizationId,
     });
 
     return logic;

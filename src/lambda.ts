@@ -86,19 +86,8 @@ const internalInvoke = async (
   }
 };
 
-// eslint-disable-next-line import/prefer-default-export
-export const handler = async (
-  event: any,
-  context: any,
-  callback: (err: any, res: any) => any
-): Promise<any> => {
-  console.log('xxxxxxxxxxxxx', event);
-  console.log('yyyyyyyyyyyyy', context);
-
+const internalInvokeHandler = async (event: any): Promise<void> => {
   try {
-    if (!event.internalInvokeType)
-      return await getServerlessExpressInstance(event, context);
-
     const internalInvokeType = parseInternalInvokeType(
       event.internalInvokeType
     );
@@ -110,11 +99,24 @@ export const handler = async (
       internalInvokeType
     );
 
-    callback(null, internalInvokeResult);
-    return null;
+    return internalInvokeResult;
   } catch (error) {
     console.error(error);
-    callback(error, null);
-    return null;
+    return Promise.reject(error);
+  }
+};
+
+// eslint-disable-next-line import/prefer-default-export
+export const handler = async (event: any, context: any): Promise<any> => {
+ 
+  switch (event.internalInvokeType) {
+    case 'create-lineage': {
+      const invokeResult = await internalInvokeHandler(event);
+      return invokeResult;
+    }
+    default: {
+      const apiInstance = await getServerlessExpressInstance(event, context);
+      return apiInstance;
+    }
   }
 };

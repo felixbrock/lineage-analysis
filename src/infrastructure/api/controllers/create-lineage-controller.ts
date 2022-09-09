@@ -36,6 +36,25 @@ export default class CreateLineageController extends InternalInvokeController<Cr
     this.#dbo = dbo;
   }
 
+  #transformReq = (req: CreateLineageRequestDto): CreateLineageRequestDto => {
+    const isBase64 = (content: string): boolean =>
+      Buffer.from(content, 'base64').toString('base64') === content;
+    const toUtf8 = (content: string): string =>
+      Buffer.from(content, 'base64').toString('utf8');
+
+    // https://stackoverflow.com/questions/50966023/which-variant-of-base64-encoding-is-created-by-buffer-tostringbase64
+    if (!isBase64(req.catalog) || !isBase64(req.manifest))
+      throw new Error(
+        'Catalog of manifest not in base64 format or in wrong base64 variant (required variant: RFC 4648 §4)'
+      );
+
+    return {
+      ...req,
+      catalog: toUtf8(req.catalog),
+      manifest: toUtf8(req.manifest),
+    };
+  };
+
   #buildAuthDto = (
     jwt: string,
     userAccountInfo: UserAccountInfo
@@ -70,7 +89,7 @@ export default class CreateLineageController extends InternalInvokeController<Cr
 
       const useCaseResult: CreateLineageResponseDto =
         await this.#createLineage.execute(
-          req.req,
+          this.#transformReq(req.req),
           authDto,
           this.#dbo.dbConnection
         );
@@ -104,7 +123,8 @@ export default class CreateLineageController extends InternalInvokeController<Cr
     } catch (error: unknown) {
       console.error(error);
       if (typeof error === 'string') return CreateLineageController.fail(error);
-      if (error instanceof Error) return CreateLineageController.fail(error.message);
+      if (error instanceof Error)
+        return CreateLineageController.fail(error.message);
       return CreateLineageController.fail('Unknown error occured');
     }
   }
