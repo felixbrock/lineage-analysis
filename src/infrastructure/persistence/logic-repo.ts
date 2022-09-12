@@ -240,6 +240,7 @@ export default class LogicRepo implements ILogicRepo {
     _id: ObjectId.createFromHexString(logic.id),
     dbtModelId: logic.dbtModelId,
     sql: logic.sql,
+    dependentOn: logic.dependentOn,
     parsedLogic: logic.parsedLogic,
     statementRefs: logic.statementRefs,
     lineageId: logic.lineageId,
