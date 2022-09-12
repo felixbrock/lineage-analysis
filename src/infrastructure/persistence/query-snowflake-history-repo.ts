@@ -12,7 +12,7 @@ export default class QuerySnowflakeHistoryApiRepo
 
   #prodGateway = 'wej7xjkvug.execute-api.eu-central-1.amazonaws.com/production';
 
-  getQueryHistory = async (sqlQuery: string, jwt: string): Promise<any> => {
+  getQueryHistory = async (sqlQuery: string, organizationId: string, jwt: string): Promise<any> => {
     try {
       let gateway = this.#port;
       if(appConfig.express.mode === 'production') gateway = this.#prodGateway;
@@ -27,7 +27,7 @@ export default class QuerySnowflakeHistoryApiRepo
 
       const response = await axios.post(
         `${apiRoot}/snowflake/query`,
-        { query: sqlQuery },
+        { query: sqlQuery, targetOrganizationId: organizationId},
         config
       );
 
