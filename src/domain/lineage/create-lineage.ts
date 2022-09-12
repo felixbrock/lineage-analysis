@@ -804,6 +804,24 @@ export class CreateLineage
           logic.statementRefs
         );
 
+
+  /* Creates all dependencies that exist between DWH resources */
+  #buildDependencies = async (biType?: string): Promise<void> => {
+    // todo - should method be completely sync? Probably resolves once transformed into batch job.
+
+    let biLayer: BiLayer | undefined;
+    let queryHistory: any | undefined;
+
+    if (biType) {
+      biLayer = parseBiLayer(biType);
+      queryHistory = await this.#retrieveQueryHistory(biLayer);
+    }
+
+    await Promise.all(
+      this.#logics.map(async (logic) => {
+        const colDataDependencyRefs = this.#getColDataDependencyRefs(
+          logic.statementRefs
+        );
         await Promise.all(
           colDataDependencyRefs.map(async (dependencyRef) =>
             this.#buildColumnRefDependency(
@@ -828,33 +846,38 @@ export class CreateLineage
           )
         );
 
-        const dashboardDataDependencyRefs =
-          await this.#getDashboardDataDependencyRefs(
-            logic.statementRefs,
-            queryHistory,
-            biLayer
+
+        if (biLayer && queryHistory) {
+
+          const dashboardDataDependencyRefs =
+            await this.#getDashboardDataDependencyRefs(
+              logic.statementRefs,
+              queryHistory,
+              biLayer
+            );
+
+          const uniqueDashboardRefs = dashboardDataDependencyRefs.filter(
+            (value, index, self) =>
+              index ===
+              self.findIndex(
+                (dashboard) =>
+                  dashboard.name === value.name &&
+                  dashboard.columnName === value.columnName &&
+                  dashboard.materializationName === value.materializationName
+              )
           );
 
-        const uniqueDashboardRefs = dashboardDataDependencyRefs.filter(
-          (value, index, self) =>
-            index ===
-            self.findIndex(
-              (dashboard) =>
-                dashboard.name === value.name &&
-                dashboard.columnName === value.columnName &&
-                dashboard.materializationName === value.materializationName
+          await Promise.all(
+            uniqueDashboardRefs.map(async (dashboardRef) =>
+              this.#buildDashboardRefDependency(
+                dashboardRef,
+                logic.dbtModelId,
+                logic.dependentOn.map((element) => element.dbtModelId)
+              )
             )
-        );
+          );
+        }
 
-        await Promise.all(
-          uniqueDashboardRefs.map(async (dashboardRef) =>
-            this.#buildDashboardRefDependency(
-              dashboardRef,
-              logic.dbtModelId,
-              logic.dependentOn.map((element) => element.dbtModelId)
-            )
-          )
-        );
       })
     );
   };
