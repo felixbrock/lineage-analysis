@@ -64,12 +64,12 @@ interface DbtResources {
 
 export class CreateLineage
   implements
-  IUseCase<
-    CreateLineageRequestDto,
-    CreateLineageResponseDto,
-    CreateLineageAuthDto,
-    DbConnection
-  >
+    IUseCase<
+      CreateLineageRequestDto,
+      CreateLineageResponseDto,
+      CreateLineageAuthDto,
+      DbConnection
+    >
 {
   readonly #createLogic: CreateLogic;
 
@@ -504,7 +504,11 @@ export class CreateLineage
   #retrieveQueryHistory = async (biLayer: BiLayer): Promise<any> => {
     const queryHistoryResult: QueryHistoryResponseDto =
       await this.#querySnowflakeHistory.execute(
-        { biLayer, limit: 10 },
+        {
+          biLayer,
+          limit: 10,
+          targetOrganizationId: this.#targetOrganizationId,
+        },
         { jwt: this.#jwt }
       );
 
@@ -528,7 +532,9 @@ export class CreateLineage
         const sqlText: string = entry.QUERY_TEXT;
 
         const testUrl = sqlText.match(/"(https?:[^\s]+),/);
-        const dashboardUrl = testUrl ? testUrl[1] : `${biLayer} dashboard: ${new ObjectId().toHexString()}`;
+        const dashboardUrl = testUrl
+          ? testUrl[1]
+          : `${biLayer} dashboard: ${new ObjectId().toHexString()}`;
 
         const matName = column.materializationName.toUpperCase();
         const colName = column.alias
@@ -786,6 +792,17 @@ export class CreateLineage
     this.#dependencies.push(dependency);
   };
 
+  /* Creates all dependencies that exist between DWH resources */
+  #buildDependencies = async (biType?: string): Promise<void> => {
+    // todo - should method be completely sync? Probably resolves once transformed into batch job.
+
+    const biLayer: BiLayer = biType ? parseBiLayer(biType) : 'Mode';
+    const queryHistory = await this.#retrieveQueryHistory(biLayer);
+    await Promise.all(
+      this.#logics.map(async (logic) => {
+        const colDataDependencyRefs = this.#getColDataDependencyRefs(
+          logic.statementRefs
+        );
 
 
   /* Creates all dependencies that exist between DWH resources */
@@ -805,7 +822,6 @@ export class CreateLineage
         const colDataDependencyRefs = this.#getColDataDependencyRefs(
           logic.statementRefs
         );
-
         await Promise.all(
           colDataDependencyRefs.map(async (dependencyRef) =>
             this.#buildColumnRefDependency(
@@ -829,6 +845,7 @@ export class CreateLineage
             )
           )
         );
+
 
         if (biLayer && queryHistory) {
 

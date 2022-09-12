@@ -34,6 +34,10 @@ export default class SQLParserApiRepoImpl
         { sql: base64SQL },
         config
       );
+
+      /* todo - currently consuming an object that is presenting the parse object in an alphabetically ordered structure 
+      (due to the issue highlighted in sql parse service). 
+      This needs to be fixed before improving the lineage service */
       const jsonResponse = response.data;
       if (response.status === 200) return jsonResponse;
       throw new Error(jsonResponse.message);

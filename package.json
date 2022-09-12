@@ -9,8 +9,10 @@
     "tsc": "tsc",
     "clean": "rimraf dist",
     "build": "npm run clean && npm run tsc && npm run lint",
-    "start": "npm run build && nodemon ./src/index.ts",
+    "start": "npm run build &&set NODE_ENV=production&& nodemon ./src/index.ts",
+    "dev": "npm run build &&set NODE_ENV=development&&  nodemon ./src/index.ts",
     "deploy": "npm run build && serverless deploy && npm run write-env ",
+    "start-deps": "@powershell -NoProfile -ExecutionPolicy Unrestricted -Command ./start-dependencies.ps1 -serviceDependencyNames @('account', 'integration-service')",
     "write-env": "@powershell -NoProfile -ExecutionPolicy Unrestricted -Command ./write-env.ps1 -functionName lineage-service-production-app",
     "debug": "npm run build && nodemon --inspect=3014 ./src/index.ts"
   },

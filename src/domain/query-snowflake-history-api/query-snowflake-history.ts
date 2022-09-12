@@ -7,6 +7,7 @@ import { BiLayer } from '../value-types/bilayer';
 export interface QueryHistoryRequestDto {
   biLayer: BiLayer;
   limit: number;
+  targetOrganizationId: string;
 }
 
 export interface QuerySnowflakeHistoryAuthDto {
@@ -75,6 +76,7 @@ export class QuerySnowflakeHistory
       const parseSQLResponse: QueryHistoryDto =
         await this.#queryHistoryApiRepo.getQueryHistory(
           sqlQuery,
+          request.targetOrganizationId,
           auth.jwt
         );
 
