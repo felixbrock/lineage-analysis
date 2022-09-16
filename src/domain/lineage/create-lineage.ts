@@ -171,10 +171,7 @@ export class CreateLineage
   }
 
   /* Building a new lineage object that is referenced by resources like columns and materializations */
-  #buildLineage = async (
-    lineageId?: string,
-    lineageCreatedAt?: string
-  ): Promise<void> => {
+  #buildLineage = async (): Promise<void> => {
     // todo - enable lineage updating
     // this.#lineage =
     //   lineageId && lineageCreatedAt
@@ -188,9 +185,6 @@ export class CreateLineage
       id: new ObjectId().toHexString(),
       organizationId: this.#targetOrganizationId,
     });
-
-    if (!(lineageId && lineageCreatedAt))
-      await this.#lineageRepo.insertOne(this.#lineage, this.#dbConnection);
   };
 
   /* Sends sql to parse SQL microservices and receives parsed SQL logic back */
@@ -833,9 +827,7 @@ export class CreateLineage
           )
         );
 
-
         if (biLayer && queryHistory) {
-
           const dashboardDataDependencyRefs =
             await this.#getDashboardDataDependencyRefs(
               logic.statementRefs,
@@ -864,7 +856,6 @@ export class CreateLineage
             )
           );
         }
-
       })
     );
   };
@@ -922,7 +913,17 @@ export class CreateLineage
     return dependencies;
   };
 
-  #writeWhResourcesToPersistence = async (): Promise<void> => {
+  #writeWhResourcesToPersistence = async (
+    lineageId?: string,
+    lineageCreatedAt?: string
+  ): Promise<void> => {
+    if (!this.#lineage)
+      throw new ReferenceError(
+        'Lineage object does not exist. Cannot write to persistence'
+      );
+    if (!(lineageId && lineageCreatedAt))
+      await this.#lineageRepo.insertOne(this.#lineage, this.#dbConnection);
+
     await this.#logicRepo.insertMany(this.#logics, this.#dbConnection);
 
     await this.#materializationRepo.insertMany(
@@ -975,13 +976,16 @@ export class CreateLineage
       console.log('starting lineage creation...');
 
       console.log('...building lineage object');
-      await this.#buildLineage(request.lineageId, request.lineageCreatedAt);
+      await this.#buildLineage();
 
       console.log('...generating warehouse resources');
       await this.#generateWarehouseResources(request.catalog, request.manifest);
 
       console.log('...writing dw resources to persistence');
-      await this.#writeWhResourcesToPersistence();
+      await this.#writeWhResourcesToPersistence(
+        request.lineageId,
+        request.lineageCreatedAt
+      );
 
       console.log('...building dependencies');
       await this.#buildDependencies(request.biType);
