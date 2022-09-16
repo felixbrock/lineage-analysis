@@ -796,19 +796,6 @@ export class CreateLineage
   #buildDependencies = async (biType?: string): Promise<void> => {
     // todo - should method be completely sync? Probably resolves once transformed into batch job.
 
-    const biLayer: BiLayer = biType ? parseBiLayer(biType) : 'Mode';
-    const queryHistory = await this.#retrieveQueryHistory(biLayer);
-    await Promise.all(
-      this.#logics.map(async (logic) => {
-        const colDataDependencyRefs = this.#getColDataDependencyRefs(
-          logic.statementRefs
-        );
-
-
-  /* Creates all dependencies that exist between DWH resources */
-  #buildDependencies = async (biType?: string): Promise<void> => {
-    // todo - should method be completely sync? Probably resolves once transformed into batch job.
-
     let biLayer: BiLayer | undefined;
     let queryHistory: any | undefined;
 
