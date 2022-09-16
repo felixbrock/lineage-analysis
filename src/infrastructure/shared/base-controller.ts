@@ -100,6 +100,8 @@ export abstract class BaseController {
           `No account found for ${authPayload.username}`
         );
 
+        console.log(`Requested by ${authPayload.username}`);
+
       return Result.ok({
         userId: authPayload.username,
         accountId: getAccountsResult.value[0].id,
