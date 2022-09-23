@@ -1,5 +1,4 @@
 // TODO: Violation of control flow. DI for express instead
-import { Request, Response } from 'express';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
 import {
   CreateLineage,
@@ -12,12 +11,14 @@ import Result from '../../../domain/value-types/transient-types/result';
 import Dbo from '../../persistence/db/mongo-db';
 
 import {
-  BaseController,
   CodeHttp,
+  InternalInvokeController,
+  Request,
+  Response,
   UserAccountInfo,
-} from '../../shared/base-controller';
+} from '../../shared/internal-invoke-controller';
 
-export default class CreateLineageController extends BaseController {
+export default class InternalInvokeCreateLineageController extends InternalInvokeController<CreateLineageRequestDto> {
   readonly #createLineage: CreateLineage;
 
   readonly #getAccounts: GetAccounts;
@@ -35,26 +36,22 @@ export default class CreateLineageController extends BaseController {
     this.#dbo = dbo;
   }
 
-
-
-  #buildRequestDto = (req: Request): CreateLineageRequestDto => {
-    if(!req.body.targetOrganizationId) throw new Error('Create Lineage request must contain targetOrganizationId');
-
+  #transformReq = (req: CreateLineageRequestDto): CreateLineageRequestDto => {
     const isBase64 = (content: string): boolean =>
       Buffer.from(content, 'base64').toString('base64') === content;
     const toUtf8 = (content: string): string =>
       Buffer.from(content, 'base64').toString('utf8');
 
     // https://stackoverflow.com/questions/50966023/which-variant-of-base64-encoding-is-created-by-buffer-tostringbase64
-    if (!isBase64(req.body.catalog) || !isBase64(req.body.manifest))
+    if (!isBase64(req.catalog) || !isBase64(req.manifest))
       throw new Error(
         'Catalog of manifest not in base64 format or in wrong base64 variant (required variant: RFC 4648 §4)'
       );
 
     return {
-      ...req.body,
-      catalog: toUtf8(req.body.catalog),
-      manifest: toUtf8(req.body.manifest),
+      ...req,
+      catalog: toUtf8(req.catalog),
+      manifest: toUtf8(req.manifest),
     };
   };
 
@@ -66,51 +63,46 @@ export default class CreateLineageController extends BaseController {
     isSystemInternal: userAccountInfo.isSystemInternal,
   });
 
-  protected async executeImpl(req: Request, res: Response): Promise<Response> {
+  protected async executeImpl(
+    req: Request<CreateLineageRequestDto>
+  ): Promise<Response> {
     try {
-      const authHeader = req.headers.authorization;
-
-      if (!authHeader)
-        return CreateLineageController.unauthorized(res, 'Unauthorized');
-
-      const jwt = authHeader.split(' ')[1];
+      const { jwt } = req.auth;
 
       const getUserAccountInfoResult: Result<UserAccountInfo> =
-        await CreateLineageController.getUserAccountInfo(
+        await InternalInvokeCreateLineageController.getUserAccountInfo(
           jwt,
           this.#getAccounts
         );
 
       if (!getUserAccountInfoResult.success)
-        return CreateLineageController.unauthorized(
-          res,
+        return InternalInvokeCreateLineageController.unauthorized(
           getUserAccountInfoResult.error
         );
       if (!getUserAccountInfoResult.value)
         throw new ReferenceError('Authorization failed');
 
       if (!getUserAccountInfoResult.value.isSystemInternal)
-        return CreateLineageController.unauthorized(res, 'Unauthorized');
+        return InternalInvokeCreateLineageController.unauthorized('Unauthorized');
 
-      const requestDto: CreateLineageRequestDto = this.#buildRequestDto(req);
       const authDto = this.#buildAuthDto(jwt, getUserAccountInfoResult.value);
 
       const useCaseResult: CreateLineageResponseDto =
         await this.#createLineage.execute(
-          requestDto,
+          this.#transformReq(req.req),
           authDto,
           this.#dbo.dbConnection
         );
 
       if (!useCaseResult.success) {
-        return CreateLineageController.badRequest(res, useCaseResult.error);
+        return InternalInvokeCreateLineageController.badRequest(useCaseResult.error);
       }
 
       const resultValue = useCaseResult.value
         ? buildLineageDto(useCaseResult.value)
         : useCaseResult.value;
 
-      return CreateLineageController.ok(res, resultValue, CodeHttp.CREATED);
+      return InternalInvokeCreateLineageController.ok(resultValue, CodeHttp.CREATED);
 
       // this.#createLineage
       //   .execute(requestDto, authDto, this.#dbo.dbConnection)
@@ -130,11 +122,10 @@ export default class CreateLineageController extends BaseController {
       // return CreateLineageController.ok(res, 'Lineage creation is in progress...', CodeHttp.CREATED);
     } catch (error: unknown) {
       console.error(error);
-      if (typeof error === 'string')
-        return CreateLineageController.fail(res, error);
+      if (typeof error === 'string') return InternalInvokeCreateLineageController.fail(error);
       if (error instanceof Error)
-        return CreateLineageController.fail(res, error);
-      return CreateLineageController.fail(res, 'Unknown error occured');
+        return InternalInvokeCreateLineageController.fail(error.message);
+      return InternalInvokeCreateLineageController.fail('Unknown error occured');
     }
   }
 }

@@ -2,7 +2,7 @@ import serverlessExpress from '@vendia/serverless-express';
 import { Application } from 'express';
 import ExpressApp from './infrastructure/api/express-app';
 import { appConfig } from './config';
-import CreateLineageController from './infrastructure/api/controllers/create-lineage-controller';
+import InternalInvokeCreateLineageController from './infrastructure/api/controllers/create-lineage-controller-internal-invoke';
 import iocRegister from './infrastructure/ioc-register';
 import {
   InternalInvokeType,
@@ -45,7 +45,7 @@ const internalInvoke = async (
       `Cannot invoke ${internalInvokeType}. Missing auth params.`
     );
 
-  const createLineageController = new CreateLineageController(
+  const createLineageController = new InternalInvokeCreateLineageController(
     iocRegister.resolve('createLineage'),
     iocRegister.resolve('getAccounts'),
     iocRegister.resolve('dbo')
