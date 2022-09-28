@@ -63,6 +63,9 @@ interface DbtResources {
   parent_map: { [key: string]: string[] };
 }
 
+const insensitiveEquality = (str1: string, str2: string): boolean =>
+  str1.toLowerCase() === str2.toLowerCase();
+
 export class CreateLineage
   implements
     IUseCase<
@@ -589,9 +592,12 @@ export class CreateLineage
         index ===
         self.findIndex(
           (ref) =>
-            ref.name === value.name &&
-            ref.context.path === value.context.path &&
-            ref.materializationName === value.materializationName
+            insensitiveEquality(ref.name, value.name) &&
+            insensitiveEquality(ref.context.path, value.context.path) &&
+            insensitiveEquality(
+              ref.materializationName,
+              value.materializationName
+            )
         )
     );
 
@@ -869,11 +875,19 @@ export class CreateLineage
           const uniqueDashboardRefs = dashboardDataDependencyRefs.filter(
             (value, index, self) =>
               index ===
-              self.findIndex(
-                (dashboard) =>
-                  dashboard.name === value.name &&
-                  dashboard.columnName === value.columnName &&
-                  dashboard.materializationName === value.materializationName
+              self.findIndex((dashboard) =>
+                typeof dashboard.name === 'string' &&
+                typeof value.name === 'string'
+                  ? insensitiveEquality(dashboard.name, value.name)
+                  : dashboard.name === value.name &&
+                    insensitiveEquality(
+                      dashboard.columnName,
+                      value.columnName
+                    ) &&
+                    insensitiveEquality(
+                      dashboard.materializationName,
+                      value.materializationName
+                    )
               )
           );
 
@@ -899,16 +913,24 @@ export class CreateLineage
     if (!lineage) throw new ReferenceError('Lineage property is undefined');
 
     const catalogMatches = this.#matDefinitionCatalog.filter((dependency) => {
-      const nameIsEqual =
-        dependencyRef.materializationName === dependency.materializationName;
+      const nameIsEqual = insensitiveEquality(
+        dependencyRef.materializationName,
+        dependency.materializationName
+      );
 
       const schemaNameIsEqual =
         !dependencyRef.schemaName ||
-        dependencyRef.schemaName === dependency.schemaName;
+        (typeof dependencyRef.schemaName === 'string' &&
+        typeof dependency.schemaName === 'string'
+          ? insensitiveEquality(dependencyRef.schemaName, dependency.schemaName)
+          : dependencyRef.schemaName === dependency.schemaName);
 
       const databaseNameIsEqual =
         !dependencyRef.databaseName ||
-        dependencyRef.databaseName === dependency.databaseName;
+        (typeof dependencyRef.databaseName === 'string' &&
+        typeof dependency.databaseName === 'string'
+          ? insensitiveEquality(dependencyRef.databaseName, dependency.databaseName)
+          : dependencyRef.databaseName === dependency.databaseName);
 
       return nameIsEqual && schemaNameIsEqual && databaseNameIsEqual;
     });

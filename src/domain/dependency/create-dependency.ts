@@ -49,7 +49,7 @@ export class CreateDependency
     parentDbtModelIds: string[],
     lineageId: string,
     isSystemInternal: boolean,
-    targetOrganizationId: string,
+    targetOrganizationId?: string,
     callerOrganizationId?: string
   ): Promise<string> => {
     const readColumnsResult = await this.#readColumns.execute(
@@ -88,7 +88,7 @@ export class CreateDependency
     dependencyRef: ColumnRef,
     lineageId: string,
     isSystemInternal: boolean,
-    targetOrganizationId: string,
+    targetOrganizationId?: string,
     callerOrganizationId?: string
   ): Promise<Column> => {
     const readSelfColumnResult = await this.#readColumns.execute(
@@ -157,13 +157,6 @@ export class CreateDependency
       if (request.targetOrganizationId && auth.callerOrganizationId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
-      let organizationId: string;
-      if (auth.isSystemInternal && request.targetOrganizationId)
-        organizationId = request.targetOrganizationId;
-      else if (!auth.isSystemInternal && auth.callerOrganizationId)
-        organizationId = auth.callerOrganizationId;
-      else throw new Error('Unhandled organization id declaration');
-
       this.#dbConnection = dbConnection;
 
       const headColumn = await this.#getSelfColumn(
@@ -171,7 +164,8 @@ export class CreateDependency
         request.dependencyRef,
         request.lineageId,
         auth.isSystemInternal,
-        organizationId
+        request.targetOrganizationId,
+        auth.callerOrganizationId
       );
 
       // const parentName =
@@ -184,9 +178,17 @@ export class CreateDependency
         request.parentDbtModelIds,
         request.lineageId,
         auth.isSystemInternal,
-        organizationId
+        request.targetOrganizationId,
+        auth.callerOrganizationId
       );
 
+      let organizationId: string;
+      if (auth.isSystemInternal && request.targetOrganizationId)
+        organizationId = request.targetOrganizationId;
+      else if (!auth.isSystemInternal && auth.callerOrganizationId)
+        organizationId = auth.callerOrganizationId;
+      else throw new Error('Unhandled organization id declaration');
+      
       const dependency = Dependency.create({
         id: new ObjectId().toHexString(),
         type: request.dependencyRef.dependencyType,
@@ -225,7 +227,8 @@ export class CreateDependency
 
       return Result.ok(dependency);
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return Result.fail('');
     }
   }
