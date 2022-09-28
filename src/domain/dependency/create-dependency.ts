@@ -98,7 +98,10 @@ export class CreateDependency
         name: dependencyRef.alias || dependencyRef.name,
         targetOrganizationId,
       },
-      { callerOrganizationId, isSystemInternal },
+      {
+        callerOrganizationId,
+        isSystemInternal,
+      },
       this.#dbConnection
     );
 
@@ -109,8 +112,7 @@ export class CreateDependency
 
     const selfColumnMatches = readSelfColumnResult.value;
 
-    if (!selfColumnMatches.length) 
-    throw new RangeError('No self column found');
+    if (!selfColumnMatches.length) throw new RangeError('No self column found');
 
     if (selfColumnMatches.length === 1) return selfColumnMatches[0];
 
@@ -147,20 +149,20 @@ export class CreateDependency
   ): Promise<CreateDependencyResponse> {
     try {
       if (auth.isSystemInternal && !request.targetOrganizationId)
-      throw new Error('Target organization id missing');
-    if (!auth.isSystemInternal && !auth.callerOrganizationId)
-      throw new Error('Caller organization id missing');
-    if (!request.targetOrganizationId && !auth.callerOrganizationId)
-      throw new Error('No organization Id instance provided');
+        throw new Error('Target organization id missing');
+      if (!auth.isSystemInternal && !auth.callerOrganizationId)
+        throw new Error('Caller organization id missing');
+      if (!request.targetOrganizationId && !auth.callerOrganizationId)
+        throw new Error('No organization Id instance provided');
       if (request.targetOrganizationId && auth.callerOrganizationId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
-    let organizationId: string;
-    if (auth.isSystemInternal && request.targetOrganizationId)
-      organizationId = request.targetOrganizationId;
-    else if (!auth.isSystemInternal && auth.callerOrganizationId)
-      organizationId = auth.callerOrganizationId;
-    else throw new Error('Unhandled organization id declaration');
+      let organizationId: string;
+      if (auth.isSystemInternal && request.targetOrganizationId)
+        organizationId = request.targetOrganizationId;
+      else if (!auth.isSystemInternal && auth.callerOrganizationId)
+        organizationId = auth.callerOrganizationId;
+      else throw new Error('Unhandled organization id declaration');
 
       this.#dbConnection = dbConnection;
 
@@ -169,7 +171,7 @@ export class CreateDependency
         request.dependencyRef,
         request.lineageId,
         auth.isSystemInternal,
-        organizationId,
+        organizationId
       );
 
       // const parentName =
@@ -182,7 +184,7 @@ export class CreateDependency
         request.parentDbtModelIds,
         request.lineageId,
         auth.isSystemInternal,
-        organizationId,
+        organizationId
       );
 
       const dependency = Dependency.create({
@@ -204,6 +206,7 @@ export class CreateDependency
         },
         {
           isSystemInternal: auth.isSystemInternal,
+          callerOrganizationId: auth.callerOrganizationId,
         },
         dbConnection
       );
@@ -223,7 +226,8 @@ export class CreateDependency
       return Result.ok(dependency);
     } catch (error: unknown) {
       if (typeof error === 'string') return Result.fail(error);
-      if (error instanceof Error) return Result.fail(error.stack || error.message);
+      if (error instanceof Error)
+        return Result.fail(error.stack || error.message);
       return Result.fail('Unknown error occured');
     }
   }

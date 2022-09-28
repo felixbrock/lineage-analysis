@@ -87,7 +87,7 @@ export class CreateExternalDependency
             lineageId: request.lineageId,
             targetOrganizationId: request.targetOrganizationId,
           },
-          { isSystemInternal: auth.isSystemInternal },
+          { isSystemInternal: auth.isSystemInternal, callerOrganizationId: auth.callerOrganizationId },
           dbConnection
         );
 
