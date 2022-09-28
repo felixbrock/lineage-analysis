@@ -16,11 +16,12 @@ export interface CreateDependencyRequestDto {
   parentDbtModelIds: string[];
   lineageId: string;
   writeToPersistence: boolean;
-  targetOrganizationId: string;
+  targetOrganizationId?: string;
 }
 
 export interface CreateDependencyAuthDto {
   isSystemInternal: boolean;
+  callerOrganizationId?: string;
 }
 
 export type CreateDependencyResponse = Result<Dependency>;
@@ -145,7 +146,21 @@ export class CreateDependency
     dbConnection: DbConnection
   ): Promise<CreateDependencyResponse> {
     try {
-      if (!auth.isSystemInternal) throw new Error('Unauthorized');
+      if (auth.isSystemInternal && !request.targetOrganizationId)
+      throw new Error('Target organization id missing');
+    if (!auth.isSystemInternal && !auth.callerOrganizationId)
+      throw new Error('Caller organization id missing');
+    if (!request.targetOrganizationId && !auth.callerOrganizationId)
+      throw new Error('No organization Id instance provided');
+      if (request.targetOrganizationId && auth.callerOrganizationId)
+        throw new Error('callerOrgId and targetOrgId provided. Not allowed');
+
+    let organizationId: string;
+    if (auth.isSystemInternal && request.targetOrganizationId)
+      organizationId = request.targetOrganizationId;
+    else if (!auth.isSystemInternal && auth.callerOrganizationId)
+      organizationId = auth.callerOrganizationId;
+    else throw new Error('Unhandled organization id declaration');
 
       this.#dbConnection = dbConnection;
 
@@ -154,7 +169,7 @@ export class CreateDependency
         request.dependencyRef,
         request.lineageId,
         auth.isSystemInternal,
-        request.targetOrganizationId,
+        organizationId,
       );
 
       // const parentName =
@@ -167,7 +182,7 @@ export class CreateDependency
         request.parentDbtModelIds,
         request.lineageId,
         auth.isSystemInternal,
-        request.targetOrganizationId,
+        organizationId,
       );
 
       const dependency = Dependency.create({
@@ -176,7 +191,7 @@ export class CreateDependency
         headId: headColumn.id,
         tailId: parentId,
         lineageId: request.lineageId,
-        organizationId: request.targetOrganizationId,
+        organizationId,
       });
 
       const readDependencyResult = await this.#readDependencies.execute(
@@ -208,7 +223,7 @@ export class CreateDependency
       return Result.ok(dependency);
     } catch (error: unknown) {
       if (typeof error === 'string') return Result.fail(error);
-      if (error instanceof Error) return Result.fail(error.message);
+      if (error instanceof Error) return Result.fail(error.stack || error.message);
       return Result.fail('Unknown error occured');
     }
   }

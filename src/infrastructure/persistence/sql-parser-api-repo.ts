@@ -48,8 +48,8 @@ export default class SQLParserApiRepoImpl
         /* error code 500 is returned when we encounter a parse
            error. Returning empty fle allows us to continue and 
            create as much lineage as possible instead of failing */  
-        if(error.message.includes('500')) return {file:[{}, {}]};
-        return Promise.reject(error.message);
+        if(error.stack || error.message.includes('500')) return {file:[{}, {}]};
+        return Promise.reject(error.stack || error.message);
       }
       return Promise.reject(new Error('Unknown error occured'));
     }

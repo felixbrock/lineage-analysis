@@ -40,7 +40,7 @@ export class ParseSQL
       return Result.ok(parseSQLResponse);
     } catch (error: unknown) {
       if (typeof error === 'string') return Result.fail(error);
-      if (error instanceof Error) return Result.fail(error.message);
+      if (error instanceof Error) return Result.fail(error.stack || error.message);
       return Result.fail('Unknown error occured');
     }
   }

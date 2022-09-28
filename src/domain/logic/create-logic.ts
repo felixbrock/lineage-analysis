@@ -19,12 +19,13 @@ export interface CreateLogicRequestDto {
   parsedLogic: string;
   lineageId: string;
   writeToPersistence: boolean;
-  targetOrganizationId: string;
+  targetOrganizationId?: string;
   catalogFile:string;
 }
 
 export interface CreateLogicAuthDto {
   isSystemInternal: boolean;
+  callerOrganizationId?: string;
 }
 
 export type CreateLogicResponse = Result<Logic>;
@@ -82,7 +83,21 @@ export class CreateLogic
     dbConnection: DbConnection
   ): Promise<CreateLogicResponse> {
     try {
-      if (!auth.isSystemInternal) throw new Error('Unauthorized');
+      if (auth.isSystemInternal && !request.targetOrganizationId)
+        throw new Error('Target organization id missing');
+      if (!auth.isSystemInternal && !auth.callerOrganizationId)
+        throw new Error('Caller organization id missing');
+      if (!request.targetOrganizationId && !auth.callerOrganizationId)
+        throw new Error('No organization Id instance provided');
+        if (request.targetOrganizationId && auth.callerOrganizationId)
+        throw new Error('callerOrgId and targetOrgId provided. Not allowed');
+
+      let organizationId: string;
+      if (auth.isSystemInternal && request.targetOrganizationId)
+        organizationId = request.targetOrganizationId;
+      else if (!auth.isSystemInternal && auth.callerOrganizationId)
+        organizationId = auth.callerOrganizationId;
+      else throw new Error('Unhandled organization id declaration');
 
       this.#dbConnection = dbConnection;
 
@@ -96,7 +111,7 @@ export class CreateLogic
         dependentOn: request.dependentOn,
         parsedLogic: request.parsedLogic,
         lineageId: request.lineageId,
-        organizationId: request.targetOrganizationId,
+        organizationId,
         catalog,
       });
 
@@ -123,7 +138,7 @@ export class CreateLogic
       return Result.ok(logic);
     } catch (error: unknown) {
       if (typeof error === 'string') return Result.fail(error);
-      if (error instanceof Error) return Result.fail(error.message);
+      if (error instanceof Error) return Result.fail(error.stack || error.message);
       return Result.fail('Unknown error occured');
     }
   }

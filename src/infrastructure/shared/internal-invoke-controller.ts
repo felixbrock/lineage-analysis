@@ -134,7 +134,7 @@ export abstract class InternalInvokeController<R> {
       });
     } catch (error: unknown) {
       if (typeof error === 'string') return Result.fail(error);
-      if (error instanceof Error) return Result.fail(error.message);
+      if (error instanceof Error) return Result.fail(error.stack || error.message);
       return Result.fail('Unknown error occured');
     }
   }

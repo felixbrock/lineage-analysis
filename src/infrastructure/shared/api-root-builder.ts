@@ -24,7 +24,7 @@ export default async (
     // return `http://${discoveredService.ip}:${discoveredService.port}/${path}`;
   } catch (error: unknown) {
     if (typeof error === 'string') return Promise.reject(error);
-    if (error instanceof Error) return Promise.reject(error.message);
+    if (error instanceof Error) return Promise.reject(error.stack || error.message);
     return Promise.reject(new Error('Unknown error occured'));
   }
 };

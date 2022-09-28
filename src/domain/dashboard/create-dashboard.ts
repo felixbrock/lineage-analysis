@@ -13,12 +13,13 @@ export interface CreateDashboardRequestDto {
   columnName: string;
   columnId: string;
   lineageId: string;
-  targetOrganizationId: string;
+  targetOrganizationId?: string;
   writeToPersistence: boolean;
 }
 
 export interface CreateDashboardAuthDto {
   isSystemInternal: boolean;
+  callerOrganizationId?: string;
 }
 
 export type CreateDashboardResponseDto = Result<Dashboard>;
@@ -49,7 +50,21 @@ export class CreateDashboard
     dbConnection: DbConnection
   ): Promise<CreateDashboardResponseDto> {
     try {
-      if (!auth.isSystemInternal) throw new Error('Unauthorized');
+      if (auth.isSystemInternal && !request.targetOrganizationId)
+        throw new Error('Target organization id missing');
+      if (!auth.isSystemInternal && !auth.callerOrganizationId)
+        throw new Error('Caller organization id missing');
+      if (!request.targetOrganizationId && !auth.callerOrganizationId)
+        throw new Error('No organization Id instance provided');
+        if (request.targetOrganizationId && auth.callerOrganizationId)
+        throw new Error('callerOrgId and targetOrgId provided. Not allowed');
+
+      let organizationId: string;
+      if (auth.isSystemInternal && request.targetOrganizationId)
+        organizationId = request.targetOrganizationId;
+      else if (!auth.isSystemInternal && auth.callerOrganizationId)
+        organizationId = auth.callerOrganizationId;
+      else throw new Error('Unhandled organization id declaration');
 
       this.#dbConnection = dbConnection;
 
@@ -61,10 +76,10 @@ export class CreateDashboard
         columnName: request.columnName,
         columnId: request.columnId,
         materializationId: request.materializationId,
-        organizationId: request.targetOrganizationId,
+        organizationId,
       });
 
-      if(!request.url) return Result.ok(dashboard);
+      if (!request.url) return Result.ok(dashboard);
 
       const readDashboardsResult = await this.#readDashboards.execute(
         {
@@ -72,7 +87,7 @@ export class CreateDashboard
           lineageId: request.lineageId,
           targetOrganizationId: request.targetOrganizationId,
         },
-        {  isSystemInternal: auth.isSystemInternal },
+        { isSystemInternal: auth.isSystemInternal },
         this.#dbConnection
       );
 
@@ -89,7 +104,8 @@ export class CreateDashboard
       return Result.ok(dashboard);
     } catch (error: unknown) {
       if (typeof error === 'string') return Result.fail(error);
-      if (error instanceof Error) return Result.fail(error.message);
+      if (error instanceof Error)
+        return Result.fail(error.stack || error.message);
       return Result.fail('Unknown error occured');
     }
   }

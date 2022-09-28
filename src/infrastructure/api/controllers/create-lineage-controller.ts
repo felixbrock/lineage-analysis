@@ -35,10 +35,8 @@ export default class CreateLineageController extends BaseController {
     this.#dbo = dbo;
   }
 
-
-
   #buildRequestDto = (req: Request): CreateLineageRequestDto => {
-    if(!req.body.targetOrganizationId) throw new Error('Create Lineage request must contain targetOrganizationId');
+    const { targetOrganizationId, ...remainingBody } = req.body;
 
     const isBase64 = (content: string): boolean =>
       Buffer.from(content, 'base64').toString('base64') === content;
@@ -46,15 +44,15 @@ export default class CreateLineageController extends BaseController {
       Buffer.from(content, 'base64').toString('utf8');
 
     // https://stackoverflow.com/questions/50966023/which-variant-of-base64-encoding-is-created-by-buffer-tostringbase64
-    if (!isBase64(req.body.catalog) || !isBase64(req.body.manifest))
+    if (!isBase64(remainingBody.catalog) || !isBase64(remainingBody.manifest))
       throw new Error(
         'Catalog of manifest not in base64 format or in wrong base64 variant (required variant: RFC 4648 §4)'
       );
 
     return {
-      ...req.body,
-      catalog: toUtf8(req.body.catalog),
-      manifest: toUtf8(req.body.manifest),
+      ...remainingBody,
+      catalog: toUtf8(remainingBody.catalog),
+      manifest: toUtf8(remainingBody.manifest),
     };
   };
 
@@ -64,6 +62,7 @@ export default class CreateLineageController extends BaseController {
   ): CreateLineageAuthDto => ({
     jwt,
     isSystemInternal: userAccountInfo.isSystemInternal,
+    callerOrganizationId: userAccountInfo.callerOrganizationId
   });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
@@ -88,9 +87,6 @@ export default class CreateLineageController extends BaseController {
         );
       if (!getUserAccountInfoResult.value)
         throw new ReferenceError('Authorization failed');
-
-      if (!getUserAccountInfoResult.value.isSystemInternal)
-        return CreateLineageController.unauthorized(res, 'Unauthorized');
 
       const requestDto: CreateLineageRequestDto = this.#buildRequestDto(req);
       const authDto = this.#buildAuthDto(jwt, getUserAccountInfoResult.value);
