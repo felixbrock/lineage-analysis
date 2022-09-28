@@ -57,6 +57,8 @@ export class ReadMaterializations
         throw new Error('Caller organization id missing');
       if (!request.targetOrganizationId && !auth.callerOrganizationId)
         throw new Error('No organization Id instance provided');
+      if (request.targetOrganizationId && auth.callerOrganizationId)
+        throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
       let organizationId;
       if (auth.isSystemInternal && request.targetOrganizationId)
@@ -78,7 +80,8 @@ export class ReadMaterializations
       return Result.ok(materializations);
     } catch (error: unknown) {
       if (typeof error === 'string') return Result.fail(error);
-      if (error instanceof Error) return Result.fail(error.message);
+      if (error instanceof Error)
+        return Result.fail(error.stack || error.message);
       return Result.fail('Unknown error occured');
     }
   }

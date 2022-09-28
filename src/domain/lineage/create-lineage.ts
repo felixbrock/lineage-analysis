@@ -42,7 +42,7 @@ import { BiLayer, parseBiLayer } from '../value-types/bilayer';
 export interface CreateLineageRequestDto {
   lineageId?: string;
   lineageCreatedAt?: string;
-  targetOrganizationId: string;
+  targetOrganizationId?: string;
   catalog: string;
   manifest: string;
   biType?: string;
@@ -51,6 +51,7 @@ export interface CreateLineageRequestDto {
 export interface CreateLineageAuthDto {
   jwt: string;
   isSystemInternal: boolean;
+  callerOrganizationId?: string;
 }
 
 export type CreateLineageResponseDto = Result<Lineage>;
@@ -119,7 +120,11 @@ export class CreateLineage
 
   #matDefinitionCatalog: MaterializationDefinition[];
 
-  #targetOrganizationId: string;
+  #targetOrganizationId?: string;
+
+  #callerOrganizationId?: string;
+
+  #organizationId: string;
 
   #jwt: string;
 
@@ -166,6 +171,8 @@ export class CreateLineage
     this.#lineage = undefined;
     this.#lastQueryDependency = undefined;
     this.#targetOrganizationId = '';
+    this.#callerOrganizationId = '';
+    this.#organizationId = '';
     this.#jwt = '';
     this.#isSystemInternal = false;
   }
@@ -183,7 +190,7 @@ export class CreateLineage
 
     this.#lineage = Lineage.create({
       id: new ObjectId().toHexString(),
-      organizationId: this.#targetOrganizationId,
+      organizationId: this.#organizationId,
     });
   };
 
@@ -222,7 +229,10 @@ export class CreateLineage
         writeToPersistence: false,
         targetOrganizationId: this.#targetOrganizationId,
       },
-      { isSystemInternal: this.#isSystemInternal },
+      {
+        isSystemInternal: this.#isSystemInternal,
+        callerOrganizationId: this.#callerOrganizationId,
+      },
       this.#dbConnection
     );
 
@@ -251,7 +261,10 @@ export class CreateLineage
           targetOrganizationId: this.#targetOrganizationId,
           writeToPersistence: false,
         },
-        { isSystemInternal: this.#isSystemInternal },
+        {
+          isSystemInternal: this.#isSystemInternal,
+          callerOrganizationId: this.#callerOrganizationId,
+        },
         this.#dbConnection
       );
 
@@ -303,7 +316,10 @@ export class CreateLineage
         writeToPersistence: false,
         catalogFile,
       },
-      { isSystemInternal: this.#isSystemInternal },
+      {
+        isSystemInternal: this.#isSystemInternal,
+        callerOrganizationId: this.#callerOrganizationId,
+      },
       this.#dbConnection
     );
 
@@ -328,7 +344,10 @@ export class CreateLineage
           targetOrganizationId: this.#targetOrganizationId,
           writeToPersistence: false,
         },
-        { isSystemInternal: this.#isSystemInternal },
+        {
+          isSystemInternal: this.#isSystemInternal,
+          callerOrganizationId: this.#callerOrganizationId,
+        },
         this.#dbConnection
       );
 
@@ -503,7 +522,7 @@ export class CreateLineage
           limit: 10,
           targetOrganizationId: this.#targetOrganizationId,
         },
-        { jwt: this.#jwt }
+        { jwt: this.#jwt, callerOrganizationId: this.#callerOrganizationId }
       );
 
     if (!queryHistoryResult.success) throw new Error(queryHistoryResult.error);
@@ -614,7 +633,7 @@ export class CreateLineage
         name: dashboardRef.materializationName,
         dbtModelId: parentDbtModelIds[0],
         lineageId,
-        organizationId: this.#targetOrganizationId,
+        organizationId: this.#organizationId,
       },
       this.#dbConnection
     );
@@ -625,7 +644,7 @@ export class CreateLineage
         name: dashboardRef.columnName,
         materializationId,
         lineageId,
-        organizationId: this.#targetOrganizationId,
+        organizationId: this.#organizationId,
       },
       this.#dbConnection
     );
@@ -642,7 +661,10 @@ export class CreateLineage
         targetOrganizationId: this.#targetOrganizationId,
         writeToPersistence: false,
       },
-      { isSystemInternal: this.#isSystemInternal },
+      {
+        isSystemInternal: this.#isSystemInternal,
+        callerOrganizationId: this.#callerOrganizationId,
+      },
       this.#dbConnection
     );
 
@@ -663,7 +685,10 @@ export class CreateLineage
           targetOrganizationId: this.#targetOrganizationId,
           writeToPersistence: false,
         },
-        { isSystemInternal: this.#isSystemInternal },
+        {
+          isSystemInternal: this.#isSystemInternal,
+          callerOrganizationId: this.#callerOrganizationId,
+        },
         this.#dbConnection
       );
 
@@ -716,7 +741,10 @@ export class CreateLineage
               targetOrganizationId: this.#targetOrganizationId,
               writeToPersistence: false,
             },
-            { isSystemInternal: this.#isSystemInternal },
+            {
+              isSystemInternal: this.#isSystemInternal,
+              callerOrganizationId: this.#callerOrganizationId,
+            },
             this.#dbConnection
           );
 
@@ -772,7 +800,10 @@ export class CreateLineage
         targetOrganizationId: this.#targetOrganizationId,
         writeToPersistence: false,
       },
-      { isSystemInternal: this.#isSystemInternal },
+      {
+        isSystemInternal: this.#isSystemInternal,
+        callerOrganizationId: this.#callerOrganizationId,
+      },
       this.#dbConnection
     );
 
@@ -895,7 +926,10 @@ export class CreateLineage
         lineageId: lineage.id,
         targetOrganizationId: this.#targetOrganizationId,
       },
-      { isSystemInternal: this.#isSystemInternal },
+      {
+        isSystemInternal: this.#isSystemInternal,
+        callerOrganizationId: this.#callerOrganizationId,
+      },
       this.#dbConnection
     );
 
@@ -956,11 +990,27 @@ export class CreateLineage
     dbConnection: DbConnection
   ): Promise<CreateLineageResponseDto> {
     try {
-      if (!auth.isSystemInternal) throw new Error('Unauthorized');
+      if (auth.isSystemInternal && !request.targetOrganizationId)
+        throw new Error('Target organization id missing');
+      if (!auth.isSystemInternal && !auth.callerOrganizationId)
+        throw new Error('Caller organization id missing');
+      if (!request.targetOrganizationId && !auth.callerOrganizationId)
+        throw new Error('No organization Id instance provided');
+      if (request.targetOrganizationId && auth.callerOrganizationId)
+        throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
       this.#dbConnection = dbConnection;
 
       this.#targetOrganizationId = request.targetOrganizationId;
+
+      this.#callerOrganizationId = auth.callerOrganizationId;
+
+      if (auth.callerOrganizationId)
+        this.#organizationId = auth.callerOrganizationId;
+      else if (request.targetOrganizationId)
+        this.#organizationId = request.targetOrganizationId;
+      else throw new Error('callerOrgId and targetOrgId provided. Not allowed');
+
       this.#jwt = auth.jwt;
       this.#isSystemInternal = auth.isSystemInternal;
 
@@ -1006,7 +1056,8 @@ export class CreateLineage
     } catch (error: unknown) {
       console.trace(error);
       if (typeof error === 'string') return Result.fail(error);
-      if (error instanceof Error) return Result.fail(error.message);
+      if (error instanceof Error)
+        return Result.fail(error.stack || error.message);
       return Result.fail('Unknown error occured');
     }
   }

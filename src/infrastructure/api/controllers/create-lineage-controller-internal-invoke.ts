@@ -124,7 +124,7 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
       console.error(error);
       if (typeof error === 'string') return InternalInvokeCreateLineageController.fail(error);
       if (error instanceof Error)
-        return InternalInvokeCreateLineageController.fail(error.message);
+        return InternalInvokeCreateLineageController.fail(error.stack || error.message);
       return InternalInvokeCreateLineageController.fail('Unknown error occured');
     }
   }

@@ -7,17 +7,23 @@ import { BiLayer } from '../value-types/bilayer';
 export interface QueryHistoryRequestDto {
   biLayer: BiLayer;
   limit: number;
-  targetOrganizationId: string;
+  targetOrganizationId?: string;
 }
 
 export interface QuerySnowflakeHistoryAuthDto {
   jwt: string;
+  callerOrganizationId?: string;
 }
 
 export type QueryHistoryResponseDto = Result<QueryHistoryDto>;
 
 export class QuerySnowflakeHistory
-  implements IUseCase<QueryHistoryRequestDto, QueryHistoryResponseDto, QuerySnowflakeHistoryAuthDto>
+  implements
+    IUseCase<
+      QueryHistoryRequestDto,
+      QueryHistoryResponseDto,
+      QuerySnowflakeHistoryAuthDto
+    >
 {
   readonly #queryHistoryApiRepo: IQueryHistoryApiRepo;
 
@@ -29,32 +35,39 @@ export class QuerySnowflakeHistory
     request: QueryHistoryRequestDto,
     auth: QuerySnowflakeHistoryAuthDto
   ): Promise<QueryHistoryResponseDto> {
-    
+    if (!request.targetOrganizationId && !auth.callerOrganizationId)
+      throw new Error('No organization Id instance provided');
+    if (request.targetOrganizationId && auth.callerOrganizationId)
+      throw new Error('callerOrgId and targetOrgId provided. Not allowed');
+
+    let organizationId: string;
+    if (auth.callerOrganizationId) organizationId = auth.callerOrganizationId;
+    else if (request.targetOrganizationId)
+      organizationId = request.targetOrganizationId;
+    else throw new Error('Unhandled organization id declaration');
+
     let condition = '';
     let regex = '';
     const limitNumber = request.limit;
-    switch(request.biLayer) { 
+    switch (request.biLayer) {
       case 'Mode': {
         // eslint-disable-next-line no-useless-escape
-        regex = 'https:\/\/modeanalytics\.com[^\s\"]+';
-        condition = 
-        `REGEXP_COUNT(QUERY_TEXT,'${regex}') > 0
+        regex = 'https://modeanalytics.com[^s"]+';
+        condition = `REGEXP_COUNT(QUERY_TEXT,'${regex}') > 0
         limit ${limitNumber}`;
-        break; 
-      } 
+        break;
+      }
       case 'Tableau': {
         // eslint-disable-next-line no-useless-escape
-         regex = '\"TableauSQL\"';
-         condition = 
-         `REGEXP_COUNT(QUERY_TEXT,'${regex}') > 0
+        regex = '"TableauSQL"';
+        condition = `REGEXP_COUNT(QUERY_TEXT,'${regex}') > 0
          limit ${limitNumber}`;
-         break; 
+        break;
       }
       case 'Metabase': {
         // eslint-disable-next-line no-useless-escape
-        regex = '("[A-Za-z0-9_$]+"\.){2}("[A-Za-z0-9_$]+")';
-        condition = 
-        `REGEXP_COUNT(QUERY_TEXT,'FROM ${regex}') > 0
+        regex = '("[A-Za-z0-9_$]+".){2}("[A-Za-z0-9_$]+")';
+        condition = `REGEXP_COUNT(QUERY_TEXT,'FROM ${regex}') > 0
         AND REGEXP_COUNT(QUERY_TEXT,'${regex} AS') > 0
         AND CHARINDEX('WHERE 1 <> 1 LIMIT 0', QUERY_TEXT) = 0
         AND CHARINDEX('source', QUERY_TEXT) = 0
@@ -62,21 +75,20 @@ export class QuerySnowflakeHistory
         limit ${limitNumber}`;
         break;
       }
-      default: { 
-         condition = 'false'; 
-         break; 
-      } 
-   }; 
-    
-    const sqlQuery = 
-    `select QUERY_TEXT from snowflake.account_usage.query_history
+      default: {
+        condition = 'false';
+        break;
+      }
+    }
+
+    const sqlQuery = `select QUERY_TEXT from snowflake.account_usage.query_history
      where ${condition}`;
- 
+
     try {
       const parseSQLResponse: QueryHistoryDto =
         await this.#queryHistoryApiRepo.getQueryHistory(
           sqlQuery,
-          request.targetOrganizationId,
+          organizationId,
           auth.jwt
         );
 
@@ -85,7 +97,8 @@ export class QuerySnowflakeHistory
       return Result.ok(parseSQLResponse);
     } catch (error: unknown) {
       if (typeof error === 'string') return Result.fail(error);
-      if (error instanceof Error) return Result.fail(error.message);
+      if (error instanceof Error)
+        return Result.fail(error.stack || error.message);
       return Result.fail('Unknown error occured');
     }
   }
