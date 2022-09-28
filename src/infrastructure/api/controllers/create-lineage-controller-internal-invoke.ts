@@ -95,7 +95,7 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
         );
 
       if (!useCaseResult.success) {
-        return InternalInvokeCreateLineageController.badRequest(useCaseResult.error);
+        return InternalInvokeCreateLineageController.badRequest();
       }
 
       const resultValue = useCaseResult.value
@@ -121,11 +121,7 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
 
       // return CreateLineageController.ok(res, 'Lineage creation is in progress...', CodeHttp.CREATED);
     } catch (error: unknown) {
-      console.error(error);
-      if (typeof error === 'string') return InternalInvokeCreateLineageController.fail(error);
-      if (error instanceof Error)
-        return InternalInvokeCreateLineageController.fail(error.stack || error.message);
-      return InternalInvokeCreateLineageController.fail('Unknown error occured');
+      return InternalInvokeCreateLineageController.fail('Internal error occurred while invoking create lineage operation');
     }
   }
 }

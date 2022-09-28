@@ -92,7 +92,7 @@ export default class ReadColumnsController extends BaseController {
         );
 
       if (!useCaseResult.success) {
-        return ReadColumnsController.badRequest(res, useCaseResult.error);
+        return ReadColumnsController.badRequest(res);
       }
 
       const resultValue = useCaseResult.value
@@ -101,11 +101,7 @@ export default class ReadColumnsController extends BaseController {
 
       return ReadColumnsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
-      console.error(error);
-      if (typeof error === 'string')
-        return ReadColumnsController.fail(res, error);
-      if (error instanceof Error) return ReadColumnsController.fail(res, error);
-      return ReadColumnsController.fail(res, 'Unknown error occured');
+      return ReadColumnsController.fail(res, 'Internal error occurred while reading columns');
     }
   }
 }

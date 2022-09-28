@@ -73,7 +73,7 @@ export default class ReadLogicController extends BaseController {
       );
 
       if (!useCaseResult.success) {
-        return ReadLogicController.badRequest(res, useCaseResult.error);
+        return ReadLogicController.badRequest(res);
       }
 
       const resultValue = useCaseResult.value
@@ -82,11 +82,7 @@ export default class ReadLogicController extends BaseController {
 
       return ReadLogicController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
-      console.error(error);
-      if (typeof error === 'string')
-        return ReadLogicController.fail(res, error);
-      if (error instanceof Error) return ReadLogicController.fail(res, error);
-      return ReadLogicController.fail(res, 'Unknown error occured');
+      return ReadLogicController.fail(res, 'Internal error occurred while reading logic');
     }
   }
 }

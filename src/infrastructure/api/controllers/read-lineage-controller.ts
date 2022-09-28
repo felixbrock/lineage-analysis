@@ -75,7 +75,7 @@ export default class ReadLineageController extends BaseController {
         );
 
       if (!useCaseResult.success) {
-        return ReadLineageController.badRequest(res, useCaseResult.error);
+        return ReadLineageController.badRequest(res);
       }
 
       const resultValue = useCaseResult.value
@@ -84,11 +84,7 @@ export default class ReadLineageController extends BaseController {
 
       return ReadLineageController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
-      console.error(error);
-      if (typeof error === 'string')
-        return ReadLineageController.fail(res, error);
-      if (error instanceof Error) return ReadLineageController.fail(res, error);
-      return ReadLineageController.fail(res, 'Unknown error occured');
+      return ReadLineageController.fail(res, 'Internal error occurred while reading lineage');
     }
   }
 }

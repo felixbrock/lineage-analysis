@@ -58,9 +58,8 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
       return this.#toEntity(this.#buildProperties(result));
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -83,9 +82,8 @@ export default class MaterializationRepo implements IMaterializationRepo {
         this.#toEntity(this.#buildProperties(element))
       );
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -146,9 +144,8 @@ export default class MaterializationRepo implements IMaterializationRepo {
         this.#toEntity(this.#buildProperties(element))
       );
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -168,9 +165,8 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
       return result.insertedId.toHexString();
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -194,9 +190,8 @@ export default class MaterializationRepo implements IMaterializationRepo {
         result.insertedIds[parseInt(key, 10)].toHexString()
       );
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -213,9 +208,8 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
       return result.deletedCount.toString();
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
