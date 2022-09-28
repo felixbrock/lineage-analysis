@@ -36,7 +36,7 @@ export default class CreateLineageController extends BaseController {
   }
 
   #buildRequestDto = (req: Request): CreateLineageRequestDto => {
-    const { targetOrganizationId, ...remainingBody } = req.body;
+    const { body } = req;
 
     const isBase64 = (content: string): boolean =>
       Buffer.from(content, 'base64').toString('base64') === content;
@@ -44,15 +44,15 @@ export default class CreateLineageController extends BaseController {
       Buffer.from(content, 'base64').toString('utf8');
 
     // https://stackoverflow.com/questions/50966023/which-variant-of-base64-encoding-is-created-by-buffer-tostringbase64
-    if (!isBase64(remainingBody.catalog) || !isBase64(remainingBody.manifest))
+    if (!isBase64(body.catalog) || !isBase64(body.manifest))
       throw new Error(
         'Catalog of manifest not in base64 format or in wrong base64 variant (required variant: RFC 4648 §4)'
       );
 
     return {
-      ...remainingBody,
-      catalog: toUtf8(remainingBody.catalog),
-      manifest: toUtf8(remainingBody.manifest),
+      ...body,
+      catalog: toUtf8(body.catalog),
+      manifest: toUtf8(body.manifest),
     };
   };
 
