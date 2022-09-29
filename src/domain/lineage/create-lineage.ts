@@ -14,6 +14,7 @@ import {
   Refs,
   MaterializationDefinition,
   DashboardRef,
+  MaterializationRef,
 } from '../entities/logic';
 import {
   CreateDependency,
@@ -21,7 +22,7 @@ import {
 } from '../dependency/create-dependency';
 import { Dependency, DependencyType } from '../entities/dependency';
 import { ReadColumns } from '../column/read-columns';
-import { Materialization } from '../entities/materialization';
+import { Materialization, MaterializationType } from '../entities/materialization';
 import { Column } from '../entities/column';
 import { ILineageRepo } from './i-lineage-repo';
 import { IColumnRepo } from '../column/i-column-repo';
@@ -246,6 +247,7 @@ export class CreateLineage
     return createColumnResult.value;
   };
 
+  /* Runs through manifest source objects and creates corresponding materialization objecst */
   #generateWarehouseSource = async (source: any): Promise<void> => {
     if (!this.#lineage)
       throw new ReferenceError('Lineage property is undefined');
@@ -293,10 +295,63 @@ export class CreateLineage
     this.#columns.push(...columns);
   };
 
+  /* Materializations that are referenced in SQL models, but are neither defined as node or source objects in manifest.json */
+  #createExternalMaterializations = async (
+    materializationRefs: MaterializationRef[]
+  ): Promise<void> => {
+    await Promise.all(
+      materializationRefs.map(async (ref: MaterializationRef) => {
+        const matchingMats = this.#materializations.filter(
+          (el) =>
+            (ref.databaseName
+              ? insensitiveEquality(el.databaseName, ref.databaseName)
+              : true) &&
+            (ref.schemaName
+              ? insensitiveEquality(el.schemaName, ref.schemaName)
+              : true) &&
+            insensitiveEquality(el.name, ref.name)
+        );
+
+        if (matchingMats) return;
+
+        if(!this.#lineage) throw new Error('Lineage object not available');
+
+        const createMaterializationResult =
+          await this.#createMaterialization.execute(
+            {
+              materializationType: MaterializationType.TABLE,
+              name: ref.name,
+              dbtModelId: '',
+              schemaName: ref.schemaName || '',
+              databaseName: ref.databaseName || '',
+              logicId: '',
+              lineageId: this.#lineage.id,
+              targetOrganizationId: this.#targetOrganizationId,
+              writeToPersistence: false,
+            },
+            {
+              isSystemInternal: this.#isSystemInternal,
+              callerOrganizationId: this.#callerOrganizationId,
+            },
+            this.#dbConnection
+          );
+
+        if (!createMaterializationResult.success)
+          throw new Error(createMaterializationResult.error);
+        if (!createMaterializationResult.value)
+          throw new SyntaxError(`Creation of materialization failed`);
+
+        const materialization = createMaterializationResult.value;
+
+        this.#materializations.push(materialization);
+      })
+    );
+  };
+
   #generateDbtModel = async (
     model: any,
     modelManifest: any,
-    dependentOn: MaterializationDefinition[],
+    manifestDependentOn: MaterializationDefinition[],
     catalogFile: string
   ): Promise<void> => {
     if (!this.#lineage)
@@ -312,7 +367,7 @@ export class CreateLineage
         dbtModelId: model.unique_id,
         sql,
         modelName: model.metadata.name,
-        dependentOn,
+        dependentOn: manifestDependentOn,
         lineageId: lineage.id,
         parsedLogic,
         targetOrganizationId: this.#targetOrganizationId,
@@ -331,6 +386,8 @@ export class CreateLineage
       throw new SyntaxError(`Creation of logic failed`);
 
     const logic = createLogicResult.value;
+
+    await this.#createExternalMaterializations(logic.statementRefs.materializations);
 
     this.#logics.push(logic);
 
@@ -442,17 +499,17 @@ export class CreateLineage
           ...new Set(dbtManifestResources.parent_map[key]),
         ];
 
-        const dependentOn = this.#matDefinitionCatalog.filter((element) =>
-          dependsOn.includes(element.dbtModelId)
+        const manifestDependentOn = this.#matDefinitionCatalog.filter(
+          (element) => dependsOn.includes(element.dbtModelId)
         );
 
-        if (dependsOn.length !== dependentOn.length)
+        if (dependsOn.length !== manifestDependentOn.length)
           throw new RangeError('materialization dependency mismatch');
 
         return this.#generateDbtModel(
           dbtCatalogResources.nodes[key],
           dbtManifestResources.nodes[key],
-          dependentOn,
+          manifestDependentOn,
           catalog
         );
       })
@@ -929,7 +986,10 @@ export class CreateLineage
         !dependencyRef.databaseName ||
         (typeof dependencyRef.databaseName === 'string' &&
         typeof dependency.databaseName === 'string'
-          ? insensitiveEquality(dependencyRef.databaseName, dependency.databaseName)
+          ? insensitiveEquality(
+              dependencyRef.databaseName,
+              dependency.databaseName
+            )
           : dependencyRef.databaseName === dependency.databaseName);
 
       return nameIsEqual && schemaNameIsEqual && databaseNameIsEqual;

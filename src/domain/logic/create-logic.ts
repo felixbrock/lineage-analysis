@@ -108,7 +108,7 @@ export class CreateLogic
         dbtModelId: request.dbtModelId,
         modelName: request.modelName,
         sql: request.sql,
-        dependentOn: request.dependentOn,
+        manifestDependentOn: request.dependentOn,
         parsedLogic: request.parsedLogic,
         lineageId: request.lineageId,
         organizationId,

@@ -24,7 +24,7 @@ export interface LogicPrototype {
   dbtModelId: string;
   modelName: string;
   sql: string;
-  dependentOn: MaterializationDefinition[];
+  manifestDependentOn: MaterializationDefinition[];
   parsedLogic: string;
   lineageId: string;
   catalog: CatalogModelData[];
@@ -1758,7 +1758,7 @@ export class Logic {
       id: prototype.id,
       dbtModelId: prototype.dbtModelId,
       sql: prototype.sql,
-      dependentOn: prototype.dependentOn,
+      dependentOn: prototype.manifestDependentOn,
       parsedLogic: prototype.parsedLogic,
       statementRefs,
       lineageId: prototype.lineageId,
