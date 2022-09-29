@@ -22,7 +22,7 @@ import {
 interface MaterializationPersistence {
   _id: ObjectId;
   materializationType: MaterializationType;
-  modelId: string;
+  relationName: string;
   name: string;
   schemaName: string;
   databaseName: string;
@@ -33,7 +33,7 @@ interface MaterializationPersistence {
 
 interface MaterializationQueryFilter {
   materializationType?: MaterializationType;
-  modelId?: RegExp;
+  relationName?: RegExp;
   name?: RegExp | { [key: string]: RegExp[] };
   schemaName?: RegExp;
   databaseName?: RegExp;
@@ -97,9 +97,9 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
     if (materializationQueryDto.materializationType)
       filter.materializationType = materializationQueryDto.materializationType;
-    if (materializationQueryDto.modelId)
-      filter.modelId = new RegExp(
-        `^${materializationQueryDto.modelId}$`,
+    if (materializationQueryDto.relationName)
+      filter.relationName = new RegExp(
+        `^${materializationQueryDto.relationName}$`,
         'i'
       );
 
@@ -223,7 +223,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
     // eslint-disable-next-line no-underscore-dangle
     id: materialization._id.toHexString(),
     materializationType: materialization.materializationType,
-    modelId: materialization.modelId,
+    relationName: materialization.relationName,
     name: materialization.name,
     schemaName: materialization.schemaName,
     databaseName: materialization.databaseName,
@@ -235,7 +235,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
   #toPersistence = (materialization: Materialization): Document => ({
     _id: ObjectId.createFromHexString(materialization.id),
     materializationType: materialization.materializationType,
-    modelId: materialization.modelId,
+    relationName: materialization.relationName,
     name: materialization.name,
     schemaName: materialization.schemaName,
     databaseName: materialization.databaseName,

@@ -27,7 +27,7 @@ type PersistenceMaterializationDefinition = { [key: string]: string };
 
 interface LogicPersistence {
   _id: ObjectId;
-  modelId: string;
+  relationName: string;
   sql: string;
   dependentOn: PersistenceMaterializationDefinition[];
   parsedLogic: string;
@@ -37,7 +37,7 @@ interface LogicPersistence {
 }
 
 interface LogicQueryFilter {
-  modelId?: RegExp;
+  relationName?: RegExp;
   lineageId: string;
   organizationId: string;
 }
@@ -87,8 +87,8 @@ export default class LogicRepo implements ILogicRepo {
   #buildFilter = (logicQueryDto: LogicQueryDto): LogicQueryFilter => {
     const filter: LogicQueryFilter = { lineageId: logicQueryDto.lineageId, organizationId: logicQueryDto.organizationId };
 
-    if (logicQueryDto.modelId)
-      filter.modelId = new RegExp(`^${logicQueryDto.modelId}$`, 'i');
+    if (logicQueryDto.relationName)
+      filter.relationName = new RegExp(`^${logicQueryDto.relationName}$`, 'i');
 
     return filter;
   };
@@ -210,7 +210,7 @@ export default class LogicRepo implements ILogicRepo {
   #buildMaterializationDefinition = (
     matCatalogElement: PersistenceMaterializationDefinition
   ): MaterializationDefinition => ({
-    modelId: matCatalogElement.modelId,
+    relationName: matCatalogElement.relationName,
     materializationName: matCatalogElement.materializationName,
     schemaName: matCatalogElement.schemaName,
     databaseName: matCatalogElement.databaseName,
@@ -219,7 +219,7 @@ export default class LogicRepo implements ILogicRepo {
   #buildProperties = (logic: LogicPersistence): LogicProperties => ({
     // eslint-disable-next-line no-underscore-dangle
     id: logic._id.toHexString(),
-    modelId: logic.modelId,
+    relationName: logic.relationName,
     sql: logic.sql,
     dependentOn: logic.dependentOn.map((element) =>
       this.#buildMaterializationDefinition(element)
@@ -232,7 +232,7 @@ export default class LogicRepo implements ILogicRepo {
 
   #toPersistence = (logic: Logic): Document => ({
     _id: ObjectId.createFromHexString(logic.id),
-    modelId: logic.modelId,
+    relationName: logic.relationName,
     sql: logic.sql,
     dependentOn: logic.dependentOn,
     parsedLogic: logic.parsedLogic,

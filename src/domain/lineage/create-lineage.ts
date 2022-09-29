@@ -214,7 +214,7 @@ export class CreateLineage
 
   #generateColumn = async (
     columnDefinition: any,
-    modelId: string,
+    relationName: string,
     materializationId: string
   ): Promise<Column> => {
     if (!this.#lineage)
@@ -224,7 +224,7 @@ export class CreateLineage
     // todo - add additional properties like index
     const createColumnResult = await this.#createColumn.execute(
       {
-        modelId,
+        relationName,
         name: columnDefinition.name,
         index: columnDefinition.index,
         type: columnDefinition.type,
@@ -258,7 +258,7 @@ export class CreateLineage
         {
           materializationType: source.metadata.type,
           name: source.metadata.name,
-          modelId: source.relation_name,
+          relationName: source.relation_name,
           schemaName: source.metadata.schema,
           databaseName: source.metadata.database,
           logicId: 'todo - read from snowflake',
@@ -286,7 +286,7 @@ export class CreateLineage
       Object.keys(source.columns).map(async (columnKey) =>
         this.#generateColumn(
           source.columns[columnKey],
-          materialization.modelId,
+          materialization.relationName,
           materialization.id
         )
       )
@@ -313,7 +313,7 @@ export class CreateLineage
 
     const createLogicResult = await this.#createLogic.execute(
       {
-        modelId: model.relation_name,
+        relationName: model.relation_name,
         sql,
         modelName: model.metadata.name,
         dbtDependentOn,
@@ -346,7 +346,7 @@ export class CreateLineage
         {
           materializationType: model.metadata.type,
           name: model.metadata.name,
-          modelId: model.relation_name,
+          relationName: model.relation_name,
           schemaName: model.metadata.schema,
           databaseName: model.metadata.database,
           logicId: logic.id,
@@ -374,7 +374,7 @@ export class CreateLineage
       Object.keys(model.columns).map(async (columnKey) =>
         this.#generateColumn(
           model.columns[columnKey],
-          materialization.modelId,
+          materialization.relationName,
           materialization.id
         )
       )
@@ -411,7 +411,7 @@ export class CreateLineage
       const source = dbtCatalogResources.sources[key];
 
       const matCatalogElement = {
-        modelId: key,
+        relationName: key,
         materializationName: source.metadata.name,
         schemaName: source.metadata.schema,
         databaseName: source.metadata.database,
@@ -434,7 +434,7 @@ export class CreateLineage
       const model = dbtCatalogResources.nodes[key];
 
       const matCatalogElement = {
-        modelId: key,
+        relationName: key,
         materializationName: model.metadata.name,
         schemaName: model.metadata.schema,
         databaseName: model.metadata.database,
@@ -450,7 +450,7 @@ export class CreateLineage
         ];
 
         const dbtDependentOn = this.#matDefinitionCatalog.filter(
-          (element) => dependsOn.includes(element.modelId)
+          (element) => dependsOn.includes(element.relationName)
         );
 
         if (dependsOn.length !== dbtDependentOn.length)
@@ -630,21 +630,21 @@ export class CreateLineage
 
   #buildDashboardRefDependency = async (
     dashboardRef: DashboardRef,
-    modelId: string,
-    parentModelIds: string[]
+    relationName: string,
+    parentRelationNames: string[]
   ): Promise<void> => {
     const lineage = this.#lineage;
     if (!lineage) throw new ReferenceError('Lineage property is undefined');
 
     const lineageId = lineage.id;
-    const modelIdElements = modelId.split('.');
-    if (modelIdElements.length !== 3)
+    const relationNameElements = relationName.split('.');
+    if (relationNameElements.length !== 3)
       throw new RangeError('Unexpected number of dbt model id elements');
 
     const materialization = await this.#materializationRepo.findBy(
       {
         name: dashboardRef.materializationName,
-        modelId: parentModelIds[0],
+        relationName: parentRelationNames[0],
         lineageId,
         organizationId: this.#organizationId,
       },
@@ -717,15 +717,15 @@ export class CreateLineage
   /* Creates dependency for specific wildcard ref */
   #buildWildcardRefDependency = async (
     dependencyRef: ColumnRef,
-    modelId: string,
-    parentModelIds: string[]
+    relationName: string,
+    parentRelationNames: string[]
   ): Promise<void> => {
     const lineage = this.#lineage;
 
     if (!lineage) throw new ReferenceError('Lineage property is undefined');
 
-    const modelIdElements = modelId.split('.');
-    if (modelIdElements.length !== 3)
+    const relationNameElements = relationName.split('.');
+    if (relationNameElements.length !== 3)
       throw new RangeError('Unexpected number of dbt model id elements');
 
     const columnDependencyRefs = await this.#getDependenciesForWildcard(
@@ -748,8 +748,8 @@ export class CreateLineage
           const createDependencyResult = await this.#createDependency.execute(
             {
               dependencyRef: dependency,
-              selfModelId: modelId,
-              parentModelIds,
+              selfRelationName: relationName,
+              parentRelationNames,
               lineageId: lineage.id,
               targetOrganizationId: this.#targetOrganizationId,
               writeToPersistence: false,
@@ -793,22 +793,22 @@ export class CreateLineage
   /* Creates dependency for specific column ref */
   #buildColumnRefDependency = async (
     dependencyRef: ColumnRef,
-    modelId: string,
-    parentModelIds: string[]
+    relationName: string,
+    parentRelationNames: string[]
   ): Promise<void> => {
     const lineage = this.#lineage;
 
     if (!lineage) throw new ReferenceError('Lineage property is undefined');
 
-    const modelIdElements = modelId.split('.');
-    if (modelIdElements.length !== 3)
+    const relationNameElements = relationName.split('.');
+    if (relationNameElements.length !== 3)
       throw new RangeError('Unexpected number of dbt model id elements');
 
     const createDependencyResult = await this.#createDependency.execute(
       {
         dependencyRef,
-        selfModelId: modelId,
-        parentModelIds,
+        selfRelationName: relationName,
+        parentRelationNames,
         lineageId: lineage.id,
         targetOrganizationId: this.#targetOrganizationId,
         writeToPersistence: false,
@@ -851,8 +851,8 @@ export class CreateLineage
           colDataDependencyRefs.map(async (dependencyRef) =>
             this.#buildColumnRefDependency(
               dependencyRef,
-              logic.modelId,
-              logic.dependentOn.map((element) => element.modelId)
+              logic.relationName,
+              logic.dependentOn.map((element) => element.relationName)
             )
           )
         );
@@ -865,8 +865,8 @@ export class CreateLineage
           wildcardDataDependencyRefs.map(async (dependencyRef) =>
             this.#buildWildcardRefDependency(
               dependencyRef,
-              logic.modelId,
-              logic.dependentOn.map((element) => element.modelId)
+              logic.relationName,
+              logic.dependentOn.map((element) => element.relationName)
             )
           )
         );
@@ -902,8 +902,8 @@ export class CreateLineage
             uniqueDashboardRefs.map(async (dashboardRef) =>
               this.#buildDashboardRefDependency(
                 dashboardRef,
-                logic.modelId,
-                logic.dependentOn.map((element) => element.modelId)
+                logic.relationName,
+                logic.dependentOn.map((element) => element.relationName)
               )
             )
           );
@@ -950,11 +950,11 @@ export class CreateLineage
         'Inconsistencies in materialization dependency catalog'
       );
 
-    const { modelId } = catalogMatches[0];
+    const { relationName } = catalogMatches[0];
 
     const readColumnsResult = await this.#readColumns.execute(
       {
-        modelId,
+        relationName,
         lineageId: lineage.id,
         targetOrganizationId: this.#targetOrganizationId,
       },

@@ -5,7 +5,7 @@ import Result from '../value-types/transient-types/result';
 import { IColumnRepo, ColumnQueryDto } from './i-column-repo';
 
 export interface ReadColumnsRequestDto {
-  modelId?: string | string[];
+  relationName?: string | string[];
   name?: string | string[];
   index?: string;
   type?: string;
@@ -85,7 +85,7 @@ export class ReadColumns
       organizationId,
     };
 
-    if (request.modelId) queryDto.modelId = request.modelId;
+    if (request.relationName) queryDto.relationName = request.relationName;
     if (request.name) queryDto.name = request.name;
     if (request.index) queryDto.index = request.index;
     if (request.type) queryDto.type = request.type;

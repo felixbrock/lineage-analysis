@@ -12,8 +12,8 @@ import { DbConnection } from '../services/i-db';
 
 export interface CreateDependencyRequestDto {
   dependencyRef: ColumnRef;
-  selfModelId: string;
-  parentModelIds: string[];
+  selfRelationName: string;
+  parentRelationNames: string[];
   lineageId: string;
   writeToPersistence: boolean;
   targetOrganizationId?: string;
@@ -46,7 +46,7 @@ export class CreateDependency
   /* Returns the object id of the parent column which self column depends upon */
   #getParentId = async (
     dependencyRef: ColumnRef,
-    parentModelIds: string[],
+    parentRelationNames: string[],
     lineageId: string,
     isSystemInternal: boolean,
     targetOrganizationId?: string,
@@ -54,7 +54,7 @@ export class CreateDependency
   ): Promise<string> => {
     const readColumnsResult = await this.#readColumns.execute(
       {
-        modelId: parentModelIds,
+        relationName: parentRelationNames,
         name: dependencyRef.name,
         lineageId,
         targetOrganizationId,
@@ -74,7 +74,7 @@ export class CreateDependency
 
     if (potentialParents.length > 1) {
       potentialParents = potentialParents.filter((parent) =>
-        parent.modelId.includes(dependencyRef.materializationName)
+        parent.relationName.includes(dependencyRef.materializationName)
       );
     }
     if (potentialParents.length !== 1)
@@ -84,7 +84,7 @@ export class CreateDependency
   };
 
   #getSelfColumn = async (
-    selfModelId: string,
+    selfRelationName: string,
     dependencyRef: ColumnRef,
     lineageId: string,
     isSystemInternal: boolean,
@@ -93,7 +93,7 @@ export class CreateDependency
   ): Promise<Column> => {
     const readSelfColumnResult = await this.#readColumns.execute(
       {
-        modelId: selfModelId,
+        relationName: selfRelationName,
         lineageId,
         name: dependencyRef.alias || dependencyRef.name,
         targetOrganizationId,
@@ -160,7 +160,7 @@ export class CreateDependency
       this.#dbConnection = dbConnection;
 
       const headColumn = await this.#getSelfColumn(
-        request.selfModelId,
+        request.selfRelationName,
         request.dependencyRef,
         request.lineageId,
         auth.isSystemInternal,
@@ -175,7 +175,7 @@ export class CreateDependency
 
       const parentId = await this.#getParentId(
         request.dependencyRef,
-        request.parentModelIds,
+        request.parentRelationNames,
         request.lineageId,
         auth.isSystemInternal,
         request.targetOrganizationId,

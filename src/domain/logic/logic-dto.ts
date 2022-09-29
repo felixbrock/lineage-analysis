@@ -2,7 +2,7 @@ import { Logic } from "../entities/logic";
 
 export interface LogicDto {
   id: string;
-  modelId: string;
+  relationName: string;
   sql: string;
   dependentOn: any[];
   parsedLogic: string;
@@ -14,7 +14,7 @@ export interface LogicDto {
 
 export const buildLogicDto = (logic: Logic): LogicDto => ({
   id: logic.id,
-  modelId: logic.modelId,
+  relationName: logic.relationName,
   sql: logic.sql,
   dependentOn: logic.dependentOn,
   parsedLogic: logic.parsedLogic,

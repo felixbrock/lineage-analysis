@@ -5,7 +5,7 @@ import Result from '../value-types/transient-types/result';
 import { ILogicRepo, LogicQueryDto } from './i-logic-repo';
 
 export interface ReadLogicsRequestDto {
-  modelId?: string;
+  relationName?: string;
   lineageId: string;
   targetOrganizationId?: string;
 }
@@ -80,7 +80,7 @@ export class ReadLogics
       organizationId,
     };
 
-    if (request.modelId) queryDto.modelId = request.modelId;
+    if (request.relationName) queryDto.relationName = request.relationName;
 
     return queryDto;
   };

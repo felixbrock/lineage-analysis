@@ -2,7 +2,7 @@ import { DependencyType } from './dependency';
 import SQLElement from '../value-types/sql-element';
 
 export interface MaterializationDefinition {
-  modelId: string;
+  relationName: string;
   materializationName: string;
   schemaName?: string;
   databaseName?: string;
@@ -15,7 +15,7 @@ interface DependentOn {
 
 export interface LogicProperties {
   id: string;
-  modelId: string;
+  relationName: string;
   sql: string;
   dependentOn: DependentOn;
   parsedLogic: string;
@@ -26,7 +26,7 @@ export interface LogicProperties {
 
 export interface LogicPrototype {
   id: string;
-  modelId: string;
+  relationName: string;
   modelName: string;
   sql: string;
   dbtDependentOn: MaterializationDefinition[];
@@ -155,7 +155,7 @@ export interface DashboardRef {
 export class Logic {
   #id: string;
 
-  #modelId: string;
+  #relationName: string;
 
   #sql: string;
 
@@ -173,8 +173,8 @@ export class Logic {
     return this.#id;
   }
 
-  get modelId(): string {
-    return this.#modelId;
+  get relationName(): string {
+    return this.#relationName;
   }
 
   get sql(): string {
@@ -203,7 +203,7 @@ export class Logic {
 
   private constructor(properties: LogicProperties) {
     this.#id = properties.id;
-    this.#modelId = properties.modelId;
+    this.#relationName = properties.relationName;
     this.#sql = properties.sql;
     this.#dependentOn = properties.dependentOn;
     this.#parsedLogic = properties.parsedLogic;
@@ -1752,7 +1752,7 @@ export class Logic {
 
       dependencyDefinitions.filter(
         (el) =>
-          el.modelId ===
+          el.relationName ===
       );
 
       if (matchingMats) return;
@@ -1764,7 +1764,7 @@ export class Logic {
           {
             materializationType: MaterializationType.TABLE,
             name: ref.name,
-            modelId: '',
+            relationName: '',
             schemaName: ref.schemaName || '',
             databaseName: ref.databaseName || '',
             logicId: '',
@@ -1793,8 +1793,8 @@ export class Logic {
 
   static create = (prototype: LogicPrototype): Logic => {
     if (!prototype.id) throw new TypeError('Logic prototype must have id');
-    if (!prototype.modelId)
-      throw new TypeError('Logic prototype must have modelId');
+    if (!prototype.relationName)
+      throw new TypeError('Logic prototype must have relationName');
     if (!prototype.modelName)
       throw new TypeError('Logic prototype must have model name');
     if (!prototype.sql)
@@ -1824,7 +1824,7 @@ export class Logic {
 
     const logic = this.build({
       id: prototype.id,
-      modelId: prototype.modelId,
+      relationName: prototype.relationName,
       sql: prototype.sql,
       dependentOn: prototype.dbtDependentOn,
       parsedLogic: prototype.parsedLogic,
@@ -1838,15 +1838,15 @@ export class Logic {
 
   static build = (properties: LogicProperties): Logic => {
     if (!properties.id) throw new TypeError('Logic must have id');
-    if (!properties.modelId)
-      throw new TypeError('Logic must have modelId');
+    if (!properties.relationName)
+      throw new TypeError('Logic must have relationName');
     if (!properties.parsedLogic)
       throw new TypeError('Logic creation requires parsed SQL logic');
     if (!properties.lineageId) throw new TypeError('Logic must have lineageId');
 
     const logic = new Logic({
       id: properties.id,
-      modelId: properties.modelId,
+      relationName: properties.relationName,
       sql: properties.sql,
       dependentOn: properties.dependentOn,
       parsedLogic: properties.parsedLogic,

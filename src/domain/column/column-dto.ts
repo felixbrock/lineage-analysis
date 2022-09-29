@@ -2,7 +2,7 @@ import { Column } from '../entities/column';
 
 export interface ColumnDto {
   id: string;
-  modelId: string;
+  relationName: string;
   name: string;
   index: string;
   type: string;
@@ -13,7 +13,7 @@ export interface ColumnDto {
 
 export const buildColumnDto = (column: Column): ColumnDto => ({
   id: column.id,
-  modelId: column.modelId,
+  relationName: column.relationName,
   name: column.name,
   index: column.index,
   type: column.type,

@@ -14,7 +14,7 @@ import { Column, ColumnProperties } from '../../domain/entities/column';
 
 interface ColumnPersistence {
   _id: ObjectId;
-  modelId: string;
+  relationName: string;
   name: string;
   index: string;
   type: string;
@@ -24,7 +24,7 @@ interface ColumnPersistence {
 }
 
 interface ColumnQueryFilter {
-  modelId?: RegExp | { [key: string]: RegExp[] };
+  relationName?: RegExp | { [key: string]: RegExp[] };
   name?: RegExp | { [key: string]: RegExp[] };
   index?: string;
   type?: string;
@@ -78,13 +78,13 @@ export default class ColumnRepo implements IColumnRepo {
     const filter: ColumnQueryFilter = { lineageId: columnQueryDto.lineageId, organizationId: columnQueryDto.organizationId };
 
     if (
-      typeof columnQueryDto.modelId === 'string' &&
-      columnQueryDto.modelId
+      typeof columnQueryDto.relationName === 'string' &&
+      columnQueryDto.relationName
     )
-      filter.modelId = new RegExp(`^${columnQueryDto.modelId}$`, 'i');
-    if (columnQueryDto.modelId instanceof Array)
-      filter.modelId = {
-        $in: columnQueryDto.modelId.map(
+      filter.relationName = new RegExp(`^${columnQueryDto.relationName}$`, 'i');
+    if (columnQueryDto.relationName instanceof Array)
+      filter.relationName = {
+        $in: columnQueryDto.relationName.map(
           (element) => new RegExp(`^${element}$`, 'i')
         ),
       };
@@ -197,7 +197,7 @@ export default class ColumnRepo implements IColumnRepo {
   #buildProperties = (column: ColumnPersistence): ColumnProperties => ({
     // eslint-disable-next-line no-underscore-dangle
     id: column._id.toHexString(),
-    modelId: column.modelId,
+    relationName: column.relationName,
     name: column.name,
     index: column.index,
     type: column.type,
@@ -208,7 +208,7 @@ export default class ColumnRepo implements IColumnRepo {
 
   #toPersistence = (column: Column): Document => ({
     _id: ObjectId.createFromHexString(column.id),
-    modelId: column.modelId,
+    relationName: column.relationName,
     name: column.name,
     index: column.index,
     type: column.type,

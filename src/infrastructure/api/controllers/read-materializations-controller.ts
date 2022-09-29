@@ -38,7 +38,7 @@ export default class ReadMaterializationsController extends BaseController {
 
   #buildRequestDto = (httpRequest: Request): ReadMaterializationsRequestDto => {
     const {
-      modelId,
+      relationName,
       materializationType,
       name,
       schemaName,
@@ -73,7 +73,7 @@ export default class ReadMaterializationsController extends BaseController {
       );
 
     return {
-      modelId: typeof modelId === 'string' ? modelId : undefined,
+      relationName: typeof relationName === 'string' ? relationName : undefined,
       materializationType:
         materializationType && isMaterializationType(materializationType)
           ? materializationType

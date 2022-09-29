@@ -11,7 +11,7 @@ import { IMaterializationRepo } from './i-materialization-repo';
 import { DbConnection } from '../services/i-db';
 
 export interface CreateMaterializationRequestDto {
-  modelId: string;
+  relationName: string;
   materializationType: MaterializationType;
   name: string;
   schemaName: string;
@@ -78,7 +78,7 @@ export class CreateMaterialization
 
       const materialization = Materialization.create({
         id: new ObjectId().toHexString(),
-        modelId: request.modelId,
+        relationName: request.relationName,
         materializationType: request.materializationType,
         name: request.name,
         schemaName: request.schemaName,
@@ -91,7 +91,7 @@ export class CreateMaterialization
       const readMaterializationsResult =
         await this.#readMaterializations.execute(
           {
-            modelId: request.modelId,
+            relationName: request.relationName,
             lineageId: request.lineageId,
             targetOrganizationId: request.targetOrganizationId,
           },

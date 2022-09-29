@@ -2,7 +2,7 @@ import { Materialization } from '../entities/materialization';
 
 export interface MaterializationDto {
   id: string;
-  modelId: string;
+  relationName: string;
   materializationType: string;
   name: string;
   schemaName: string;
@@ -16,7 +16,7 @@ export const buildMaterializationDto = (
   materialization: Materialization
 ): MaterializationDto => ({
   id: materialization.id,
-  modelId: materialization.modelId,
+  relationName: materialization.relationName,
   materializationType: materialization.materializationType,
   name: materialization.name,
   schemaName: materialization.schemaName,
