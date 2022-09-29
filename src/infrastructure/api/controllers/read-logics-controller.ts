@@ -32,7 +32,7 @@ export default class ReadLogicsController extends BaseController {
   }
 
   #buildRequestDto = (httpRequest: Request): ReadLogicsRequestDto => {
-    const { dbtModelId, lineageId, targetOrganizationId } = httpRequest.query;
+    const { modelId, lineageId, targetOrganizationId } = httpRequest.query;
 
     if (!lineageId)
       throw new TypeError(
@@ -44,7 +44,7 @@ export default class ReadLogicsController extends BaseController {
       );
 
     return {
-      dbtModelId: typeof dbtModelId === 'string' ? dbtModelId : undefined,
+      modelId: typeof modelId === 'string' ? modelId : undefined,
       lineageId,
       targetOrganizationId: typeof targetOrganizationId === 'string' ? targetOrganizationId : undefined,
     };

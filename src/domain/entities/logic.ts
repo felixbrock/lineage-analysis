@@ -2,7 +2,7 @@ import { DependencyType } from './dependency';
 import SQLElement from '../value-types/sql-element';
 
 export interface MaterializationDefinition {
-  dbtModelId: string;
+  modelId: string;
   materializationName: string;
   schemaName?: string;
   databaseName?: string;
@@ -10,7 +10,7 @@ export interface MaterializationDefinition {
 
 export interface LogicProperties {
   id: string;
-  dbtModelId: string;
+  modelId: string;
   sql: string;
   dependentOn: MaterializationDefinition[];
   parsedLogic: string;
@@ -21,7 +21,7 @@ export interface LogicProperties {
 
 export interface LogicPrototype {
   id: string;
-  dbtModelId: string;
+  modelId: string;
   modelName: string;
   sql: string;
   manifestDependentOn: MaterializationDefinition[];
@@ -150,7 +150,7 @@ export interface DashboardRef {
 export class Logic {
   #id: string;
 
-  #dbtModelId: string;
+  #modelId: string;
 
   #sql: string;
 
@@ -168,8 +168,8 @@ export class Logic {
     return this.#id;
   }
 
-  get dbtModelId(): string {
-    return this.#dbtModelId;
+  get modelId(): string {
+    return this.#modelId;
   }
 
   get sql(): string {
@@ -198,7 +198,7 @@ export class Logic {
 
   private constructor(properties: LogicProperties) {
     this.#id = properties.id;
-    this.#dbtModelId = properties.dbtModelId;
+    this.#modelId = properties.modelId;
     this.#sql = properties.sql;
     this.#dependentOn = properties.dependentOn;
     this.#parsedLogic = properties.parsedLogic;
@@ -1732,8 +1732,8 @@ export class Logic {
 
   static create = (prototype: LogicPrototype): Logic => {
     if (!prototype.id) throw new TypeError('Logic prototype must have id');
-    if (!prototype.dbtModelId)
-      throw new TypeError('Logic prototype must have dbtModelId');
+    if (!prototype.modelId)
+      throw new TypeError('Logic prototype must have modelId');
     if (!prototype.modelName)
       throw new TypeError('Logic prototype must have model name');
     if (!prototype.sql)
@@ -1756,7 +1756,7 @@ export class Logic {
 
     const logic = this.build({
       id: prototype.id,
-      dbtModelId: prototype.dbtModelId,
+      modelId: prototype.modelId,
       sql: prototype.sql,
       dependentOn: prototype.manifestDependentOn,
       parsedLogic: prototype.parsedLogic,
@@ -1770,15 +1770,15 @@ export class Logic {
 
   static build = (properties: LogicProperties): Logic => {
     if (!properties.id) throw new TypeError('Logic must have id');
-    if (!properties.dbtModelId)
-      throw new TypeError('Logic must have dbtModelId');
+    if (!properties.modelId)
+      throw new TypeError('Logic must have modelId');
     if (!properties.parsedLogic)
       throw new TypeError('Logic creation requires parsed SQL logic');
     if (!properties.lineageId) throw new TypeError('Logic must have lineageId');
 
     const logic = new Logic({
       id: properties.id,
-      dbtModelId: properties.dbtModelId,
+      modelId: properties.modelId,
       sql: properties.sql,
       dependentOn: properties.dependentOn,
       parsedLogic: properties.parsedLogic,

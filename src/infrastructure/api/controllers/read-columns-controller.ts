@@ -32,7 +32,7 @@ export default class ReadColumnsController extends BaseController {
   }
 
   #buildRequestDto = (httpRequest: Request): ReadColumnsRequestDto => {
-    const { dbtModelId, name, index, type, materializationId, lineageId, targetOrganizationId } =
+    const { modelId, name, index, type, materializationId, lineageId, targetOrganizationId } =
       httpRequest.query;
 
     if (!lineageId)
@@ -45,7 +45,7 @@ export default class ReadColumnsController extends BaseController {
       );
 
     return {
-      dbtModelId: typeof dbtModelId === 'string' ? dbtModelId : undefined,
+      modelId: typeof modelId === 'string' ? modelId : undefined,
       name: typeof name === 'string' ? name : undefined,
       index: typeof index === 'string' ? index : undefined,
       type: typeof type === 'string' ? type : undefined,

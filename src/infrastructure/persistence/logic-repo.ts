@@ -27,7 +27,7 @@ type PersistenceMaterializationDefinition = { [key: string]: string };
 
 interface LogicPersistence {
   _id: ObjectId;
-  dbtModelId: string;
+  modelId: string;
   sql: string;
   dependentOn: PersistenceMaterializationDefinition[];
   parsedLogic: string;
@@ -37,7 +37,7 @@ interface LogicPersistence {
 }
 
 interface LogicQueryFilter {
-  dbtModelId?: RegExp;
+  modelId?: RegExp;
   lineageId: string;
   organizationId: string;
 }
@@ -87,8 +87,8 @@ export default class LogicRepo implements ILogicRepo {
   #buildFilter = (logicQueryDto: LogicQueryDto): LogicQueryFilter => {
     const filter: LogicQueryFilter = { lineageId: logicQueryDto.lineageId, organizationId: logicQueryDto.organizationId };
 
-    if (logicQueryDto.dbtModelId)
-      filter.dbtModelId = new RegExp(`^${logicQueryDto.dbtModelId}$`, 'i');
+    if (logicQueryDto.modelId)
+      filter.modelId = new RegExp(`^${logicQueryDto.modelId}$`, 'i');
 
     return filter;
   };
@@ -210,7 +210,7 @@ export default class LogicRepo implements ILogicRepo {
   #buildMaterializationDefinition = (
     matCatalogElement: PersistenceMaterializationDefinition
   ): MaterializationDefinition => ({
-    dbtModelId: matCatalogElement.dbtModelId,
+    modelId: matCatalogElement.modelId,
     materializationName: matCatalogElement.materializationName,
     schemaName: matCatalogElement.schemaName,
     databaseName: matCatalogElement.databaseName,
@@ -219,7 +219,7 @@ export default class LogicRepo implements ILogicRepo {
   #buildProperties = (logic: LogicPersistence): LogicProperties => ({
     // eslint-disable-next-line no-underscore-dangle
     id: logic._id.toHexString(),
-    dbtModelId: logic.dbtModelId,
+    modelId: logic.modelId,
     sql: logic.sql,
     dependentOn: logic.dependentOn.map((element) =>
       this.#buildMaterializationDefinition(element)
@@ -232,7 +232,7 @@ export default class LogicRepo implements ILogicRepo {
 
   #toPersistence = (logic: Logic): Document => ({
     _id: ObjectId.createFromHexString(logic.id),
-    dbtModelId: logic.dbtModelId,
+    modelId: logic.modelId,
     sql: logic.sql,
     dependentOn: logic.dependentOn,
     parsedLogic: logic.parsedLogic,

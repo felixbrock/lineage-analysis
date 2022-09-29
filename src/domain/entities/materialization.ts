@@ -5,7 +5,7 @@ export enum MaterializationType {
 
 export interface MaterializationProperties {
   id: string;
-  dbtModelId: string;
+  modelId: string;
   name: string;
   schemaName: string;
   databaseName: string;
@@ -18,7 +18,7 @@ export interface MaterializationProperties {
 export class Materialization {
   #id: string;
 
-  #dbtModelId: string;
+  #modelId: string;
 
   #name: string;
 
@@ -38,8 +38,8 @@ export class Materialization {
     return this.#id;
   }
 
-  get dbtModelId(): string {
-    return this.#dbtModelId;
+  get modelId(): string {
+    return this.#modelId;
   }
 
   get name(): string {
@@ -72,7 +72,7 @@ export class Materialization {
 
   private constructor(properties: MaterializationProperties) {
     this.#id = properties.id;
-    this.#dbtModelId = properties.dbtModelId;
+    this.#modelId = properties.modelId;
     this.#name = properties.name;
     this.#schemaName = properties.schemaName;
     this.#databaseName = properties.databaseName;
@@ -84,8 +84,8 @@ export class Materialization {
 
   static create = (properties: MaterializationProperties): Materialization => {
     if (!properties.id) throw new TypeError('Materialization must have id');
-    if (!properties.dbtModelId)
-      throw new TypeError('Materialization must have dbtModelId');
+    if (!properties.modelId)
+      throw new TypeError('Materialization must have modelId');
     if (!properties.name) throw new TypeError('Materialization must have name');
     if (!properties.schemaName)
       throw new TypeError('Materialization must have schema name');

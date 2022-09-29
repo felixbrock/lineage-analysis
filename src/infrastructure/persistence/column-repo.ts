@@ -14,7 +14,7 @@ import { Column, ColumnProperties } from '../../domain/entities/column';
 
 interface ColumnPersistence {
   _id: ObjectId;
-  dbtModelId: string;
+  modelId: string;
   name: string;
   index: string;
   type: string;
@@ -24,7 +24,7 @@ interface ColumnPersistence {
 }
 
 interface ColumnQueryFilter {
-  dbtModelId?: RegExp | { [key: string]: RegExp[] };
+  modelId?: RegExp | { [key: string]: RegExp[] };
   name?: RegExp | { [key: string]: RegExp[] };
   index?: string;
   type?: string;
@@ -78,13 +78,13 @@ export default class ColumnRepo implements IColumnRepo {
     const filter: ColumnQueryFilter = { lineageId: columnQueryDto.lineageId, organizationId: columnQueryDto.organizationId };
 
     if (
-      typeof columnQueryDto.dbtModelId === 'string' &&
-      columnQueryDto.dbtModelId
+      typeof columnQueryDto.modelId === 'string' &&
+      columnQueryDto.modelId
     )
-      filter.dbtModelId = new RegExp(`^${columnQueryDto.dbtModelId}$`, 'i');
-    if (columnQueryDto.dbtModelId instanceof Array)
-      filter.dbtModelId = {
-        $in: columnQueryDto.dbtModelId.map(
+      filter.modelId = new RegExp(`^${columnQueryDto.modelId}$`, 'i');
+    if (columnQueryDto.modelId instanceof Array)
+      filter.modelId = {
+        $in: columnQueryDto.modelId.map(
           (element) => new RegExp(`^${element}$`, 'i')
         ),
       };
@@ -197,7 +197,7 @@ export default class ColumnRepo implements IColumnRepo {
   #buildProperties = (column: ColumnPersistence): ColumnProperties => ({
     // eslint-disable-next-line no-underscore-dangle
     id: column._id.toHexString(),
-    dbtModelId: column.dbtModelId,
+    modelId: column.modelId,
     name: column.name,
     index: column.index,
     type: column.type,
@@ -208,7 +208,7 @@ export default class ColumnRepo implements IColumnRepo {
 
   #toPersistence = (column: Column): Document => ({
     _id: ObjectId.createFromHexString(column.id),
-    dbtModelId: column.dbtModelId,
+    modelId: column.modelId,
     name: column.name,
     index: column.index,
     type: column.type,

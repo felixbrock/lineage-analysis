@@ -22,7 +22,7 @@ import {
 interface MaterializationPersistence {
   _id: ObjectId;
   materializationType: MaterializationType;
-  dbtModelId: string;
+  modelId: string;
   name: string;
   schemaName: string;
   databaseName: string;
@@ -33,7 +33,7 @@ interface MaterializationPersistence {
 
 interface MaterializationQueryFilter {
   materializationType?: MaterializationType;
-  dbtModelId?: RegExp;
+  modelId?: RegExp;
   name?: RegExp | { [key: string]: RegExp[] };
   schemaName?: RegExp;
   databaseName?: RegExp;
@@ -97,9 +97,9 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
     if (materializationQueryDto.materializationType)
       filter.materializationType = materializationQueryDto.materializationType;
-    if (materializationQueryDto.dbtModelId)
-      filter.dbtModelId = new RegExp(
-        `^${materializationQueryDto.dbtModelId}$`,
+    if (materializationQueryDto.modelId)
+      filter.modelId = new RegExp(
+        `^${materializationQueryDto.modelId}$`,
         'i'
       );
 
@@ -223,7 +223,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
     // eslint-disable-next-line no-underscore-dangle
     id: materialization._id.toHexString(),
     materializationType: materialization.materializationType,
-    dbtModelId: materialization.dbtModelId,
+    modelId: materialization.modelId,
     name: materialization.name,
     schemaName: materialization.schemaName,
     databaseName: materialization.databaseName,
@@ -235,7 +235,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
   #toPersistence = (materialization: Materialization): Document => ({
     _id: ObjectId.createFromHexString(materialization.id),
     materializationType: materialization.materializationType,
-    dbtModelId: materialization.dbtModelId,
+    modelId: materialization.modelId,
     name: materialization.name,
     schemaName: materialization.schemaName,
     databaseName: materialization.databaseName,

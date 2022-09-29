@@ -2,7 +2,7 @@ import { Logic } from '../entities/logic';
 import { DbConnection } from '../services/i-db';
 
 export interface LogicQueryDto {
-  dbtModelId?: string;
+  modelId?: string;
   lineageId: string;
   organizationId: string;
 }

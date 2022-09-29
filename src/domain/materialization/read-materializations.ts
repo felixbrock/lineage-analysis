@@ -11,7 +11,7 @@ import {
 } from './i-materialization-repo';
 
 export interface ReadMaterializationsRequestDto {
-  dbtModelId?: string;
+  modelId?: string;
   materializationType?: MaterializationType;
   name?: string | string[];
   schemaName?: string;
@@ -93,7 +93,7 @@ export class ReadMaterializations
       organizationId,
     };
 
-    if (request.dbtModelId) queryDto.dbtModelId = request.dbtModelId;
+    if (request.modelId) queryDto.modelId = request.modelId;
     if (request.name) queryDto.name = request.name;
     if (request.logicId) queryDto.logicId = request.logicId;
 

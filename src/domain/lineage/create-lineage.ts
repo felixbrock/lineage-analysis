@@ -214,7 +214,7 @@ export class CreateLineage
 
   #generateColumn = async (
     columnDefinition: any,
-    dbtModelId: string,
+    modelId: string,
     materializationId: string
   ): Promise<Column> => {
     if (!this.#lineage)
@@ -224,7 +224,7 @@ export class CreateLineage
     // todo - add additional properties like index
     const createColumnResult = await this.#createColumn.execute(
       {
-        dbtModelId,
+        modelId,
         name: columnDefinition.name,
         index: columnDefinition.index,
         type: columnDefinition.type,
@@ -258,7 +258,7 @@ export class CreateLineage
         {
           materializationType: source.metadata.type,
           name: source.metadata.name,
-          dbtModelId: source.unique_id,
+          modelId: source.unique_id,
           schemaName: source.metadata.schema,
           databaseName: source.metadata.database,
           logicId: 'todo - read from snowflake',
@@ -286,7 +286,7 @@ export class CreateLineage
       Object.keys(source.columns).map(async (columnKey) =>
         this.#generateColumn(
           source.columns[columnKey],
-          materialization.dbtModelId,
+          materialization.modelId,
           materialization.id
         )
       )
@@ -321,7 +321,7 @@ export class CreateLineage
             {
               materializationType: MaterializationType.TABLE,
               name: ref.name,
-              dbtModelId: '',
+              modelId: '',
               schemaName: ref.schemaName || '',
               databaseName: ref.databaseName || '',
               logicId: '',
@@ -364,7 +364,7 @@ export class CreateLineage
 
     const createLogicResult = await this.#createLogic.execute(
       {
-        dbtModelId: model.unique_id,
+        modelId: model.unique_id,
         sql,
         modelName: model.metadata.name,
         dependentOn: manifestDependentOn,
@@ -396,7 +396,7 @@ export class CreateLineage
         {
           materializationType: model.metadata.type,
           name: model.metadata.name,
-          dbtModelId: model.unique_id,
+          modelId: model.unique_id,
           schemaName: model.metadata.schema,
           databaseName: model.metadata.database,
           logicId: logic.id,
@@ -424,7 +424,7 @@ export class CreateLineage
       Object.keys(model.columns).map(async (columnKey) =>
         this.#generateColumn(
           model.columns[columnKey],
-          materialization.dbtModelId,
+          materialization.modelId,
           materialization.id
         )
       )
@@ -461,7 +461,7 @@ export class CreateLineage
       const source = dbtCatalogResources.sources[key];
 
       const matCatalogElement = {
-        dbtModelId: key,
+        modelId: key,
         materializationName: source.metadata.name,
         schemaName: source.metadata.schema,
         databaseName: source.metadata.database,
@@ -484,7 +484,7 @@ export class CreateLineage
       const model = dbtCatalogResources.nodes[key];
 
       const matCatalogElement = {
-        dbtModelId: key,
+        modelId: key,
         materializationName: model.metadata.name,
         schemaName: model.metadata.schema,
         databaseName: model.metadata.database,
@@ -500,7 +500,7 @@ export class CreateLineage
         ];
 
         const manifestDependentOn = this.#matDefinitionCatalog.filter(
-          (element) => dependsOn.includes(element.dbtModelId)
+          (element) => dependsOn.includes(element.modelId)
         );
 
         if (dependsOn.length !== manifestDependentOn.length)
@@ -680,21 +680,21 @@ export class CreateLineage
 
   #buildDashboardRefDependency = async (
     dashboardRef: DashboardRef,
-    dbtModelId: string,
-    parentDbtModelIds: string[]
+    modelId: string,
+    parentModelIds: string[]
   ): Promise<void> => {
     const lineage = this.#lineage;
     if (!lineage) throw new ReferenceError('Lineage property is undefined');
 
     const lineageId = lineage.id;
-    const dbtModelIdElements = dbtModelId.split('.');
-    if (dbtModelIdElements.length !== 3)
+    const modelIdElements = modelId.split('.');
+    if (modelIdElements.length !== 3)
       throw new RangeError('Unexpected number of dbt model id elements');
 
     const materialization = await this.#materializationRepo.findBy(
       {
         name: dashboardRef.materializationName,
-        dbtModelId: parentDbtModelIds[0],
+        modelId: parentModelIds[0],
         lineageId,
         organizationId: this.#organizationId,
       },
@@ -767,15 +767,15 @@ export class CreateLineage
   /* Creates dependency for specific wildcard ref */
   #buildWildcardRefDependency = async (
     dependencyRef: ColumnRef,
-    dbtModelId: string,
-    parentDbtModelIds: string[]
+    modelId: string,
+    parentModelIds: string[]
   ): Promise<void> => {
     const lineage = this.#lineage;
 
     if (!lineage) throw new ReferenceError('Lineage property is undefined');
 
-    const dbtModelIdElements = dbtModelId.split('.');
-    if (dbtModelIdElements.length !== 3)
+    const modelIdElements = modelId.split('.');
+    if (modelIdElements.length !== 3)
       throw new RangeError('Unexpected number of dbt model id elements');
 
     const columnDependencyRefs = await this.#getDependenciesForWildcard(
@@ -798,8 +798,8 @@ export class CreateLineage
           const createDependencyResult = await this.#createDependency.execute(
             {
               dependencyRef: dependency,
-              selfDbtModelId: dbtModelId,
-              parentDbtModelIds,
+              selfModelId: modelId,
+              parentModelIds,
               lineageId: lineage.id,
               targetOrganizationId: this.#targetOrganizationId,
               writeToPersistence: false,
@@ -843,22 +843,22 @@ export class CreateLineage
   /* Creates dependency for specific column ref */
   #buildColumnRefDependency = async (
     dependencyRef: ColumnRef,
-    dbtModelId: string,
-    parentDbtModelIds: string[]
+    modelId: string,
+    parentModelIds: string[]
   ): Promise<void> => {
     const lineage = this.#lineage;
 
     if (!lineage) throw new ReferenceError('Lineage property is undefined');
 
-    const dbtModelIdElements = dbtModelId.split('.');
-    if (dbtModelIdElements.length !== 3)
+    const modelIdElements = modelId.split('.');
+    if (modelIdElements.length !== 3)
       throw new RangeError('Unexpected number of dbt model id elements');
 
     const createDependencyResult = await this.#createDependency.execute(
       {
         dependencyRef,
-        selfDbtModelId: dbtModelId,
-        parentDbtModelIds,
+        selfModelId: modelId,
+        parentModelIds,
         lineageId: lineage.id,
         targetOrganizationId: this.#targetOrganizationId,
         writeToPersistence: false,
@@ -901,8 +901,8 @@ export class CreateLineage
           colDataDependencyRefs.map(async (dependencyRef) =>
             this.#buildColumnRefDependency(
               dependencyRef,
-              logic.dbtModelId,
-              logic.dependentOn.map((element) => element.dbtModelId)
+              logic.modelId,
+              logic.dependentOn.map((element) => element.modelId)
             )
           )
         );
@@ -915,8 +915,8 @@ export class CreateLineage
           wildcardDataDependencyRefs.map(async (dependencyRef) =>
             this.#buildWildcardRefDependency(
               dependencyRef,
-              logic.dbtModelId,
-              logic.dependentOn.map((element) => element.dbtModelId)
+              logic.modelId,
+              logic.dependentOn.map((element) => element.modelId)
             )
           )
         );
@@ -952,8 +952,8 @@ export class CreateLineage
             uniqueDashboardRefs.map(async (dashboardRef) =>
               this.#buildDashboardRefDependency(
                 dashboardRef,
-                logic.dbtModelId,
-                logic.dependentOn.map((element) => element.dbtModelId)
+                logic.modelId,
+                logic.dependentOn.map((element) => element.modelId)
               )
             )
           );
@@ -1000,11 +1000,11 @@ export class CreateLineage
         'Inconsistencies in materialization dependency catalog'
       );
 
-    const { dbtModelId } = catalogMatches[0];
+    const { modelId } = catalogMatches[0];
 
     const readColumnsResult = await this.#readColumns.execute(
       {
-        dbtModelId,
+        modelId,
         lineageId: lineage.id,
         targetOrganizationId: this.#targetOrganizationId,
       },

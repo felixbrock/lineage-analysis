@@ -2,7 +2,7 @@ import { MaterializationType, Materialization } from '../entities/materializatio
 import { DbConnection } from '../services/i-db';
 
 export interface MaterializationQueryDto {
-  dbtModelId?: string;
+  modelId?: string;
   materializationType?: MaterializationType;
   name?: string | string[];
   schemaName?: string;

@@ -12,7 +12,7 @@ import { ReadLogics } from './read-logics';
 import { DbConnection } from '../services/i-db';
 
 export interface CreateLogicRequestDto {
-  dbtModelId: string;
+  modelId: string;
   modelName: string;
   sql: string;
   dependentOn: MaterializationDefinition[];
@@ -105,7 +105,7 @@ export class CreateLogic
 
       const logic = Logic.create({
         id: new ObjectId().toHexString(),
-        dbtModelId: request.dbtModelId,
+        modelId: request.modelId,
         modelName: request.modelName,
         sql: request.sql,
         manifestDependentOn: request.dependentOn,
@@ -117,7 +117,7 @@ export class CreateLogic
 
       const readLogicsResult = await this.#readLogics.execute(
         {
-          dbtModelId: request.dbtModelId,
+          modelId: request.modelId,
           lineageId: request.lineageId,
           targetOrganizationId: request.targetOrganizationId,
         },

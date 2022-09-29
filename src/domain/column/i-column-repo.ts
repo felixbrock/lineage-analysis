@@ -2,7 +2,7 @@ import { Column } from '../entities/column';
 import { DbConnection } from '../services/i-db';
 
 export interface ColumnQueryDto {
-  dbtModelId?: string | string[];
+  modelId?: string | string[];
   name?: string | string[];
   index?: string;
   type?: string;

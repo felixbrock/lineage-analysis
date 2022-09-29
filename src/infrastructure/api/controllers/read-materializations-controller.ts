@@ -38,7 +38,7 @@ export default class ReadMaterializationsController extends BaseController {
 
   #buildRequestDto = (httpRequest: Request): ReadMaterializationsRequestDto => {
     const {
-      dbtModelId,
+      modelId,
       materializationType,
       name,
       schemaName,
@@ -73,7 +73,7 @@ export default class ReadMaterializationsController extends BaseController {
       );
 
     return {
-      dbtModelId: typeof dbtModelId === 'string' ? dbtModelId : undefined,
+      modelId: typeof modelId === 'string' ? modelId : undefined,
       materializationType:
         materializationType && isMaterializationType(materializationType)
           ? materializationType
