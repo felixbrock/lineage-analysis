@@ -9,8 +9,8 @@ export interface MaterializationDefinition {
 }
 
 interface DependentOn {
-  dbtDependencyDefinitions: MaterializationDefinition[]
-  dwDependencyDefinitions : MaterializationDefinition[]
+  dbtDependencyDefinitions: MaterializationDefinition[];
+  dwDependencyDefinitions: MaterializationDefinition[];
 }
 
 export interface LogicProperties {
@@ -1735,61 +1735,54 @@ export class Logic {
     return this.#buildStatementRefs(statementRefsPrototype, modelName, catalog);
   };
 
-/* Materializations that are referenced in SQL models, but are neither defined as node or source objects in manifest.json */
-#createExternalMaterializations = async (
-  materializationRefs: MaterializationRef[],
-  dependencyDefinitions: MaterializationDefinition[]
-): Promise<void> => {
-  await Promise.all(
-    materializationRefs.map(async (ref: MaterializationRef) => {
-      if(!ref.databaseName || !ref.schemaName )
-{      console.warn(`Mat (name: ${ref.name}, alias: ${ref.alias}) is missing one of the following: ${`databaseName: ${ref.databaseName} schemaName: ${ref.schemaName}`}`)
+  /* Retrieving relation names for external non-dbt mats that are referenced by sql model logic */
+  static #getDwDependencyDefinitions = (
+    materializationRefs: MaterializationRef[],
+    dependencyDefinitions: MaterializationDefinition[]
+  ): MaterializationDefinition[] => {
+    const isDefinition = (
+      definition: any
+    ): definition is MaterializationDefinition => definition.relationName;
 
-        return;}
+    const mappingResults = materializationRefs
+      .map((ref: MaterializationRef): MaterializationDefinition | undefined => {
+        if (!ref.databaseName) {
+          console.warn(
+            `Mat (name: ${ref.name}, alias: ${ref.alias}, schemaName: ${ref.schemaName}) is missing databaseName`
+          );
 
-      depe
+          return undefined;
+        }
 
+        if (!ref.schemaName) {
+          console.warn(
+            `Mat (name: ${ref.name}, alias: ${ref.alias}, databaseName: ${ref.databaseName}) is missing schemaName`
+          );
+          return undefined;
+        }
 
-      dependencyDefinitions.filter(
-        (el) =>
-          el.relationName ===
-      );
+        const potentiallyMissingRelationName = `${ref.databaseName}.${ref.schemaName}.${ref.name}`;
 
-      if (matchingMats) return;
-
-      if(!this.#lineage) throw new Error('Lineage object not available');
-
-      const createMaterializationResult =
-        await this.#createMaterialization.execute(
-          {
-            materializationType: MaterializationType.TABLE,
-            name: ref.name,
-            relationName: '',
-            schemaName: ref.schemaName || '',
-            databaseName: ref.databaseName || '',
-            logicId: '',
-            lineageId: this.#lineage.id,
-            targetOrganizationId: this.#targetOrganizationId,
-            writeToPersistence: false,
-          },
-          {
-            isSystemInternal: this.#isSystemInternal,
-            callerOrganizationId: this.#callerOrganizationId,
-          },
-          this.#dbConnection
+        const matchingDefinitions = dependencyDefinitions.filter((el) =>
+          this.#insensitiveEquality(
+            el.relationName.replace(/"/g, ''),
+            potentiallyMissingRelationName
+          )
         );
 
-      if (!createMaterializationResult.success)
-        throw new Error(createMaterializationResult.error);
-      if (!createMaterializationResult.value)
-        throw new SyntaxError(`Creation of materialization failed`);
+        if (matchingDefinitions) return undefined; 
 
-      const materialization = createMaterializationResult.value;
+        return {
+          relationName: potentiallyMissingRelationName,
+          materializationName: ref.name,
+          schemaName: ref.schemaName,
+          databaseName: ref.databaseName,
+        };
+      })
+      .filter(isDefinition);
 
-      this.#materializations.push(materialization);
-    })
-  );
-};
+    return mappingResults;
+  };
 
   static create = (prototype: LogicPrototype): Logic => {
     if (!prototype.id) throw new TypeError('Logic prototype must have id');
@@ -1815,18 +1808,18 @@ export class Logic {
       prototype.catalog
     );
 
-    const dwDependencyDefinitions = 
+    const dwDependencyDefinitions = this.#getDwDependencyDefinitions(statementRefs.materializations, prototype.dbtDependentOn);
 
     const dependentOn: DependentOn = {
       dbtDependencyDefinitions: prototype.dbtDependentOn,
-      dwDependencyDefinitions
-    }
+      dwDependencyDefinitions,
+    };
 
     const logic = this.build({
       id: prototype.id,
       relationName: prototype.relationName,
       sql: prototype.sql,
-      dependentOn: prototype.dbtDependentOn,
+      dependentOn,
       parsedLogic: prototype.parsedLogic,
       statementRefs,
       lineageId: prototype.lineageId,
@@ -1857,4 +1850,7 @@ export class Logic {
 
     return logic;
   };
+
+  static #insensitiveEquality = (str1: string, str2: string): boolean =>
+    str1.toLowerCase() === str2.toLowerCase();
 }

@@ -1,10 +1,13 @@
-import { Logic } from "../entities/logic";
+import { Logic } from '../entities/logic';
 
 export interface LogicDto {
   id: string;
   relationName: string;
   sql: string;
-  dependentOn: any[];
+  dependentOn: {
+    dbtDependencyDefinitions: any[];
+    dwDependencyDefinitions: any[];
+  };
   parsedLogic: string;
   // todo - Should be turned into a value-type and returned as a dto?
   statementRefs: any;
@@ -20,5 +23,5 @@ export const buildLogicDto = (logic: Logic): LogicDto => ({
   parsedLogic: logic.parsedLogic,
   statementRefs: logic.statementRefs,
   lineageId: logic.lineageId,
-  organizationId: logic.organizationId
+  organizationId: logic.organizationId,
 });

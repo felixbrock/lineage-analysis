@@ -22,7 +22,10 @@ import {
 } from '../dependency/create-dependency';
 import { Dependency, DependencyType } from '../entities/dependency';
 import { ReadColumns } from '../column/read-columns';
-import { Materialization, MaterializationType } from '../entities/materialization';
+import {
+  Materialization,
+  MaterializationType,
+} from '../entities/materialization';
 import { Column } from '../entities/column';
 import { ILineageRepo } from './i-lineage-repo';
 import { IColumnRepo } from '../column/i-column-repo';
@@ -63,9 +66,6 @@ interface DbtResources {
 
   parent_map: { [key: string]: string[] };
 }
-
-const insensitiveEquality = (str1: string, str2: string): boolean =>
-  str1.toLowerCase() === str2.toLowerCase();
 
 export class CreateLineage
   implements
@@ -213,7 +213,7 @@ export class CreateLineage
   };
 
   #generateColumn = async (
-    columnDefinition: any,
+    columnDefinition: { name: string; index: string; type: string },
     relationName: string,
     materializationId: string
   ): Promise<Column> => {
@@ -295,7 +295,82 @@ export class CreateLineage
     this.#columns.push(...columns);
   };
 
-  
+  /* Create materializations and columns that are referenced in SQL models, but are neither defined as node or source objects in manifest.json */
+  #createExternalResources = async (
+    statementRefs: Refs,
+    dwMatDefinitions: MaterializationDefinition[]
+  ): Promise<void> => {
+    await Promise.all(
+      dwMatDefinitions.map(async (def) => {
+        const matchingMaterializations = statementRefs.materializations.filter(
+          (el) =>
+            (typeof def.databaseName === 'string' &&
+            typeof el.databaseName === 'string'
+              ? this.#insensitiveEquality(el.databaseName, def.databaseName)
+              : def.databaseName === el.databaseName) &&
+            (typeof def.schemaName === 'string' &&
+            typeof el.schemaName === 'string'
+              ? this.#insensitiveEquality(el.schemaName, def.schemaName)
+              : def.schemaName === el.schemaName) &&
+            this.#insensitiveEquality(el.name, def.materializationName)
+        );
+
+        matchingMaterializations.map(async (mat: MaterializationRef) => {
+          if (!this.#lineage) throw new Error('Lineage object not available');
+
+          const createMaterializationResult =
+            await this.#createMaterialization.execute(
+              {
+                materializationType: MaterializationType.TABLE,
+                name: mat.name,
+                relationName: def.relationName,
+                schemaName: mat.schemaName || '',
+                databaseName: mat.databaseName || '',
+                logicId: 'todo - read from snowflake',
+                lineageId: this.#lineage.id,
+                targetOrganizationId: this.#targetOrganizationId,
+                writeToPersistence: false,
+              },
+              {
+                isSystemInternal: this.#isSystemInternal,
+                callerOrganizationId: this.#callerOrganizationId,
+              },
+              this.#dbConnection
+            );
+
+          if (!createMaterializationResult.success)
+            throw new Error(createMaterializationResult.error);
+          if (!createMaterializationResult.value)
+            throw new SyntaxError(`Creation of materialization failed`);
+
+          const materialization = createMaterializationResult.value;
+
+          this.#materializations.push(materialization);
+
+          const relevantColumnRefs = statementRefs.columns.filter((col) =>
+            this.#insensitiveEquality(
+              materialization.name,
+              col.materializationName
+            )
+          );
+
+          const columns = await Promise.all(
+            relevantColumnRefs.map(async el =>
+              this.#generateColumn(
+                {name: el.name, index: '-1', type: 'todo' },
+                materialization.relationName,
+                materialization.id
+              )
+            )
+          );
+
+          this.#columns.push(...columns);
+
+          // wildcards;
+        });
+      })
+    );
+  };
 
   #generateDbtModel = async (
     model: any,
@@ -336,10 +411,12 @@ export class CreateLineage
 
     const logic = createLogicResult.value;
 
-    sdfsefs
-    await this.#createExternalMaterializations(logic.statementRefs.materializations);
-
     this.#logics.push(logic);
+
+    await this.#createExternalResources(
+      logic.statementRefs,
+      logic.dependentOn.dwDependencyDefinitions
+    );
 
     const createMaterializationResult =
       await this.#createMaterialization.execute(
@@ -449,8 +526,8 @@ export class CreateLineage
           ...new Set(dbtManifestResources.parent_map[key]),
         ];
 
-        const dbtDependentOn = this.#matDefinitionCatalog.filter(
-          (element) => dependsOn.includes(element.relationName)
+        const dbtDependentOn = this.#matDefinitionCatalog.filter((element) =>
+          dependsOn.includes(element.relationName)
         );
 
         if (dependsOn.length !== dbtDependentOn.length)
@@ -599,9 +676,9 @@ export class CreateLineage
         index ===
         self.findIndex(
           (ref) =>
-            insensitiveEquality(ref.name, value.name) &&
-            insensitiveEquality(ref.context.path, value.context.path) &&
-            insensitiveEquality(
+            this.#insensitiveEquality(ref.name, value.name) &&
+            this.#insensitiveEquality(ref.context.path, value.context.path) &&
+            this.#insensitiveEquality(
               ref.materializationName,
               value.materializationName
             )
@@ -852,7 +929,7 @@ export class CreateLineage
             this.#buildColumnRefDependency(
               dependencyRef,
               logic.relationName,
-              logic.dependentOn.map((element) => element.relationName)
+              logic.dependentOn.dbtDependencyDefinitions.map((element) => element.relationName)
             )
           )
         );
@@ -866,7 +943,7 @@ export class CreateLineage
             this.#buildWildcardRefDependency(
               dependencyRef,
               logic.relationName,
-              logic.dependentOn.map((element) => element.relationName)
+              logic.dependentOn.dbtDependencyDefinitions.map((element) => element.relationName)
             )
           )
         );
@@ -885,13 +962,13 @@ export class CreateLineage
               self.findIndex((dashboard) =>
                 typeof dashboard.name === 'string' &&
                 typeof value.name === 'string'
-                  ? insensitiveEquality(dashboard.name, value.name)
+                  ? this.#insensitiveEquality(dashboard.name, value.name)
                   : dashboard.name === value.name &&
-                    insensitiveEquality(
+                    this.#insensitiveEquality(
                       dashboard.columnName,
                       value.columnName
                     ) &&
-                    insensitiveEquality(
+                    this.#insensitiveEquality(
                       dashboard.materializationName,
                       value.materializationName
                     )
@@ -903,7 +980,7 @@ export class CreateLineage
               this.#buildDashboardRefDependency(
                 dashboardRef,
                 logic.relationName,
-                logic.dependentOn.map((element) => element.relationName)
+                logic.dependentOn.dbtDependencyDefinitions.map((element) => element.relationName)
               )
             )
           );
@@ -920,7 +997,7 @@ export class CreateLineage
     if (!lineage) throw new ReferenceError('Lineage property is undefined');
 
     const catalogMatches = this.#matDefinitionCatalog.filter((dependency) => {
-      const nameIsEqual = insensitiveEquality(
+      const nameIsEqual = this.#insensitiveEquality(
         dependencyRef.materializationName,
         dependency.materializationName
       );
@@ -929,14 +1006,17 @@ export class CreateLineage
         !dependencyRef.schemaName ||
         (typeof dependencyRef.schemaName === 'string' &&
         typeof dependency.schemaName === 'string'
-          ? insensitiveEquality(dependencyRef.schemaName, dependency.schemaName)
+          ? this.#insensitiveEquality(
+              dependencyRef.schemaName,
+              dependency.schemaName
+            )
           : dependencyRef.schemaName === dependency.schemaName);
 
       const databaseNameIsEqual =
         !dependencyRef.databaseName ||
         (typeof dependencyRef.databaseName === 'string' &&
         typeof dependency.databaseName === 'string'
-          ? insensitiveEquality(
+          ? this.#insensitiveEquality(
               dependencyRef.databaseName,
               dependency.databaseName
             )
@@ -1091,4 +1171,7 @@ export class CreateLineage
       return Result.fail('');
     }
   }
+
+  #insensitiveEquality = (str1: string, str2: string): boolean =>
+    str1.toLowerCase() === str2.toLowerCase();
 }
