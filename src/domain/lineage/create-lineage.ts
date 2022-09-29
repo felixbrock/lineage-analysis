@@ -258,7 +258,7 @@ export class CreateLineage
         {
           materializationType: source.metadata.type,
           name: source.metadata.name,
-          modelId: source.unique_id,
+          modelId: source.relation_name,
           schemaName: source.metadata.schema,
           databaseName: source.metadata.database,
           logicId: 'todo - read from snowflake',
@@ -295,63 +295,12 @@ export class CreateLineage
     this.#columns.push(...columns);
   };
 
-  /* Materializations that are referenced in SQL models, but are neither defined as node or source objects in manifest.json */
-  #createExternalMaterializations = async (
-    materializationRefs: MaterializationRef[]
-  ): Promise<void> => {
-    await Promise.all(
-      materializationRefs.map(async (ref: MaterializationRef) => {
-        const matchingMats = this.#materializations.filter(
-          (el) =>
-            (ref.databaseName
-              ? insensitiveEquality(el.databaseName, ref.databaseName)
-              : true) &&
-            (ref.schemaName
-              ? insensitiveEquality(el.schemaName, ref.schemaName)
-              : true) &&
-            insensitiveEquality(el.name, ref.name)
-        );
-
-        if (matchingMats) return;
-
-        if(!this.#lineage) throw new Error('Lineage object not available');
-
-        const createMaterializationResult =
-          await this.#createMaterialization.execute(
-            {
-              materializationType: MaterializationType.TABLE,
-              name: ref.name,
-              modelId: '',
-              schemaName: ref.schemaName || '',
-              databaseName: ref.databaseName || '',
-              logicId: '',
-              lineageId: this.#lineage.id,
-              targetOrganizationId: this.#targetOrganizationId,
-              writeToPersistence: false,
-            },
-            {
-              isSystemInternal: this.#isSystemInternal,
-              callerOrganizationId: this.#callerOrganizationId,
-            },
-            this.#dbConnection
-          );
-
-        if (!createMaterializationResult.success)
-          throw new Error(createMaterializationResult.error);
-        if (!createMaterializationResult.value)
-          throw new SyntaxError(`Creation of materialization failed`);
-
-        const materialization = createMaterializationResult.value;
-
-        this.#materializations.push(materialization);
-      })
-    );
-  };
+  
 
   #generateDbtModel = async (
     model: any,
     modelManifest: any,
-    manifestDependentOn: MaterializationDefinition[],
+    dbtDependentOn: MaterializationDefinition[],
     catalogFile: string
   ): Promise<void> => {
     if (!this.#lineage)
@@ -364,10 +313,10 @@ export class CreateLineage
 
     const createLogicResult = await this.#createLogic.execute(
       {
-        modelId: model.unique_id,
+        modelId: model.relation_name,
         sql,
         modelName: model.metadata.name,
-        dependentOn: manifestDependentOn,
+        dbtDependentOn,
         lineageId: lineage.id,
         parsedLogic,
         targetOrganizationId: this.#targetOrganizationId,
@@ -387,6 +336,7 @@ export class CreateLineage
 
     const logic = createLogicResult.value;
 
+    sdfsefs
     await this.#createExternalMaterializations(logic.statementRefs.materializations);
 
     this.#logics.push(logic);
@@ -396,7 +346,7 @@ export class CreateLineage
         {
           materializationType: model.metadata.type,
           name: model.metadata.name,
-          modelId: model.unique_id,
+          modelId: model.relation_name,
           schemaName: model.metadata.schema,
           databaseName: model.metadata.database,
           logicId: logic.id,
@@ -499,17 +449,17 @@ export class CreateLineage
           ...new Set(dbtManifestResources.parent_map[key]),
         ];
 
-        const manifestDependentOn = this.#matDefinitionCatalog.filter(
+        const dbtDependentOn = this.#matDefinitionCatalog.filter(
           (element) => dependsOn.includes(element.modelId)
         );
 
-        if (dependsOn.length !== manifestDependentOn.length)
+        if (dependsOn.length !== dbtDependentOn.length)
           throw new RangeError('materialization dependency mismatch');
 
         return this.#generateDbtModel(
           dbtCatalogResources.nodes[key],
           dbtManifestResources.nodes[key],
-          manifestDependentOn,
+          dbtDependentOn,
           catalog
         );
       })

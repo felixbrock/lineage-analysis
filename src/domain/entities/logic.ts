@@ -8,11 +8,16 @@ export interface MaterializationDefinition {
   databaseName?: string;
 }
 
+interface DependentOn {
+  dbtDependencyDefinitions: MaterializationDefinition[]
+  dwDependencyDefinitions : MaterializationDefinition[]
+}
+
 export interface LogicProperties {
   id: string;
   modelId: string;
   sql: string;
-  dependentOn: MaterializationDefinition[];
+  dependentOn: DependentOn;
   parsedLogic: string;
   statementRefs: Refs;
   lineageId: string;
@@ -24,7 +29,7 @@ export interface LogicPrototype {
   modelId: string;
   modelName: string;
   sql: string;
-  manifestDependentOn: MaterializationDefinition[];
+  dbtDependentOn: MaterializationDefinition[];
   parsedLogic: string;
   lineageId: string;
   catalog: CatalogModelData[];
@@ -154,7 +159,7 @@ export class Logic {
 
   #sql: string;
 
-  #dependentOn: MaterializationDefinition[];
+  #dependentOn: DependentOn;
 
   #parsedLogic: string;
 
@@ -176,7 +181,7 @@ export class Logic {
     return this.#sql;
   }
 
-  get dependentOn(): MaterializationDefinition[] {
+  get dependentOn(): DependentOn {
     return this.#dependentOn;
   }
 
@@ -1730,6 +1735,62 @@ export class Logic {
     return this.#buildStatementRefs(statementRefsPrototype, modelName, catalog);
   };
 
+/* Materializations that are referenced in SQL models, but are neither defined as node or source objects in manifest.json */
+#createExternalMaterializations = async (
+  materializationRefs: MaterializationRef[],
+  dependencyDefinitions: MaterializationDefinition[]
+): Promise<void> => {
+  await Promise.all(
+    materializationRefs.map(async (ref: MaterializationRef) => {
+      if(!ref.databaseName || !ref.schemaName )
+{      console.warn(`Mat (name: ${ref.name}, alias: ${ref.alias}) is missing one of the following: ${`databaseName: ${ref.databaseName} schemaName: ${ref.schemaName}`}`)
+
+        return;}
+
+      depe
+
+
+      dependencyDefinitions.filter(
+        (el) =>
+          el.modelId ===
+      );
+
+      if (matchingMats) return;
+
+      if(!this.#lineage) throw new Error('Lineage object not available');
+
+      const createMaterializationResult =
+        await this.#createMaterialization.execute(
+          {
+            materializationType: MaterializationType.TABLE,
+            name: ref.name,
+            modelId: '',
+            schemaName: ref.schemaName || '',
+            databaseName: ref.databaseName || '',
+            logicId: '',
+            lineageId: this.#lineage.id,
+            targetOrganizationId: this.#targetOrganizationId,
+            writeToPersistence: false,
+          },
+          {
+            isSystemInternal: this.#isSystemInternal,
+            callerOrganizationId: this.#callerOrganizationId,
+          },
+          this.#dbConnection
+        );
+
+      if (!createMaterializationResult.success)
+        throw new Error(createMaterializationResult.error);
+      if (!createMaterializationResult.value)
+        throw new SyntaxError(`Creation of materialization failed`);
+
+      const materialization = createMaterializationResult.value;
+
+      this.#materializations.push(materialization);
+    })
+  );
+};
+
   static create = (prototype: LogicPrototype): Logic => {
     if (!prototype.id) throw new TypeError('Logic prototype must have id');
     if (!prototype.modelId)
@@ -1754,11 +1815,18 @@ export class Logic {
       prototype.catalog
     );
 
+    const dwDependencyDefinitions = 
+
+    const dependentOn: DependentOn = {
+      dbtDependencyDefinitions: prototype.dbtDependentOn,
+      dwDependencyDefinitions
+    }
+
     const logic = this.build({
       id: prototype.id,
       modelId: prototype.modelId,
       sql: prototype.sql,
-      dependentOn: prototype.manifestDependentOn,
+      dependentOn: prototype.dbtDependentOn,
       parsedLogic: prototype.parsedLogic,
       statementRefs,
       lineageId: prototype.lineageId,

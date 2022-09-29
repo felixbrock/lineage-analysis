@@ -15,7 +15,7 @@ export interface CreateLogicRequestDto {
   modelId: string;
   modelName: string;
   sql: string;
-  dependentOn: MaterializationDefinition[];
+  dbtDependentOn: MaterializationDefinition[];
   parsedLogic: string;
   lineageId: string;
   writeToPersistence: boolean;
@@ -108,7 +108,7 @@ export class CreateLogic
         modelId: request.modelId,
         modelName: request.modelName,
         sql: request.sql,
-        manifestDependentOn: request.dependentOn,
+        dbtDependentOn: request.dbtDependentOn,
         parsedLogic: request.parsedLogic,
         lineageId: request.lineageId,
         organizationId,
