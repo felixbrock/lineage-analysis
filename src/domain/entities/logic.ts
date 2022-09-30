@@ -1741,10 +1741,10 @@ export class Logic {
     dependencyDefinitions: MaterializationDefinition[]
   ): MaterializationDefinition[] => {
     const isDefinition = (
-      definition: any
-    ): definition is MaterializationDefinition => definition.relationName;
+      definition: MaterializationDefinition | undefined
+    ): definition is MaterializationDefinition => !!definition;
 
-    const mappingResults = materializationRefs
+    const mappingResults = materializationRefs.filter(ref => ref.type !== 'self')
       .map((ref: MaterializationRef): MaterializationDefinition | undefined => {
         if (!ref.databaseName) {
           console.warn(
@@ -1770,7 +1770,7 @@ export class Logic {
           )
         );
 
-        if (matchingDefinitions) return undefined; 
+        if (matchingDefinitions.length) return undefined; 
 
         return {
           relationName: potentiallyMissingRelationName,

@@ -14,7 +14,6 @@ import {
   Refs,
   MaterializationDefinition,
   DashboardRef,
-  MaterializationRef,
 } from '../entities/logic';
 import {
   CreateDependency,
@@ -315,17 +314,29 @@ export class CreateLineage
             this.#insensitiveEquality(el.name, def.materializationName)
         );
 
-        matchingMaterializations.map(async (mat: MaterializationRef) => {
-          if (!this.#lineage) throw new Error('Lineage object not available');
+        if (matchingMaterializations.length === 0) return;
+        if (matchingMaterializations.length > 1)
+          throw new Error(
+            'Multiple matching materialization refs in logic found'
+          );
 
+        const matRef = matchingMaterializations[0];
+        if (!this.#lineage) throw new Error('Lineage object not available');
+
+        const existingMat = this.#materializations.find(
+          (el) => el.relationName === def.relationName
+        );
+
+        let mat = existingMat;
+        if (!existingMat) {
           const createMaterializationResult =
             await this.#createMaterialization.execute(
               {
                 materializationType: MaterializationType.TABLE,
-                name: mat.name,
+                name: matRef.name,
                 relationName: def.relationName,
-                schemaName: mat.schemaName || '',
-                databaseName: mat.databaseName || '',
+                schemaName: matRef.schemaName || '',
+                databaseName: matRef.databaseName || '',
                 logicId: 'todo - read from snowflake',
                 lineageId: this.#lineage.id,
                 targetOrganizationId: this.#targetOrganizationId,
@@ -343,31 +354,45 @@ export class CreateLineage
           if (!createMaterializationResult.value)
             throw new SyntaxError(`Creation of materialization failed`);
 
-          const materialization = createMaterializationResult.value;
+          mat = createMaterializationResult.value;
 
-          this.#materializations.push(materialization);
+          this.#materializations.push(mat);
+        }
 
-          const relevantColumnRefs = statementRefs.columns.filter((col) =>
-            this.#insensitiveEquality(
-              materialization.name,
-              col.materializationName
-            )
+        const finalMat = mat;
+        if (!finalMat)
+          throw new Error(
+            'Creating external resources -> Materialization obj not found'
           );
 
-          const columns = await Promise.all(
-            relevantColumnRefs.map(async el =>
-              this.#generateColumn(
-                {name: el.name, index: '-1', type: 'todo' },
-                materialization.relationName,
-                materialization.id
-              )
+        const relevantColumnRefs = statementRefs.columns.filter((col) =>
+          this.#insensitiveEquality(finalMat.name, col.materializationName)
+        );
+
+        const uniqueRelevantColumnRefs = relevantColumnRefs.filter((column1, index, self) =>
+        index === self.findIndex((column2) => 
+            this.#insensitiveEquality(column1.name,column2.name)
+        )
+      );
+
+        const isColumn = (column: Column | undefined): column is Column => !!column;
+
+        const columns = (await Promise.all(
+          uniqueRelevantColumnRefs.map(async (el) => 
+            
+            this.#generateColumn(
+              { name: el.name, index: '-1', type: 'string' },
+              finalMat.relationName,
+              finalMat.id
             )
-          );
 
-          this.#columns.push(...columns);
+          )
+        )).filter(isColumn);
 
-          // wildcards;
-        });
+        this.#columns.push(...columns);
+
+
+        // wildcards;
       })
     );
   };
@@ -388,7 +413,7 @@ export class CreateLineage
 
     const createLogicResult = await this.#createLogic.execute(
       {
-        relationName: model.relation_name,
+        relationName: modelManifest.relation_name,
         sql,
         modelName: model.metadata.name,
         dbtDependentOn,
@@ -423,7 +448,7 @@ export class CreateLineage
         {
           materializationType: model.metadata.type,
           name: model.metadata.name,
-          relationName: model.relation_name,
+          relationName: modelManifest.relation_name,
           schemaName: model.metadata.schema,
           databaseName: model.metadata.database,
           logicId: logic.id,
@@ -464,12 +489,12 @@ export class CreateLineage
   #getDbtResources = (file: string): DbtResources => {
     const data = file;
 
-    const catalog = JSON.parse(data);
+    const content = JSON.parse(data);
 
-    const { nodes } = catalog;
-    const { sources } = catalog;
+    const { nodes } = content;
+    const { sources } = content;
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    const { parent_map } = catalog;
+    const { parent_map } = content;
 
     return { nodes, sources, parent_map };
   };
@@ -479,16 +504,27 @@ export class CreateLineage
     catalog: any,
     manifest: any
   ): Promise<void> => {
+    const uniqueIdRelationNameMapping: {
+      [key: string]: { relationName: string };
+    } = {};
+
     const dbtCatalogResources = this.#getDbtResources(catalog);
     const dbtManifestResources = this.#getDbtResources(manifest);
 
-    const dbtSourceKeys = Object.keys(dbtCatalogResources.sources);
+    const dbtCatalogSourceKeys = Object.keys(dbtCatalogResources.sources);
+    const dbtManifestSourceKeys = Object.keys(dbtManifestResources.sources);
 
-    dbtSourceKeys.forEach((key) => {
+    dbtManifestSourceKeys.forEach((key: string) => {
+      uniqueIdRelationNameMapping[key] = {
+        relationName: dbtManifestResources.sources[key].relation_name,
+      };
+    });
+
+    dbtCatalogSourceKeys.forEach((key) => {
       const source = dbtCatalogResources.sources[key];
 
       const matCatalogElement = {
-        relationName: key,
+        relationName: uniqueIdRelationNameMapping[key].relationName,
         materializationName: source.metadata.name,
         schemaName: source.metadata.schema,
         databaseName: source.metadata.database,
@@ -498,20 +534,29 @@ export class CreateLineage
     });
 
     await Promise.all(
-      dbtSourceKeys.map(async (key) =>
+      dbtCatalogSourceKeys.map(async (key) =>
         this.#generateWarehouseSource(dbtCatalogResources.sources[key])
       )
     );
 
-    const dbtModelKeys = Object.keys(dbtCatalogResources.nodes);
+    const dbtCatalogNodeKeys = Object.keys(dbtCatalogResources.nodes);
 
-    if (!dbtModelKeys.length) throw new ReferenceError('No dbt models found');
+    if (!dbtCatalogNodeKeys.length)
+      throw new ReferenceError('No dbt models found');
 
-    dbtModelKeys.forEach((key) => {
+    const dbtManifestNodeKeys = Object.keys(dbtManifestResources.nodes);
+
+    dbtManifestNodeKeys.forEach((key: string) => {
+      uniqueIdRelationNameMapping[key] = {
+        relationName: dbtManifestResources.nodes[key].relation_name,
+      };
+    });
+
+    dbtCatalogNodeKeys.forEach((key) => {
       const model = dbtCatalogResources.nodes[key];
 
       const matCatalogElement = {
-        relationName: key,
+        relationName: uniqueIdRelationNameMapping[key].relationName,
         materializationName: model.metadata.name,
         schemaName: model.metadata.schema,
         databaseName: model.metadata.database,
@@ -521,16 +566,21 @@ export class CreateLineage
     });
 
     await Promise.all(
-      dbtModelKeys.map(async (key) => {
+      dbtCatalogNodeKeys.map(async (key) => {
         const dependsOn: string[] = [
           ...new Set(dbtManifestResources.parent_map[key]),
         ];
 
-        const dbtDependentOn = this.#matDefinitionCatalog.filter((element) =>
-          dependsOn.includes(element.relationName)
+        const dependsOnRelationName = dependsOn.map(
+          (dependencyKey) =>
+            uniqueIdRelationNameMapping[dependencyKey].relationName
         );
 
-        if (dependsOn.length !== dbtDependentOn.length)
+        const dbtDependentOn = this.#matDefinitionCatalog.filter((element) =>
+          dependsOnRelationName.includes(element.relationName)
+        );
+
+        if (dependsOnRelationName.length !== dbtDependentOn.length)
           throw new RangeError('materialization dependency mismatch');
 
         return this.#generateDbtModel(
@@ -929,7 +979,9 @@ export class CreateLineage
             this.#buildColumnRefDependency(
               dependencyRef,
               logic.relationName,
-              logic.dependentOn.dbtDependencyDefinitions.map((element) => element.relationName)
+              logic.dependentOn.dbtDependencyDefinitions
+                .concat(logic.dependentOn.dwDependencyDefinitions)
+                .map((element) => element.relationName)
             )
           )
         );
@@ -943,7 +995,9 @@ export class CreateLineage
             this.#buildWildcardRefDependency(
               dependencyRef,
               logic.relationName,
-              logic.dependentOn.dbtDependencyDefinitions.map((element) => element.relationName)
+              logic.dependentOn.dbtDependencyDefinitions
+                .concat(logic.dependentOn.dwDependencyDefinitions)
+                .map((element) => element.relationName)
             )
           )
         );
@@ -980,7 +1034,9 @@ export class CreateLineage
               this.#buildDashboardRefDependency(
                 dashboardRef,
                 logic.relationName,
-                logic.dependentOn.dbtDependencyDefinitions.map((element) => element.relationName)
+                logic.dependentOn.dbtDependencyDefinitions.map(
+                  (element) => element.relationName
+                )
               )
             )
           );
