@@ -45,6 +45,7 @@ export default class ReadMaterializationsController extends BaseController {
       databaseName,
       logicId,
       lineageId,
+      targetOrganizationId,
     } = httpRequest.query;
 
     const isMaterializationType = (
@@ -83,6 +84,10 @@ export default class ReadMaterializationsController extends BaseController {
       databaseName: typeof databaseName === 'string' ? databaseName : undefined,
       logicId: typeof logicId === 'string' ? logicId : undefined,
       lineageId,
+      targetOrganizationId:
+        typeof targetOrganizationId === 'string'
+          ? targetOrganizationId
+          : undefined,
     };
   };
 
@@ -128,9 +133,7 @@ export default class ReadMaterializationsController extends BaseController {
         );
 
       if (!useCaseResult.success) {
-        return ReadMaterializationsController.badRequest(
-          res
-        );
+        return ReadMaterializationsController.badRequest(res);
       }
 
       const resultValue = useCaseResult.value
@@ -139,8 +142,10 @@ export default class ReadMaterializationsController extends BaseController {
 
       return ReadMaterializationsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
-      return ReadMaterializationsController.fail(res, 'Internal error occurred while reading materializations');
-
+      return ReadMaterializationsController.fail(
+        res,
+        'Internal error occurred while reading materializations'
+      );
     }
   }
 }

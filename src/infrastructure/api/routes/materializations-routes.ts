@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import app from '../../ioc-register';
-import ReadMaterializationsController from '../controllers/read-materializations-controller';
+import ReadMaterializationsController from '../controllers/read-external-resources-controller';
 
 const materializationsRoutes = Router();
 

@@ -397,6 +397,8 @@ export class CreateLineage
     );
   };
 
+  /* Generate resources that are either defined in catalog and manifest.json 
+  or are only reference by SQL models (e.g. sf source table that are not defined as dbt sources)*/
   #generateDbtModel = async (
     model: any,
     modelManifest: any,
@@ -410,6 +412,20 @@ export class CreateLineage
     const sql = modelManifest.compiled_sql;
 
     const parsedLogic = await this.#parseLogic(sql);
+
+    switch (modelManifest.resrource_type) {
+      case 'seed':
+        
+        break;
+        case 'model':
+        
+          break;
+          test??????
+
+      default:
+        break;
+        throw error
+    }
 
     const createLogicResult = await this.#createLogic.execute(
       {
