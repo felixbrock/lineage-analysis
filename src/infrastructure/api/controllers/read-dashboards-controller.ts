@@ -113,7 +113,7 @@ export default class ReadDashboardsController extends BaseController {
         );
 
       if (!useCaseResult.success) {
-        return ReadDashboardsController.badRequest(res, useCaseResult.error);
+        return ReadDashboardsController.badRequest(res);
       }
 
       const resultValue = useCaseResult.value
@@ -122,12 +122,7 @@ export default class ReadDashboardsController extends BaseController {
 
       return ReadDashboardsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
-      console.error(error);
-      if (typeof error === 'string')
-        return ReadDashboardsController.fail(res, error);
-      if (error instanceof Error)
-        return ReadDashboardsController.fail(res, error);
-      return ReadDashboardsController.fail(res, 'Unknown error occured');
+      return ReadDashboardsController.fail(res, 'Internal error occurred while reading dashboards');
     }
   }
 }

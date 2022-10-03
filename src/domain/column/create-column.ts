@@ -7,7 +7,7 @@ import { IColumnRepo } from './i-column-repo';
 import { DbConnection } from '../services/i-db';
 
 export interface CreateColumnRequestDto {
-  dbtModelId: string;
+  relationName: string;
   name: string;
   index: string;
   type: string;
@@ -70,7 +70,7 @@ export class CreateColumn
 
       const column = Column.create({
         id: new ObjectId().toHexString(),
-        dbtModelId: request.dbtModelId,
+        relationName: request.relationName,
         name: request.name,
         index: request.index,
         type: request.type,
@@ -100,10 +100,8 @@ export class CreateColumn
 
       return Result.ok(column);
     } catch (error: unknown) {
-      if (typeof error === 'string') return Result.fail(error);
-      if (error instanceof Error)
-        return Result.fail(error.stack || error.message);
-      return Result.fail('Unknown error occured');
+      if((error instanceof Error && error.message) || (!(error instanceof Error) && error)) if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Result.fail('');
     }
   }
 }

@@ -14,7 +14,7 @@ import { Column, ColumnProperties } from '../../domain/entities/column';
 
 interface ColumnPersistence {
   _id: ObjectId;
-  dbtModelId: string;
+  relationName: string;
   name: string;
   index: string;
   type: string;
@@ -24,7 +24,7 @@ interface ColumnPersistence {
 }
 
 interface ColumnQueryFilter {
-  dbtModelId?: RegExp | { [key: string]: RegExp[] };
+  relationName?: RegExp | { [key: string]: RegExp[] };
   name?: RegExp | { [key: string]: RegExp[] };
   index?: string;
   type?: string;
@@ -49,9 +49,8 @@ export default class ColumnRepo implements IColumnRepo {
 
       return this.#toEntity(this.#buildProperties(result));
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -70,9 +69,8 @@ export default class ColumnRepo implements IColumnRepo {
         this.#toEntity(this.#buildProperties(element))
       );
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -80,13 +78,13 @@ export default class ColumnRepo implements IColumnRepo {
     const filter: ColumnQueryFilter = { lineageId: columnQueryDto.lineageId, organizationId: columnQueryDto.organizationId };
 
     if (
-      typeof columnQueryDto.dbtModelId === 'string' &&
-      columnQueryDto.dbtModelId
+      typeof columnQueryDto.relationName === 'string' &&
+      columnQueryDto.relationName
     )
-      filter.dbtModelId = new RegExp(`^${columnQueryDto.dbtModelId}$`, 'i');
-    if (columnQueryDto.dbtModelId instanceof Array)
-      filter.dbtModelId = {
-        $in: columnQueryDto.dbtModelId.map(
+      filter.relationName = new RegExp(`^${columnQueryDto.relationName}$`, 'i');
+    if (columnQueryDto.relationName instanceof Array)
+      filter.relationName = {
+        $in: columnQueryDto.relationName.map(
           (element) => new RegExp(`^${element}$`, 'i')
         ),
       };
@@ -127,9 +125,8 @@ export default class ColumnRepo implements IColumnRepo {
         this.#toEntity(this.#buildProperties(element))
       );
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -148,9 +145,8 @@ export default class ColumnRepo implements IColumnRepo {
 
       return result.insertedId.toHexString();
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -170,9 +166,8 @@ export default class ColumnRepo implements IColumnRepo {
         result.insertedIds[parseInt(key, 10)].toHexString()
       );
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -191,9 +186,8 @@ export default class ColumnRepo implements IColumnRepo {
 
       return result.deletedCount.toString();
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -203,7 +197,7 @@ export default class ColumnRepo implements IColumnRepo {
   #buildProperties = (column: ColumnPersistence): ColumnProperties => ({
     // eslint-disable-next-line no-underscore-dangle
     id: column._id.toHexString(),
-    dbtModelId: column.dbtModelId,
+    relationName: column.relationName,
     name: column.name,
     index: column.index,
     type: column.type,
@@ -214,7 +208,7 @@ export default class ColumnRepo implements IColumnRepo {
 
   #toPersistence = (column: Column): Document => ({
     _id: ObjectId.createFromHexString(column.id),
-    dbtModelId: column.dbtModelId,
+    relationName: column.relationName,
     name: column.name,
     index: column.index,
     type: column.type,

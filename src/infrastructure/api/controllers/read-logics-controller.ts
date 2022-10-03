@@ -32,7 +32,7 @@ export default class ReadLogicsController extends BaseController {
   }
 
   #buildRequestDto = (httpRequest: Request): ReadLogicsRequestDto => {
-    const { dbtModelId, lineageId, targetOrganizationId } = httpRequest.query;
+    const { relationName, lineageId, targetOrganizationId } = httpRequest.query;
 
     if (!lineageId)
       throw new TypeError(
@@ -44,7 +44,7 @@ export default class ReadLogicsController extends BaseController {
       );
 
     return {
-      dbtModelId: typeof dbtModelId === 'string' ? dbtModelId : undefined,
+      relationName: typeof relationName === 'string' ? relationName : undefined,
       lineageId,
       targetOrganizationId: typeof targetOrganizationId === 'string' ? targetOrganizationId : undefined,
     };
@@ -86,7 +86,7 @@ export default class ReadLogicsController extends BaseController {
         );
 
       if (!useCaseResult.success) {
-        return ReadLogicsController.badRequest(res, useCaseResult.error);
+        return ReadLogicsController.badRequest(res);
       }
 
       const resultValue = useCaseResult.value
@@ -95,11 +95,7 @@ export default class ReadLogicsController extends BaseController {
 
       return ReadLogicsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
-      console.error(error);
-      if (typeof error === 'string')
-        return ReadLogicsController.fail(res, error);
-      if (error instanceof Error) return ReadLogicsController.fail(res, error);
-      return ReadLogicsController.fail(res, 'Unknown error occured');
+      return ReadLogicsController.fail(res, 'Internal error occurred while reading logics');
     }
   }
 }

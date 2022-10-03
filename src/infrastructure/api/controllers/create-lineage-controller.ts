@@ -99,7 +99,7 @@ export default class CreateLineageController extends BaseController {
         );
 
       if (!useCaseResult.success) {
-        return CreateLineageController.badRequest(res, useCaseResult.error);
+        return CreateLineageController.badRequest(res);
       }
 
       const resultValue = useCaseResult.value
@@ -125,7 +125,6 @@ export default class CreateLineageController extends BaseController {
 
       // return CreateLineageController.ok(res, 'Lineage creation is in progress...', CodeHttp.CREATED);
     } catch (error: unknown) {
-      console.error(error);
       return CreateLineageController.fail(res, 'Internal error occurred while creating lineage');
     }
   }

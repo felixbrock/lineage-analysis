@@ -22,7 +22,7 @@ import {
 interface MaterializationPersistence {
   _id: ObjectId;
   materializationType: MaterializationType;
-  dbtModelId: string;
+  relationName: string;
   name: string;
   schemaName: string;
   databaseName: string;
@@ -33,7 +33,7 @@ interface MaterializationPersistence {
 
 interface MaterializationQueryFilter {
   materializationType?: MaterializationType;
-  dbtModelId?: RegExp;
+  relationName?: RegExp;
   name?: RegExp | { [key: string]: RegExp[] };
   schemaName?: RegExp;
   databaseName?: RegExp;
@@ -58,9 +58,8 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
       return this.#toEntity(this.#buildProperties(result));
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -83,9 +82,8 @@ export default class MaterializationRepo implements IMaterializationRepo {
         this.#toEntity(this.#buildProperties(element))
       );
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -99,9 +97,9 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
     if (materializationQueryDto.materializationType)
       filter.materializationType = materializationQueryDto.materializationType;
-    if (materializationQueryDto.dbtModelId)
-      filter.dbtModelId = new RegExp(
-        `^${materializationQueryDto.dbtModelId}$`,
+    if (materializationQueryDto.relationName)
+      filter.relationName = new RegExp(
+        `^${materializationQueryDto.relationName}$`,
         'i'
       );
 
@@ -146,9 +144,8 @@ export default class MaterializationRepo implements IMaterializationRepo {
         this.#toEntity(this.#buildProperties(element))
       );
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -168,9 +165,8 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
       return result.insertedId.toHexString();
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -194,9 +190,8 @@ export default class MaterializationRepo implements IMaterializationRepo {
         result.insertedIds[parseInt(key, 10)].toHexString()
       );
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -213,9 +208,8 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
       return result.deletedCount.toString();
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -229,7 +223,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
     // eslint-disable-next-line no-underscore-dangle
     id: materialization._id.toHexString(),
     materializationType: materialization.materializationType,
-    dbtModelId: materialization.dbtModelId,
+    relationName: materialization.relationName,
     name: materialization.name,
     schemaName: materialization.schemaName,
     databaseName: materialization.databaseName,
@@ -241,7 +235,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
   #toPersistence = (materialization: Materialization): Document => ({
     _id: ObjectId.createFromHexString(materialization.id),
     materializationType: materialization.materializationType,
-    dbtModelId: materialization.dbtModelId,
+    relationName: materialization.relationName,
     name: materialization.name,
     schemaName: materialization.schemaName,
     databaseName: materialization.databaseName,

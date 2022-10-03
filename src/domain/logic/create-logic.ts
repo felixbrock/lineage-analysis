@@ -12,10 +12,10 @@ import { ReadLogics } from './read-logics';
 import { DbConnection } from '../services/i-db';
 
 export interface CreateLogicRequestDto {
-  dbtModelId: string;
+  relationName: string;
   modelName: string;
   sql: string;
-  dependentOn: MaterializationDefinition[];
+  dbtDependentOn: MaterializationDefinition[];
   parsedLogic: string;
   lineageId: string;
   writeToPersistence: boolean;
@@ -105,10 +105,10 @@ export class CreateLogic
 
       const logic = Logic.create({
         id: new ObjectId().toHexString(),
-        dbtModelId: request.dbtModelId,
+        relationName: request.relationName,
         modelName: request.modelName,
         sql: request.sql,
-        dependentOn: request.dependentOn,
+        dbtDependentOn: request.dbtDependentOn,
         parsedLogic: request.parsedLogic,
         lineageId: request.lineageId,
         organizationId,
@@ -117,7 +117,7 @@ export class CreateLogic
 
       const readLogicsResult = await this.#readLogics.execute(
         {
-          dbtModelId: request.dbtModelId,
+          relationName: request.relationName,
           lineageId: request.lineageId,
           targetOrganizationId: request.targetOrganizationId,
         },
@@ -138,9 +138,8 @@ export class CreateLogic
 
       return Result.ok(logic);
     } catch (error: unknown) {
-      if (typeof error === 'string') return Result.fail(error);
-      if (error instanceof Error) return Result.fail(error.stack || error.message);
-      return Result.fail('Unknown error occured');
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Result.fail('');
     }
   }
 }

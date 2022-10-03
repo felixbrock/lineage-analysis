@@ -16,7 +16,7 @@ test('logic creation', async () => {
   // );
 
   // const reqDto: CreateLogicRequestDto = {
-  //   dbtModelId: `model.snowflake_usage.${modelName}`,
+  //   relationName: `model.snowflake_usage.${modelName}`,
   //   lineageId: 'test-4',
   //   sql: 'test',
   //   parsedLogic,

@@ -32,7 +32,7 @@ export default class ReadColumnsController extends BaseController {
   }
 
   #buildRequestDto = (httpRequest: Request): ReadColumnsRequestDto => {
-    const { dbtModelId, name, index, type, materializationId, lineageId, targetOrganizationId } =
+    const { relationName, name, index, type, materializationId, lineageId, targetOrganizationId } =
       httpRequest.query;
 
     if (!lineageId)
@@ -45,7 +45,7 @@ export default class ReadColumnsController extends BaseController {
       );
 
     return {
-      dbtModelId: typeof dbtModelId === 'string' ? dbtModelId : undefined,
+      relationName: typeof relationName === 'string' ? relationName : undefined,
       name: typeof name === 'string' ? name : undefined,
       index: typeof index === 'string' ? index : undefined,
       type: typeof type === 'string' ? type : undefined,
@@ -92,7 +92,7 @@ export default class ReadColumnsController extends BaseController {
         );
 
       if (!useCaseResult.success) {
-        return ReadColumnsController.badRequest(res, useCaseResult.error);
+        return ReadColumnsController.badRequest(res);
       }
 
       const resultValue = useCaseResult.value
@@ -101,11 +101,7 @@ export default class ReadColumnsController extends BaseController {
 
       return ReadColumnsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
-      console.error(error);
-      if (typeof error === 'string')
-        return ReadColumnsController.fail(res, error);
-      if (error instanceof Error) return ReadColumnsController.fail(res, error);
-      return ReadColumnsController.fail(res, 'Unknown error occured');
+      return ReadColumnsController.fail(res, 'Internal error occurred while reading columns');
     }
   }
 }

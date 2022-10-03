@@ -4,9 +4,7 @@ import { appConfig } from '../../config';
 import { ISQLParserApiRepo } from '../../domain/sql-parser-api/i-sql-parser-api-repo';
 import getRoot from '../shared/api-root-builder';
 
-export default class SQLParserApiRepoImpl
-  implements ISQLParserApiRepo
-{
+export default class SQLParserApiRepoImpl implements ISQLParserApiRepo {
   #path = 'sql';
 
   #port = '3037';
@@ -20,7 +18,7 @@ export default class SQLParserApiRepoImpl
   ): Promise<any> => {
     try {
       let gateway = this.#port;
-      if(appConfig.express.mode === 'production') gateway = this.#prodGateway;
+      if (appConfig.express.mode === 'production') gateway = this.#prodGateway;
 
       const apiRoot = await getRoot(gateway, this.#path, false);
 
@@ -42,16 +40,14 @@ export default class SQLParserApiRepoImpl
       if (response.status === 200) return jsonResponse;
       throw new Error(jsonResponse.message);
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) {
-
-        /* error code 500 is returned when we encounter a parse
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      /* error code 500 is returned when we encounter a parse
            error. Returning empty fle allows us to continue and 
-           create as much lineage as possible instead of failing */  
-        if(error.stack || error.message.includes('500')) return {file:[{}, {}]};
-        return Promise.reject(error.stack || error.message);
-      }
-      return Promise.reject(new Error('Unknown error occured'));
+           create as much lineage as possible instead of failing */
+      if (error instanceof Error && error.message.includes('500'))
+        return { file: [{}, {}] };
+      return Promise.reject(new Error(''));
     }
   };
 }

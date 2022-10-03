@@ -2,17 +2,22 @@ import { DependencyType } from './dependency';
 import SQLElement from '../value-types/sql-element';
 
 export interface MaterializationDefinition {
-  dbtModelId: string;
+  relationName: string;
   materializationName: string;
   schemaName?: string;
   databaseName?: string;
 }
 
+interface DependentOn {
+  dbtDependencyDefinitions: MaterializationDefinition[];
+  dwDependencyDefinitions: MaterializationDefinition[];
+}
+
 export interface LogicProperties {
   id: string;
-  dbtModelId: string;
+  relationName: string;
   sql: string;
-  dependentOn: MaterializationDefinition[];
+  dependentOn: DependentOn;
   parsedLogic: string;
   statementRefs: Refs;
   lineageId: string;
@@ -21,10 +26,10 @@ export interface LogicProperties {
 
 export interface LogicPrototype {
   id: string;
-  dbtModelId: string;
+  relationName: string;
   modelName: string;
   sql: string;
-  dependentOn: MaterializationDefinition[];
+  dbtDependentOn: MaterializationDefinition[];
   parsedLogic: string;
   lineageId: string;
   catalog: CatalogModelData[];
@@ -150,11 +155,11 @@ export interface DashboardRef {
 export class Logic {
   #id: string;
 
-  #dbtModelId: string;
+  #relationName: string;
 
   #sql: string;
 
-  #dependentOn: MaterializationDefinition[];
+  #dependentOn: DependentOn;
 
   #parsedLogic: string;
 
@@ -168,15 +173,15 @@ export class Logic {
     return this.#id;
   }
 
-  get dbtModelId(): string {
-    return this.#dbtModelId;
+  get relationName(): string {
+    return this.#relationName;
   }
 
   get sql(): string {
     return this.#sql;
   }
 
-  get dependentOn(): MaterializationDefinition[] {
+  get dependentOn(): DependentOn {
     return this.#dependentOn;
   }
 
@@ -198,7 +203,7 @@ export class Logic {
 
   private constructor(properties: LogicProperties) {
     this.#id = properties.id;
-    this.#dbtModelId = properties.dbtModelId;
+    this.#relationName = properties.relationName;
     this.#sql = properties.sql;
     this.#dependentOn = properties.dependentOn;
     this.#parsedLogic = properties.parsedLogic;
@@ -1730,10 +1735,59 @@ export class Logic {
     return this.#buildStatementRefs(statementRefsPrototype, modelName, catalog);
   };
 
+  /* Retrieving relation names for external non-dbt mats that are referenced by sql model logic */
+  static #getDwDependencyDefinitions = (
+    materializationRefs: MaterializationRef[],
+    dependencyDefinitions: MaterializationDefinition[]
+  ): MaterializationDefinition[] => {
+    const isDefinition = (
+      definition: MaterializationDefinition | undefined
+    ): definition is MaterializationDefinition => !!definition;
+
+    const mappingResults = materializationRefs.filter(ref => ref.type !== 'self')
+      .map((ref: MaterializationRef): MaterializationDefinition | undefined => {
+        if (!ref.databaseName) {
+          console.warn(
+            `Mat (name: ${ref.name}, alias: ${ref.alias}, schemaName: ${ref.schemaName}) is missing databaseName`
+          );
+
+          return undefined;
+        }
+
+        if (!ref.schemaName) {
+          console.warn(
+            `Mat (name: ${ref.name}, alias: ${ref.alias}, databaseName: ${ref.databaseName}) is missing schemaName`
+          );
+          return undefined;
+        }
+
+        const potentiallyMissingRelationName = `${ref.databaseName}.${ref.schemaName}.${ref.name}`;
+
+        const matchingDefinitions = dependencyDefinitions.filter((el) =>
+          this.#insensitiveEquality(
+            el.relationName.replace(/"/g, ''),
+            potentiallyMissingRelationName
+          )
+        );
+
+        if (matchingDefinitions.length) return undefined; 
+
+        return {
+          relationName: potentiallyMissingRelationName,
+          materializationName: ref.name,
+          schemaName: ref.schemaName,
+          databaseName: ref.databaseName,
+        };
+      })
+      .filter(isDefinition);
+
+    return mappingResults;
+  };
+
   static create = (prototype: LogicPrototype): Logic => {
     if (!prototype.id) throw new TypeError('Logic prototype must have id');
-    if (!prototype.dbtModelId)
-      throw new TypeError('Logic prototype must have dbtModelId');
+    if (!prototype.relationName)
+      throw new TypeError('Logic prototype must have relationName');
     if (!prototype.modelName)
       throw new TypeError('Logic prototype must have model name');
     if (!prototype.sql)
@@ -1754,11 +1808,18 @@ export class Logic {
       prototype.catalog
     );
 
+    const dwDependencyDefinitions = this.#getDwDependencyDefinitions(statementRefs.materializations, prototype.dbtDependentOn);
+
+    const dependentOn: DependentOn = {
+      dbtDependencyDefinitions: prototype.dbtDependentOn,
+      dwDependencyDefinitions,
+    };
+
     const logic = this.build({
       id: prototype.id,
-      dbtModelId: prototype.dbtModelId,
+      relationName: prototype.relationName,
       sql: prototype.sql,
-      dependentOn: prototype.dependentOn,
+      dependentOn,
       parsedLogic: prototype.parsedLogic,
       statementRefs,
       lineageId: prototype.lineageId,
@@ -1770,15 +1831,15 @@ export class Logic {
 
   static build = (properties: LogicProperties): Logic => {
     if (!properties.id) throw new TypeError('Logic must have id');
-    if (!properties.dbtModelId)
-      throw new TypeError('Logic must have dbtModelId');
+    if (!properties.relationName)
+      throw new TypeError('Logic must have relationName');
     if (!properties.parsedLogic)
       throw new TypeError('Logic creation requires parsed SQL logic');
     if (!properties.lineageId) throw new TypeError('Logic must have lineageId');
 
     const logic = new Logic({
       id: properties.id,
-      dbtModelId: properties.dbtModelId,
+      relationName: properties.relationName,
       sql: properties.sql,
       dependentOn: properties.dependentOn,
       parsedLogic: properties.parsedLogic,
@@ -1789,4 +1850,7 @@ export class Logic {
 
     return logic;
   };
+
+  static #insensitiveEquality = (str1: string, str2: string): boolean =>
+    str1.toLowerCase() === str2.toLowerCase();
 }

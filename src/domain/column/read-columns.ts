@@ -5,7 +5,7 @@ import Result from '../value-types/transient-types/result';
 import { IColumnRepo, ColumnQueryDto } from './i-column-repo';
 
 export interface ReadColumnsRequestDto {
-  dbtModelId?: string | string[];
+  relationName?: string | string[];
   name?: string | string[];
   index?: string;
   type?: string;
@@ -71,9 +71,8 @@ export class ReadColumns
 
       return Result.ok(columns);
     } catch (error: unknown) {
-      if (typeof error === 'string') return Result.fail(error);
-      if (error instanceof Error) return Result.fail(error.stack || error.message);
-      return Result.fail('Unknown error occured');
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Result.fail('');
     }
   }
 
@@ -86,7 +85,7 @@ export class ReadColumns
       organizationId,
     };
 
-    if (request.dbtModelId) queryDto.dbtModelId = request.dbtModelId;
+    if (request.relationName) queryDto.relationName = request.relationName;
     if (request.name) queryDto.name = request.name;
     if (request.index) queryDto.index = request.index;
     if (request.type) queryDto.type = request.type;

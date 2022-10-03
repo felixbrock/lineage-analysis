@@ -38,7 +38,7 @@ export default class ReadMaterializationsController extends BaseController {
 
   #buildRequestDto = (httpRequest: Request): ReadMaterializationsRequestDto => {
     const {
-      dbtModelId,
+      relationName,
       materializationType,
       name,
       schemaName,
@@ -73,7 +73,7 @@ export default class ReadMaterializationsController extends BaseController {
       );
 
     return {
-      dbtModelId: typeof dbtModelId === 'string' ? dbtModelId : undefined,
+      relationName: typeof relationName === 'string' ? relationName : undefined,
       materializationType:
         materializationType && isMaterializationType(materializationType)
           ? materializationType
@@ -129,8 +129,7 @@ export default class ReadMaterializationsController extends BaseController {
 
       if (!useCaseResult.success) {
         return ReadMaterializationsController.badRequest(
-          res,
-          useCaseResult.error
+          res
         );
       }
 
@@ -140,12 +139,8 @@ export default class ReadMaterializationsController extends BaseController {
 
       return ReadMaterializationsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
-      console.error(error);
-      if (typeof error === 'string')
-        return ReadMaterializationsController.fail(res, error);
-      if (error instanceof Error)
-        return ReadMaterializationsController.fail(res, error);
-      return ReadMaterializationsController.fail(res, 'Unknown error occured');
+      return ReadMaterializationsController.fail(res, 'Internal error occurred while reading materializations');
+
     }
   }
 }

@@ -114,7 +114,7 @@ export default class ReadDependenciesController extends BaseController {
         );
 
       if (!useCaseResult.success) {
-        return ReadDependenciesController.badRequest(res, useCaseResult.error);
+        return ReadDependenciesController.badRequest(res);
       }
 
       const resultValue = useCaseResult.value
@@ -123,12 +123,8 @@ export default class ReadDependenciesController extends BaseController {
 
       return ReadDependenciesController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
-      console.error(error);
-      if (typeof error === 'string')
-        return ReadDependenciesController.fail(res, error);
-      if (error instanceof Error)
-        return ReadDependenciesController.fail(res, error);
-      return ReadDependenciesController.fail(res, 'Unknown error occured');
+      return ReadDependenciesController.fail(res, 'Internal error occurred while reading dependencies');
+      
     }
   }
 }

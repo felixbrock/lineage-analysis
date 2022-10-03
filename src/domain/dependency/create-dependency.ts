@@ -12,8 +12,8 @@ import { DbConnection } from '../services/i-db';
 
 export interface CreateDependencyRequestDto {
   dependencyRef: ColumnRef;
-  selfDbtModelId: string;
-  parentDbtModelIds: string[];
+  selfRelationName: string;
+  parentRelationNames: string[];
   lineageId: string;
   writeToPersistence: boolean;
   targetOrganizationId?: string;
@@ -46,15 +46,15 @@ export class CreateDependency
   /* Returns the object id of the parent column which self column depends upon */
   #getParentId = async (
     dependencyRef: ColumnRef,
-    parentDbtModelIds: string[],
+    parentRelationNames: string[],
     lineageId: string,
     isSystemInternal: boolean,
-    targetOrganizationId: string,
+    targetOrganizationId?: string,
     callerOrganizationId?: string
   ): Promise<string> => {
     const readColumnsResult = await this.#readColumns.execute(
       {
-        dbtModelId: parentDbtModelIds,
+        relationName: parentRelationNames,
         name: dependencyRef.name,
         lineageId,
         targetOrganizationId,
@@ -74,7 +74,7 @@ export class CreateDependency
 
     if (potentialParents.length > 1) {
       potentialParents = potentialParents.filter((parent) =>
-        parent.dbtModelId.includes(dependencyRef.materializationName)
+        parent.relationName.includes(dependencyRef.materializationName)
       );
     }
     if (potentialParents.length !== 1)
@@ -84,16 +84,16 @@ export class CreateDependency
   };
 
   #getSelfColumn = async (
-    selfDbtModelId: string,
+    selfRelationName: string,
     dependencyRef: ColumnRef,
     lineageId: string,
     isSystemInternal: boolean,
-    targetOrganizationId: string,
+    targetOrganizationId?: string,
     callerOrganizationId?: string
   ): Promise<Column> => {
     const readSelfColumnResult = await this.#readColumns.execute(
       {
-        dbtModelId: selfDbtModelId,
+        relationName: selfRelationName,
         lineageId,
         name: dependencyRef.alias || dependencyRef.name,
         targetOrganizationId,
@@ -157,21 +157,15 @@ export class CreateDependency
       if (request.targetOrganizationId && auth.callerOrganizationId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
-      let organizationId: string;
-      if (auth.isSystemInternal && request.targetOrganizationId)
-        organizationId = request.targetOrganizationId;
-      else if (!auth.isSystemInternal && auth.callerOrganizationId)
-        organizationId = auth.callerOrganizationId;
-      else throw new Error('Unhandled organization id declaration');
-
       this.#dbConnection = dbConnection;
 
       const headColumn = await this.#getSelfColumn(
-        request.selfDbtModelId,
+        request.selfRelationName,
         request.dependencyRef,
         request.lineageId,
         auth.isSystemInternal,
-        organizationId
+        request.targetOrganizationId,
+        auth.callerOrganizationId
       );
 
       // const parentName =
@@ -181,12 +175,20 @@ export class CreateDependency
 
       const parentId = await this.#getParentId(
         request.dependencyRef,
-        request.parentDbtModelIds,
+        request.parentRelationNames,
         request.lineageId,
         auth.isSystemInternal,
-        organizationId
+        request.targetOrganizationId,
+        auth.callerOrganizationId
       );
 
+      let organizationId: string;
+      if (auth.isSystemInternal && request.targetOrganizationId)
+        organizationId = request.targetOrganizationId;
+      else if (!auth.isSystemInternal && auth.callerOrganizationId)
+        organizationId = auth.callerOrganizationId;
+      else throw new Error('Unhandled organization id declaration');
+      
       const dependency = Dependency.create({
         id: new ObjectId().toHexString(),
         type: request.dependencyRef.dependencyType,
@@ -225,10 +227,9 @@ export class CreateDependency
 
       return Result.ok(dependency);
     } catch (error: unknown) {
-      if (typeof error === 'string') return Result.fail(error);
-      if (error instanceof Error)
-        return Result.fail(error.stack || error.message);
-      return Result.fail('Unknown error occured');
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      return Result.fail('');
     }
   }
 }

@@ -11,7 +11,7 @@ import {
 } from './i-materialization-repo';
 
 export interface ReadMaterializationsRequestDto {
-  dbtModelId?: string;
+  relationName?: string;
   materializationType?: MaterializationType;
   name?: string | string[];
   schemaName?: string;
@@ -79,10 +79,8 @@ export class ReadMaterializations
 
       return Result.ok(materializations);
     } catch (error: unknown) {
-      if (typeof error === 'string') return Result.fail(error);
-      if (error instanceof Error)
-        return Result.fail(error.stack || error.message);
-      return Result.fail('Unknown error occured');
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Result.fail('');
     }
   }
 
@@ -95,7 +93,7 @@ export class ReadMaterializations
       organizationId,
     };
 
-    if (request.dbtModelId) queryDto.dbtModelId = request.dbtModelId;
+    if (request.relationName) queryDto.relationName = request.relationName;
     if (request.name) queryDto.name = request.name;
     if (request.logicId) queryDto.logicId = request.logicId;
 

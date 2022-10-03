@@ -11,7 +11,7 @@ import { IMaterializationRepo } from './i-materialization-repo';
 import { DbConnection } from '../services/i-db';
 
 export interface CreateMaterializationRequestDto {
-  dbtModelId: string;
+  relationName: string;
   materializationType: MaterializationType;
   name: string;
   schemaName: string;
@@ -78,7 +78,7 @@ export class CreateMaterialization
 
       const materialization = Materialization.create({
         id: new ObjectId().toHexString(),
-        dbtModelId: request.dbtModelId,
+        relationName: request.relationName,
         materializationType: request.materializationType,
         name: request.name,
         schemaName: request.schemaName,
@@ -91,7 +91,7 @@ export class CreateMaterialization
       const readMaterializationsResult =
         await this.#readMaterializations.execute(
           {
-            dbtModelId: request.dbtModelId,
+            relationName: request.relationName,
             lineageId: request.lineageId,
             targetOrganizationId: request.targetOrganizationId,
           },
@@ -114,10 +114,8 @@ export class CreateMaterialization
 
       return Result.ok(materialization);
     } catch (error: unknown) {
-      if (typeof error === 'string') return Result.fail(error);
-      if (error instanceof Error)
-        return Result.fail(error.stack || error.message);
-      return Result.fail('Unknown error occured');
+      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      return Result.fail('');
     }
   }
 }

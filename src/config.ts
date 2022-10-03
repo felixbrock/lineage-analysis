@@ -4,7 +4,7 @@ import path from 'path';
 
 const dotenvConfig =
   process.env.NODE_ENV === 'development'
-    ? { path: path.resolve(process.cwd(), `${process.env.NODE_ENV}.env`) }
+    ? { path: path.resolve(process.cwd(), `.env.${process.env.NODE_ENV}`) }
     : {};
 dotenv.config(dotenvConfig);
 

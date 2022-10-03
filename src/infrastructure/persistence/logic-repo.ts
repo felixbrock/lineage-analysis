@@ -27,9 +27,12 @@ type PersistenceMaterializationDefinition = { [key: string]: string };
 
 interface LogicPersistence {
   _id: ObjectId;
-  dbtModelId: string;
+  relationName: string;
   sql: string;
-  dependentOn: PersistenceMaterializationDefinition[];
+  dependentOn: {
+    dbtDependencyDefinitions: PersistenceMaterializationDefinition[];
+    dwDependencyDefinitions: PersistenceMaterializationDefinition[];
+  };
   parsedLogic: string;
   statementRefs: PersistenceStatementRefs;
   lineageId: string;
@@ -37,7 +40,7 @@ interface LogicPersistence {
 }
 
 interface LogicQueryFilter {
-  dbtModelId?: RegExp;
+  relationName?: RegExp;
   lineageId: string;
   organizationId: string;
 }
@@ -55,9 +58,9 @@ export default class LogicRepo implements ILogicRepo {
 
       return this.#toEntity(this.#buildProperties(result));
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -80,17 +83,20 @@ export default class LogicRepo implements ILogicRepo {
         this.#toEntity(this.#buildProperties(element))
       );
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
   #buildFilter = (logicQueryDto: LogicQueryDto): LogicQueryFilter => {
-    const filter: LogicQueryFilter = { lineageId: logicQueryDto.lineageId, organizationId: logicQueryDto.organizationId };
+    const filter: LogicQueryFilter = {
+      lineageId: logicQueryDto.lineageId,
+      organizationId: logicQueryDto.organizationId,
+    };
 
-    if (logicQueryDto.dbtModelId)
-      filter.dbtModelId = new RegExp(`^${logicQueryDto.dbtModelId}$`, 'i');
+    if (logicQueryDto.relationName)
+      filter.relationName = new RegExp(`^${logicQueryDto.relationName}$`, 'i');
 
     return filter;
   };
@@ -108,9 +114,9 @@ export default class LogicRepo implements ILogicRepo {
         this.#toEntity(this.#buildProperties(element))
       );
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -125,9 +131,9 @@ export default class LogicRepo implements ILogicRepo {
 
       return result.insertedId.toHexString();
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -146,9 +152,9 @@ export default class LogicRepo implements ILogicRepo {
         result.insertedIds[parseInt(key, 10)].toHexString()
       );
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -163,9 +169,9 @@ export default class LogicRepo implements ILogicRepo {
 
       return result.deletedCount.toString();
     } catch (error: unknown) {
-      if (typeof error === 'string') return Promise.reject(error);
-      if (error instanceof Error) return Promise.reject(error.stack || error.message);
-      return Promise.reject(new Error('Unknown error occured'));
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error(''));
     }
   };
 
@@ -216,7 +222,7 @@ export default class LogicRepo implements ILogicRepo {
   #buildMaterializationDefinition = (
     matCatalogElement: PersistenceMaterializationDefinition
   ): MaterializationDefinition => ({
-    dbtModelId: matCatalogElement.dbtModelId,
+    relationName: matCatalogElement.relationName,
     materializationName: matCatalogElement.materializationName,
     schemaName: matCatalogElement.schemaName,
     databaseName: matCatalogElement.databaseName,
@@ -225,25 +231,30 @@ export default class LogicRepo implements ILogicRepo {
   #buildProperties = (logic: LogicPersistence): LogicProperties => ({
     // eslint-disable-next-line no-underscore-dangle
     id: logic._id.toHexString(),
-    dbtModelId: logic.dbtModelId,
+    relationName: logic.relationName,
     sql: logic.sql,
-    dependentOn: logic.dependentOn.map((element) =>
-      this.#buildMaterializationDefinition(element)
-    ),
+    dependentOn: {
+      dbtDependencyDefinitions: logic.dependentOn.dbtDependencyDefinitions.map(
+        (element) => this.#buildMaterializationDefinition(element)
+      ),
+      dwDependencyDefinitions: logic.dependentOn.dwDependencyDefinitions.map(
+        (element) => this.#buildMaterializationDefinition(element)
+      ),
+    },
     parsedLogic: logic.parsedLogic,
     statementRefs: this.#buildStatementRefs(logic.statementRefs),
     lineageId: logic.lineageId,
-    organizationId: logic.organizationId
+    organizationId: logic.organizationId,
   });
 
   #toPersistence = (logic: Logic): Document => ({
     _id: ObjectId.createFromHexString(logic.id),
-    dbtModelId: logic.dbtModelId,
+    relationName: logic.relationName,
     sql: logic.sql,
     dependentOn: logic.dependentOn,
     parsedLogic: logic.parsedLogic,
     statementRefs: logic.statementRefs,
     lineageId: logic.lineageId,
-    organizationId: logic.organizationId
+    organizationId: logic.organizationId,
   });
 }

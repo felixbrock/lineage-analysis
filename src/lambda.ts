@@ -101,7 +101,6 @@ const internalInvokeHandler = async (event: any): Promise<void> => {
 
     return internalInvokeResult;
   } catch (error) {
-    console.error(error);
     return Promise.reject(error);
   }
 };

@@ -1,6 +1,6 @@
 export interface ColumnProperties {
   id: string;
-  dbtModelId: string;
+  relationName: string;
   name: string;
   index: string;
   type: string;
@@ -12,7 +12,7 @@ export interface ColumnProperties {
 export class Column {
   #id: string;
 
-  #dbtModelId: string;
+  #relationName: string;
 
   #name: string;
 
@@ -30,8 +30,8 @@ export class Column {
     return this.#id;
   }
 
-  get dbtModelId(): string {
-    return this.#dbtModelId;
+  get relationName(): string {
+    return this.#relationName;
   }
 
   get name(): string {
@@ -60,7 +60,7 @@ export class Column {
 
   private constructor(properties: ColumnProperties) {
     this.#id = properties.id;
-    this.#dbtModelId = properties.dbtModelId;
+    this.#relationName = properties.relationName;
     this.#name = properties.name;
     this.#index = properties.index;
     this.#type = properties.type;
@@ -71,8 +71,8 @@ export class Column {
 
   static create = (properties: ColumnProperties): Column => {
     if (!properties.id) throw new TypeError('Column must have id');
-    if (!properties.dbtModelId)
-      throw new TypeError('Column must have dbtModelId');
+    if (!properties.relationName)
+      throw new TypeError('Column must have relationName');
     if (!properties.name) throw new TypeError('Column must have name');
     if (!properties.index) throw new TypeError('Column must have index');
     if (!properties.type) throw new TypeError('Column must have type');
@@ -85,7 +85,7 @@ export class Column {
 
     const column = new Column({
       id: properties.id,
-      dbtModelId: properties.dbtModelId,
+      relationName: properties.relationName,
       name: properties.name,
       index: properties.index,
       type: properties.type,
