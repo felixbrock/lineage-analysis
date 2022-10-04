@@ -14,6 +14,7 @@ export const parseExternalResourceType = (
 export interface ExternalResourceProperties {
   id: string;
   name: string;
+  relationName: string;
   type: ExternalResourceType;
   lineageId: string;
   organizationId: string;
@@ -23,6 +24,8 @@ export class ExternalResource {
   #id: string;
 
   #name: string;
+
+  #relationName: string;
 
   #type: ExternalResourceType;
 
@@ -36,6 +39,10 @@ export class ExternalResource {
 
   get name(): string {
     return this.#name;
+  }
+
+  get relationName(): string {
+    return this.#relationName;
   }
 
   get type(): ExternalResourceType {
@@ -53,6 +60,7 @@ export class ExternalResource {
   private constructor(properties: ExternalResourceProperties) {
     this.#id = properties.id;
     this.#name = properties.name;
+    this.#relationName = properties.relationName;
     this.#type = properties.type;
     this.#lineageId = properties.lineageId;
     this.#organizationId = properties.organizationId;
@@ -65,6 +73,8 @@ export class ExternalResource {
       throw new TypeError('ExternalResource object must have id');
     if (!properties.name)
       throw new TypeError('ExternalResource object must have name');
+      if (!properties.relationName)
+      throw new TypeError('ExternalResource object must have relation name');
     if (!properties.type)
       throw new TypeError('ExternalResource object must have type');
     if (!properties.lineageId)
@@ -80,6 +90,7 @@ export class ExternalResource {
   toDto = (): { [key: string]: any } => ({
     id: this.#id,
     name: this.#name,
+    relationName: this.#relationName, 
     type: this.#type,
     lineageId: this.#lineageId,
     organizationId: this.#organizationId,
