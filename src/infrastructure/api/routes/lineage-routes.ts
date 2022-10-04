@@ -28,7 +28,7 @@ lineageRoutes.get('/:id', (req, res) => {
   readLineageController.execute(req, res);
 });
 
-lineageRoutes.get('/org/:organizationId', (req, res) => {
+lineageRoutes.get('/current', (req, res) => {
   readLineageController.execute(req, res);
 });
 

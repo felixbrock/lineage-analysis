@@ -6,7 +6,6 @@ import { DbConnection } from '../services/i-db';
 
 export interface ReadLineageRequestDto {
   id?: string;
-  organizationId?: string;
 }
 
 export interface ReadLineageAuthDto {
@@ -40,20 +39,21 @@ export class ReadLineage
     try {
       this.#dbConnection = dbConnection;
 
-      const lineage = await this.#lineageRepo.findOne(
-        this.#dbConnection,
-        request.id,
-        request.organizationId,
-      );
+      const lineage = request.id
+        ? await this.#lineageRepo.findOne(this.#dbConnection, request.id)
+        : await this.#lineageRepo.findCurrent(this.#dbConnection, auth.callerOrganizationId);
       if (!lineage)
-        throw new Error(`Lineage with id ${request.id} or organization id ${request.organizationId} does not exist`);
+        throw new Error(
+          `No lineage found for organization ${auth.callerOrganizationId}`
+        );
 
       if (lineage.organizationId !== auth.callerOrganizationId)
         throw new Error('Not authorized to perform action');
 
       return Result.ok(lineage);
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return Result.fail('');
     }
   }
