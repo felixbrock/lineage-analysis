@@ -28,7 +28,7 @@ lineageRoutes.get('/:id', (req, res) => {
   readLineageController.execute(req, res);
 });
 
-lineageRoutes.get('/current', (req, res) => {
+lineageRoutes.get('/', (req, res) => {
   readLineageController.execute(req, res);
 });
 

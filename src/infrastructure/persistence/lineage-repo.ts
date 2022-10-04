@@ -36,7 +36,7 @@ export default class LineageRepo implements ILineageRepo {
     }
   };
 
-  findCurrent = async (dbConnection: Db, organizationId: string): Promise<Lineage | null> => {
+  findLatest = async (dbConnection: Db, organizationId: string): Promise<Lineage | null> => {
     try {
       const result: any = await dbConnection
         .collection(collectionName)

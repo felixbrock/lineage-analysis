@@ -41,7 +41,7 @@ export class ReadLineage
 
       const lineage = request.id
         ? await this.#lineageRepo.findOne(this.#dbConnection, request.id)
-        : await this.#lineageRepo.findCurrent(this.#dbConnection, auth.callerOrganizationId);
+        : await this.#lineageRepo.findLatest(this.#dbConnection, auth.callerOrganizationId);
       if (!lineage)
         throw new Error(
           `No lineage found for organization ${auth.callerOrganizationId}`
