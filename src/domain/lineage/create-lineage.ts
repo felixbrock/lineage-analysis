@@ -975,7 +975,8 @@ export class CreateLineage
     }
 
     if (createDependencyResults.some((result) => !result.value))
-      throw new SyntaxError(`Creation of dependencies failed`);
+      console.warn(`Fix. Creation of dependencies failed. Skipped for now.`);
+    // throw new SyntaxError(`Creation of dependencies failed`);
 
     const isValue = (item: Dependency | undefined): item is Dependency =>
       !!item;
@@ -1019,8 +1020,11 @@ export class CreateLineage
 
     if (!createDependencyResult.success)
       throw new Error(createDependencyResult.error);
-    if (!createDependencyResult.value)
-      throw new ReferenceError(`Creating dependency failed`);
+    if (!createDependencyResult.value) {
+      console.warn(`Creating dependency failed`);
+      return;
+    }
+    // throw new ReferenceError(`Creating dependency failed`);
 
     const dependency = createDependencyResult.value;
 
@@ -1151,10 +1155,15 @@ export class CreateLineage
       return nameIsEqual && schemaNameIsEqual && databaseNameIsEqual;
     });
 
-    if (catalogMatches.length !== 1)
-      throw new RangeError(
-        'Inconsistencies in materialization dependency catalog'
+    if (catalogMatches.length !== 1) {
+      console.warn(
+        'todo - fix. Error in wildcard dependency generation. Skipped for now'
       );
+      return [];
+      //   throw new RangeError(
+      //   'Inconsistencies in materialization dependency catalog'
+      // );
+    }
 
     const { relationName } = catalogMatches[0];
 
