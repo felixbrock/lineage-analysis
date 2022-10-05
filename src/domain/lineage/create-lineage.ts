@@ -250,23 +250,27 @@ export class CreateLineage
   };
 
   /* Runs through manifest source objects and creates corresponding materialization objecst */
-  #generateWarehouseSource = async (source: any): Promise<void> => {
-    if (!this.#lineage)
-      throw new ReferenceError('Lineage property is undefined');
-    const lineage = this.#lineage;
+  #generateWarehouseSource = async (
+    sourceProps: {
+      materializationType: MaterializationType;
+      name: string;
+      relationName: string;
+      schemaName: string;
+      databaseName: string;
+      logicId: string;
+      lineageId: string;
+      targetOrganizationId?: string;
+      columns: {[key: string]: any};
+    },
+    options: { writeToPersistence: boolean }
+  ): Promise<void> => {
+    const { columns, ...createMaterializationProps } = sourceProps;
 
     const createMaterializationResult =
       await this.#createMaterialization.execute(
         {
-          materializationType: source.metadata.type,
-          name: source.metadata.name,
-          relationName: source.relation_name,
-          schemaName: source.metadata.schema,
-          databaseName: source.metadata.database,
-          logicId: 'todo - read from snowflake',
-          lineageId: lineage.id,
-          targetOrganizationId: this.#targetOrganizationId,
-          writeToPersistence: false,
+          ...createMaterializationProps,
+          writeToPersistence: options.writeToPersistence,
         },
         {
           isSystemInternal: this.#isSystemInternal,
@@ -284,17 +288,17 @@ export class CreateLineage
 
     this.#materializations.push(materialization);
 
-    const columns = await Promise.all(
-      Object.keys(source.columns).map(async (columnKey) =>
+    const generatedColumns = await Promise.all(
+      Object.keys(columns).map(async (columnKey) =>
         this.#generateColumn(
-          source.columns[columnKey],
+          columns[columnKey],
           materialization.relationName,
           materialization.id
         )
       )
     );
 
-    this.#columns.push(...columns);
+    this.#columns.push(...generatedColumns);
   };
 
   /* Create materializations and columns that are referenced in SQL models, but are neither defined as node or source objects in manifest.json */
@@ -574,6 +578,10 @@ export class CreateLineage
     catalog: any,
     manifest: any
   ): Promise<void> => {
+    if (!this.#lineage)
+      throw new ReferenceError('Lineage property is undefined');
+    const lineage = this.#lineage;
+
     const uniqueIdRelationNameMapping: {
       [key: string]: { relationName: string };
     } = {};
@@ -604,9 +612,39 @@ export class CreateLineage
     });
 
     await Promise.all(
-      dbtCatalogSourceKeys.map(async (key) =>
-        this.#generateWarehouseSource(dbtCatalogResources.sources[key])
-      )
+      dbtCatalogSourceKeys.map(async (key) => {
+        const source = dbtCatalogResources.sources[key];
+
+        const { name, type, schema, database } = source.metadata;
+
+        if (
+          (typeof type !== 'string' && type in MaterializationType) ||
+          typeof name !== 'string' ||
+          typeof schema !== 'string' ||
+          typeof database !== 'string'
+        )
+          throw new TypeError(
+            "Unexpected type coming from one of manifest or catalog.json's fields"
+          );
+
+        const sourceProps = {
+          materializationType: type,
+          name,
+          relationName: uniqueIdRelationNameMapping[key].relationName,
+          schemaName: schema,
+          databaseName: database,
+          logicId: 'todo - read from snowflake',
+          lineageId: lineage.id,
+          targetOrganizationId: this.#targetOrganizationId,
+          columns: source.columns,
+        };
+
+        const options = {
+          writeToPersistence: false,
+        };
+
+        this.#generateWarehouseSource(sourceProps, options);
+      })
     );
 
     const dbtCatalogNodeKeys = Object.keys(dbtCatalogResources.nodes);

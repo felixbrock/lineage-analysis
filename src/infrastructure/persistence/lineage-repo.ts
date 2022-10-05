@@ -38,17 +38,21 @@ export default class LineageRepo implements ILineageRepo {
 
   findLatest = async (dbConnection: Db, organizationId: string): Promise<Lineage | null> => {
     try {
-      const result: any = await dbConnection
+      const result = await dbConnection
         .collection(collectionName)
         // todo- index on createdAt
         // .find({}, {createdAt: 1, _id:0}).sort({createdAt: -1}).limit(1);
         .find({organizationId})
         .sort({ createdAt: -1 })
         .limit(1);
+      const results: any[] = await result.toArray();
 
-      if (!result) return null;
+      if(results.length > 1)
+        throw new Error('find latest lineage - multiple lineage objects returned from persistence');
 
-      return this.#toEntity(this.#buildProperties(result));
+      if (!results.length) return null;
+
+      return this.#toEntity(this.#buildProperties(results[0]));
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
