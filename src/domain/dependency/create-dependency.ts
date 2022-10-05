@@ -83,6 +83,7 @@ export class CreateDependency
     return potentialParents[0].id;
   };
 
+  /* Returns column object that represents head of directed edge (the column that is referencing another column) */
   #getSelfColumn = async (
     selfRelationName: string,
     dependencyRef: ColumnRef,
@@ -229,7 +230,9 @@ export class CreateDependency
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      return Result.fail('');
+      console.warn('todo - fix. Creating dependency failed. Empty Result returned instead');
+      // return Result.fail('');
+      return Result.ok();
     }
   }
 }

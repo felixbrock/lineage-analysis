@@ -10,7 +10,7 @@ export interface MaterializationProperties {
   schemaName: string;
   databaseName: string;
   materializationType: MaterializationType;
-  logicId: string;
+  logicId?: string;
   lineageId: string;
   organizationId: string; 
 }
@@ -28,7 +28,7 @@ export class Materialization {
 
   #materializationType: MaterializationType;
 
-  #logicId: string;
+  #logicId?: string;
 
   #lineageId: string;
 
@@ -58,7 +58,7 @@ export class Materialization {
     return this.#materializationType;
   }
 
-  get logicId(): string {
+  get logicId(): string | undefined {
     return this.#logicId;
   }
 
@@ -93,7 +93,6 @@ export class Materialization {
       throw new TypeError('Materialization must have database name');
     if (!properties.materializationType)
       throw new TypeError('Materialization must have materialization type');
-    if (!properties.logicId) throw new TypeError('Materialization must have logicId');
     if (!properties.lineageId) throw new TypeError('Materialization must have lineageId');
     if (!properties.organizationId) throw new TypeError('Materialization must have organization id');
 

@@ -33,7 +33,6 @@ export default class ReadLineageController extends BaseController {
 
   #buildRequestDto = (httpRequest: Request): ReadLineageRequestDto => ({
     id: httpRequest.params.id,
-    organizationId: httpRequest.params.organizationId,
   });
 
   #buildAuthDto = (userAccountInfo: UserAccountInfo): ReadLineageAuthDto => {

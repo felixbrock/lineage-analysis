@@ -4,7 +4,10 @@ import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import SQLElement from '../value-types/sql-element';
 import { CreateColumn } from '../column/create-column';
-import { CreateMaterialization } from '../materialization/create-materialization';
+import {
+  CreateMaterialization,
+  CreateMaterializationRequestDto,
+} from '../materialization/create-materialization';
 import { CreateLogic } from '../logic/create-logic';
 import { ParseSQL, ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
 import { Lineage } from '../entities/lineage';
@@ -213,8 +216,8 @@ export class CreateLineage
 
   #generateColumn = async (
     columnDefinition: { name: string; index: string; type: string },
-    relationName: string,
-    materializationId: string
+    sourceRelationName: string,
+    sourceId: string
   ): Promise<Column> => {
     if (!this.#lineage)
       throw new ReferenceError('Lineage property is undefined');
@@ -223,11 +226,11 @@ export class CreateLineage
     // todo - add additional properties like index
     const createColumnResult = await this.#createColumn.execute(
       {
-        relationName,
+        relationName: sourceRelationName,
         name: columnDefinition.name,
         index: columnDefinition.index,
         type: columnDefinition.type,
-        materializationId,
+        materializationId: sourceId,
         lineageId: lineage.id,
         writeToPersistence: false,
         targetOrganizationId: this.#targetOrganizationId,
@@ -247,23 +250,27 @@ export class CreateLineage
   };
 
   /* Runs through manifest source objects and creates corresponding materialization objecst */
-  #generateWarehouseSource = async (source: any): Promise<void> => {
-    if (!this.#lineage)
-      throw new ReferenceError('Lineage property is undefined');
-    const lineage = this.#lineage;
+  #generateWarehouseSource = async (
+    sourceProps: {
+      materializationType: MaterializationType;
+      name: string;
+      relationName: string;
+      schemaName: string;
+      databaseName: string;
+      logicId: string;
+      lineageId: string;
+      targetOrganizationId?: string;
+      columns: {[key: string]: any};
+    },
+    options: { writeToPersistence: boolean }
+  ): Promise<void> => {
+    const { columns, ...createMaterializationProps } = sourceProps;
 
     const createMaterializationResult =
       await this.#createMaterialization.execute(
         {
-          materializationType: source.metadata.type,
-          name: source.metadata.name,
-          relationName: source.relation_name,
-          schemaName: source.metadata.schema,
-          databaseName: source.metadata.database,
-          logicId: 'todo - read from snowflake',
-          lineageId: lineage.id,
-          targetOrganizationId: this.#targetOrganizationId,
-          writeToPersistence: false,
+          ...createMaterializationProps,
+          writeToPersistence: options.writeToPersistence,
         },
         {
           isSystemInternal: this.#isSystemInternal,
@@ -281,17 +288,17 @@ export class CreateLineage
 
     this.#materializations.push(materialization);
 
-    const columns = await Promise.all(
-      Object.keys(source.columns).map(async (columnKey) =>
+    const generatedColumns = await Promise.all(
+      Object.keys(columns).map(async (columnKey) =>
         this.#generateColumn(
-          source.columns[columnKey],
+          columns[columnKey],
           materialization.relationName,
           materialization.id
         )
       )
     );
 
-    this.#columns.push(...columns);
+    this.#columns.push(...generatedColumns);
   };
 
   /* Create materializations and columns that are referenced in SQL models, but are neither defined as node or source objects in manifest.json */
@@ -369,59 +376,84 @@ export class CreateLineage
           this.#insensitiveEquality(finalMat.name, col.materializationName)
         );
 
-        const uniqueRelevantColumnRefs = relevantColumnRefs.filter((column1, index, self) =>
-        index === self.findIndex((column2) => 
-            this.#insensitiveEquality(column1.name,column2.name)
-        )
-      );
-
-        const isColumn = (column: Column | undefined): column is Column => !!column;
-
-        const columns = (await Promise.all(
-          uniqueRelevantColumnRefs.map(async (el) => 
-            
-            this.#generateColumn(
-              { name: el.name, index: '-1', type: 'string' },
-              finalMat.relationName,
-              finalMat.id
+        const uniqueRelevantColumnRefs = relevantColumnRefs.filter(
+          (column1, index, self) =>
+            index ===
+            self.findIndex((column2) =>
+              this.#insensitiveEquality(column1.name, column2.name)
             )
+        );
 
+        const isColumn = (column: Column | undefined): column is Column =>
+          !!column;
+
+        const columns = (
+          await Promise.all(
+            uniqueRelevantColumnRefs.map(async (el) =>
+              this.#generateColumn(
+                { name: el.name, index: '-1', type: 'string' },
+                finalMat.relationName,
+                finalMat.id
+              )
+            )
           )
-        )).filter(isColumn);
+        ).filter(isColumn);
 
         this.#columns.push(...columns);
-
 
         // wildcards;
       })
     );
   };
 
-  #generateDbtModel = async (
-    model: any,
-    modelManifest: any,
-    dbtDependentOn: MaterializationDefinition[],
-    catalogFile: string
-  ): Promise<void> => {
-    if (!this.#lineage)
-      throw new ReferenceError('Lineage property is undefined');
-    const lineage = this.#lineage;
+  #generateNodeMaterialization = async (
+    req: CreateMaterializationRequestDto
+  ): Promise<Materialization> => {
+    const createMaterializationResult =
+      await this.#createMaterialization.execute(
+        req,
+        {
+          isSystemInternal: this.#isSystemInternal,
+          callerOrganizationId: this.#callerOrganizationId,
+        },
+        this.#dbConnection
+      );
 
-    const sql = modelManifest.compiled_sql;
+    if (!createMaterializationResult.success)
+      throw new Error(createMaterializationResult.error);
+    if (!createMaterializationResult.value)
+      throw new SyntaxError(`Creation of materialization failed`);
+
+    const materialization = createMaterializationResult.value;
+
+    this.#materializations.push(materialization);
+
+    return materialization;
+  };
+
+  /* Generate dbt model node */
+  #generateDbtModelNode = async (props: {
+    model: any;
+    modelManifest: any;
+    dbtDependentOn: MaterializationDefinition[];
+    catalogFile: string;
+    lineageId: string;
+  }): Promise<void> => {
+    const sql = props.modelManifest.compiled_sql;
 
     const parsedLogic = await this.#parseLogic(sql);
 
     const createLogicResult = await this.#createLogic.execute(
       {
-        relationName: modelManifest.relation_name,
+        relationName: props.modelManifest.relation_name,
         sql,
-        modelName: model.metadata.name,
-        dbtDependentOn,
-        lineageId: lineage.id,
+        modelName: props.model.metadata.name,
+        dbtDependentOn: props.dbtDependentOn,
+        lineageId: props.lineageId,
         parsedLogic,
         targetOrganizationId: this.#targetOrganizationId,
         writeToPersistence: false,
-        catalogFile,
+        catalogFile: props.catalogFile,
       },
       {
         isSystemInternal: this.#isSystemInternal,
@@ -443,46 +475,88 @@ export class CreateLineage
       logic.dependentOn.dwDependencyDefinitions
     );
 
-    const createMaterializationResult =
-      await this.#createMaterialization.execute(
-        {
-          materializationType: model.metadata.type,
-          name: model.metadata.name,
-          relationName: modelManifest.relation_name,
-          schemaName: model.metadata.schema,
-          databaseName: model.metadata.database,
-          logicId: logic.id,
-          lineageId: lineage.id,
-          targetOrganizationId: this.#targetOrganizationId,
-          writeToPersistence: false,
-        },
-        {
-          isSystemInternal: this.#isSystemInternal,
-          callerOrganizationId: this.#callerOrganizationId,
-        },
-        this.#dbConnection
-      );
-
-    if (!createMaterializationResult.success)
-      throw new Error(createMaterializationResult.error);
-    if (!createMaterializationResult.value)
-      throw new SyntaxError(`Creation of materialization failed`);
-
-    const materialization = createMaterializationResult.value;
-
-    this.#materializations.push(materialization);
+    const mat = await this.#generateNodeMaterialization({
+      materializationType: props.model.metadata.type,
+      name: props.model.metadata.name,
+      relationName: props.modelManifest.relation_name,
+      schemaName: props.model.metadata.schema,
+      databaseName: props.model.metadata.database,
+      logicId: logic.id,
+      lineageId: props.lineageId,
+      targetOrganizationId: this.#targetOrganizationId,
+      writeToPersistence: false,
+    });
 
     const columns = await Promise.all(
-      Object.keys(model.columns).map(async (columnKey) =>
+      Object.keys(props.model.columns).map(async (columnKey) =>
         this.#generateColumn(
-          model.columns[columnKey],
-          materialization.relationName,
-          materialization.id
+          props.model.columns[columnKey],
+          mat.relationName,
+          mat.id
         )
       )
     );
 
     this.#columns.push(...columns);
+  };
+
+  #generateDbtSeedNode = async (props: {
+    model: any;
+    modelManifest: any;
+    dbtDependentOn: MaterializationDefinition[];
+    catalogFile: string;
+    lineageId: string;
+  }): Promise<void> => {
+    const mat = await this.#generateNodeMaterialization({
+      materializationType: props.model.metadata.type,
+      name: props.model.metadata.name,
+      relationName: props.modelManifest.relation_name,
+      schemaName: props.model.metadata.schema,
+      databaseName: props.model.metadata.database,
+      lineageId: props.lineageId,
+      targetOrganizationId: this.#targetOrganizationId,
+      writeToPersistence: false,
+    });
+
+    const columns = await Promise.all(
+      Object.keys(props.model.columns).map(async (columnKey) =>
+        this.#generateColumn(
+          props.model.columns[columnKey],
+          mat.relationName,
+          mat.id
+        )
+      )
+    );
+
+    this.#columns.push(...columns);
+  };
+
+  /* Generate resources that are either defined in catalog and manifest.json 
+  or are only reference by SQL models (e.g. sf source table that are not defined as dbt sources) */
+  #generateDbtNode = async (props: {
+    model: any;
+    modelManifest: any;
+    dbtDependentOn: MaterializationDefinition[];
+    catalogFile: string;
+  }): Promise<void> => {
+    if (!this.#lineage)
+      throw new ReferenceError('Lineage property is undefined');
+    const lineage = this.#lineage;
+
+    switch (props.modelManifest.resource_type) {
+      case 'model':
+        await this.#generateDbtModelNode({ ...props, lineageId: lineage.id });
+        break;
+      case 'seed':
+        await this.#generateDbtSeedNode({ ...props, lineageId: lineage.id });
+        break;
+      case 'test':
+        break;
+      default:
+        throw new Error(
+          'Unhandled dbt node type detected while generating dbt node resources'
+        );
+    }
   };
 
   /* Get dbt nodes from catalog.json or manifest.json */
@@ -504,6 +578,10 @@ export class CreateLineage
     catalog: any,
     manifest: any
   ): Promise<void> => {
+    if (!this.#lineage)
+      throw new ReferenceError('Lineage property is undefined');
+    const lineage = this.#lineage;
+
     const uniqueIdRelationNameMapping: {
       [key: string]: { relationName: string };
     } = {};
@@ -534,9 +612,39 @@ export class CreateLineage
     });
 
     await Promise.all(
-      dbtCatalogSourceKeys.map(async (key) =>
-        this.#generateWarehouseSource(dbtCatalogResources.sources[key])
-      )
+      dbtCatalogSourceKeys.map(async (key) => {
+        const source = dbtCatalogResources.sources[key];
+
+        const { name, type, schema, database } = source.metadata;
+
+        if (
+          (typeof type !== 'string' && type in MaterializationType) ||
+          typeof name !== 'string' ||
+          typeof schema !== 'string' ||
+          typeof database !== 'string'
+        )
+          throw new TypeError(
+            "Unexpected type coming from one of manifest or catalog.json's fields"
+          );
+
+        const sourceProps = {
+          materializationType: type,
+          name,
+          relationName: uniqueIdRelationNameMapping[key].relationName,
+          schemaName: schema,
+          databaseName: database,
+          logicId: 'todo - read from snowflake',
+          lineageId: lineage.id,
+          targetOrganizationId: this.#targetOrganizationId,
+          columns: source.columns,
+        };
+
+        const options = {
+          writeToPersistence: false,
+        };
+
+        this.#generateWarehouseSource(sourceProps, options);
+      })
     );
 
     const dbtCatalogNodeKeys = Object.keys(dbtCatalogResources.nodes);
@@ -583,12 +691,12 @@ export class CreateLineage
         if (dependsOnRelationName.length !== dbtDependentOn.length)
           throw new RangeError('materialization dependency mismatch');
 
-        return this.#generateDbtModel(
-          dbtCatalogResources.nodes[key],
-          dbtManifestResources.nodes[key],
+        return this.#generateDbtNode({
+          model: dbtCatalogResources.nodes[key],
+          modelManifest: dbtManifestResources.nodes[key],
           dbtDependentOn,
-          catalog
-        );
+          catalogFile: catalog,
+        });
       })
     );
   };
@@ -905,7 +1013,8 @@ export class CreateLineage
     }
 
     if (createDependencyResults.some((result) => !result.value))
-      throw new SyntaxError(`Creation of dependencies failed`);
+      console.warn(`Fix. Creation of dependencies failed. Skipped for now.`);
+    // throw new SyntaxError(`Creation of dependencies failed`);
 
     const isValue = (item: Dependency | undefined): item is Dependency =>
       !!item;
@@ -949,8 +1058,11 @@ export class CreateLineage
 
     if (!createDependencyResult.success)
       throw new Error(createDependencyResult.error);
-    if (!createDependencyResult.value)
-      throw new ReferenceError(`Creating dependency failed`);
+    if (!createDependencyResult.value) {
+      console.warn(`Creating dependency failed`);
+      return;
+    }
+    // throw new ReferenceError(`Creating dependency failed`);
 
     const dependency = createDependencyResult.value;
 
@@ -1081,10 +1193,15 @@ export class CreateLineage
       return nameIsEqual && schemaNameIsEqual && databaseNameIsEqual;
     });
 
-    if (catalogMatches.length !== 1)
-      throw new RangeError(
-        'Inconsistencies in materialization dependency catalog'
+    if (catalogMatches.length !== 1) {
+      console.warn(
+        'todo - fix. Error in wildcard dependency generation. Skipped for now'
       );
+      return [];
+      //   throw new RangeError(
+      //   'Inconsistencies in materialization dependency catalog'
+      // );
+    }
 
     const { relationName } = catalogMatches[0];
 
