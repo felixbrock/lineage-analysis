@@ -39,8 +39,6 @@ export class ReadMaterialization
     auth: ReadMaterializationAuthDto,
     dbConnection: DbConnection
   ): Promise<ReadMaterializationResponseDto> {
-    ;
-
     try {
       this.#dbConnection = dbConnection;
 
@@ -56,7 +54,8 @@ export class ReadMaterialization
 
       return Result.ok(buildMaterializationDto(materialization));
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return Result.fail('');
     }
   }

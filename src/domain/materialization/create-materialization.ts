@@ -16,7 +16,7 @@ export interface CreateMaterializationRequestDto {
   name: string;
   schemaName: string;
   databaseName: string;
-  logicId: string;
+  logicId?: string;
   lineageId: string;
   writeToPersistence: boolean;
   targetOrganizationId?: string;
@@ -95,7 +95,10 @@ export class CreateMaterialization
             lineageId: request.lineageId,
             targetOrganizationId: request.targetOrganizationId,
           },
-          { isSystemInternal: auth.isSystemInternal, callerOrganizationId: auth.callerOrganizationId },
+          {
+            isSystemInternal: auth.isSystemInternal,
+            callerOrganizationId: auth.callerOrganizationId,
+          },
           this.#dbConnection
         );
 
@@ -114,7 +117,8 @@ export class CreateMaterialization
 
       return Result.ok(materialization);
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return Result.fail('');
     }
   }

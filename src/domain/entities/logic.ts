@@ -1744,7 +1744,7 @@ export class Logic {
       definition: MaterializationDefinition | undefined
     ): definition is MaterializationDefinition => !!definition;
 
-    const mappingResults = materializationRefs.filter(ref => ref.type !== 'self')
+    const mappingResults = materializationRefs.filter(ref => ref.type === 'dependency')
       .map((ref: MaterializationRef): MaterializationDefinition | undefined => {
         if (!ref.databaseName) {
           console.warn(
