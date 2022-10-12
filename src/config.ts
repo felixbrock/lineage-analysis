@@ -60,5 +60,10 @@ export const appConfig = {
     userPoolId: getCognitoUserPoolId(),
     region: 'eu-central-1',
   },
+  apiRoot: {
+    sqlParser: process.env.API_ROOT_SQL_PARSER,
+    integrationService: process.env.API_ROOT_INTEGRATION_SERVICE,
+    accountService: process.env.API_ROOT_ACCOUNT_SERVICE
+  },
   mongodb: getMongodbConfig(),
 };
