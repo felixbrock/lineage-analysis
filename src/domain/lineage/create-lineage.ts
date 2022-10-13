@@ -110,21 +110,21 @@ export class CreateLineage
 
   #dbConnection: DbConnection;
 
-  #lineage?: Lineage;
+  #newLineage?: Lineage;
 
-  #logics: Logic[];
+  #newLogics: Logic[];
 
-  #materializations: Materialization[];
+  #newMaterializations: Materialization[];
 
-  #columns: Column[];
+  #newColumns: Column[];
 
-  #dependencies: Dependency[];
+  #newDependencies: Dependency[];
 
-  #dashboards: Dashboard[];
+  #newDashboards: Dashboard[];
 
   #lastQueryDependency?: ColumnRef;
 
-  #matDefinitionCatalog: MaterializationDefinition[];
+  #newMatDefinitionCatalog: MaterializationDefinition[];
 
   #targetOrganizationId?: string;
 
@@ -168,13 +168,13 @@ export class CreateLineage
     this.#dependencyRepo = dependencyRepo;
     this.#dashboardRepo = dashboardRepo;
     this.#readColumns = readColumns;
-    this.#logics = [];
-    this.#materializations = [];
-    this.#columns = [];
-    this.#dependencies = [];
-    this.#dashboards = [];
-    this.#matDefinitionCatalog = [];
-    this.#lineage = undefined;
+    this.#newLogics = [];
+    this.#newMaterializations = [];
+    this.#newColumns = [];
+    this.#newDependencies = [];
+    this.#newDashboards = [];
+    this.#newMatDefinitionCatalog = [];
+    this.#newLineage = undefined;
     this.#lastQueryDependency = undefined;
     this.#targetOrganizationId = '';
     this.#callerOrganizationId = '';
@@ -194,7 +194,7 @@ export class CreateLineage
     //       })
     //     : Lineage.create({ id: new ObjectId().toHexString() });
 
-    this.#lineage = Lineage.create({
+    this.#newLineage = Lineage.create({
       id: new ObjectId().toHexString(),
       organizationId: this.#organizationId,
     });
@@ -219,9 +219,9 @@ export class CreateLineage
     sourceRelationName: string,
     sourceId: string
   ): Promise<Column> => {
-    if (!this.#lineage)
+    if (!this.#newLineage)
       throw new ReferenceError('Lineage property is undefined');
-    const lineage = this.#lineage;
+    const lineage = this.#newLineage;
 
     // todo - add additional properties like index
     const createColumnResult = await this.#createColumn.execute(
@@ -260,7 +260,7 @@ export class CreateLineage
       logicId: string;
       lineageId: string;
       targetOrganizationId?: string;
-      columns: {[key: string]: any};
+      columns: { [key: string]: any };
     },
     options: { writeToPersistence: boolean }
   ): Promise<void> => {
@@ -286,7 +286,7 @@ export class CreateLineage
 
     const materialization = createMaterializationResult.value;
 
-    this.#materializations.push(materialization);
+    this.#newMaterializations.push(materialization);
 
     const generatedColumns = await Promise.all(
       Object.keys(columns).map(async (columnKey) =>
@@ -298,7 +298,7 @@ export class CreateLineage
       )
     );
 
-    this.#columns.push(...generatedColumns);
+    this.#newColumns.push(...generatedColumns);
   };
 
   /* Create materializations and columns that are referenced in SQL models, but are neither defined as node or source objects in manifest.json */
@@ -328,9 +328,9 @@ export class CreateLineage
           );
 
         const matRef = matchingMaterializations[0];
-        if (!this.#lineage) throw new Error('Lineage object not available');
+        if (!this.#newLineage) throw new Error('Lineage object not available');
 
-        const existingMat = this.#materializations.find(
+        const existingMat = this.#newMaterializations.find(
           (el) => el.relationName === def.relationName
         );
 
@@ -345,7 +345,7 @@ export class CreateLineage
                 schemaName: matRef.schemaName || '',
                 databaseName: matRef.databaseName || '',
                 logicId: 'todo - read from snowflake',
-                lineageId: this.#lineage.id,
+                lineageId: this.#newLineage.id,
                 targetOrganizationId: this.#targetOrganizationId,
                 writeToPersistence: false,
               },
@@ -363,7 +363,7 @@ export class CreateLineage
 
           mat = createMaterializationResult.value;
 
-          this.#materializations.push(mat);
+          this.#newMaterializations.push(mat);
         }
 
         const finalMat = mat;
@@ -399,7 +399,7 @@ export class CreateLineage
           )
         ).filter(isColumn);
 
-        this.#columns.push(...columns);
+        this.#newColumns.push(...columns);
 
         // wildcards;
       })
@@ -426,7 +426,7 @@ export class CreateLineage
 
     const materialization = createMaterializationResult.value;
 
-    this.#materializations.push(materialization);
+    this.#newMaterializations.push(materialization);
 
     return materialization;
   };
@@ -468,7 +468,7 @@ export class CreateLineage
 
     const logic = createLogicResult.value;
 
-    this.#logics.push(logic);
+    this.#newLogics.push(logic);
 
     await this.#createExternalResources(
       logic.statementRefs,
@@ -497,7 +497,7 @@ export class CreateLineage
       )
     );
 
-    this.#columns.push(...columns);
+    this.#newColumns.push(...columns);
   };
 
   #generateDbtSeedNode = async (props: {
@@ -528,7 +528,7 @@ export class CreateLineage
       )
     );
 
-    this.#columns.push(...columns);
+    this.#newColumns.push(...columns);
   };
 
   /* Generate resources that are either defined in catalog and manifest.json 
@@ -539,9 +539,9 @@ export class CreateLineage
     dbtDependentOn: MaterializationDefinition[];
     catalogFile: string;
   }): Promise<void> => {
-    if (!this.#lineage)
+    if (!this.#newLineage)
       throw new ReferenceError('Lineage property is undefined');
-    const lineage = this.#lineage;
+    const lineage = this.#newLineage;
 
     switch (props.modelManifest.resource_type) {
       case 'model':
@@ -578,9 +578,9 @@ export class CreateLineage
     catalog: any,
     manifest: any
   ): Promise<void> => {
-    if (!this.#lineage)
+    if (!this.#newLineage)
       throw new ReferenceError('Lineage property is undefined');
-    const lineage = this.#lineage;
+    const lineage = this.#newLineage;
 
     const uniqueIdRelationNameMapping: {
       [key: string]: { relationName: string };
@@ -608,7 +608,7 @@ export class CreateLineage
         databaseName: source.metadata.database,
       };
 
-      this.#matDefinitionCatalog.push(matCatalogElement);
+      this.#newMatDefinitionCatalog.push(matCatalogElement);
     });
 
     await Promise.all(
@@ -670,7 +670,7 @@ export class CreateLineage
         databaseName: model.metadata.database,
       };
 
-      this.#matDefinitionCatalog.push(matCatalogElement);
+      this.#newMatDefinitionCatalog.push(matCatalogElement);
     });
 
     await Promise.all(
@@ -684,7 +684,7 @@ export class CreateLineage
             uniqueIdRelationNameMapping[dependencyKey].relationName
         );
 
-        const dbtDependentOn = this.#matDefinitionCatalog.filter((element) =>
+        const dbtDependentOn = this.#newMatDefinitionCatalog.filter((element) =>
           dependsOnRelationName.includes(element.relationName)
         );
 
@@ -699,6 +699,45 @@ export class CreateLineage
         });
       })
     );
+  };
+
+  #mergeWithLatestSnapshot = async (): Promise<void> => {
+    const latestLineage = await this.#lineageRepo.findLatest(
+      this.#dbConnection,
+      this.#organizationId
+    );
+
+    if (!latestLineage) return;
+
+    const latestMats = await this.#materializationRepo.findBy(
+      { lineageId: latestLineage.id, organizationId: this.#organizationId },
+      this.#dbConnection
+    );
+
+    const groupByMatId = (
+      accumulation: { [key: string]: Column[] },
+      column: Column
+    ): { [key: string]: Column[] } => {
+      const localAcc = accumulation;
+
+      const key = column.materializationId;
+      if (!(key in accumulation)) {
+        localAcc[key] = [];
+      }
+      localAcc[key].push(column);
+      return localAcc;
+    };
+
+    const latestColumns = (
+      await this.#columnRepo.findBy(
+        { lineageId: latestLineage.id, organizationId: this.#organizationId },
+        this.#dbConnection
+      )
+    ).reduce(groupByMatId, {});
+
+    latestMats.forEach((oldMat) => {
+      matchingMat = this.#newMaterializations.find(newMat => newMat.relationName === oldMat.relationName );
+    });
   };
 
   // /* Identifies the statement root (e.g. create_materialization_statement.select_statement) of a specific reference path */
@@ -868,7 +907,7 @@ export class CreateLineage
     relationName: string,
     parentRelationNames: string[]
   ): Promise<void> => {
-    const lineage = this.#lineage;
+    const lineage = this.#newLineage;
     if (!lineage) throw new ReferenceError('Lineage property is undefined');
 
     const lineageId = lineage.id;
@@ -923,7 +962,7 @@ export class CreateLineage
 
     const dashboard = createDashboardResult.value;
 
-    this.#dashboards.push(dashboard);
+    this.#newDashboards.push(dashboard);
 
     const createExternalDependencyResult =
       await this.#createExternalDependency.execute(
@@ -946,7 +985,7 @@ export class CreateLineage
       throw new ReferenceError(`Creating external dependency failed`);
 
     const dependency = createExternalDependencyResult.value;
-    this.#dependencies.push(dependency);
+    this.#newDependencies.push(dependency);
   };
 
   /* Creates dependency for specific wildcard ref */
@@ -955,7 +994,7 @@ export class CreateLineage
     relationName: string,
     parentRelationNames: string[]
   ): Promise<void> => {
-    const lineage = this.#lineage;
+    const lineage = this.#newLineage;
 
     if (!lineage) throw new ReferenceError('Lineage property is undefined');
 
@@ -1023,7 +1062,7 @@ export class CreateLineage
       .map((result) => result.value)
       .filter(isValue);
 
-    this.#dependencies.push(...values);
+    this.#newDependencies.push(...values);
   };
 
   /* Creates dependency for specific column ref */
@@ -1032,7 +1071,7 @@ export class CreateLineage
     relationName: string,
     parentRelationNames: string[]
   ): Promise<void> => {
-    const lineage = this.#lineage;
+    const lineage = this.#newLineage;
 
     if (!lineage) throw new ReferenceError('Lineage property is undefined');
 
@@ -1066,7 +1105,7 @@ export class CreateLineage
 
     const dependency = createDependencyResult.value;
 
-    this.#dependencies.push(dependency);
+    this.#newDependencies.push(dependency);
   };
 
   /* Creates all dependencies that exist between DWH resources */
@@ -1082,7 +1121,7 @@ export class CreateLineage
     }
 
     await Promise.all(
-      this.#logics.map(async (logic) => {
+      this.#newLogics.map(async (logic) => {
         const colDataDependencyRefs = this.#getColDataDependencyRefs(
           logic.statementRefs
         );
@@ -1160,11 +1199,11 @@ export class CreateLineage
   #getDependenciesForWildcard = async (
     dependencyRef: ColumnRef
   ): Promise<ColumnRef[]> => {
-    const lineage = this.#lineage;
+    const lineage = this.#newLineage;
 
     if (!lineage) throw new ReferenceError('Lineage property is undefined');
 
-    const catalogMatches = this.#matDefinitionCatalog.filter((dependency) => {
+    const catalogMatches = this.#newMatDefinitionCatalog.filter((dependency) => {
       const nameIsEqual = this.#insensitiveEquality(
         dependencyRef.materializationName,
         dependency.materializationName
@@ -1236,35 +1275,35 @@ export class CreateLineage
     lineageId?: string,
     lineageCreatedAt?: string
   ): Promise<void> => {
-    if (!this.#lineage)
+    if (!this.#newLineage)
       throw new ReferenceError(
         'Lineage object does not exist. Cannot write to persistence'
       );
     if (!(lineageId && lineageCreatedAt))
-      await this.#lineageRepo.insertOne(this.#lineage, this.#dbConnection);
+      await this.#lineageRepo.insertOne(this.#newLineage, this.#dbConnection);
 
-    await this.#logicRepo.insertMany(this.#logics, this.#dbConnection);
+    await this.#logicRepo.insertMany(this.#newLogics, this.#dbConnection);
 
     await this.#materializationRepo.insertMany(
-      this.#materializations,
+      this.#newMaterializations,
       this.#dbConnection
     );
 
-    await this.#columnRepo.insertMany(this.#columns, this.#dbConnection);
+    await this.#columnRepo.insertMany(this.#newColumns, this.#dbConnection);
   };
 
   #writeDashboardsToPersistence = async (): Promise<void> => {
-    if (this.#dashboards.length > 0)
+    if (this.#newDashboards.length > 0)
       await this.#dashboardRepo.insertMany(
-        this.#dashboards,
+        this.#newDashboards,
         this.#dbConnection
       );
   };
 
   #writeDependenciesToPersistence = async (): Promise<void> => {
-    if (this.#dependencies.length > 0)
+    if (this.#newDependencies.length > 0)
       await this.#dependencyRepo.insertMany(
-        this.#dependencies,
+        this.#newDependencies,
         this.#dbConnection
       );
   };
@@ -1300,12 +1339,12 @@ export class CreateLineage
       this.#isSystemInternal = auth.isSystemInternal;
 
       // todo - Workaround. Fix ioc container
-      this.#lineage = undefined;
-      this.#logics = [];
-      this.#materializations = [];
-      this.#columns = [];
-      this.#dependencies = [];
-      this.#matDefinitionCatalog = [];
+      this.#newLineage = undefined;
+      this.#newLogics = [];
+      this.#newMaterializations = [];
+      this.#newColumns = [];
+      this.#newDependencies = [];
+      this.#newMatDefinitionCatalog = [];
       this.#lastQueryDependency = undefined;
 
       console.log('starting lineage creation...');
@@ -1315,6 +1354,9 @@ export class CreateLineage
 
       console.log('...generating warehouse resources');
       await this.#generateWarehouseResources(request.catalog, request.manifest);
+
+      console.log('...merging new lineage snapshot with last one');
+      await this.#mergeWithLatestSnapshot();
 
       console.log('...writing dw resources to persistence');
       await this.#writeWhResourcesToPersistence(
@@ -1332,12 +1374,12 @@ export class CreateLineage
       await this.#writeDependenciesToPersistence();
 
       // todo - how to avoid checking if property exists. A sub-method created the property
-      if (!this.#lineage)
+      if (!this.#newLineage)
         throw new ReferenceError('Lineage property is undefined');
 
       console.log('finished lineage creation.');
 
-      return Result.ok(this.#lineage);
+      return Result.ok(this.#newLineage);
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
