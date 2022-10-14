@@ -1,8 +1,17 @@
-export interface LineageProperties {
+export interface LineagePrototype {
   id: string;
   createdAt?: string;
   organizationId: string;
+  finished?: boolean;
 }
+
+interface LineageProperties
+  extends Omit<LineagePrototype, 'createdAt' | 'finished'> {
+  createdAt: string;
+  finished: boolean;
+}
+
+type LineageDto = LineageProperties;
 
 export class Lineage {
   #id: string;
@@ -10,6 +19,8 @@ export class Lineage {
   #createdAt: string;
 
   #organizationId: string;
+
+  #finished: boolean;
 
   get id(): string {
     return this.#id;
@@ -23,18 +34,39 @@ export class Lineage {
     return this.#organizationId;
   }
 
-  private constructor(properties: LineageProperties) {
-    this.#id = properties.id;
-    this.#createdAt = properties.createdAt || new Date().toISOString();
-    this.#organizationId = properties.organizationId;
+  get finished(): boolean {
+    return this.#finished;
   }
 
-  static create = (properties: LineageProperties): Lineage => {
-    if (!properties.id) throw new TypeError('Lineage must have id');
-    if (!properties.organizationId) throw new TypeError('Lineage must have organization id');
+  private constructor(props: LineageProperties) {
+    this.#id = props.id;
+    this.#createdAt = props.createdAt;
+    this.#organizationId = props.organizationId;
+    this.#finished = props.finished;
+  }
 
-    const lineage = new Lineage(properties);
+  static create = (prototype: LineagePrototype): Lineage => {
+    if (!prototype.id) throw new TypeError('Lineage must have id');
+    if (!prototype.organizationId)
+      throw new TypeError('Lineage must have organization id');
+
+    const lineage = this.#build(prototype);
 
     return lineage;
   };
+
+  static #build = (prototype: LineagePrototype): Lineage =>
+    new Lineage({
+      id: prototype.id,
+      organizationId: prototype.organizationId,
+      createdAt: prototype.createdAt || new Date().toISOString(),
+      finished: prototype.finished || false,
+    });
+
+  toDto = (): LineageDto => ({
+    id: this.#id,
+    createdAt: this.#createdAt,
+    organizationId: this.#organizationId,
+    finished: this.#finished,
+  });
 }

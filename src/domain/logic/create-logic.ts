@@ -17,7 +17,7 @@ export interface CreateLogicRequestDto {
   sql: string;
   dbtDependentOn: MaterializationDefinition[];
   parsedLogic: string;
-  lineageId: string;
+  lineageIds: string[];
   writeToPersistence: boolean;
   targetOrganizationId?: string;
   catalogFile:string;
@@ -110,7 +110,7 @@ export class CreateLogic
         sql: request.sql,
         dbtDependentOn: request.dbtDependentOn,
         parsedLogic: request.parsedLogic,
-        lineageId: request.lineageId,
+        lineageIds: request.lineageIds,
         organizationId,
         catalog,
       });
@@ -118,7 +118,7 @@ export class CreateLogic
       const readLogicsResult = await this.#readLogics.execute(
         {
           relationName: request.relationName,
-          lineageId: request.lineageId,
+          lineageIds: request.lineageIds,
           targetOrganizationId: request.targetOrganizationId,
         },
         {

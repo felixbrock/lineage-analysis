@@ -24,7 +24,7 @@ import {
     materializationName: string;
     columnName: string; 
     _id: ObjectId;
-    lineageId: string;
+    lineageIds: string[];
     columnId: string,
     materializationId: string;
   organizationId: string;
@@ -35,7 +35,7 @@ import {
     name?: string;
     materializationName?: string;
     columnName?: string; 
-    lineageId: string;
+    lineageIds: string[];
     columnId?: string,
     materializationId?: string;
   organizationId: string;
@@ -90,7 +90,7 @@ import {
       dashboardQueryDto: DashboardQueryDto
     ): DashboardQueryFilter => {
       const filter: DashboardQueryFilter = {
-        lineageId: dashboardQueryDto.lineageId, organizationId: dashboardQueryDto.organizationId
+        lineageIds: dashboardQueryDto.lineageIds, organizationId: dashboardQueryDto.organizationId
       };
       
       if (dashboardQueryDto.url) filter.url = dashboardQueryDto.url;
@@ -192,7 +192,7 @@ import {
     ): DashboardProperties => ({
       // eslint-disable-next-line no-underscore-dangle
       id: dashboard._id.toHexString(),
-      lineageId: dashboard.lineageId,
+      lineageIds: dashboard.lineageIds,
       materializationName: dashboard.materializationName,
       columnName: dashboard.columnName,
       columnId: dashboard.columnId,
@@ -205,7 +205,7 @@ import {
   
     #toPersistence = (dashboard: Dashboard): Document => ({
       _id: ObjectId.createFromHexString(dashboard.id),
-      lineageId: dashboard.lineageId,
+      lineageIds: dashboard.lineageIds,
       materialisation: dashboard.materializationName,
       column: dashboard.columnName,
       columnId: dashboard.columnId,

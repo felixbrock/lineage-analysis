@@ -19,7 +19,7 @@ interface ColumnPersistence {
   index: string;
   type: string;
   materializationId: string;
-  lineageId: string;
+  lineageIds: string[];
   organizationId: string;
 }
 
@@ -29,7 +29,7 @@ interface ColumnQueryFilter {
   index?: string;
   type?: string;
   materializationId?: string | { [key: string]: string[] };
-  lineageId: string;
+  lineageIds: string[];
   organizationId: string;
 }
 
@@ -75,7 +75,7 @@ export default class ColumnRepo implements IColumnRepo {
   };
 
   #buildFilter = (columnQueryDto: ColumnQueryDto): ColumnQueryFilter => {
-    const filter: ColumnQueryFilter = { lineageId: columnQueryDto.lineageId, organizationId: columnQueryDto.organizationId };
+    const filter: ColumnQueryFilter = { lineageIds: columnQueryDto.lineageIds, organizationId: columnQueryDto.organizationId };
 
     if (
       typeof columnQueryDto.relationName === 'string' &&
@@ -202,7 +202,7 @@ export default class ColumnRepo implements IColumnRepo {
     index: column.index,
     type: column.type,
     materializationId: column.materializationId,
-    lineageId: column.lineageId,
+    lineageIds: column.lineageIds,
     organizationId: column.organizationId
   });
 
@@ -213,7 +213,7 @@ export default class ColumnRepo implements IColumnRepo {
     index: column.index,
     type: column.type,
     materializationId: column.materializationId,
-    lineageId: column.lineageId,
+    lineageIds: column.lineageIds,
     organizationId: column.organizationId
   });
 }

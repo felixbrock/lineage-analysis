@@ -5,7 +5,7 @@ export interface DependencyQueryDto {
   type?: DependencyType;
   headId?: string;
   tailId?: string;
-  lineageId: string;
+  lineageIds: string[];
   organizationId: string;
 }
 

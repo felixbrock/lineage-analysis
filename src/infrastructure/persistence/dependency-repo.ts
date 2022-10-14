@@ -24,7 +24,7 @@ interface DependencyPersistence {
   type: DependencyType;
   headId: string;
   tailId: string;
-  lineageId: string;
+  lineageIds: string[];
   organizationId: string;
 }
 
@@ -32,7 +32,7 @@ interface DependencyQueryFilter {
   type?: DependencyType;
   headId?: string;
   tailId?: string;
-  lineageId: string;
+  lineageIds: string[];
   organizationId: string;
 }
 
@@ -85,7 +85,7 @@ export default class DependencyRepo implements IDependencyRepo {
     dependencyQueryDto: DependencyQueryDto
   ): DependencyQueryFilter => {
     const filter: DependencyQueryFilter = {
-      lineageId: dependencyQueryDto.lineageId,
+      lineageIds: dependencyQueryDto.lineageIds,
       organizationId: dependencyQueryDto.organizationId
     };
 
@@ -187,7 +187,7 @@ export default class DependencyRepo implements IDependencyRepo {
     type: dependency.type,
     headId: dependency.headId,
     tailId: dependency.tailId,
-    lineageId: dependency.lineageId,
+    lineageIds: dependency.lineageIds,
     organizationId: dependency.organizationId
   });
 
@@ -196,7 +196,7 @@ export default class DependencyRepo implements IDependencyRepo {
     type: dependency.type,
     headId: dependency.headId,
     tailId: dependency.tailId,
-    lineageId: dependency.lineageId,
+    lineageIds: dependency.lineageIds,
     organizationId: dependency.organizationId
   });
 }

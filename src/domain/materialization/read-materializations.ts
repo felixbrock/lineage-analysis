@@ -17,7 +17,7 @@ export interface ReadMaterializationsRequestDto {
   schemaName?: string;
   databaseName?: string;
   logicId?: string;
-  lineageId: string;
+  lineageIds: string[];
   targetOrganizationId?: string;
 }
 
@@ -89,7 +89,7 @@ export class ReadMaterializations
     organizationId: string
   ): MaterializationQueryDto => {
     const queryDto: MaterializationQueryDto = {
-      lineageId: request.lineageId,
+      lineageIds: request.lineageIds,
       organizationId,
     };
 

@@ -11,9 +11,11 @@ export interface MaterializationProperties {
   databaseName: string;
   materializationType: MaterializationType;
   logicId?: string;
-  lineageId: string;
-  organizationId: string; 
+  lineageIds: string[];
+  organizationId: string;
 }
+
+type MaterializationDto = MaterializationProperties;
 
 export class Materialization {
   #id: string;
@@ -30,7 +32,7 @@ export class Materialization {
 
   #logicId?: string;
 
-  #lineageId: string;
+  #lineageIds: string[];
 
   #organizationId: string;
 
@@ -62,8 +64,8 @@ export class Materialization {
     return this.#logicId;
   }
 
-  get lineageId(): string {
-    return this.#lineageId;
+  get lineageIds(): string[] {
+    return this.#lineageIds;
   }
 
   get organizationId(): string {
@@ -78,7 +80,7 @@ export class Materialization {
     this.#databaseName = properties.databaseName;
     this.#materializationType = properties.materializationType;
     this.#logicId = properties.logicId;
-    this.#lineageId = properties.lineageId;
+    this.#lineageIds = properties.lineageIds;
     this.#organizationId = properties.organizationId;
   }
 
@@ -93,11 +95,25 @@ export class Materialization {
       throw new TypeError('Materialization must have database name');
     if (!properties.materializationType)
       throw new TypeError('Materialization must have materialization type');
-    if (!properties.lineageId) throw new TypeError('Materialization must have lineageId');
-    if (!properties.organizationId) throw new TypeError('Materialization must have organization id');
+    if (!properties.lineageIds.length)
+      throw new TypeError('Materialization must have lineageId');
+    if (!properties.organizationId)
+      throw new TypeError('Materialization must have organization id');
 
     const materialization = new Materialization(properties);
 
     return materialization;
   };
+
+  toDto = (): MaterializationDto => ({
+    id: this.#id,
+    relationName: this.#relationName,
+    materializationType: this.#materializationType,
+    name: this.#name,
+    schemaName: this.#schemaName,
+    databaseName: this.#databaseName,
+    logicId: this.#logicId,
+    lineageIds: this.#lineageIds,
+    organizationId: this.#organizationId,
+  });
 }

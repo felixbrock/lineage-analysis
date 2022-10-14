@@ -10,7 +10,7 @@ import { ReadDependencies } from './read-dependencies';
 
 export interface CreateExternalDependencyRequestDto {
   dashboard: Dashboard;
-  lineageId: string;
+  lineageIds: string[];
   writeToPersistence: boolean;
   targetOrganizationId?: string;
 }
@@ -74,7 +74,7 @@ export class CreateExternalDependency
         type: DependencyType.EXTERNAL,
         headId: request.dashboard.id,
         tailId: request.dashboard.columnId,
-        lineageId: request.lineageId,
+        lineageIds: request.lineageIds,
         organizationId,
       });
 
@@ -84,7 +84,7 @@ export class CreateExternalDependency
             type: DependencyType.EXTERNAL,
             headId: request.dashboard.id,
             tailId: request.dashboard.columnId,
-            lineageId: request.lineageId,
+            lineageIds: request.lineageIds,
             targetOrganizationId: request.targetOrganizationId,
           },
           { isSystemInternal: auth.isSystemInternal, callerOrganizationId: auth.callerOrganizationId },

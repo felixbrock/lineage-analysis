@@ -12,7 +12,7 @@ export interface CreateColumnRequestDto {
   index: string;
   type: string;
   materializationId: string;
-  lineageId: string;
+  lineageIds: string[];
   writeToPersistence: boolean;
   targetOrganizationId?: string;
 }
@@ -75,7 +75,7 @@ export class CreateColumn
         index: request.index,
         type: request.type,
         materializationId: request.materializationId,
-        lineageId: request.lineageId,
+        lineageIds: request.lineageIds,
         organizationId,
       });
 
@@ -83,7 +83,7 @@ export class CreateColumn
         {
           name: request.name,
           materializationId: request.materializationId,
-          lineageId: request.lineageId,
+          lineageIds: request.lineageIds,
           targetOrganizationId: request.targetOrganizationId,
         },
         { isSystemInternal: auth.isSystemInternal, callerOrganizationId: auth.callerOrganizationId },

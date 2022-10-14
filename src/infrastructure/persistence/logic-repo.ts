@@ -35,13 +35,13 @@ interface LogicPersistence {
   };
   parsedLogic: string;
   statementRefs: PersistenceStatementRefs;
-  lineageId: string;
+  lineageIds: string[];
   organizationId: string;
 }
 
 interface LogicQueryFilter {
   relationName?: RegExp;
-  lineageId: string;
+  lineageIds: string[];
   organizationId: string;
 }
 
@@ -91,7 +91,7 @@ export default class LogicRepo implements ILogicRepo {
 
   #buildFilter = (logicQueryDto: LogicQueryDto): LogicQueryFilter => {
     const filter: LogicQueryFilter = {
-      lineageId: logicQueryDto.lineageId,
+      lineageIds: logicQueryDto.lineageIds,
       organizationId: logicQueryDto.organizationId,
     };
 
@@ -243,7 +243,7 @@ export default class LogicRepo implements ILogicRepo {
     },
     parsedLogic: logic.parsedLogic,
     statementRefs: this.#buildStatementRefs(logic.statementRefs),
-    lineageId: logic.lineageId,
+    lineageIds: logic.lineageIds,
     organizationId: logic.organizationId,
   });
 
@@ -254,7 +254,7 @@ export default class LogicRepo implements ILogicRepo {
     dependentOn: logic.dependentOn,
     parsedLogic: logic.parsedLogic,
     statementRefs: logic.statementRefs,
-    lineageId: logic.lineageId,
+    lineageIds: logic.lineageIds,
     organizationId: logic.organizationId,
   });
 }

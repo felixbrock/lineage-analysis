@@ -13,17 +13,6 @@ interface DependentOn {
   dwDependencyDefinitions: MaterializationDefinition[];
 }
 
-export interface LogicProperties {
-  id: string;
-  relationName: string;
-  sql: string;
-  dependentOn: DependentOn;
-  parsedLogic: string;
-  statementRefs: Refs;
-  lineageId: string;
-  organizationId: string;
-}
-
 export interface LogicPrototype {
   id: string;
   relationName: string;
@@ -31,10 +20,22 @@ export interface LogicPrototype {
   sql: string;
   dbtDependentOn: MaterializationDefinition[];
   parsedLogic: string;
-  lineageId: string;
+  lineageIds: string[];
   catalog: CatalogModelData[];
   organizationId: string;
 }
+export interface LogicProperties {
+  id: string;
+  relationName: string;
+  sql: string;
+  dependentOn: DependentOn;
+  parsedLogic: string;
+  statementRefs: Refs;
+  lineageIds: string[];
+  organizationId: string;
+}
+
+type LogicDto = LogicProperties;
 
 export interface CatalogModelData {
   modelName: string;
@@ -165,7 +166,7 @@ export class Logic {
 
   #statementRefs: Refs;
 
-  #lineageId: string;
+  #lineageIds: string[];
 
   #organizationId: string;
 
@@ -193,8 +194,8 @@ export class Logic {
     return this.#statementRefs;
   }
 
-  get lineageId(): string {
-    return this.#lineageId;
+  get lineageIds(): string[] {
+    return this.#lineageIds;
   }
 
   get organizationId(): string {
@@ -208,7 +209,7 @@ export class Logic {
     this.#dependentOn = properties.dependentOn;
     this.#parsedLogic = properties.parsedLogic;
     this.#statementRefs = properties.statementRefs;
-    this.#lineageId = properties.lineageId;
+    this.#lineageIds = properties.lineageIds;
     this.#organizationId = properties.organizationId;
   }
 
@@ -1744,7 +1745,8 @@ export class Logic {
       definition: MaterializationDefinition | undefined
     ): definition is MaterializationDefinition => !!definition;
 
-    const mappingResults = materializationRefs.filter(ref => ref.type === 'dependency')
+    const mappingResults = materializationRefs
+      .filter((ref) => ref.type === 'dependency')
       .map((ref: MaterializationRef): MaterializationDefinition | undefined => {
         if (!ref.databaseName) {
           console.warn(
@@ -1770,7 +1772,7 @@ export class Logic {
           )
         );
 
-        if (matchingDefinitions.length) return undefined; 
+        if (matchingDefinitions.length) return undefined;
 
         return {
           relationName: potentiallyMissingRelationName,
@@ -1794,7 +1796,8 @@ export class Logic {
       throw new TypeError('Logic prototype must have SQL logic');
     if (!prototype.parsedLogic)
       throw new TypeError('Logic  prototype must have parsed SQL logic');
-    if (!prototype.lineageId) throw new TypeError('Logic must have lineageId');
+    if (!prototype.lineageIds.length)
+      throw new TypeError('Logic must have lineageId');
     if (!prototype.organizationId)
       throw new TypeError('Logic must have organization id');
     if (!prototype.catalog)
@@ -1808,7 +1811,10 @@ export class Logic {
       prototype.catalog
     );
 
-    const dwDependencyDefinitions = this.#getDwDependencyDefinitions(statementRefs.materializations, prototype.dbtDependentOn);
+    const dwDependencyDefinitions = this.#getDwDependencyDefinitions(
+      statementRefs.materializations,
+      prototype.dbtDependentOn
+    );
 
     const dependentOn: DependentOn = {
       dbtDependencyDefinitions: prototype.dbtDependentOn,
@@ -1822,7 +1828,7 @@ export class Logic {
       dependentOn,
       parsedLogic: prototype.parsedLogic,
       statementRefs,
-      lineageId: prototype.lineageId,
+      lineageIds: prototype.lineageIds,
       organizationId: prototype.organizationId,
     });
 
@@ -1835,7 +1841,8 @@ export class Logic {
       throw new TypeError('Logic must have relationName');
     if (!properties.parsedLogic)
       throw new TypeError('Logic creation requires parsed SQL logic');
-    if (!properties.lineageId) throw new TypeError('Logic must have lineageId');
+    if (!properties.lineageIds.length)
+      throw new TypeError('Logic must have lineageId');
 
     const logic = new Logic({
       id: properties.id,
@@ -1844,12 +1851,23 @@ export class Logic {
       dependentOn: properties.dependentOn,
       parsedLogic: properties.parsedLogic,
       statementRefs: properties.statementRefs,
-      lineageId: properties.lineageId,
+      lineageIds: properties.lineageIds,
       organizationId: properties.organizationId,
     });
 
     return logic;
   };
+
+  toDto = (): LogicDto => ({
+    id: this.#id,
+    relationName: this.#relationName,
+    sql: this.#sql,
+    dependentOn: this.#dependentOn,
+    parsedLogic: this.#parsedLogic,
+    statementRefs: this.#statementRefs,
+    lineageIds: this.#lineageIds,
+    organizationId: this.#organizationId,
+  });
 
   static #insensitiveEquality = (str1: string, str2: string): boolean =>
     str1.toLowerCase() === str2.toLowerCase();

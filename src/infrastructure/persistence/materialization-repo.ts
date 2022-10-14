@@ -27,7 +27,7 @@ interface MaterializationPersistence {
   schemaName: string;
   databaseName: string;
   logicId?: string;
-  lineageId: string;
+  lineageIds: string[];
   organizationId: string;
 }
 
@@ -38,7 +38,7 @@ interface MaterializationQueryFilter {
   schemaName?: RegExp;
   databaseName?: RegExp;
   logicId?: string;
-  lineageId: string;
+  lineageIds: string[];
   organizationId: string;
 }
 
@@ -91,7 +91,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
     materializationQueryDto: MaterializationQueryDto
   ): MaterializationQueryFilter => {
     const filter: MaterializationQueryFilter = {
-      lineageId: materializationQueryDto.lineageId,
+      lineageIds: materializationQueryDto.lineageIds,
       organizationId: materializationQueryDto.organizationId,
     };
 
@@ -228,7 +228,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
     schemaName: materialization.schemaName,
     databaseName: materialization.databaseName,
     logicId: materialization.logicId,
-    lineageId: materialization.lineageId,
+    lineageIds: materialization.lineageIds,
     organizationId: materialization.organizationId,
   });
 
@@ -240,7 +240,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
     schemaName: materialization.schemaName,
     databaseName: materialization.databaseName,
     logicId: materialization.logicId,
-    lineageId: materialization.lineageId,
+    lineageIds: materialization.lineageIds,
     organizationId: materialization.organizationId,
   });
 }

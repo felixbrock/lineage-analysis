@@ -12,7 +12,7 @@ export interface CreateDashboardRequestDto {
   materializationId: string;
   columnName: string;
   columnId: string;
-  lineageId: string;
+  lineageIds: string[];
   targetOrganizationId?: string;
   writeToPersistence: boolean;
 }
@@ -70,7 +70,7 @@ export class CreateDashboard
 
       const dashboard = Dashboard.create({
         id: new ObjectId().toHexString(),
-        lineageId: request.lineageId,
+        lineageIds: request.lineageIds,
         url: request.url,
         materializationName: request.materializationName,
         columnName: request.columnName,
@@ -84,7 +84,7 @@ export class CreateDashboard
       const readDashboardsResult = await this.#readDashboards.execute(
         {
           url: request.url,
-          lineageId: request.lineageId,
+          lineageIds: request.lineageIds,
           targetOrganizationId: request.targetOrganizationId,
         },
         { isSystemInternal: auth.isSystemInternal, callerOrganizationId: auth.callerOrganizationId },

@@ -1,53 +1,51 @@
 // todo - Clean Architecture dependency violation. Fix
 import { ObjectId } from 'mongodb';
-import Result from '../value-types/transient-types/result';
-import IUseCase from '../services/use-case';
-import SQLElement from '../value-types/sql-element';
-import { CreateColumn } from '../column/create-column';
+import Result from '../../value-types/transient-types/result';
+import IUseCase from '../../services/use-case';
+import SQLElement from '../../value-types/sql-element';
+import { CreateColumn } from '../../column/create-column';
 import {
   CreateMaterialization,
   CreateMaterializationRequestDto,
-} from '../materialization/create-materialization';
-import { CreateLogic } from '../logic/create-logic';
-import { ParseSQL, ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
-import { Lineage } from '../entities/lineage';
+} from '../../materialization/create-materialization';
+import { CreateLogic } from '../../logic/create-logic';
+import { ParseSQL, ParseSQLResponseDto } from '../../sql-parser-api/parse-sql';
+import { Lineage } from '../../entities/lineage';
 import {
   Logic,
   ColumnRef,
   Refs,
   MaterializationDefinition,
   DashboardRef,
-} from '../entities/logic';
+} from '../../entities/logic';
 import {
   CreateDependency,
   CreateDependencyResponse,
-} from '../dependency/create-dependency';
-import { Dependency, DependencyType } from '../entities/dependency';
-import { ReadColumns } from '../column/read-columns';
+} from '../../dependency/create-dependency';
+import { Dependency, DependencyType } from '../../entities/dependency';
+import { ReadColumns } from '../../column/read-columns';
 import {
   Materialization,
   MaterializationType,
-} from '../entities/materialization';
-import { Column } from '../entities/column';
-import { ILineageRepo } from './i-lineage-repo';
-import { IColumnRepo } from '../column/i-column-repo';
-import { IMaterializationRepo } from '../materialization/i-materialization-repo';
-import { IDependencyRepo } from '../dependency/i-dependency-repo';
-import { ILogicRepo } from '../logic/i-logic-repo';
-import { DbConnection } from '../services/i-db';
+} from '../../entities/materialization';
+import { Column } from '../../entities/column';
+import { ILineageRepo } from '../i-lineage-repo';
+import { IColumnRepo } from '../../column/i-column-repo';
+import { IMaterializationRepo } from '../../materialization/i-materialization-repo';
+import { IDependencyRepo } from '../../dependency/i-dependency-repo';
+import { ILogicRepo } from '../../logic/i-logic-repo';
+import { DbConnection } from '../../services/i-db';
 import {
   QuerySnowflakeHistory,
   QueryHistoryResponseDto,
-} from '../query-snowflake-history-api/query-snowflake-history';
-import { Dashboard } from '../entities/dashboard';
-import { CreateExternalDependency } from '../dependency/create-external-dependency';
-import { IDashboardRepo } from '../dashboard/i-dashboard-repo';
-import { CreateDashboard } from '../dashboard/create-dashboard';
-import { BiLayer, parseBiLayer } from '../value-types/bilayer';
+} from '../../query-snowflake-history-api/query-snowflake-history';
+import { Dashboard } from '../../entities/dashboard';
+import { CreateExternalDependency } from '../../dependency/create-external-dependency';
+import { IDashboardRepo } from '../../dashboard/i-dashboard-repo';
+import { CreateDashboard } from '../../dashboard/create-dashboard';
+import { BiLayer, parseBiLayer } from '../../value-types/bilayer';
 
 export interface CreateLineageRequestDto {
-  lineageId?: string;
-  lineageCreatedAt?: string;
   targetOrganizationId?: string;
   catalog: string;
   manifest: string;
@@ -114,13 +112,41 @@ export class CreateLineage
 
   #newLogics: Logic[];
 
+  #oldLogics: { [key: string]: Logic[] };
+
+  #logicsToUpdate: Logic[];
+
+  #logicsToCreate: Logic[];
+
   #newMaterializations: Materialization[];
+
+  #matsToUpdate: Materialization[];
+
+  #matsToCreate: Materialization[];
 
   #newColumns: Column[];
 
+  #oldColumns: { [key: string]: Column[] };
+
+  #columnsToUpdate: Column[];
+
+  #columnsToCreate: Column[];
+
   #newDependencies: Dependency[];
 
+  #oldDependencies: Dependency[];
+
+  #depencenciesToUpdate: Dependency[];
+
+  #depencenciesToCreate: Dependency[];
+
   #newDashboards: Dashboard[];
+
+  #oldDashboards: { [key: string]: Dashboard[] };
+
+  #dashboardsToUpdate: Dashboard[];
+
+  #dashboardsToCreate: Dashboard[];
 
   #lastQueryDependency?: ColumnRef;
 
@@ -231,7 +257,7 @@ export class CreateLineage
         index: columnDefinition.index,
         type: columnDefinition.type,
         materializationId: sourceId,
-        lineageId: lineage.id,
+        lineageIds: [lineage.id],
         writeToPersistence: false,
         targetOrganizationId: this.#targetOrganizationId,
       },
@@ -345,7 +371,7 @@ export class CreateLineage
                 schemaName: matRef.schemaName || '',
                 databaseName: matRef.databaseName || '',
                 logicId: 'todo - read from snowflake',
-                lineageId: this.#newLineage.id,
+                lineageIds: [this.#newLineage.id],
                 targetOrganizationId: this.#targetOrganizationId,
                 writeToPersistence: false,
               },
@@ -449,7 +475,7 @@ export class CreateLineage
         sql,
         modelName: props.model.metadata.name,
         dbtDependentOn: props.dbtDependentOn,
-        lineageId: props.lineageId,
+        lineageIds: [props.lineageId],
         parsedLogic,
         targetOrganizationId: this.#targetOrganizationId,
         writeToPersistence: false,
@@ -482,7 +508,7 @@ export class CreateLineage
       schemaName: props.model.metadata.schema,
       databaseName: props.model.metadata.database,
       logicId: logic.id,
-      lineageId: props.lineageId,
+      lineageIds: [props.lineageId],
       targetOrganizationId: this.#targetOrganizationId,
       writeToPersistence: false,
     });
@@ -513,7 +539,7 @@ export class CreateLineage
       relationName: props.modelManifest.relation_name,
       schemaName: props.model.metadata.schema,
       databaseName: props.model.metadata.database,
-      lineageId: props.lineageId,
+      lineageIds: [props.lineageId],
       targetOrganizationId: this.#targetOrganizationId,
       writeToPersistence: false,
     });
@@ -701,7 +727,47 @@ export class CreateLineage
     );
   };
 
+  #updateMatRelatedResources = (props: {
+    oldMatProps: { matId: string; relationName: string; lineageId: string };
+    newMat: Materialization;
+  }) => {
+    const createMatResult = await this.#createMaterialization.execute(
+      {
+        ...props.newMat.toDto(),
+        id: props.oldMatProps.matId,
+        relationName: props.oldMatProps.relationName,
+        writeToPersistence: false,
+      },
+      {
+        isSystemInternal: this.#isSystemInternal,
+        callerOrganizationId: this.#callerOrganizationId,
+      },
+      this.#dbConnection
+    );
+
+    if (!createMatResult.success) throw new Error(createMatResult.error);
+    if (!createMatResult.value)
+      throw new Error('Create Mat failed - Unknown error');
+
+    this.#matsToUpdate.push(createMatResult.value);
+  };
+
+  #groupByMatId = <T extends { materializationId: string }>(
+    accumulation: { [key: string]: T[] },
+    element: T
+  ): { [key: string]: T[] } => {
+    const localAcc = accumulation;
+
+    const key = element.materializationId;
+    if (!(key in accumulation)) {
+      localAcc[key] = [];
+    }
+    localAcc[key].push(element);
+    return localAcc;
+  };
+
   #mergeWithLatestSnapshot = async (): Promise<void> => {
+    // todo- needs to retrieve latest compeleted lineage
     const latestLineage = await this.#lineageRepo.findLatest(
       this.#dbConnection,
       this.#organizationId
@@ -710,34 +776,46 @@ export class CreateLineage
     if (!latestLineage) return;
 
     const latestMats = await this.#materializationRepo.findBy(
-      { lineageId: latestLineage.id, organizationId: this.#organizationId },
+      { lineageIds: [latestLineage.id], organizationId: this.#organizationId },
       this.#dbConnection
     );
 
-    const groupByMatId = (
-      accumulation: { [key: string]: Column[] },
-      column: Column
-    ): { [key: string]: Column[] } => {
-      const localAcc = accumulation;
+    await Promise.all(
+      this.#newMaterializations.map(async (newMat) => {
+        const matchingMat = latestMats.find(
+          (oldMat) => newMat.relationName === oldMat.relationName
+        );
 
-      const key = column.materializationId;
-      if (!(key in accumulation)) {
-        localAcc[key] = [];
-      }
-      localAcc[key].push(column);
-      return localAcc;
-    };
+        if (matchingMat) {
+          if (!Object.keys(this.#oldColumns).length)
+            this.#oldColumns = (
+              await this.#columnRepo.findBy(
+                {
+                  lineageIds: [latestLineage.id],
+                  organizationId: this.#organizationId,
+                },
+                this.#dbConnection
+              )
+            ).reduce(this.#groupByMatId, {});
 
-    const latestColumns = (
-      await this.#columnRepo.findBy(
-        { lineageId: latestLineage.id, organizationId: this.#organizationId },
-        this.#dbConnection
-      )
-    ).reduce(groupByMatId, {});
+          if (!Object.keys(this.#oldLogics).length)
+            this.#oldColumns = (
+              await this.#columnRepo.findBy(
+                {
+                  lineageIds: [latestLineage.id],
+                  organizationId: this.#organizationId,
+                },
+                this.#dbConnection
+              )
+            ).reduce(this.#groupByMatId, {});
 
-    latestMats.forEach((oldMat) => {
-      matchingMat = this.#newMaterializations.find(newMat => newMat.relationName === oldMat.relationName );
-    });
+          await this.#updateMatRelatedResources;
+        } else {
+          // todo - also logic, ...
+          this.#matsToCreate.push(newMat);
+        }
+      })
+    );
   };
 
   // /* Identifies the statement root (e.g. create_materialization_statement.select_statement) of a specific reference path */
@@ -919,7 +997,7 @@ export class CreateLineage
       {
         name: dashboardRef.materializationName,
         relationName: parentRelationNames[0],
-        lineageId,
+        lineageIds: [lineageId],
         organizationId: this.#organizationId,
       },
       this.#dbConnection
@@ -930,7 +1008,7 @@ export class CreateLineage
       {
         name: dashboardRef.columnName,
         materializationId,
-        lineageId,
+        lineageIds: [lineageId],
         organizationId: this.#organizationId,
       },
       this.#dbConnection
@@ -941,7 +1019,7 @@ export class CreateLineage
       {
         columnId,
         columnName: dashboardRef.columnName,
-        lineageId,
+        lineageIds: [lineageId],
         materializationId,
         materializationName: dashboardRef.materializationName,
         url: dashboardRef.url,
@@ -968,7 +1046,7 @@ export class CreateLineage
       await this.#createExternalDependency.execute(
         {
           dashboard,
-          lineageId: lineage.id,
+          lineageIds: [lineage.id],
           targetOrganizationId: this.#targetOrganizationId,
           writeToPersistence: false,
         },
@@ -1024,7 +1102,7 @@ export class CreateLineage
               dependencyRef: dependency,
               selfRelationName: relationName,
               parentRelationNames,
-              lineageId: lineage.id,
+              lineageIds: [lineage.id],
               targetOrganizationId: this.#targetOrganizationId,
               writeToPersistence: false,
             },
@@ -1084,7 +1162,7 @@ export class CreateLineage
         dependencyRef,
         selfRelationName: relationName,
         parentRelationNames,
-        lineageId: lineage.id,
+        lineageIds: [lineage.id],
         targetOrganizationId: this.#targetOrganizationId,
         writeToPersistence: false,
       },
@@ -1203,34 +1281,36 @@ export class CreateLineage
 
     if (!lineage) throw new ReferenceError('Lineage property is undefined');
 
-    const catalogMatches = this.#newMatDefinitionCatalog.filter((dependency) => {
-      const nameIsEqual = this.#insensitiveEquality(
-        dependencyRef.materializationName,
-        dependency.materializationName
-      );
+    const catalogMatches = this.#newMatDefinitionCatalog.filter(
+      (dependency) => {
+        const nameIsEqual = this.#insensitiveEquality(
+          dependencyRef.materializationName,
+          dependency.materializationName
+        );
 
-      const schemaNameIsEqual =
-        !dependencyRef.schemaName ||
-        (typeof dependencyRef.schemaName === 'string' &&
-        typeof dependency.schemaName === 'string'
-          ? this.#insensitiveEquality(
-              dependencyRef.schemaName,
-              dependency.schemaName
-            )
-          : dependencyRef.schemaName === dependency.schemaName);
+        const schemaNameIsEqual =
+          !dependencyRef.schemaName ||
+          (typeof dependencyRef.schemaName === 'string' &&
+          typeof dependency.schemaName === 'string'
+            ? this.#insensitiveEquality(
+                dependencyRef.schemaName,
+                dependency.schemaName
+              )
+            : dependencyRef.schemaName === dependency.schemaName);
 
-      const databaseNameIsEqual =
-        !dependencyRef.databaseName ||
-        (typeof dependencyRef.databaseName === 'string' &&
-        typeof dependency.databaseName === 'string'
-          ? this.#insensitiveEquality(
-              dependencyRef.databaseName,
-              dependency.databaseName
-            )
-          : dependencyRef.databaseName === dependency.databaseName);
+        const databaseNameIsEqual =
+          !dependencyRef.databaseName ||
+          (typeof dependencyRef.databaseName === 'string' &&
+          typeof dependency.databaseName === 'string'
+            ? this.#insensitiveEquality(
+                dependencyRef.databaseName,
+                dependency.databaseName
+              )
+            : dependencyRef.databaseName === dependency.databaseName);
 
-      return nameIsEqual && schemaNameIsEqual && databaseNameIsEqual;
-    });
+        return nameIsEqual && schemaNameIsEqual && databaseNameIsEqual;
+      }
+    );
 
     if (catalogMatches.length !== 1) {
       console.warn(
@@ -1247,7 +1327,7 @@ export class CreateLineage
     const readColumnsResult = await this.#readColumns.execute(
       {
         relationName,
-        lineageId: lineage.id,
+        lineageIds: [lineage.id],
         targetOrganizationId: this.#targetOrganizationId,
       },
       {
@@ -1271,16 +1351,11 @@ export class CreateLineage
     return dependencies;
   };
 
-  #writeWhResourcesToPersistence = async (
-    lineageId?: string,
-    lineageCreatedAt?: string
-  ): Promise<void> => {
+  #writeWhResourcesToPersistence = async (): Promise<void> => {
     if (!this.#newLineage)
       throw new ReferenceError(
         'Lineage object does not exist. Cannot write to persistence'
       );
-    if (!(lineageId && lineageCreatedAt))
-      await this.#lineageRepo.insertOne(this.#newLineage, this.#dbConnection);
 
     await this.#logicRepo.insertMany(this.#newLogics, this.#dbConnection);
 
@@ -1291,6 +1366,8 @@ export class CreateLineage
 
     await this.#columnRepo.insertMany(this.#newColumns, this.#dbConnection);
   };
+
+  // todo - updateDashboards
 
   #writeDashboardsToPersistence = async (): Promise<void> => {
     if (this.#newDashboards.length > 0)
@@ -1340,10 +1417,26 @@ export class CreateLineage
 
       // todo - Workaround. Fix ioc container
       this.#newLineage = undefined;
+
       this.#newLogics = [];
+      this.#logicsToUpdate = [];
+      this.#logicsToCreate = [];
+
       this.#newMaterializations = [];
+      this.#matsToUpdate = [];
+      this.#matsToCreate = [];
+
       this.#newColumns = [];
+      this.#columnsToUpdate = [];
+      this.#columnsToCreate = [];
+
       this.#newDependencies = [];
+      this.#depencenciesToUpdate = [];
+      this.#depencenciesToCreate = [];
+
+      this.#dashboardsToUpdate = [];
+      this.#dashboardsToCreate = [];
+
       this.#newMatDefinitionCatalog = [];
       this.#lastQueryDependency = undefined;
 
@@ -1360,8 +1453,6 @@ export class CreateLineage
 
       console.log('...writing dw resources to persistence');
       await this.#writeWhResourcesToPersistence(
-        request.lineageId,
-        request.lineageCreatedAt
       );
 
       console.log('...building dependencies');
@@ -1373,7 +1464,8 @@ export class CreateLineage
       console.log('...writing dependencies to persistence');
       await this.#writeDependenciesToPersistence();
 
-      // todo - how to avoid checking if property exists. A sub-method created the property
+      // todo - updateLineage;
+
       if (!this.#newLineage)
         throw new ReferenceError('Lineage property is undefined');
 

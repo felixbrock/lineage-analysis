@@ -5,9 +5,11 @@ export interface ColumnProperties {
   index: string;
   type: string;
   materializationId: string;
-  lineageId: string;
+  lineageIds: string[];
   organizationId: string;
 }
+
+type ColumnDto = ColumnProperties;
 
 export class Column {
   #id: string;
@@ -22,7 +24,7 @@ export class Column {
 
   #materializationId: string;
 
-  #lineageId: string;
+  #lineageIds: string[];
 
   #organizationId: string;
 
@@ -50,8 +52,8 @@ export class Column {
     return this.#materializationId;
   }
 
-  get lineageId(): string {
-    return this.#lineageId;
+  get lineageIds(): string[] {
+    return this.#lineageIds;
   }
 
   get organizationId(): string {
@@ -65,7 +67,7 @@ export class Column {
     this.#index = properties.index;
     this.#type = properties.type;
     this.#materializationId = properties.materializationId;
-    this.#lineageId = properties.lineageId;
+    this.#lineageIds = properties.lineageIds;
     this.#organizationId = properties.organizationId;
   }
 
@@ -78,7 +80,7 @@ export class Column {
     if (!properties.type) throw new TypeError('Column must have type');
     if (!properties.materializationId)
       throw new TypeError('Column must have materializationId');
-    if (!properties.lineageId)
+    if (!properties.lineageIds.length)
       throw new TypeError('Column must have lineage id');
     if (!properties.organizationId)
       throw new TypeError('Column must have organizationId');
@@ -90,10 +92,21 @@ export class Column {
       index: properties.index,
       type: properties.type,
       materializationId: properties.materializationId,
-      lineageId: properties.lineageId,
-      organizationId: properties.organizationId
+      lineageIds: properties.lineageIds,
+      organizationId: properties.organizationId,
     });
 
     return column;
   };
+
+  toDto = (): ColumnDto => ({
+    id: this.#id,
+    relationName: this.#relationName,
+    name: this.#name,
+    index: this.#index,
+    type: this.#type,
+    materializationId: this.#materializationId,
+    lineageIds: this.#lineageIds,
+    organizationId: this.#organizationId,
+  });
 }

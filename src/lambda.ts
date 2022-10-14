@@ -8,7 +8,7 @@ import {
   InternalInvokeType,
   parseInternalInvokeType,
 } from './infrastructure/shared/internal-invoke-controller';
-import { CreateLineageRequestDto } from './domain/lineage/create-lineage';
+import { CreateLineageRequestDto } from './domain/lineage/create-lineage/create-lineage';
 
 let serverlessExpressInstance: any;
 
@@ -67,8 +67,6 @@ const internalInvoke = async (
         manifest: event.req.manifest,
         targetOrganizationId: event.req.targetOrganizationId,
         biType: event.req.biType,
-        lineageCreatedAt: event.req.lineageCreatedAt,
-        lineageId: event.req.lineageId,
       };
 
       const auth = { jwt: event.auth.jwt };

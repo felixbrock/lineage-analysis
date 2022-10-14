@@ -3,7 +3,7 @@ import { DbConnection } from '../services/i-db';
 
 export interface LogicQueryDto {
   relationName?: string;
-  lineageId: string;
+  lineageIds: string[];
   organizationId: string;
 }
 

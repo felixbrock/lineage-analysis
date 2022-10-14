@@ -7,7 +7,7 @@ export interface ColumnQueryDto {
   index?: string;
   type?: string;
   materializationId?: string | string[];
-  lineageId: string;
+  lineageIds: string[];
   organizationId: string;
 }
 

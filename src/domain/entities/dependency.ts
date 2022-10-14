@@ -10,9 +10,11 @@ export interface DependencyProperties {
   type: DependencyType;
   headId: string;
   tailId: string;
-  lineageId: string;
+  lineageIds: string[];
   organizationId: string;
 }
+
+type DependencyDto = DependencyProperties;
 
 export class Dependency {
   #id: string;
@@ -23,7 +25,7 @@ export class Dependency {
 
   #tailId: string;
 
-  #lineageId: string;
+  #lineageIds: string[];
 
   #organizationId: string;
 
@@ -43,8 +45,8 @@ export class Dependency {
     return this.#tailId;
   }
 
-  get lineageId(): string {
-    return this.#lineageId;
+  get lineageIds(): string[] {
+    return this.#lineageIds;
   }
 
   get organizationId(): string {
@@ -56,7 +58,7 @@ export class Dependency {
     this.#type = properties.type;
     this.#headId = properties.headId;
     this.#tailId = properties.tailId;
-    this.#lineageId = properties.lineageId;
+    this.#lineageIds = properties.lineageIds;
     this.#organizationId = properties.organizationId;
   }
 
@@ -68,7 +70,7 @@ export class Dependency {
       throw new TypeError('Dependency object must have headId');
     if (!properties.tailId)
       throw new TypeError('Dependency object must have tailId');
-    if (!properties.lineageId)
+    if (!properties.lineageIds.length)
       throw new TypeError('Dependency object must have lineageId');
     if (!properties.organizationId)
       throw new TypeError('Dependency object must have oragnizationId');
@@ -77,4 +79,13 @@ export class Dependency {
 
     return dependency;
   };
+
+  toDto = (): DependencyDto => ({
+    id: this.#id,
+    type: this.#type,
+    headId: this.#headId,
+    tailId: this.#tailId,
+    lineageIds: this.#lineageIds,
+    organizationId: this.#organizationId,
+  });
 }

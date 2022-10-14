@@ -11,13 +11,14 @@ import { IMaterializationRepo } from './i-materialization-repo';
 import { DbConnection } from '../services/i-db';
 
 export interface CreateMaterializationRequestDto {
+  id?: string;
   relationName: string;
   materializationType: MaterializationType;
   name: string;
   schemaName: string;
   databaseName: string;
   logicId?: string;
-  lineageId: string;
+  lineageIds: string[];
   writeToPersistence: boolean;
   targetOrganizationId?: string;
 }
@@ -77,14 +78,14 @@ export class CreateMaterialization
       this.#dbConnection = dbConnection;
 
       const materialization = Materialization.create({
-        id: new ObjectId().toHexString(),
+        id: request.id || new ObjectId().toHexString(),
         relationName: request.relationName,
         materializationType: request.materializationType,
         name: request.name,
         schemaName: request.schemaName,
         databaseName: request.databaseName,
         logicId: request.logicId,
-        lineageId: request.lineageId,
+        lineageIds: request.lineageIds,
         organizationId,
       });
 
@@ -92,7 +93,7 @@ export class CreateMaterialization
         await this.#readMaterializations.execute(
           {
             relationName: request.relationName,
-            lineageId: request.lineageId,
+            lineageIds: request.lineageIds,
             targetOrganizationId: request.targetOrganizationId,
           },
           {
