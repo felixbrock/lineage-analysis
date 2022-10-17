@@ -90,27 +90,6 @@ export class CreateLineage
 
   #newLineage?: Lineage;
 
-  #newLogics: Logic[];
-
-  #oldLogics: { [key: string]: Logic[] };
-
-  #logicsToUpdate: Logic[];
-
-  #logicsToCreate: Logic[];
-
-  #newMaterializations: Materialization[];
-
-  #matsToUpdate: Materialization[];
-
-  #matsToCreate: Materialization[];
-
-  #newColumns: Column[];
-
-  #oldColumns: { [key: string]: Column[] };
-
-  #columnsToUpdate: Column[];
-
-  #columnsToCreate: Column[];
 
   #newDependencies: Dependency[];
 
@@ -176,154 +155,9 @@ export class CreateLineage
     this.#readColumns = readColumns;
   }
 
-  #updateMatRelatedResources = (props: {
-    oldMatProps: { matId: string; relationName: string; lineageId: string };
-    newMat: Materialization;
-  }) => {
-    const createMatResult = await this.#createMaterialization.execute(
-      {
-        ...props.newMat.toDto(),
-        id: props.oldMatProps.matId,
-        relationName: props.oldMatProps.relationName,
-        writeToPersistence: false,
-      },
-      {
-        isSystemInternal: this.#isSystemInternal,
-        callerOrganizationId: this.#callerOrganizationId,
-      },
-      this.#dbConnection
-    );
 
-    if (!createMatResult.success) throw new Error(createMatResult.error);
-    if (!createMatResult.value)
-      throw new Error('Create Mat failed - Unknown error');
 
-    this.#matsToUpdate.push(createMatResult.value);
-  };
-
-  #groupByMatId = <T extends { materializationId: string }>(
-    accumulation: { [key: string]: T[] },
-    element: T
-  ): { [key: string]: T[] } => {
-    const localAcc = accumulation;
-
-    const key = element.materializationId;
-    if (!(key in accumulation)) {
-      localAcc[key] = [];
-    }
-    localAcc[key].push(element);
-    return localAcc;
-  };
-
-  #mergeWithLatestSnapshot = async (): Promise<void> => {
-    // todo- needs to retrieve latest compeleted lineage
-    const latestLineage = await this.#lineageRepo.findLatest(
-      this.#dbConnection,
-      this.#organizationId
-    );
-
-    if (!latestLineage) return;
-
-    const latestMats = await this.#materializationRepo.findBy(
-      { lineageIds: [latestLineage.id], organizationId: this.#organizationId },
-      this.#dbConnection
-    );
-
-    await Promise.all(
-      this.#newMaterializations.map(async (newMat) => {
-        const matchingMat = latestMats.find(
-          (oldMat) => newMat.relationName === oldMat.relationName
-        );
-
-        if (matchingMat) {
-          if (!Object.keys(this.#oldColumns).length)
-            this.#oldColumns = (
-              await this.#columnRepo.findBy(
-                {
-                  lineageIds: [latestLineage.id],
-                  organizationId: this.#organizationId,
-                },
-                this.#dbConnection
-              )
-            ).reduce(this.#groupByMatId, {});
-
-          if (!Object.keys(this.#oldLogics).length)
-            this.#oldColumns = (
-              await this.#columnRepo.findBy(
-                {
-                  lineageIds: [latestLineage.id],
-                  organizationId: this.#organizationId,
-                },
-                this.#dbConnection
-              )
-            ).reduce(this.#groupByMatId, {});
-
-          await this.#updateMatRelatedResources;
-        } else {
-          // todo - also logic, ...
-          this.#matsToCreate.push(newMat);
-        }
-      })
-    );
-  };
-
-  // /* Identifies the statement root (e.g. create_materialization_statement.select_statement) of a specific reference path */
-  // #getStatementRoot = (path: string): string => {
-  //   const lastIndexStatementRoot = path.lastIndexOf(SQLElement.STATEMENT);
-  //   if (lastIndexStatementRoot === -1 || !lastIndexStatementRoot)
-  //     // todo - inconsistent usage of Error types. Sometimes Range and sometimes Reference
-  //     throw new RangeError('Statement root not found for column reference');
-
-  //   return path.slice(0, lastIndexStatementRoot + SQLElement.STATEMENT.length);
-  // };
-
-  /* Checks if parent dependency can be mapped on the provided self column or to another column of the self materialization. */
-  // #isDependencyOfTarget = (
-  //   potentialDependency: ColumnRef,
-  //   selfRef: ColumnRef
-  // ): boolean => {
-  //   const dependencyStatementRoot = this.#getStatementRoot(
-  //     potentialDependency.context.path
-  //   );
-  //   const selfStatementRoot = this.#getStatementRoot(selfRef.context.path);
-
-  //   const isStatementDependency =
-  //     !potentialDependency.context.path.includes(SQLElement.INSERT_STATEMENT) &&
-  //     !potentialDependency.context.path.includes(
-  //       SQLElement.COLUMN_DEFINITION
-  //     ) &&
-  //     dependencyStatementRoot === selfStatementRoot &&
-  //     (potentialDependency.context.path.includes(SQLElement.COLUMN_REFERENCE) ||
-  //       potentialDependency.context.path.includes(
-  //         SQLElement.WILDCARD_IDENTIFIER
-  //       ));
-
-  //   if (!isStatementDependency) return false;
-
-  //   const isSelfSelectStatement = selfStatementRoot.includes(
-  //     SQLElement.SELECT_STATEMENT
-  //   );
-
-  //   const isWildcardRef =
-  //     isSelfSelectStatement && potentialDependency.isWildcardRef;
-  //   const isSameName =
-  //     isSelfSelectStatement && selfRef.name === potentialDependency.name;
-  //   const isGroupBy =
-  //     potentialDependency.context.path.includes(SQLElement.GROUPBY_CLAUSE) &&
-  //     selfRef.name !== potentialDependency.name;
-  //   const isJoinOn =
-  //     potentialDependency.context.path.includes(SQLElement.JOIN_ON_CONDITION) &&
-  //     selfRef.name !== potentialDependency.name;
-
-  //   if (isWildcardRef || isSameName || isGroupBy) return true;
-
-  //   if (isJoinOn) return false;
-  //   if (potentialDependency.name !== selfRef.name) return false;
-
-  //   throw new RangeError(
-  //     'Unhandled case when checking if is dependency of target'
-  //   );
-  // };
+ 
 
   #writeWhResourcesToPersistence = async (): Promise<void> => {
     if (!this.#newLineage)
@@ -389,31 +223,6 @@ export class CreateLineage
       this.#jwt = auth.jwt;
       this.#isSystemInternal = auth.isSystemInternal;
 
-      // todo - Workaround. Fix ioc container
-      this.#newLineage = undefined;
-
-      this.#newLogics = [];
-      this.#logicsToUpdate = [];
-      this.#logicsToCreate = [];
-
-      this.#newMaterializations = [];
-      this.#matsToUpdate = [];
-      this.#matsToCreate = [];
-
-      this.#newColumns = [];
-      this.#columnsToUpdate = [];
-      this.#columnsToCreate = [];
-
-      this.#newDependencies = [];
-      this.#depencenciesToUpdate = [];
-      this.#depencenciesToCreate = [];
-
-      this.#dashboardsToUpdate = [];
-      this.#dashboardsToCreate = [];
-
-      this.#newMatDefinitionCatalog = [];
-      this.#lastQueryDependency = undefined;
-
       console.log('starting lineage creation...');
 
       console.log('...building lineage object');
@@ -469,6 +278,8 @@ export class CreateLineage
         }
       );
       const {dashboards, dependencies} = await dependenciesBuilder.build(request.biType);
+
+      // todo - merge dashboards and dependencies
 
       console.log('...writing dashboards to persistence');
       await this.#writeDashboardsToPersistence(dashboards);

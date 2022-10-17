@@ -8,12 +8,6 @@ const lineageRoutes = Router();
 const getAccounts = app.resolve('getAccounts');
 const dbo = app.resolve('dbo');
 
-const createLineageController = new CreateLineageController(
-  app.resolve('createLineage'),
-  getAccounts,
-  dbo
-);
-
 const readLineageController = new ReadLineageController(
   app.resolve('readLineage'),
   getAccounts,
@@ -21,7 +15,11 @@ const readLineageController = new ReadLineageController(
 );
 
 lineageRoutes.post('/', (req, res) => {
-  createLineageController.execute(req, res);
+  new CreateLineageController(
+    app.resolve('createLineage'),
+    getAccounts,
+    dbo
+  ).execute(req, res);
 });
 
 lineageRoutes.get('/:id', (req, res) => {
