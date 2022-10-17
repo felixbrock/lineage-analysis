@@ -1,3 +1,8 @@
+interface QueryHistoryEntryDto {
+  QUERY_TEXT: string;
+  [key: string]: unknown;
+}
+
 export interface QueryHistoryDto {
-    history: any;
-  };
+    [key: string]: QueryHistoryEntryDto[];
+}

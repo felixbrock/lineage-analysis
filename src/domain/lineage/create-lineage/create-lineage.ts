@@ -1,33 +1,20 @@
 // todo - Clean Architecture dependency violation. Fix
-import { ObjectId } from 'mongodb';
 import Result from '../../value-types/transient-types/result';
 import IUseCase from '../../services/use-case';
-import SQLElement from '../../value-types/sql-element';
 import { CreateColumn } from '../../column/create-column';
-import {
-  CreateMaterialization,
-  CreateMaterializationRequestDto,
-} from '../../materialization/create-materialization';
+import { CreateMaterialization } from '../../materialization/create-materialization';
 import { CreateLogic } from '../../logic/create-logic';
-import { ParseSQL, ParseSQLResponseDto } from '../../sql-parser-api/parse-sql';
+import { ParseSQL } from '../../sql-parser-api/parse-sql';
 import { Lineage } from '../../entities/lineage';
 import {
   Logic,
   ColumnRef,
-  Refs,
   MaterializationDefinition,
-  DashboardRef,
 } from '../../entities/logic';
-import {
-  CreateDependency,
-  CreateDependencyResponse,
-} from '../../dependency/create-dependency';
-import { Dependency, DependencyType } from '../../entities/dependency';
+import { CreateDependency } from '../../dependency/create-dependency';
+import { Dependency } from '../../entities/dependency';
 import { ReadColumns } from '../../column/read-columns';
-import {
-  Materialization,
-  MaterializationType,
-} from '../../entities/materialization';
+import { Materialization } from '../../entities/materialization';
 import { Column } from '../../entities/column';
 import { ILineageRepo } from '../i-lineage-repo';
 import { IColumnRepo } from '../../column/i-column-repo';
@@ -35,23 +22,21 @@ import { IMaterializationRepo } from '../../materialization/i-materialization-re
 import { IDependencyRepo } from '../../dependency/i-dependency-repo';
 import { ILogicRepo } from '../../logic/i-logic-repo';
 import { DbConnection } from '../../services/i-db';
-import {
-  QuerySnowflakeHistory,
-  QueryHistoryResponseDto,
-} from '../../query-snowflake-history-api/query-snowflake-history';
+import { QuerySnowflakeHistory } from '../../query-snowflake-history-api/query-snowflake-history';
 import { Dashboard } from '../../entities/dashboard';
 import { CreateExternalDependency } from '../../dependency/create-external-dependency';
 import { IDashboardRepo } from '../../dashboard/i-dashboard-repo';
 import { CreateDashboard } from '../../dashboard/create-dashboard';
-import { BiLayer, parseBiLayer } from '../../value-types/bilayer';
 import { buildLineage } from './build-lineage';
 import { DataEnvResourcesGenerator } from './data-env-resources-generator';
+import DependenciesBuilder from './dependencies-builder';
+import { BiType } from '../../value-types/bilayer';
 
 export interface CreateLineageRequestDto {
   targetOrganizationId?: string;
   catalog: string;
   manifest: string;
-  biType?: string;
+  biType?: BiType;
 }
 
 export interface CreateLineageAuthDto {
@@ -340,14 +325,6 @@ export class CreateLineage
   //   );
   // };
 
-
-
-  
-
- 
-
- 
-
   #writeWhResourcesToPersistence = async (): Promise<void> => {
     if (!this.#newLineage)
       throw new ReferenceError(
@@ -366,18 +343,18 @@ export class CreateLineage
 
   // todo - updateDashboards
 
-  #writeDashboardsToPersistence = async (): Promise<void> => {
+  #writeDashboardsToPersistence = async (dashboards: Dashboard[]): Promise<void> => {
     if (this.#newDashboards.length > 0)
       await this.#dashboardRepo.insertMany(
-        this.#newDashboards,
+        dashboards,
         this.#dbConnection
       );
   };
 
-  #writeDependenciesToPersistence = async (): Promise<void> => {
+  #writeDependenciesToPersistence = async (dependencies: Dependency[]): Promise<void> => {
     if (this.#newDependencies.length > 0)
       await this.#dependencyRepo.insertMany(
-        this.#newDependencies,
+        dependencies,
         this.#dbConnection
       );
   };
@@ -445,7 +422,7 @@ export class CreateLineage
 
       console.log('...generating warehouse resources');
       const { jwt, ...remainingAuth } = auth;
-      const dataEnvResources = new DataEnvResourcesGenerator(
+      const dataEnvResourcesGenerator = new DataEnvResourcesGenerator(
         {
           dbtCatalog: request.catalog,
           dbtManifest: request.manifest,
@@ -461,7 +438,8 @@ export class CreateLineage
           parseSQL: this.#parseSQL,
         }
       );
-      const generateDataEnvResourcesResult = await dataEnvResources.generate();
+      const { materializations, columns, logics, matDefinitions } =
+        await dataEnvResourcesGenerator.generate();
 
       console.log('...merging new lineage snapshot with last one');
       await this.#mergeWithLatestSnapshot();
@@ -470,13 +448,33 @@ export class CreateLineage
       await this.#writeWhResourcesToPersistence();
 
       console.log('...building dependencies');
-      await this.#buildDependencies(request.biType);
+      const dependenciesBuilder = await new DependenciesBuilder(
+        {
+          lineageId: lineage.id,
+          logics,
+          matDefinitions,
+          organizationId: this.#organizationId,
+          targetOrganizationId: this.#targetOrganizationId,
+        },
+        auth,
+        dbConnection,
+        {
+          createDashboard: this.#createDashboard,
+          createDependency: this.#createDependency,
+          createExternalDependency: this.#createExternalDependency,
+          readColumns: this.#readColumns,
+          querySnowflakeHistory: this.#querySnowflakeHistory,
+          columnRepo: this.#columnRepo,
+          materializationRepo: this.#materializationRepo,
+        }
+      );
+      const {dashboards, dependencies} = await dependenciesBuilder.build(request.biType);
 
       console.log('...writing dashboards to persistence');
-      await this.#writeDashboardsToPersistence();
+      await this.#writeDashboardsToPersistence(dashboards);
 
       console.log('...writing dependencies to persistence');
-      await this.#writeDependenciesToPersistence();
+      await this.#writeDependenciesToPersistence(dependencies);
 
       // todo - updateLineage;
 

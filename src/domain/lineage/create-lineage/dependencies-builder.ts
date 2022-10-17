@@ -17,12 +17,13 @@ import {
   Refs,
 } from '../../entities/logic';
 import { IMaterializationRepo } from '../../materialization/i-materialization-repo';
+import { QueryHistoryDto } from '../../query-snowflake-history-api/query-history-dto';
 import {
   QueryHistoryResponseDto,
   QuerySnowflakeHistory,
 } from '../../query-snowflake-history-api/query-snowflake-history';
 import { DbConnection } from '../../services/i-db';
-import { BiLayer, parseBiLayer } from '../../value-types/bilayer';
+import { BiType } from '../../value-types/bilayer';
 import SQLElement from '../../value-types/sql-element';
 
 interface Auth {
@@ -31,12 +32,9 @@ interface Auth {
   isSystemInternal: boolean;
 }
 
-interface QueryHistoryEntry {
-  QUERY_TEXT: string;
-}
-
-interface QueryHistory {
-  [key: string]: QueryHistoryEntry[];
+export interface BuildResult {
+  dashboards: Dashboard[];
+  dependencies: Dependency[];
 }
 
 export default class DependenciesBuilder {
@@ -118,7 +116,7 @@ export default class DependenciesBuilder {
     this.#matDefinitions = props.matDefinitions;
   }
 
-  #retrieveQueryHistory = async (biLayer: BiLayer): Promise<unknown> => {
+  #retrieveQueryHistory = async (biLayer: BiType): Promise<QueryHistoryDto> => {
     const queryHistoryResult: QueryHistoryResponseDto =
       await this.#querySnowflakeHistory.execute(
         {
@@ -139,8 +137,8 @@ export default class DependenciesBuilder {
   /* Get all relevant dashboards that are data dependency to self materialization */
   static #getDashboardDataDependencyRefs = async (
     statementRefs: Refs,
-    queryHistory: QueryHistory,
-    biLayer: BiLayer
+    queryHistory: QueryHistoryDto,
+    biLayer: BiType
   ): Promise<DashboardRef[]> => {
     const dependentDashboards: DashboardRef[] = [];
 
@@ -493,16 +491,11 @@ export default class DependenciesBuilder {
   };
 
   /* Creates all dependencies that exist between DWH resources */
-  build = async (biType?: string): Promise<void> => {
+  build = async (biType?: BiType): Promise<BuildResult> => {
     // todo - should method be completely sync? Probably resolves once transformed into batch job.
 
-    let biLayer: BiLayer;
-    let queryHistory: any;
-
-    if (biType) {
-      biLayer = parseBiLayer(biType);
-      queryHistory = await this.#retrieveQueryHistory(biLayer);
-    }
+    let queryHistory: QueryHistoryDto;
+    if (biType) queryHistory = await this.#retrieveQueryHistory(biType);
 
     await Promise.all(
       this.#logics.map(async (logic) => {
@@ -537,12 +530,12 @@ export default class DependenciesBuilder {
           )
         );
 
-        if (biLayer && queryHistory) {
+        if (biType && queryHistory) {
           const dashboardDataDependencyRefs =
             await DependenciesBuilder.#getDashboardDataDependencyRefs(
               logic.statementRefs,
               queryHistory,
-              biLayer
+              biType
             );
 
           const uniqueDashboardRefs = dashboardDataDependencyRefs.filter(
@@ -581,6 +574,8 @@ export default class DependenciesBuilder {
         }
       })
     );
+
+    return { dashboards: this.#dashboards, dependencies: this.#dependencies };
   };
 
   static #insensitiveEquality = (str1: string, str2: string): boolean =>

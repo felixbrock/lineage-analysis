@@ -1,11 +1,16 @@
 import axios, { AxiosRequestConfig } from 'axios';
 import { appConfig } from '../../config';
 import { IQueryHistoryApiRepo } from '../../domain/query-snowflake-history-api/i-query-history-api-repo';
+import { QueryHistoryDto } from '../../domain/query-snowflake-history-api/query-history-dto';
 
 export default class QuerySnowflakeHistoryApiRepo
   implements IQueryHistoryApiRepo
 {
-  getQueryHistory = async (sqlQuery: string, organizationId: string, jwt: string): Promise<any> => {
+  getQueryHistory = async (
+    sqlQuery: string,
+    organizationId: string,
+    jwt: string
+  ): Promise<QueryHistoryDto> => {
     try {
       const config: AxiosRequestConfig = {
         headers: {
@@ -15,15 +20,16 @@ export default class QuerySnowflakeHistoryApiRepo
 
       const response = await axios.post(
         `${appConfig.apiRoot.integrationService}/api/v1/snowflake/query`,
-        { query: sqlQuery, targetOrganizationId: organizationId},
+        { query: sqlQuery, targetOrganizationId: organizationId },
         config
       );
 
       const jsonResponse = response.data;
       if (response.status !== 201) throw new Error(jsonResponse.message);
-      return jsonResponse;
+      return jsonResponse.history;
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error(''));
     }
   };

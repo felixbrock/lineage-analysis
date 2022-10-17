@@ -2,10 +2,10 @@ import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { IQueryHistoryApiRepo } from './i-query-history-api-repo';
 import { QueryHistoryDto } from './query-history-dto';
-import { BiLayer } from '../value-types/bilayer';
+import { BiType } from '../value-types/bilayer';
 
 export interface QueryHistoryRequestDto {
-  biLayer: BiLayer;
+  biLayer: BiType;
   limit: number;
   targetOrganizationId?: string;
 }
