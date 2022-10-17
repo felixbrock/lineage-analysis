@@ -1,9 +1,15 @@
-export enum DependencyType {
-  DATA = 'DATA',
-  QUERY = 'QUERY',
-  DEFINITION = 'DEFINITION',
-  EXTERNAL = 'EXTERNAL',
-}
+export const dependencyTypes = ['data', 'query', 'definition', 'external'] as const;
+export type DependencyType = typeof dependencyTypes[number];
+
+export const parseDependencyType = (
+  dependencyType: string
+): DependencyType => {
+  const identifiedElement = dependencyTypes.find(
+    (element) => element.toLowerCase() === dependencyType.toLowerCase()
+  );
+  if (identifiedElement) return identifiedElement;
+  throw new Error('Provision of invalid type');
+};
 
 export interface DependencyProperties {
   id: string;

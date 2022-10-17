@@ -1,6 +1,5 @@
 import { CreateColumn } from '../../column/create-column';
 import { Column } from '../../entities/column';
-import { Lineage } from '../../entities/lineage';
 import { Logic, MaterializationDefinition, Refs } from '../../entities/logic';
 import {
   Materialization,
@@ -22,14 +21,14 @@ interface Auth {
 }
 
 export interface DataEnvResourcesProps {
-  lineage: Lineage;
+  lineageId: string;
   dbtCatalog: string;
   dbtManifest: string;
   targetOrganizationId?: string;
 }
 
 export interface GenerateResult {
-  matDefinitionCatalog: MaterializationDefinition[];
+  matDefinitions: MaterializationDefinition[];
   materializations: Materialization[];
   columns: Column[];
   logics: Logic[];
@@ -84,7 +83,7 @@ interface DbtCatalogColumnDefinition {
   type: string;
 }
 
-export class GenerateDataEnvResources {
+export class DataEnvResourcesGenerator {
   readonly #createMaterialization: CreateMaterialization;
 
   readonly #createColumn: CreateColumn;
@@ -93,7 +92,7 @@ export class GenerateDataEnvResources {
 
   readonly #createLogic: CreateLogic;
 
-  readonly #lineage: Lineage;
+  readonly #lineageId: string;
 
   readonly #dbtCatalog: string;
 
@@ -107,9 +106,27 @@ export class GenerateDataEnvResources {
 
   #materializations: Materialization[] = [];
 
+  get materializations(): Materialization[] {
+    return this.#materializations;
+  }
+
   #columns: Column[] = [];
 
+  get columns(): Column[] {
+    return this.#columns;
+  }
+
   #logics: Logic[] = [];
+
+  get logics(): Logic[] {
+    return this.#logics;
+  }
+
+  #matDefinitions: MaterializationDefinition[] = [];
+
+  get matDefinitions(): MaterializationDefinition[] {
+    return this.#matDefinitions;
+  }
 
   constructor(
     props: DataEnvResourcesProps,
@@ -130,7 +147,7 @@ export class GenerateDataEnvResources {
     this.#auth = auth;
     this.#dbConnection = dbConnection;
 
-    this.#lineage = props.lineage;
+    this.#lineageId = props.lineageId;
     this.#dbtCatalog = props.dbtCatalog;
     this.#dbtManifest = props.dbtManifest;
     this.#targetOrganizationId = props.targetOrganizationId;
@@ -172,7 +189,7 @@ export class GenerateDataEnvResources {
         index: columnDefinition.index,
         type: columnDefinition.type,
         materializationId: sourceId,
-        lineageIds: [this.#lineage.id],
+        lineageIds: [this.#lineageId],
         writeToPersistence: false,
         targetOrganizationId: this.#targetOrganizationId,
       },
@@ -209,7 +226,7 @@ export class GenerateDataEnvResources {
         {
           ...createMaterializationProps,
           writeToPersistence: options.writeToPersistence,
-          lineageIds: [this.#lineage.id],
+          lineageIds: [this.#lineageId],
           targetOrganizationId: this.#targetOrganizationId,
         },
         this.#auth,
@@ -262,19 +279,19 @@ export class GenerateDataEnvResources {
           (el) =>
             (typeof def.databaseName === 'string' &&
             typeof el.databaseName === 'string'
-              ? GenerateDataEnvResources.#insensitiveEquality(
+              ? DataEnvResourcesGenerator.#insensitiveEquality(
                   el.databaseName,
                   def.databaseName
                 )
               : def.databaseName === el.databaseName) &&
             (typeof def.schemaName === 'string' &&
             typeof el.schemaName === 'string'
-              ? GenerateDataEnvResources.#insensitiveEquality(
+              ? DataEnvResourcesGenerator.#insensitiveEquality(
                   el.schemaName,
                   def.schemaName
                 )
               : def.schemaName === el.schemaName) &&
-            GenerateDataEnvResources.#insensitiveEquality(
+            DataEnvResourcesGenerator.#insensitiveEquality(
               el.name,
               def.materializationName
             )
@@ -303,7 +320,7 @@ export class GenerateDataEnvResources {
                 schemaName: matRef.schemaName || '',
                 databaseName: matRef.databaseName || '',
                 logicId: 'todo - read from snowflake',
-                lineageIds: [this.#lineage.id],
+                lineageIds: [this.#lineageId],
                 targetOrganizationId: this.#targetOrganizationId,
                 writeToPersistence: false,
               },
@@ -328,7 +345,7 @@ export class GenerateDataEnvResources {
           );
 
         const relevantColumnRefs = statementRefs.columns.filter((col) =>
-          GenerateDataEnvResources.#insensitiveEquality(
+          DataEnvResourcesGenerator.#insensitiveEquality(
             finalMat.name,
             col.materializationName
           )
@@ -338,7 +355,7 @@ export class GenerateDataEnvResources {
           (column1, index, self) =>
             index ===
             self.findIndex((column2) =>
-              GenerateDataEnvResources.#insensitiveEquality(
+              DataEnvResourcesGenerator.#insensitiveEquality(
                 column1.name,
                 column2.name
               )
@@ -405,7 +422,7 @@ export class GenerateDataEnvResources {
         sql,
         modelName: props.model.metadata.name,
         dbtDependentOn: props.dbtDependentOn,
-        lineageIds: [this.#lineage.id],
+        lineageIds: [this.#lineageId],
         parsedLogic,
         targetOrganizationId: this.#targetOrganizationId,
         writeToPersistence: false,
@@ -435,7 +452,7 @@ export class GenerateDataEnvResources {
       schemaName: props.model.metadata.schema,
       databaseName: props.model.metadata.database,
       logicId: logic.id,
-      lineageIds: [this.#lineage.id],
+      lineageIds: [this.#lineageId],
       targetOrganizationId: this.#targetOrganizationId,
       writeToPersistence: false,
     });
@@ -465,7 +482,7 @@ export class GenerateDataEnvResources {
       relationName: props.modelManifest.relation_name,
       schemaName: props.model.metadata.schema,
       databaseName: props.model.metadata.database,
-      lineageIds: [this.#lineage.id],
+      lineageIds: [this.#lineageId],
       targetOrganizationId: this.#targetOrganizationId,
       writeToPersistence: false,
     });
@@ -513,9 +530,9 @@ export class GenerateDataEnvResources {
     } = {};
 
     const dbtCatalogResources =
-      GenerateDataEnvResources.#getDbtCatalogResources(this.#dbtCatalog);
+      DataEnvResourcesGenerator.#getDbtCatalogResources(this.#dbtCatalog);
     const dbtManifestResources =
-      GenerateDataEnvResources.#getDbtManifestResources(this.#dbtManifest);
+      DataEnvResourcesGenerator.#getDbtManifestResources(this.#dbtManifest);
 
     const dbtCatalogSourceKeys = Object.keys(dbtCatalogResources.sources);
     const dbtManifestSourceKeys = Object.keys(dbtManifestResources.sources);
@@ -525,8 +542,6 @@ export class GenerateDataEnvResources {
         relationName: dbtManifestResources.sources[key].relation_name,
       };
     });
-
-    const matDefinitionCatalog: MaterializationDefinition[] = [];
 
     dbtCatalogSourceKeys.forEach((key) => {
       const source = dbtCatalogResources.sources[key];
@@ -538,7 +553,7 @@ export class GenerateDataEnvResources {
         databaseName: source.metadata.database,
       };
 
-      matDefinitionCatalog.push(matCatalogElement);
+      this.#matDefinitions.push(matCatalogElement);
     });
 
     await Promise.all(
@@ -598,7 +613,7 @@ export class GenerateDataEnvResources {
         databaseName: model.metadata.database,
       };
 
-      matDefinitionCatalog.push(matCatalogElement);
+      this.#matDefinitions.push(matCatalogElement);
     });
 
     await Promise.all(
@@ -612,7 +627,7 @@ export class GenerateDataEnvResources {
             uniqueIdRelationNameMapping[dependencyKey].relationName
         );
 
-        const dbtDependentOn = matDefinitionCatalog.filter((element) =>
+        const dbtDependentOn = this.#matDefinitions.filter((element) =>
           dependsOnRelationName.includes(element.relationName)
         );
 
@@ -628,7 +643,7 @@ export class GenerateDataEnvResources {
     );
 
     return {
-      matDefinitionCatalog,
+      matDefinitions: this.#matDefinitions,
       materializations: this.#materializations,
       columns: this.#columns,
       logics: this.#logics,
