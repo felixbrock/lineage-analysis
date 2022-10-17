@@ -1,7 +1,15 @@
-export enum MaterializationType {
-  TABLE = 'BASE TABLE',
-  VIEW = 'VIEW',
-}
+export const materializationTypes = ['base table', 'view'] as const;
+export type MaterializationType = typeof materializationTypes[number];
+
+export const parseMaterializationType = (
+  materializationType: string
+): MaterializationType => {
+  const identifiedElement = materializationTypes.find(
+    (element) => element.toLowerCase() === materializationType.toLowerCase()
+  );
+  if (identifiedElement) return identifiedElement;
+  throw new Error('Provision of invalid type');
+};
 
 export interface MaterializationProperties {
   id: string;
