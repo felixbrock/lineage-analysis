@@ -1,7 +1,6 @@
 // TODO: Violation of control flow. DI for express instead
 import { Request, Response } from 'express';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
-import { buildColumnDto } from '../../../domain/column/column-dto';
 import {
   ReadColumns,
   ReadColumnsAuthDto,
@@ -15,7 +14,7 @@ import {
   BaseController,
   CodeHttp,
   UserAccountInfo,
-} from '../../shared/base-controller';
+} from '../../../shared/base-controller';
 
 export default class ReadColumnsController extends BaseController {
   readonly #readColumns: ReadColumns;
@@ -96,7 +95,7 @@ export default class ReadColumnsController extends BaseController {
       }
 
       const resultValue = useCaseResult.value
-        ? useCaseResult.value.map((element) => buildColumnDto(element))
+        ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
 
       return ReadColumnsController.ok(res, resultValue, CodeHttp.OK);

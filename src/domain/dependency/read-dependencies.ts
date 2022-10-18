@@ -8,7 +8,7 @@ export interface ReadDependenciesRequestDto {
   type?: DependencyType;
   headId?: string;
   tailId?: string;
-  lineageIds: string[];
+  lineageId: string;
   targetOrganizationId?: string;
 }
 
@@ -81,7 +81,7 @@ export class ReadDependencies
   ): DependencyQueryDto => {
     
 
-    const queryDto: DependencyQueryDto = { lineageIds: request.lineageIds, organizationId };
+    const queryDto: DependencyQueryDto = { lineageIds: [request.lineageId], organizationId };
 
     
     

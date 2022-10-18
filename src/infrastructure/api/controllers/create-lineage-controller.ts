@@ -7,7 +7,6 @@ import {
   CreateLineageRequestDto,
   CreateLineageResponseDto,
 } from '../../../domain/lineage/create-lineage/create-lineage';
-import { buildLineageDto } from '../../../domain/lineage/lineage-dto';
 import Result from '../../../domain/value-types/transient-types/result';
 import Dbo from '../../persistence/db/mongo-db';
 
@@ -15,7 +14,7 @@ import {
   BaseController,
   CodeHttp,
   UserAccountInfo,
-} from '../../shared/base-controller';
+} from '../../../shared/base-controller';
 
 export default class CreateLineageController extends BaseController {
   readonly #createLineage: CreateLineage;
@@ -103,7 +102,7 @@ export default class CreateLineageController extends BaseController {
       }
 
       const resultValue = useCaseResult.value
-        ? buildLineageDto(useCaseResult.value)
+        ? useCaseResult.value.toDto()
         : useCaseResult.value;
 
       return CreateLineageController.ok(res, resultValue, CodeHttp.CREATED);

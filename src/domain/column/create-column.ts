@@ -7,13 +7,12 @@ import { IColumnRepo } from './i-column-repo';
 import { DbConnection } from '../services/i-db';
 
 export interface CreateColumnRequestDto {
-  id?: string;
   relationName: string;
   name: string;
   index: string;
   type: string;
   materializationId: string;
-  lineageIds: string[];
+  lineageId: string;
   writeToPersistence: boolean;
   targetOrganizationId?: string;
 }
@@ -84,7 +83,7 @@ export class CreateColumn
         {
           name: request.name,
           materializationId: request.materializationId,
-          lineageIds: request.lineageIds,
+          lineageId: request.lineageIds,
           targetOrganizationId: request.targetOrganizationId,
         },
         { isSystemInternal: auth.isSystemInternal, callerOrganizationId: auth.callerOrganizationId },

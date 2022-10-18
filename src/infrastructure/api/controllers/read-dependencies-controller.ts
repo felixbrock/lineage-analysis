@@ -1,14 +1,13 @@
 // TODO: Violation of control flow. DI for express instead
 import { Request, Response } from 'express';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
-import { buildDependencyDto } from '../../../domain/dependency/dependency-dto';
 import {
   ReadDependencies,
   ReadDependenciesAuthDto,
   ReadDependenciesRequestDto,
   ReadDependenciesResponseDto,
 } from '../../../domain/dependency/read-dependencies';
-import { DependencyType } from '../../../domain/entities/dependency';
+import { DependencyType, dependencyTypes } from '../../../domain/entities/dependency';
 import Result from '../../../domain/value-types/transient-types/result';
 import Dbo from '../../persistence/db/mongo-db';
 
@@ -16,7 +15,7 @@ import {
   BaseController,
   CodeHttp,
   UserAccountInfo,
-} from '../../shared/base-controller';
+} from '../../../shared/base-controller';
 
 export default class ReadDependenciesController extends BaseController {
   readonly #readDependencies: ReadDependencies;
@@ -41,7 +40,7 @@ export default class ReadDependenciesController extends BaseController {
 
     const isDependencyType = (
       queryParam: string
-    ): queryParam is DependencyType => queryParam in DependencyType;
+    ): queryParam is DependencyType => queryParam in dependencyTypes;
 
     if (type) {
       if (typeof type !== 'string')
@@ -118,7 +117,7 @@ export default class ReadDependenciesController extends BaseController {
       }
 
       const resultValue = useCaseResult.value
-        ? useCaseResult.value.map((element) => buildDependencyDto(element))
+        ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
 
       return ReadDependenciesController.ok(res, resultValue, CodeHttp.OK);

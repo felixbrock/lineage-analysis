@@ -12,7 +12,7 @@ export interface ReadDashboardsRequestDto {
   id?: string;
   columnId?: string;
   materializationId?: string;
-  lineageIds: string[];
+  lineageId: string;
   targetOrganizationId?: string;
 }
 
@@ -85,7 +85,7 @@ export class ReadDashboards
     organizationId: string
   ): DashboardQueryDto => {
     const queryDto: DashboardQueryDto = {
-      lineageIds: request.lineageIds,
+      lineageIds: [request.lineageId],
       organizationId,
     };
 

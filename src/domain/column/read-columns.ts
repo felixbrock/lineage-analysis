@@ -10,7 +10,7 @@ export interface ReadColumnsRequestDto {
   index?: string;
   type?: string;
   materializationId?: string | string[];
-  lineageIds: string[];
+  lineageId: string;
   targetOrganizationId?: string;
 }
 
@@ -81,7 +81,7 @@ export class ReadColumns
     organizationId: string
   ): ColumnQueryDto => {
     const queryDto: ColumnQueryDto = {
-      lineageIds: request.lineageIds,
+      lineageIds: [request.lineageId],
       organizationId,
     };
 

@@ -242,10 +242,10 @@ export class Logic {
     ];
 
     if (definitionElements.some((element) => path.includes(element)))
-      return DependencyType.DEFINITION;
+      return 'definition';
     if (dataDependencyElementsRegex.some((element) => element.test(path)))
-      return DependencyType.DATA;
-    return DependencyType.QUERY;
+      return 'data';
+    return 'query';
   };
 
   /* Returns a single joined string value of an array value identified in the parsed SQL logic
@@ -1269,7 +1269,7 @@ export class Logic {
         nonSelfMaterializationRefs
       );
 
-      if (prototype.dependencyType === DependencyType.DEFINITION)
+      if (prototype.dependencyType === 'definition')
         return {
           alias: prototype.alias,
           context: prototype.context,
@@ -1316,8 +1316,7 @@ export class Logic {
           selfMaterializationRef
         );
 
-        if (isSelfRefColumn)
-          columnRef.dependencyType = DependencyType.DEFINITION;
+        if (isSelfRefColumn) columnRef.dependencyType = 'definition';
 
         return columnRef;
       }
@@ -1373,7 +1372,7 @@ export class Logic {
       );
 
       if (isSelfRefColumn || (columnRef.isWildcardRef && representation))
-        columnRef.dependencyType = DependencyType.DEFINITION;
+        columnRef.dependencyType = 'definition';
 
       return columnRef;
     });
@@ -1475,14 +1474,14 @@ export class Logic {
           (model) => model.columnNames[parseInt(columnNumber, 10) - 1]
         );
 
-        thisCol.dependencyType = DependencyType.DATA;
+        thisCol.dependencyType = 'data';
         if (realName) thisCol.alias = realName;
       }
 
       if (!nextCol) return;
       if (
-        column.dependencyType === DependencyType.DEFINITION &&
-        nextCol.dependencyType === DependencyType.DATA
+        column.dependencyType === 'definition' &&
+        nextCol.dependencyType === 'data'
       )
         nextCol.alias = column.name;
     });
@@ -1529,10 +1528,10 @@ export class Logic {
       const firstInWhenSequence =
         isWhenClause &&
         this.#whenClauseColumnRefProtoAreEqual(thisPrototype, nextPrototype) &&
-        !(prevPrototype.dependencyType === DependencyType.QUERY);
+        !(prevPrototype.dependencyType === 'query');
 
       if (firstInWhenSequence || singleWhenClause)
-        thisPrototype.dependencyType = DependencyType.QUERY;
+        thisPrototype.dependencyType = 'query';
     });
 
     return columnPrototypes;

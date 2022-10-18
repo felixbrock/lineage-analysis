@@ -1,7 +1,6 @@
 // TODO: Violation of control flow. DI for express instead
 import { Request, Response } from 'express';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
-import { buildLogicDto } from '../../../domain/logic/logic-dto';
 import {
   ReadLogics,
   ReadLogicsAuthDto,
@@ -15,7 +14,7 @@ import {
   BaseController,
   CodeHttp,
   UserAccountInfo,
-} from '../../shared/base-controller';
+} from '../../../shared/base-controller';
 
 export default class ReadLogicsController extends BaseController {
   readonly #readLogics: ReadLogics;
@@ -90,7 +89,7 @@ export default class ReadLogicsController extends BaseController {
       }
 
       const resultValue = useCaseResult.value
-        ? useCaseResult.value.map((element) => buildLogicDto(element))
+        ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
 
       return ReadLogicsController.ok(res, resultValue, CodeHttp.OK);

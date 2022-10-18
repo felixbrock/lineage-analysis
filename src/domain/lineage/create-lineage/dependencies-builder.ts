@@ -466,7 +466,7 @@ export default class DependenciesBuilder {
     const readColumnsResult = await this.#readColumns.execute(
       {
         relationName,
-        lineageIds: [this.#lineageId],
+        lineageId: this.#lineageId,
         targetOrganizationId: this.#targetOrganizationId,
       },
       {

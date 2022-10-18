@@ -6,7 +6,6 @@ import {
   CreateLineageRequestDto,
   CreateLineageResponseDto,
 } from '../../../domain/lineage/create-lineage/create-lineage';
-import { buildLineageDto } from '../../../domain/lineage/lineage-dto';
 import Result from '../../../domain/value-types/transient-types/result';
 import Dbo from '../../persistence/db/mongo-db';
 
@@ -16,7 +15,7 @@ import {
   Request,
   Response,
   UserAccountInfo,
-} from '../../shared/internal-invoke-controller';
+} from '../../../shared/internal-invoke-controller';
 
 export default class InternalInvokeCreateLineageController extends InternalInvokeController<CreateLineageRequestDto> {
   readonly #createLineage: CreateLineage;
@@ -99,7 +98,7 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
       }
 
       const resultValue = useCaseResult.value
-        ? buildLineageDto(useCaseResult.value)
+        ? useCaseResult.value.toDto()
         : useCaseResult.value;
 
       return InternalInvokeCreateLineageController.ok(resultValue, CodeHttp.CREATED);

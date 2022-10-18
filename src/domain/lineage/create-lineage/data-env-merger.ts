@@ -117,13 +117,12 @@ export default class DataEnvMerger {
   }
 
   #buildLogicToReplace = async (
-    oldLogicProps: { id: string; parsedLogic: string; lineageIds: string[] },
+    oldLogicProps: { id: string; lineageIds: string[] },
     logicToHandle: Logic
   ): Promise<Logic> =>
     Logic.build({
       ...logicToHandle.toDto(),
       id: oldLogicProps.id,
-      parsedLogic: oldLogicProps.parsedLogic,
       lineageIds: oldLogicProps.lineageIds.concat(logicToHandle.lineageIds),
     });
 
@@ -151,7 +150,12 @@ export default class DataEnvMerger {
   };
 
   #buildMatToReplace = async (
-    oldMatProps: { id: string; relationName: string; lineageIds: string[] },
+    oldMatProps: {
+      id: string;
+      relationName: string;
+      logicId?: string;
+      lineageIds: string[];
+    },
     matToHandle: Materialization
   ): Promise<Materialization> => {
     const createMatResult = await this.#createMaterialization.execute(
@@ -159,6 +163,7 @@ export default class DataEnvMerger {
         ...matToHandle.toDto(),
         id: oldMatProps.id,
         relationName: oldMatProps.relationName,
+        logicId: oldMatProps.logicId || matToHandle.logicId,
         lineageIds: oldMatProps.lineageIds.concat(matToHandle.lineageIds),
         writeToPersistence: false,
       },
@@ -205,9 +210,7 @@ export default class DataEnvMerger {
             {
               id: matchingColumn.id,
               name: matchingColumn.name,
-              lineageIds: matchingColumn.lineageIds.concat(
-                columnToHandle.lineageIds
-              ),
+              lineageIds: matchingColumn.lineageIds,
             },
             columnToHandle
           );
@@ -234,20 +237,15 @@ export default class DataEnvMerger {
         'While merging logics an error occured. Error: Logic(s) not found'
       );
 
-    if (logicToHandle.parsedLogic === oldLogic.parsedLogic) {
-      const updatedLogic = await this.#buildLogicToReplace(
-        {
-          id: oldLogic.id,
-          parsedLogic: oldLogic.parsedLogic,
-          lineageIds: oldLogic.lineageIds.concat(logicToHandle.lineageIds),
-        },
-        logicToHandle
-      );
+    const updatedLogic = await this.#buildLogicToReplace(
+      {
+        id: oldLogic.id,
+        lineageIds: oldLogic.lineageIds,
+      },
+      logicToHandle
+    );
 
-      return { logic: updatedLogic, toReplace: true };
-    }
-
-    return { logic: logicToHandle, toReplace: false };
+    return { logic: updatedLogic, toReplace: true };
   };
 
   merge = async (): Promise<{
@@ -306,6 +304,7 @@ export default class DataEnvMerger {
           {
             lineageIds: matchingMat.lineageIds,
             id: matchingMat.id,
+            logicId: matchingMat.logicId,
             relationName: matchingMat.relationName,
           },
           matToHandle

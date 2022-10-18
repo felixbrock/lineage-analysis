@@ -175,7 +175,10 @@ export class CreateLineage
       await this.#dependencyRepo.insertMany(dependencies, this.#dbConnection);
   };
 
-  #updateLineage = async (id: string, updateDto: LineageUpdateDto): Promise<void> => {
+  #updateLineage = async (
+    id: string,
+    updateDto: LineageUpdateDto
+  ): Promise<void> => {
     await this.#lineageRepo.updateOne(id, updateDto, this.#dbConnection);
   };
 
@@ -252,7 +255,9 @@ export class CreateLineage
       const dependenciesBuilder = await new DependenciesBuilder(
         {
           lineageId: lineage.id,
-          logics,
+          logics: mergedDataEnv.logicsToCreate.concat(
+            mergedDataEnv.logicsToReplace
+          ),
           matDefinitions,
           organizationId,
           targetOrganizationId: request.targetOrganizationId,
@@ -275,13 +280,13 @@ export class CreateLineage
 
       console.log('...writing dashboards to persistence');
       await this.#writeDashboardsToPersistence(dashboards);
-      
+
       console.log('...writing dependencies to persistence');
       await this.#writeDependenciesToPersistence(dependencies);
-      
+
       console.log('...setting lineage complete state to true');
-      this.#updateLineage(lineage.id, {completed: true});
-      
+      this.#updateLineage(lineage.id, { completed: true });
+
       console.log('finished lineage creation.');
 
       return Result.ok(lineage);
