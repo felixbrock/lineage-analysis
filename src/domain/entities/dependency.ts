@@ -1,9 +1,12 @@
-export const dependencyTypes = ['data', 'query', 'definition', 'external'] as const;
+export const dependencyTypes = [
+  'data',
+  'query',
+  'definition',
+  'external',
+] as const;
 export type DependencyType = typeof dependencyTypes[number];
 
-export const parseDependencyType = (
-  dependencyType: string
-): DependencyType => {
+export const parseDependencyType = (dependencyType: string): DependencyType => {
   const identifiedElement = dependencyTypes.find(
     (element) => element.toLowerCase() === dependencyType.toLowerCase()
   );
@@ -17,6 +20,15 @@ export interface DependencyProperties {
   headId: string;
   tailId: string;
   lineageIds: string[];
+  organizationId: string;
+}
+
+export interface DependencyPrototype {
+  id: string;
+  type: DependencyType;
+  headId: string;
+  tailId: string;
+  lineageId: string;
   organizationId: string;
 }
 
@@ -68,22 +80,40 @@ export class Dependency {
     this.#organizationId = properties.organizationId;
   }
 
-  static create = (properties: DependencyProperties): Dependency => {
-    if (!properties.id) throw new TypeError('Dependency object must have id');
-    if (!properties.type)
+  static create = (prototype: DependencyPrototype): Dependency => {
+    if (!prototype.id) throw new TypeError('Dependency object must have id');
+    if (!prototype.type)
       throw new TypeError('Dependency object must have type');
-    if (!properties.headId)
+    if (!prototype.headId)
       throw new TypeError('Dependency object must have headId');
-    if (!properties.tailId)
+    if (!prototype.tailId)
       throw new TypeError('Dependency object must have tailId');
-    if (!properties.lineageIds.length)
+    if (!prototype.lineageId)
       throw new TypeError('Dependency object must have lineageId');
-    if (!properties.organizationId)
+    if (!prototype.organizationId)
       throw new TypeError('Dependency object must have oragnizationId');
 
-    const dependency = new Dependency(properties);
+    const dependency = new Dependency({
+      ...prototype,
+      lineageIds: [prototype.lineageId],
+    });
 
     return dependency;
+  };
+
+  static build = (props: DependencyProperties): Dependency => {
+    if (!props.id) throw new TypeError('Dependency object must have id');
+    if (!props.type) throw new TypeError('Dependency object must have type');
+    if (!props.headId)
+      throw new TypeError('Dependency object must have headId');
+    if (!props.tailId)
+      throw new TypeError('Dependency object must have tailId');
+    if (!props.lineageIds.length)
+      throw new TypeError('Dependency object must have lineageIds');
+    if (!props.organizationId)
+      throw new TypeError('Dependency object must have oragnizationId');
+
+    return new Dependency(props);
   };
 
   toDto = (): DependencyDto => ({

@@ -9,6 +9,17 @@ export interface ColumnProperties {
   organizationId: string;
 }
 
+export interface ColumnPrototype {
+  id: string;
+  relationName: string;
+  name: string;
+  index: string;
+  type: string;
+  materializationId: string;
+  lineageId: string;
+  organizationId: string;
+}
+
 type ColumnDto = ColumnProperties;
 
 export class Column {
@@ -71,32 +82,43 @@ export class Column {
     this.#organizationId = properties.organizationId;
   }
 
-  static create = (properties: ColumnProperties): Column => {
-    if (!properties.id) throw new TypeError('Column must have id');
-    if (!properties.relationName)
+  static create = (prototype: ColumnPrototype): Column => {
+    if (!prototype.id) throw new TypeError('Column must have id');
+    if (!prototype.relationName)
       throw new TypeError('Column must have relationName');
-    if (!properties.name) throw new TypeError('Column must have name');
-    if (!properties.index) throw new TypeError('Column must have index');
-    if (!properties.type) throw new TypeError('Column must have type');
-    if (!properties.materializationId)
+    if (!prototype.name) throw new TypeError('Column must have name');
+    if (!prototype.index) throw new TypeError('Column must have index');
+    if (!prototype.type) throw new TypeError('Column must have type');
+    if (!prototype.materializationId)
       throw new TypeError('Column must have materializationId');
-    if (!properties.lineageIds.length)
+    if (!prototype.lineageId)
       throw new TypeError('Column must have lineage id');
-    if (!properties.organizationId)
+    if (!prototype.organizationId)
       throw new TypeError('Column must have organizationId');
 
-    const column = new Column({
-      id: properties.id,
-      relationName: properties.relationName,
-      name: properties.name,
-      index: properties.index,
-      type: properties.type,
-      materializationId: properties.materializationId,
-      lineageIds: properties.lineageIds,
-      organizationId: properties.organizationId,
+    const column = Column.build({
+      ...prototype,
+      lineageIds: [prototype.lineageId],
     });
 
     return column;
+  };
+
+  static build = (props: ColumnProperties): Column => {
+    if (!props.id) throw new TypeError('Column must have id');
+    if (!props.relationName)
+      throw new TypeError('Column must have relationName');
+    if (!props.name) throw new TypeError('Column must have name');
+    if (!props.index) throw new TypeError('Column must have index');
+    if (!props.type) throw new TypeError('Column must have type');
+    if (!props.materializationId)
+      throw new TypeError('Column must have materializationId');
+    if (!props.lineageIds.length)
+      throw new TypeError('Column must have lineage ids');
+    if (!props.organizationId)
+      throw new TypeError('Column must have organizationId');
+
+    return new Column(props);
   };
 
   toDto = (): ColumnDto => ({

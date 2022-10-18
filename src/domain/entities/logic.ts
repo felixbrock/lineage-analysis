@@ -20,7 +20,7 @@ export interface LogicPrototype {
   sql: string;
   dbtDependentOn: MaterializationDefinition[];
   parsedLogic: string;
-  lineageIds: string[];
+  lineageId: string;
   catalog: CatalogModelData[];
   organizationId: string;
 }
@@ -1795,7 +1795,7 @@ export class Logic {
       throw new TypeError('Logic prototype must have SQL logic');
     if (!prototype.parsedLogic)
       throw new TypeError('Logic  prototype must have parsed SQL logic');
-    if (!prototype.lineageIds.length)
+    if (!prototype.lineageId)
       throw new TypeError('Logic must have lineageId');
     if (!prototype.organizationId)
       throw new TypeError('Logic must have organization id');
@@ -1827,7 +1827,7 @@ export class Logic {
       dependentOn,
       parsedLogic: prototype.parsedLogic,
       statementRefs,
-      lineageIds: prototype.lineageIds,
+      lineageIds: [prototype.lineageId],
       organizationId: prototype.organizationId,
     });
 
@@ -1841,18 +1841,9 @@ export class Logic {
     if (!properties.parsedLogic)
       throw new TypeError('Logic creation requires parsed SQL logic');
     if (!properties.lineageIds.length)
-      throw new TypeError('Logic must have lineageId');
+      throw new TypeError('Logic must have lineageIds');
 
-    const logic = new Logic({
-      id: properties.id,
-      relationName: properties.relationName,
-      sql: properties.sql,
-      dependentOn: properties.dependentOn,
-      parsedLogic: properties.parsedLogic,
-      statementRefs: properties.statementRefs,
-      lineageIds: properties.lineageIds,
-      organizationId: properties.organizationId,
-    });
+    const logic = new Logic(properties);
 
     return logic;
   };

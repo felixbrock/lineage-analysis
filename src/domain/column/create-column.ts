@@ -69,13 +69,13 @@ export class CreateColumn
       this.#dbConnection = dbConnection;
 
       const column = Column.create({
-        id: request.id || new ObjectId().toHexString(),
+        id: new ObjectId().toHexString(),
         relationName: request.relationName,
         name: request.name,
         index: request.index,
         type: request.type,
         materializationId: request.materializationId,
-        lineageIds: request.lineageIds,
+        lineageId: request.lineageId,
         organizationId,
       });
 
@@ -83,7 +83,7 @@ export class CreateColumn
         {
           name: request.name,
           materializationId: request.materializationId,
-          lineageId: request.lineageIds,
+          lineageId: request.lineageId,
           targetOrganizationId: request.targetOrganizationId,
         },
         { isSystemInternal: auth.isSystemInternal, callerOrganizationId: auth.callerOrganizationId },

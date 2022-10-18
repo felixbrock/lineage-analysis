@@ -2,7 +2,6 @@ export interface LineagePrototype {
   id: string;
   createdAt?: string;
   organizationId: string;
-  completed?: boolean;
 }
 
 export interface LineageProperties
@@ -53,7 +52,7 @@ export class Lineage {
     const lineage = Lineage.build({
       ...prototype,
       createdAt: prototype.createdAt || new Date().toISOString(),
-      completed: prototype.completed || false,
+      completed: false,
     });
 
     return lineage;

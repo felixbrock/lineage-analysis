@@ -1,10 +1,22 @@
 export interface DashboardProperties {
+  id: string;
   url?: string;
   name?: string;
   materializationName: string;
   columnName: string;
-  id: string;
   lineageIds: string[];
+  columnId: string;
+  materializationId: string;
+  organizationId: string;
+}
+
+export interface DashboardPrototype {
+  id: string;
+  url?: string;
+  name?: string;
+  materializationName: string;
+  columnName: string;
+  lineageId: string;
   columnId: string;
   materializationId: string;
   organizationId: string;
@@ -79,24 +91,43 @@ export class Dashboard {
     this.#organizationId = properties.organizationId;
   }
 
-  static create = (properties: DashboardProperties): Dashboard => {
-    if (!properties.materializationName)
+  static create = (prototype: DashboardPrototype): Dashboard => {
+    if (!prototype.materializationName)
       throw new TypeError('Dashboard must have materialisation');
-    if (!properties.columnName)
+    if (!prototype.columnName)
       throw new TypeError('Dashboard must have column');
-    if (!properties.id) throw new TypeError('Dashboard must have id');
-    if (!properties.lineageIds.length)
+    if (!prototype.id) throw new TypeError('Dashboard must have id');
+    if (!prototype.lineageId)
       throw new TypeError('Dashboard must have lineageId');
-    if (!properties.columnId)
+    if (!prototype.columnId)
       throw new TypeError('Dashboard must have columnId');
-    if (!properties.materializationId)
+    if (!prototype.materializationId)
       throw new TypeError('Dashboard must have materializationId');
-    if (!properties.organizationId)
+    if (!prototype.organizationId)
       throw new TypeError('Dashboard must have organizationId');
 
-    const dashboard = new Dashboard(properties);
+    const dashboard = new Dashboard({
+      ...prototype,
+      lineageIds: [prototype.lineageId],
+    });
 
     return dashboard;
+  };
+
+  static build = (props: DashboardProperties): Dashboard => {
+    if (!props.materializationName)
+      throw new TypeError('Dashboard must have materialisation');
+    if (!props.columnName) throw new TypeError('Dashboard must have column');
+    if (!props.id) throw new TypeError('Dashboard must have id');
+    if (!props.lineageIds.length)
+      throw new TypeError('Dashboard must have lineageIds');
+    if (!props.columnId) throw new TypeError('Dashboard must have columnId');
+    if (!props.materializationId)
+      throw new TypeError('Dashboard must have materializationId');
+    if (!props.organizationId)
+      throw new TypeError('Dashboard must have organizationId');
+
+    return new Dashboard(props);
   };
 
   toDto = (): DashboardDto => ({
