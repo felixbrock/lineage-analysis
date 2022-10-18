@@ -43,7 +43,7 @@ interface LogicPersistence {
 
 interface LogicQueryFilter {
   relationName?: RegExp;
-  lineageIds: string[];
+  lineageIds: string;
   organizationId: string;
 }
 
@@ -93,7 +93,7 @@ export default class LogicRepo implements ILogicRepo {
 
   #buildFilter = (logicQueryDto: LogicQueryDto): LogicQueryFilter => {
     const filter: LogicQueryFilter = {
-      lineageIds: logicQueryDto.lineageIds,
+      lineageIds: logicQueryDto.lineageId,
       organizationId: logicQueryDto.organizationId,
     };
 

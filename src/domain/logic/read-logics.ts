@@ -76,7 +76,7 @@ export class ReadLogics
     organizationId: string
   ): LogicQueryDto => {
     const queryDto: LogicQueryDto = {
-      lineageIds: [request.lineageId],
+      lineageId: request.lineageId,
       organizationId,
     };
 

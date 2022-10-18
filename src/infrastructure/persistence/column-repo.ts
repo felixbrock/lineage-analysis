@@ -31,7 +31,7 @@ interface ColumnQueryFilter {
   index?: string;
   type?: string;
   materializationId?: string | { [key: string]: string[] };
-  lineageIds: string[];
+  lineageIds: string;
   organizationId: string;
 }
 
@@ -81,7 +81,7 @@ export default class ColumnRepo implements IColumnRepo {
 
   #buildFilter = (columnQueryDto: ColumnQueryDto): ColumnQueryFilter => {
     const filter: ColumnQueryFilter = {
-      lineageIds: columnQueryDto.lineageIds,
+      lineageIds: columnQueryDto.lineageId,
       organizationId: columnQueryDto.organizationId,
     };
 

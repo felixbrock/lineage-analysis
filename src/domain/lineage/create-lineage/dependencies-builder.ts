@@ -234,7 +234,7 @@ export default class DependenciesBuilder {
       {
         name: dashboardRef.materializationName,
         relationName: parentRelationNames[0],
-        lineageIds: [this.#lineageId],
+        lineageId: this.#lineageId,
         organizationId: this.#organizationId,
       },
       this.#dbConnection
@@ -245,7 +245,7 @@ export default class DependenciesBuilder {
       {
         name: dashboardRef.columnName,
         materializationId,
-        lineageIds: [this.#lineageId],
+        lineageId: this.#lineageId,
         organizationId: this.#organizationId,
       },
       this.#dbConnection

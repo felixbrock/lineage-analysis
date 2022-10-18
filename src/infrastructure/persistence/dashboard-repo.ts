@@ -35,7 +35,7 @@ import {
     name?: string;
     materializationName?: string;
     columnName?: string; 
-    lineageIds: string[];
+    lineageIds: string;
     columnId?: string,
     materializationId?: string;
   organizationId: string;
@@ -90,7 +90,7 @@ import {
       dashboardQueryDto: DashboardQueryDto
     ): DashboardQueryFilter => {
       const filter: DashboardQueryFilter = {
-        lineageIds: dashboardQueryDto.lineageIds, organizationId: dashboardQueryDto.organizationId
+        lineageIds: dashboardQueryDto.lineageId, organizationId: dashboardQueryDto.organizationId
       };
       
       if (dashboardQueryDto.url) filter.url = dashboardQueryDto.url;

@@ -85,7 +85,7 @@ export class ReadDashboards
     organizationId: string
   ): DashboardQueryDto => {
     const queryDto: DashboardQueryDto = {
-      lineageIds: [request.lineageId],
+      lineageId: request.lineageId,
       organizationId,
     };
 

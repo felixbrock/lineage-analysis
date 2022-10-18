@@ -32,7 +32,7 @@ interface DependencyQueryFilter {
   type?: DependencyType;
   headId?: string;
   tailId?: string;
-  lineageIds: string[];
+  lineageIds: string;
   organizationId: string;
 }
 
@@ -85,7 +85,7 @@ export default class DependencyRepo implements IDependencyRepo {
     dependencyQueryDto: DependencyQueryDto
   ): DependencyQueryFilter => {
     const filter: DependencyQueryFilter = {
-      lineageIds: dependencyQueryDto.lineageIds,
+      lineageIds: dependencyQueryDto.lineageId,
       organizationId: dependencyQueryDto.organizationId
     };
 

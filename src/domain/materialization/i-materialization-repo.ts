@@ -8,7 +8,7 @@ export interface MaterializationQueryDto {
   schemaName?: string;
   databaseName?: string;
   logicId?: string;
-  lineageIds: string[];
+  lineageId: string;
   organizationId: string;
 }
 

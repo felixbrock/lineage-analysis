@@ -40,7 +40,7 @@ interface MaterializationQueryFilter {
   schemaName?: RegExp;
   databaseName?: RegExp;
   logicId?: string;
-  lineageIds: string[];
+  lineageIds: string;
   organizationId: string;
 }
 
@@ -95,7 +95,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
     materializationQueryDto: MaterializationQueryDto
   ): MaterializationQueryFilter => {
     const filter: MaterializationQueryFilter = {
-      lineageIds: materializationQueryDto.lineageIds,
+      lineageIds: materializationQueryDto.lineageId ,
       organizationId: materializationQueryDto.organizationId,
     };
 

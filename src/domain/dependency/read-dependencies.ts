@@ -81,7 +81,7 @@ export class ReadDependencies
   ): DependencyQueryDto => {
     
 
-    const queryDto: DependencyQueryDto = { lineageIds: [request.lineageId], organizationId };
+    const queryDto: DependencyQueryDto = { lineageId: request.lineageId, organizationId };
 
     
     

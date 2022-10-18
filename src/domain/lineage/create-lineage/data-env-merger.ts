@@ -257,7 +257,7 @@ export default class DataEnvMerger {
       };
 
     const oldMats = await this.#materializationRepo.findBy(
-      { lineageIds: [latestLineage.id], organizationId: this.#organizationId },
+      { lineageId: latestLineage.id, organizationId: this.#organizationId },
       this.#dbConnection
     );
 
@@ -299,7 +299,7 @@ export default class DataEnvMerger {
           this.#oldColumns = (
             await this.#columnRepo.findBy(
               {
-                lineageIds: [latestLineage.id],
+                lineageId: latestLineage.id,
                 organizationId: this.#organizationId,
               },
               this.#dbConnection
@@ -315,7 +315,7 @@ export default class DataEnvMerger {
         if (!Object.keys(this.#oldLogics).length)
           this.#oldLogics = await this.#logicRepo.findBy(
             {
-              lineageIds: [latestLineage.id],
+              lineageId: latestLineage.id,
               organizationId: this.#organizationId,
             },
             this.#dbConnection

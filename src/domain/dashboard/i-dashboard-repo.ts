@@ -9,7 +9,7 @@ export interface DashboardQueryDto {
     id?: string;
     columnId?: string,
     materializationId?: string;
-    lineageIds: string[];
+    lineageId: string;
     organizationId: string;
 }
 

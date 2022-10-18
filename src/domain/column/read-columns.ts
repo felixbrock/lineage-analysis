@@ -81,7 +81,7 @@ export class ReadColumns
     organizationId: string
   ): ColumnQueryDto => {
     const queryDto: ColumnQueryDto = {
-      lineageIds: [request.lineageId],
+      lineageId: request.lineageId,
       organizationId,
     };
 
