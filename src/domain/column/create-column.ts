@@ -7,6 +7,7 @@ import { IColumnRepo } from './i-column-repo';
 import { DbConnection } from '../services/i-db';
 
 export interface CreateColumnRequestDto {
+  id?: string;
   relationName: string;
   name: string;
   index: string;
@@ -69,7 +70,7 @@ export class CreateColumn
       this.#dbConnection = dbConnection;
 
       const column = Column.create({
-        id: new ObjectId().toHexString(),
+        id: request.id || new ObjectId().toHexString(),
         relationName: request.relationName,
         name: request.name,
         index: request.index,

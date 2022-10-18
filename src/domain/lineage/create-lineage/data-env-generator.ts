@@ -20,7 +20,7 @@ interface Auth {
   isSystemInternal: boolean;
 }
 
-export interface DataEnvResourcesProps {
+export interface DataEnvProps {
   lineageId: string;
   dbtCatalog: string;
   dbtManifest: string;
@@ -83,7 +83,7 @@ interface DbtCatalogColumnDefinition {
   type: string;
 }
 
-export class DataEnvResourcesGenerator {
+export class DataEnvGenerator {
   readonly #createMaterialization: CreateMaterialization;
 
   readonly #createColumn: CreateColumn;
@@ -129,7 +129,7 @@ export class DataEnvResourcesGenerator {
   }
 
   constructor(
-    props: DataEnvResourcesProps,
+    props: DataEnvProps,
     auth: Auth,
     dbConnection: DbConnection,
     dependencies: {
@@ -279,19 +279,19 @@ export class DataEnvResourcesGenerator {
           (el) =>
             (typeof def.databaseName === 'string' &&
             typeof el.databaseName === 'string'
-              ? DataEnvResourcesGenerator.#insensitiveEquality(
+              ? DataEnvGenerator.#insensitiveEquality(
                   el.databaseName,
                   def.databaseName
                 )
               : def.databaseName === el.databaseName) &&
             (typeof def.schemaName === 'string' &&
             typeof el.schemaName === 'string'
-              ? DataEnvResourcesGenerator.#insensitiveEquality(
+              ? DataEnvGenerator.#insensitiveEquality(
                   el.schemaName,
                   def.schemaName
                 )
               : def.schemaName === el.schemaName) &&
-            DataEnvResourcesGenerator.#insensitiveEquality(
+            DataEnvGenerator.#insensitiveEquality(
               el.name,
               def.materializationName
             )
@@ -345,7 +345,7 @@ export class DataEnvResourcesGenerator {
           );
 
         const relevantColumnRefs = statementRefs.columns.filter((col) =>
-          DataEnvResourcesGenerator.#insensitiveEquality(
+          DataEnvGenerator.#insensitiveEquality(
             finalMat.name,
             col.materializationName
           )
@@ -355,7 +355,7 @@ export class DataEnvResourcesGenerator {
           (column1, index, self) =>
             index ===
             self.findIndex((column2) =>
-              DataEnvResourcesGenerator.#insensitiveEquality(
+              DataEnvGenerator.#insensitiveEquality(
                 column1.name,
                 column2.name
               )
@@ -530,9 +530,9 @@ export class DataEnvResourcesGenerator {
     } = {};
 
     const dbtCatalogResources =
-      DataEnvResourcesGenerator.#getDbtCatalogResources(this.#dbtCatalog);
+      DataEnvGenerator.#getDbtCatalogResources(this.#dbtCatalog);
     const dbtManifestResources =
-      DataEnvResourcesGenerator.#getDbtManifestResources(this.#dbtManifest);
+      DataEnvGenerator.#getDbtManifestResources(this.#dbtManifest);
 
     const dbtCatalogSourceKeys = Object.keys(dbtCatalogResources.sources);
     const dbtManifestSourceKeys = Object.keys(dbtManifestResources.sources);

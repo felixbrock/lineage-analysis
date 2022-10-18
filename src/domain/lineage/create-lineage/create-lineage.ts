@@ -28,7 +28,7 @@ import { CreateExternalDependency } from '../../dependency/create-external-depen
 import { IDashboardRepo } from '../../dashboard/i-dashboard-repo';
 import { CreateDashboard } from '../../dashboard/create-dashboard';
 import { buildLineage } from './build-lineage';
-import { DataEnvResourcesGenerator } from './data-env-resources-generator';
+import { DataEnvGenerator } from './data-env-generator';
 import DependenciesBuilder from './dependencies-builder';
 import { BiType } from '../../value-types/bilayer';
 
@@ -231,7 +231,7 @@ export class CreateLineage
 
       console.log('...generating warehouse resources');
       const { jwt, ...remainingAuth } = auth;
-      const dataEnvResourcesGenerator = new DataEnvResourcesGenerator(
+      const dataEnvGenerator = new DataEnvGenerator(
         {
           dbtCatalog: request.catalog,
           dbtManifest: request.manifest,
@@ -248,7 +248,7 @@ export class CreateLineage
         }
       );
       const { materializations, columns, logics, matDefinitions } =
-        await dataEnvResourcesGenerator.generate();
+        await dataEnvGenerator.generate();
 
       console.log('...merging new lineage snapshot with last one');
       await this.#mergeWithLatestSnapshot();
