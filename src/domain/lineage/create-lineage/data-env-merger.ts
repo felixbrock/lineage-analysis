@@ -130,23 +130,14 @@ export default class DataEnvMerger {
     oldColumnProps: { id: string; name: string; lineageIds: string[] },
     columnToHandle: Column
   ): Promise<Column> => {
-    const createColumnResult = await this.#createColumn.execute(
-      {
-        ...columnToHandle.toDto(),
-        id: oldColumnProps.id,
-        name: oldColumnProps.name,
-        lineageIds: oldColumnProps.lineageIds.concat(columnToHandle.lineageIds),
-        writeToPersistence: false,
-      },
-      this.#auth,
-      this.#dbConnection
-    );
+    const column = Column.build({
+      ...columnToHandle.toDto(),
+      id: oldColumnProps.id,
+      name: oldColumnProps.name,
+      lineageIds: oldColumnProps.lineageIds.concat(columnToHandle.lineageIds),
+    });
 
-    if (!createColumnResult.success) throw new Error(createColumnResult.error);
-    if (!createColumnResult.value)
-      throw new Error('Create Column failed - Unknown error');
-
-    return createColumnResult.value;
+    return column;
   };
 
   #buildMatToReplace = async (
@@ -158,24 +149,17 @@ export default class DataEnvMerger {
     },
     matToHandle: Materialization
   ): Promise<Materialization> => {
-    const createMatResult = await this.#createMaterialization.execute(
+    const mat = Materialization.build(
       {
         ...matToHandle.toDto(),
         id: oldMatProps.id,
         relationName: oldMatProps.relationName,
         logicId: oldMatProps.logicId || matToHandle.logicId,
         lineageIds: oldMatProps.lineageIds.concat(matToHandle.lineageIds),
-        writeToPersistence: false,
       },
-      this.#auth,
-      this.#dbConnection
     );
 
-    if (!createMatResult.success) throw new Error(createMatResult.error);
-    if (!createMatResult.value)
-      throw new Error('Create Mat failed - Unknown error');
-
-    return createMatResult.value;
+    return mat;
   };
 
   static #groupByMatId = <T extends { materializationId: string }>(

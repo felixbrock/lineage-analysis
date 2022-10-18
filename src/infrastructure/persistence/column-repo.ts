@@ -229,7 +229,7 @@ export default class ColumnRepo implements IColumnRepo {
   };
 
   #toEntity = (properties: ColumnProperties): Column =>
-    Column.create(properties);
+    Column.build(properties);
 
   #buildProperties = (column: ColumnPersistence): ColumnProperties => ({
     // eslint-disable-next-line no-underscore-dangle

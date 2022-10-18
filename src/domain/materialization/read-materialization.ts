@@ -1,11 +1,8 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { IMaterializationRepo } from './i-materialization-repo';
-import {
-  buildMaterializationDto,
-  MaterializationDto,
-} from './materialization-dto';
 import { DbConnection } from '../services/i-db';
+import { Materialization } from '../entities/materialization';
 
 export interface ReadMaterializationRequestDto {
   id: string;
@@ -15,7 +12,7 @@ export interface ReadMaterializationAuthDto {
   callerOrganizationId: string;
 }
 
-export type ReadMaterializationResponseDto = Result<MaterializationDto>;
+export type ReadMaterializationResponseDto = Result<Materialization>;
 
 export class ReadMaterialization
   implements
@@ -52,7 +49,7 @@ export class ReadMaterialization
       if (materialization.organizationId !== auth.callerOrganizationId)
         throw new Error('Not authorized to perform action');
 
-      return Result.ok(buildMaterializationDto(materialization));
+      return Result.ok(materialization);
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);

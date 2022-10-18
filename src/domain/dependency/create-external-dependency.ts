@@ -2,7 +2,7 @@
 import { ObjectId } from 'mongodb';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { Dependency, DependencyType } from '../entities/dependency';
+import { Dependency} from '../entities/dependency';
 import { IDependencyRepo } from './i-dependency-repo';
 import { DbConnection } from '../services/i-db';
 import { Dashboard } from '../entities/dashboard';
@@ -10,7 +10,7 @@ import { ReadDependencies } from './read-dependencies';
 
 export interface CreateExternalDependencyRequestDto {
   dashboard: Dashboard;
-  lineageIds: string[];
+  lineageId: string;
   writeToPersistence: boolean;
   targetOrganizationId?: string;
 }
@@ -71,20 +71,20 @@ export class CreateExternalDependency
 
       const dependency = Dependency.create({
         id: new ObjectId().toHexString(),
-        type: DependencyType.EXTERNAL,
+        type: 'external',
         headId: request.dashboard.id,
         tailId: request.dashboard.columnId,
-        lineageIds: request.lineageIds,
+        lineageId: request.lineageId,
         organizationId,
       });
 
       const readExternalDependenciesResult =
         await this.#readDependencies.execute(
           {
-            type: DependencyType.EXTERNAL,
+            type: 'external',
             headId: request.dashboard.id,
             tailId: request.dashboard.columnId,
-            lineageIds: request.lineageIds,
+            lineageId: request.lineageId,
             targetOrganizationId: request.targetOrganizationId,
           },
           { isSystemInternal: auth.isSystemInternal, callerOrganizationId: auth.callerOrganizationId },

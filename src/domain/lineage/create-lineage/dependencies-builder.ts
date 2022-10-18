@@ -256,7 +256,7 @@ export default class DependenciesBuilder {
       {
         columnId,
         columnName: dashboardRef.columnName,
-        lineageIds: [this.#lineageId],
+        lineageId: this.#lineageId,
         materializationId,
         materializationName: dashboardRef.materializationName,
         url: dashboardRef.url,
@@ -283,7 +283,7 @@ export default class DependenciesBuilder {
       await this.#createExternalDependency.execute(
         {
           dashboard,
-          lineageIds: [this.#lineageId],
+          lineageId: this.#lineageId,
           targetOrganizationId: this.#targetOrganizationId,
           writeToPersistence: false,
         },
@@ -339,7 +339,7 @@ export default class DependenciesBuilder {
               dependencyRef: dependency,
               selfRelationName: relationName,
               parentRelationNames,
-              lineageIds: [this.#lineageId],
+              lineageId: this.#lineageId,
               targetOrganizationId: this.#targetOrganizationId,
               writeToPersistence: false,
             },
@@ -395,7 +395,7 @@ export default class DependenciesBuilder {
         dependencyRef,
         selfRelationName: relationName,
         parentRelationNames,
-        lineageIds: [this.#lineageId],
+        lineageId: this.#lineageId,
         targetOrganizationId: this.#targetOrganizationId,
         writeToPersistence: false,
       },

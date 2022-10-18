@@ -185,7 +185,7 @@ import {
     };
   
     #toEntity = (properties: DashboardProperties): Dashboard =>
-      Dashboard.create(properties);
+      Dashboard.build(properties);
   
     #buildProperties = (
       dashboard: DashboardPersistence

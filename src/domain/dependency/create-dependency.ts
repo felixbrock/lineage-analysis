@@ -10,11 +10,12 @@ import { ReadColumns } from '../column/read-columns';
 import { Column } from '../entities/column';
 import { DbConnection } from '../services/i-db';
 
+
 export interface CreateDependencyRequestDto {
   dependencyRef: ColumnRef;
   selfRelationName: string;
   parentRelationNames: string[];
-  lineageIds: string[];
+  lineageId: string;
   writeToPersistence: boolean;
   targetOrganizationId?: string;
 }
@@ -47,7 +48,7 @@ export class CreateDependency
   #getParentId = async (
     dependencyRef: ColumnRef,
     parentRelationNames: string[],
-    lineageIds: string[],
+    lineageId: string,
     isSystemInternal: boolean,
     targetOrganizationId?: string,
     callerOrganizationId?: string
@@ -56,7 +57,7 @@ export class CreateDependency
       {
         relationName: parentRelationNames,
         name: dependencyRef.name,
-        lineageIds,
+        lineageId,
         targetOrganizationId,
       },
       { callerOrganizationId, isSystemInternal },
@@ -87,7 +88,7 @@ export class CreateDependency
   #getSelfColumn = async (
     selfRelationName: string,
     dependencyRef: ColumnRef,
-    lineageIds: string[],
+    lineageId: string,
     isSystemInternal: boolean,
     targetOrganizationId?: string,
     callerOrganizationId?: string
@@ -95,7 +96,7 @@ export class CreateDependency
     const readSelfColumnResult = await this.#readColumns.execute(
       {
         relationName: selfRelationName,
-        lineageIds,
+        lineageId,
         name: dependencyRef.alias || dependencyRef.name,
         targetOrganizationId,
       },
@@ -163,7 +164,7 @@ export class CreateDependency
       const headColumn = await this.#getSelfColumn(
         request.selfRelationName,
         request.dependencyRef,
-        request.lineageIds,
+        request.lineageId,
         auth.isSystemInternal,
         request.targetOrganizationId,
         auth.callerOrganizationId
@@ -177,7 +178,7 @@ export class CreateDependency
       const parentId = await this.#getParentId(
         request.dependencyRef,
         request.parentRelationNames,
-        request.lineageIds,
+        request.lineageId,
         auth.isSystemInternal,
         request.targetOrganizationId,
         auth.callerOrganizationId
@@ -195,7 +196,7 @@ export class CreateDependency
         type: request.dependencyRef.dependencyType,
         headId: headColumn.id,
         tailId: parentId,
-        lineageIds: request.lineageIds,
+        lineageId: request.lineageId,
         organizationId,
       });
 
@@ -204,7 +205,7 @@ export class CreateDependency
           type: request.dependencyRef.dependencyType,
           headId: headColumn.id,
           tailId: parentId,
-          lineageIds: request.lineageIds,
+          lineageId: request.lineageId,
           targetOrganizationId: request.targetOrganizationId,
         },
         {

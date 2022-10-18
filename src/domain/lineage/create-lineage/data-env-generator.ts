@@ -181,7 +181,6 @@ export class DataEnvGenerator {
     sourceRelationName: string,
     sourceId: string
   ): Promise<Column> => {
-    // todo - add additional properties like index
     const createColumnResult = await this.#createColumn.execute(
       {
         relationName: sourceRelationName,
@@ -189,7 +188,7 @@ export class DataEnvGenerator {
         index: columnDefinition.index,
         type: columnDefinition.type,
         materializationId: sourceId,
-        lineageIds: [this.#lineageId],
+        lineageId: this.#lineageId,
         writeToPersistence: false,
         targetOrganizationId: this.#targetOrganizationId,
       },
@@ -226,7 +225,7 @@ export class DataEnvGenerator {
         {
           ...createMaterializationProps,
           writeToPersistence: options.writeToPersistence,
-          lineageIds: [this.#lineageId],
+          lineageId: this.#lineageId,
           targetOrganizationId: this.#targetOrganizationId,
         },
         this.#auth,
@@ -320,7 +319,7 @@ export class DataEnvGenerator {
                 schemaName: matRef.schemaName || '',
                 databaseName: matRef.databaseName || '',
                 logicId: 'todo - read from snowflake',
-                lineageIds: [this.#lineageId],
+                lineageId: this.#lineageId,
                 targetOrganizationId: this.#targetOrganizationId,
                 writeToPersistence: false,
               },
@@ -422,7 +421,7 @@ export class DataEnvGenerator {
         sql,
         modelName: props.model.metadata.name,
         dbtDependentOn: props.dbtDependentOn,
-        lineageIds: [this.#lineageId],
+        lineageId: this.#lineageId,
         parsedLogic,
         targetOrganizationId: this.#targetOrganizationId,
         writeToPersistence: false,
@@ -452,7 +451,7 @@ export class DataEnvGenerator {
       schemaName: props.model.metadata.schema,
       databaseName: props.model.metadata.database,
       logicId: logic.id,
-      lineageIds: [this.#lineageId],
+      lineageId: this.#lineageId,
       targetOrganizationId: this.#targetOrganizationId,
       writeToPersistence: false,
     });
@@ -482,7 +481,7 @@ export class DataEnvGenerator {
       relationName: props.modelManifest.relation_name,
       schemaName: props.model.metadata.schema,
       databaseName: props.model.metadata.database,
-      lineageIds: [this.#lineageId],
+      lineageId: this.#lineageId,
       targetOrganizationId: this.#targetOrganizationId,
       writeToPersistence: false,
     });

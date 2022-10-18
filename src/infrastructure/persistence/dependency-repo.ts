@@ -177,7 +177,7 @@ export default class DependencyRepo implements IDependencyRepo {
   };
 
   #toEntity = (properties: DependencyProperties): Dependency =>
-    Dependency.create(properties);
+    Dependency.build(properties);
 
   #buildProperties = (
     dependency: DependencyPersistence

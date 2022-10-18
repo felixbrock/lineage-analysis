@@ -18,7 +18,7 @@ export interface CreateMaterializationRequestDto {
   schemaName: string;
   databaseName: string;
   logicId?: string;
-  lineageIds: string[];
+  lineageId: string;
   writeToPersistence: boolean;
   targetOrganizationId?: string;
 }
@@ -85,7 +85,7 @@ export class CreateMaterialization
         schemaName: request.schemaName,
         databaseName: request.databaseName,
         logicId: request.logicId,
-        lineageIds: request.lineageIds,
+        lineageId: request.lineageId,
         organizationId,
       });
 
@@ -93,7 +93,7 @@ export class CreateMaterialization
         await this.#readMaterializations.execute(
           {
             relationName: request.relationName,
-            lineageIds: request.lineageIds,
+            lineageId: request.lineageId,
             targetOrganizationId: request.targetOrganizationId,
           },
           {

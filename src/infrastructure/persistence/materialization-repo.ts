@@ -253,7 +253,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
   #toEntity = (
     materializationProperties: MaterializationProperties
-  ): Materialization => Materialization.create(materializationProperties);
+  ): Materialization => Materialization.build(materializationProperties);
 
   #buildProperties = (
     materialization: MaterializationPersistence
