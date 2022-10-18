@@ -37,11 +37,47 @@ export default class DataEnvMerger {
 
   #oldLogics: Logic[] = [];
 
+  #logicsToReplace: Logic[] = [];
+
+  get logicsToReplace(): Logic[] {
+    return this.#logicsToReplace;
+  }
+
+  #logicsToCreate: Logic[] = [];
+
+  get logicsToCreate(): Logic[] {
+    return this.#logicsToCreate;
+  }
+
   #matsToHandle: Materialization[];
+
+  #matsToReplace: Materialization[] = [];
+
+  get matsToReplace(): Materialization[] {
+    return this.#matsToReplace;
+  }
+
+  #matsToCreate: Materialization[] = [];
+
+  get matsToCreate(): Materialization[] {
+    return this.#matsToCreate;
+  }
 
   #columnsToHandle: { [key: string]: Column[] };
 
   #oldColumns: { [key: string]: Column[] } = {};
+
+  #columnsToReplace: Column[] = [];
+
+  get columnsToReplace(): Column[] {
+    return this.#columnsToReplace;
+  }
+
+  #columnsToCreate: Column[] = [];
+
+  get columnsToCreate(): Column[] {
+    return this.#columnsToCreate;
+  }
 
   constructor(
     props: {
@@ -80,7 +116,7 @@ export default class DataEnvMerger {
     this.#logicsToHandle = props.logics;
   }
 
-  #buildLogicToUpdate = async (
+  #buildLogicToReplace = async (
     oldLogicProps: { id: string; parsedLogic: string; lineageIds: string[] },
     logicToHandle: Logic
   ): Promise<Logic> =>
@@ -91,7 +127,7 @@ export default class DataEnvMerger {
       lineageIds: oldLogicProps.lineageIds.concat(logicToHandle.lineageIds),
     });
 
-  #buildColumnToUpdate = async (
+  #buildColumnToReplace = async (
     oldColumnProps: { id: string; name: string; lineageIds: string[] },
     columnToHandle: Column
   ): Promise<Column> => {
@@ -114,7 +150,7 @@ export default class DataEnvMerger {
     return createColumnResult.value;
   };
 
-  #buildMatToUpdate = async (
+  #buildMatToReplace = async (
     oldMatProps: { id: string; relationName: string; lineageIds: string[] },
     matToHandle: Materialization
   ): Promise<Materialization> => {
@@ -154,8 +190,8 @@ export default class DataEnvMerger {
   #mergeMatColumns = async (
     matToHandleId: string,
     oldMatId: string
-  ): Promise<{ columnsToUpdate: Column[]; columnsToCreate: Column[] }> => {
-    const columnsToUpdate: Column[] = [];
+  ): Promise<{ columnsToReplace: Column[]; columnsToCreate: Column[] }> => {
+    const columnsToReplace: Column[] = [];
     const columnsToCreate: Column[] = [];
 
     await Promise.all(
@@ -165,7 +201,7 @@ export default class DataEnvMerger {
         );
 
         if (matchingColumn) {
-          const updatedColumn = await this.#buildColumnToUpdate(
+          const updatedColumn = await this.#buildColumnToReplace(
             {
               id: matchingColumn.id,
               name: matchingColumn.name,
@@ -176,18 +212,18 @@ export default class DataEnvMerger {
             columnToHandle
           );
 
-          columnsToUpdate.push(updatedColumn);
+          columnsToReplace.push(updatedColumn);
         } else columnsToCreate.push(columnToHandle);
       })
     );
 
-    return { columnsToCreate, columnsToUpdate };
+    return { columnsToCreate, columnsToReplace };
   };
 
   #mergeMatLogic = async (
     logicToHandleId: string,
     oldLogicId: string
-  ): Promise<{ logic: Logic; toUpdate: boolean }> => {
+  ): Promise<{ logic: Logic; toReplace: boolean }> => {
     const logicToHandle = this.#logicsToHandle.find(
       (logic) => logic.id === logicToHandleId
     );
@@ -199,7 +235,7 @@ export default class DataEnvMerger {
       );
 
     if (logicToHandle.parsedLogic === oldLogic.parsedLogic) {
-      const updatedLogic = await this.#buildLogicToUpdate(
+      const updatedLogic = await this.#buildLogicToReplace(
         {
           id: oldLogic.id,
           parsedLogic: oldLogic.parsedLogic,
@@ -208,34 +244,40 @@ export default class DataEnvMerger {
         logicToHandle
       );
 
-      return { logic: updatedLogic, toUpdate: true };
+      return { logic: updatedLogic, toReplace: true };
     }
 
-    return { logic: logicToHandle, toUpdate: false };
+    return { logic: logicToHandle, toReplace: false };
   };
 
-  merge = async (): Promise<void> => {
+  merge = async (): Promise<{
+    matsToCreate: Materialization[];
+    matsToReplace: Materialization[];
+    columnsToCreate: Column[];
+    columnsToReplace: Column[];
+    logicsToCreate: Logic[];
+    logicsToReplace: Logic[];
+  }> => {
     // todo- needs to retrieve latest compeleted lineage
     const latestLineage = await this.#lineageRepo.findLatest(
       this.#dbConnection,
       this.#organizationId
     );
 
-    if (!latestLineage) return;
+    if (!latestLineage)
+      return {
+        matsToCreate: this.#matsToCreate,
+        matsToReplace: this.#matsToReplace,
+        columnsToCreate: this.#columnsToCreate,
+        columnsToReplace: this.#columnsToReplace,
+        logicsToCreate: this.#logicsToCreate,
+        logicsToReplace: this.#logicsToReplace,
+      };
 
     const oldMats = await this.#materializationRepo.findBy(
       { lineageIds: [latestLineage.id], organizationId: this.#organizationId },
       this.#dbConnection
     );
-
-    const matsToUpdate: Materialization[] = [];
-    const matsToCreate: Materialization[] = [];
-
-    const columnsToUpdate: Column[] = [];
-    const columnsToCreate: Column[] = [];
-
-    const logicsToUpdate: Logic[] = [];
-    const logicsToCreate: Logic[] = [];
 
     await Promise.all(
       this.#matsToHandle.map(async (matToHandle) => {
@@ -244,8 +286,8 @@ export default class DataEnvMerger {
         );
 
         if (!matchingMat) {
-          matsToCreate.push(matToHandle);
-          columnsToCreate.push(...this.#columnsToHandle[matToHandle.id]);
+          this.#matsToCreate.push(matToHandle);
+          this.#columnsToCreate.push(...this.#columnsToHandle[matToHandle.id]);
 
           if (!matToHandle.logicId) return;
 
@@ -256,11 +298,11 @@ export default class DataEnvMerger {
             throw new Error(
               `Missing logic for logic id ${matToHandle.logicId}`
             );
-          logicsToCreate.push(logic);
+          this.#logicsToCreate.push(logic);
           return;
         }
 
-        const updatedMat = await this.#buildMatToUpdate(
+        const updatedMat = await this.#buildMatToReplace(
           {
             lineageIds: matchingMat.lineageIds,
             id: matchingMat.id,
@@ -268,7 +310,7 @@ export default class DataEnvMerger {
           },
           matToHandle
         );
-        matsToUpdate.push(updatedMat);
+        this.#matsToReplace.push(updatedMat);
 
         if (!Object.keys(this.#oldColumns).length)
           this.#oldColumns = (
@@ -281,11 +323,11 @@ export default class DataEnvMerger {
             )
           ).reduce(DataEnvMerger.#groupByMatId, {});
 
-        const { columnsToCreate: colsToCreate, columnsToUpdate: colsToUpdate } =
+        const { columnsToCreate, columnsToReplace } =
           await this.#mergeMatColumns(matToHandle.id, matchingMat.id);
 
-        columnsToCreate.push(...colsToCreate);
-        columnsToUpdate.push(...colsToUpdate);
+        this.#columnsToCreate.push(...columnsToCreate);
+        this.#columnsToReplace.push(...columnsToReplace);
 
         if (!Object.keys(this.#oldLogics).length)
           this.#oldLogics = await this.#logicRepo.findBy(
@@ -297,17 +339,26 @@ export default class DataEnvMerger {
           );
 
         if (matToHandle.logicId && matchingMat.logicId) {
-          const { logic, toUpdate } = await this.#mergeMatLogic(
+          const { logic, toReplace } = await this.#mergeMatLogic(
             matToHandle.logicId,
             matchingMat.logicId
           );
 
-          if (toUpdate) logicsToUpdate.push(logic);
+          if (toReplace) this.#logicsToReplace.push(logic);
           else {
-            logicsToCreate.push(logic);
+            this.#logicsToCreate.push(logic);
           }
         }
       })
     );
+
+    return {
+      matsToCreate: this.#matsToCreate,
+      matsToReplace: this.#matsToReplace,
+      columnsToCreate: this.#columnsToCreate,
+      columnsToReplace: this.#columnsToReplace,
+      logicsToCreate: this.#logicsToCreate,
+      logicsToReplace: this.#logicsToReplace,
+    };
   };
 }

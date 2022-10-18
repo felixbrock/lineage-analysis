@@ -23,7 +23,7 @@ export interface MaterializationProperties {
   organizationId: string;
 }
 
-type MaterializationDto = MaterializationProperties;
+export type MaterializationDto = MaterializationProperties;
 
 export class Materialization {
   #id: string;

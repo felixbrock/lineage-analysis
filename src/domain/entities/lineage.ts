@@ -2,13 +2,13 @@ export interface LineagePrototype {
   id: string;
   createdAt?: string;
   organizationId: string;
-  finished?: boolean;
+  completed?: boolean;
 }
 
-interface LineageProperties
-  extends Omit<LineagePrototype, 'createdAt' | 'finished'> {
+export interface LineageProperties
+  extends Omit<LineagePrototype, 'createdAt' | 'completed'> {
   createdAt: string;
-  finished: boolean;
+  completed: boolean;
 }
 
 type LineageDto = LineageProperties;
@@ -20,7 +20,7 @@ export class Lineage {
 
   #organizationId: string;
 
-  #finished: boolean;
+  #completed: boolean;
 
   get id(): string {
     return this.#id;
@@ -34,15 +34,15 @@ export class Lineage {
     return this.#organizationId;
   }
 
-  get finished(): boolean {
-    return this.#finished;
+  get completed(): boolean {
+    return this.#completed;
   }
 
   private constructor(props: LineageProperties) {
     this.#id = props.id;
     this.#createdAt = props.createdAt;
     this.#organizationId = props.organizationId;
-    this.#finished = props.finished;
+    this.#completed = props.completed;
   }
 
   static create = (prototype: LineagePrototype): Lineage => {
@@ -50,23 +50,27 @@ export class Lineage {
     if (!prototype.organizationId)
       throw new TypeError('Lineage must have organization id');
 
-    const lineage = this.#build(prototype);
+    const lineage = Lineage.build({
+      ...prototype,
+      createdAt: prototype.createdAt || new Date().toISOString(),
+      completed: prototype.completed || false,
+    });
 
     return lineage;
   };
 
-  static #build = (prototype: LineagePrototype): Lineage =>
+  static build = (props: LineageProperties): Lineage =>
     new Lineage({
-      id: prototype.id,
-      organizationId: prototype.organizationId,
-      createdAt: prototype.createdAt || new Date().toISOString(),
-      finished: prototype.finished || false,
+      id: props.id,
+      organizationId: props.organizationId,
+      createdAt: props.createdAt,
+      completed: props.completed,
     });
 
   toDto = (): LineageDto => ({
     id: this.#id,
     createdAt: this.#createdAt,
     organizationId: this.#organizationId,
-    finished: this.#finished,
+    completed: this.#completed,
   });
 }

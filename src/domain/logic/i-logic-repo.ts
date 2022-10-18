@@ -13,5 +13,6 @@ export interface ILogicRepo {
   all(dbConnection: DbConnection): Promise<Logic[]>;
   insertOne(logic: Logic, dbConnection: DbConnection): Promise<string>;
   insertMany(logics: Logic[], dbConnection: DbConnection): Promise<string[]>;
+  replaceMany(logics: Logic[], dbConnection: DbConnection): Promise<number>;
   deleteOne(id: string, dbConnection: DbConnection): Promise<string>;
 }

@@ -5,16 +5,23 @@ import {
   FindCursor,
   InsertOneResult,
   ObjectId,
+  UpdateResult,
 } from 'mongodb';
 import sanitize from 'mongo-sanitize';
 
-import { ILineageRepo } from '../../domain/lineage/i-lineage-repo';
-import { Lineage, LineageProperties } from '../../domain/entities/lineage';
+import { ILineageRepo, LineageUpdateDto } from '../../domain/lineage/i-lineage-repo';
+import { Lineage, LineageProperties} from '../../domain/entities/lineage';
 
 interface LineagePersistence {
   _id: ObjectId;
   createdAt: string;
   organizationId: string;
+  completed: boolean;
+}
+
+interface UpdateFilter {
+  $set: { [key: string]: unknown };
+  $push: { [key: string]: unknown };
 }
 
 const collectionName = 'lineage';
@@ -96,6 +103,41 @@ export default class LineageRepo implements ILineageRepo {
     }
   };
 
+  #buildUpdateFilter = async (
+    updateDto: LineageUpdateDto
+  ): Promise<UpdateFilter> => {
+    const setFilter: { [key: string]: unknown } = {};
+    const pushFilter: { [key: string]: unknown } = {};
+
+    if (updateDto.completed) setFilter.completed = updateDto.completed;
+
+    return { $set: setFilter, $push: pushFilter };
+  };
+
+  updateOne = async (
+    id: string,
+    updateDto: LineageUpdateDto,
+    dbConnection: Db
+  ): Promise<string> => {
+    try {
+      const result: Document | UpdateResult = await dbConnection
+        .collection(collectionName)
+        .updateOne(
+          { _id: new ObjectId(sanitize(id)) },
+          await this.#buildUpdateFilter(sanitize(updateDto))
+        );
+
+      if (!result.acknowledged)
+        throw new Error('Test suite update failed. Update not acknowledged');
+
+      return result.upsertedId;
+    } catch (error: unknown) {
+      if(error instanceof Error && error.message) console.trace(error.message); 
+    else if (!(error instanceof Error) && error) console.trace(error);
+    return Promise.reject(new Error(''));
+    }
+  };
+
   deleteOne = async (id: string, dbConnection: Db): Promise<string> => {
     try {
       const result: DeleteResult = await dbConnection
@@ -121,11 +163,13 @@ export default class LineageRepo implements ILineageRepo {
     id: lineage._id.toHexString(),
     createdAt: lineage.createdAt,
     organizationId: lineage.organizationId,
+    completed: lineage.completed
   });
 
-  #toPersistence = (lineage: Lineage): Document => ({
+  #toPersistence = (lineage: Lineage): LineagePersistence => ({
     _id: ObjectId.createFromHexString(lineage.id),
     createdAt: lineage.createdAt,
     organizationId: lineage.organizationId,
+    completed: lineage.completed
   });
 }

@@ -6,17 +6,13 @@ import { CreateMaterialization } from '../../materialization/create-materializat
 import { CreateLogic } from '../../logic/create-logic';
 import { ParseSQL } from '../../sql-parser-api/parse-sql';
 import { Lineage } from '../../entities/lineage';
-import {
-  Logic,
-  ColumnRef,
-  MaterializationDefinition,
-} from '../../entities/logic';
+import { Logic } from '../../entities/logic';
 import { CreateDependency } from '../../dependency/create-dependency';
 import { Dependency } from '../../entities/dependency';
 import { ReadColumns } from '../../column/read-columns';
 import { Materialization } from '../../entities/materialization';
 import { Column } from '../../entities/column';
-import { ILineageRepo } from '../i-lineage-repo';
+import { ILineageRepo, LineageUpdateDto } from '../i-lineage-repo';
 import { IColumnRepo } from '../../column/i-column-repo';
 import { IMaterializationRepo } from '../../materialization/i-materialization-repo';
 import { IDependencyRepo } from '../../dependency/i-dependency-repo';
@@ -31,6 +27,7 @@ import { buildLineage } from './build-lineage';
 import { DataEnvGenerator } from './data-env-generator';
 import DependenciesBuilder from './dependencies-builder';
 import { BiType } from '../../value-types/bilayer';
+import DataEnvMerger from './data-env-merger';
 
 export interface CreateLineageRequestDto {
   targetOrganizationId?: string;
@@ -88,39 +85,6 @@ export class CreateLineage
 
   #dbConnection: DbConnection;
 
-  #newLineage?: Lineage;
-
-
-  #newDependencies: Dependency[];
-
-  #oldDependencies: Dependency[];
-
-  #depencenciesToUpdate: Dependency[];
-
-  #depencenciesToCreate: Dependency[];
-
-  #newDashboards: Dashboard[];
-
-  #oldDashboards: { [key: string]: Dashboard[] };
-
-  #dashboardsToUpdate: Dashboard[];
-
-  #dashboardsToCreate: Dashboard[];
-
-  #lastQueryDependency?: ColumnRef;
-
-  #newMatDefinitionCatalog: MaterializationDefinition[];
-
-  #targetOrganizationId?: string;
-
-  #callerOrganizationId?: string;
-
-  #organizationId: string;
-
-  #jwt: string;
-
-  #isSystemInternal: boolean;
-
   constructor(
     createLogic: CreateLogic,
     createMaterialization: CreateMaterialization,
@@ -155,42 +119,64 @@ export class CreateLineage
     this.#readColumns = readColumns;
   }
 
-
-
- 
-
-  #writeWhResourcesToPersistence = async (): Promise<void> => {
-    if (!this.#newLineage)
-      throw new ReferenceError(
-        'Lineage object does not exist. Cannot write to persistence'
+  #writeWhResourcesToPersistence = async (props: {
+    matsToCreate: Materialization[];
+    matsToReplace: Materialization[];
+    columnsToCreate: Column[];
+    columnsToReplace: Column[];
+    logicsToCreate: Logic[];
+    logicsToReplace: Logic[];
+  }): Promise<void> => {
+    if (props.logicsToCreate)
+      await this.#logicRepo.insertMany(
+        props.logicsToCreate,
+        this.#dbConnection
+      );
+    if (props.logicsToReplace)
+      await this.#logicRepo.replaceMany(
+        props.logicsToReplace,
+        this.#dbConnection
       );
 
-    await this.#logicRepo.insertMany(this.#newLogics, this.#dbConnection);
+    if (props.matsToCreate.length)
+      await this.#materializationRepo.insertMany(
+        props.matsToCreate,
+        this.#dbConnection
+      );
+    if (props.matsToReplace)
+      await this.#materializationRepo.replaceMany(
+        props.matsToReplace,
+        this.#dbConnection
+      );
 
-    await this.#materializationRepo.insertMany(
-      this.#newMaterializations,
-      this.#dbConnection
-    );
-
-    await this.#columnRepo.insertMany(this.#newColumns, this.#dbConnection);
-  };
-
-  // todo - updateDashboards
-
-  #writeDashboardsToPersistence = async (dashboards: Dashboard[]): Promise<void> => {
-    if (this.#newDashboards.length > 0)
-      await this.#dashboardRepo.insertMany(
-        dashboards,
+    if (props.columnsToCreate)
+      await this.#columnRepo.insertMany(
+        props.columnsToCreate,
+        this.#dbConnection
+      );
+    if (props.columnsToReplace)
+      await this.#columnRepo.replaceMany(
+        props.columnsToReplace,
         this.#dbConnection
       );
   };
 
-  #writeDependenciesToPersistence = async (dependencies: Dependency[]): Promise<void> => {
-    if (this.#newDependencies.length > 0)
-      await this.#dependencyRepo.insertMany(
-        dependencies,
-        this.#dbConnection
-      );
+  #writeDashboardsToPersistence = async (
+    dashboards: Dashboard[]
+  ): Promise<void> => {
+    if (dashboards.length)
+      await this.#dashboardRepo.insertMany(dashboards, this.#dbConnection);
+  };
+
+  #writeDependenciesToPersistence = async (
+    dependencies: Dependency[]
+  ): Promise<void> => {
+    if (dependencies.length)
+      await this.#dependencyRepo.insertMany(dependencies, this.#dbConnection);
+  };
+
+  #updateLineage = async (id: string, updateDto: LineageUpdateDto): Promise<void> => {
+    await this.#lineageRepo.updateOne(id, updateDto, this.#dbConnection);
   };
 
   async execute(
@@ -210,24 +196,16 @@ export class CreateLineage
 
       this.#dbConnection = dbConnection;
 
-      this.#targetOrganizationId = request.targetOrganizationId;
-
-      this.#callerOrganizationId = auth.callerOrganizationId;
-
-      if (auth.callerOrganizationId)
-        this.#organizationId = auth.callerOrganizationId;
+      let organizationId: string;
+      if (auth.callerOrganizationId) organizationId = auth.callerOrganizationId;
       else if (request.targetOrganizationId)
-        this.#organizationId = request.targetOrganizationId;
+        organizationId = request.targetOrganizationId;
       else throw new Error('callerOrgId and targetOrgId provided. Not allowed');
-
-      this.#jwt = auth.jwt;
-      this.#isSystemInternal = auth.isSystemInternal;
 
       console.log('starting lineage creation...');
 
       console.log('...building lineage object');
-      const lineage = buildLineage(this.#organizationId);
-      this.#newLineage = lineage;
+      const lineage = buildLineage(organizationId);
 
       console.log('...generating warehouse resources');
       const { jwt, ...remainingAuth } = auth;
@@ -251,10 +229,24 @@ export class CreateLineage
         await dataEnvGenerator.generate();
 
       console.log('...merging new lineage snapshot with last one');
-      await this.#mergeWithLatestSnapshot();
+      const dataEnvMerger = new DataEnvMerger(
+        { columns, materializations, logics, organizationId },
+        remainingAuth,
+        dbConnection,
+        {
+          createColumn: this.#createColumn,
+          createMaterialization: this.#createMaterialization,
+          lineageRepo: this.#lineageRepo,
+          columnRepo: this.#columnRepo,
+          logicRepo: this.#logicRepo,
+          materializationRepo: this.#materializationRepo,
+        }
+      );
+
+      const mergedDataEnv = await dataEnvMerger.merge();
 
       console.log('...writing dw resources to persistence');
-      await this.#writeWhResourcesToPersistence();
+      await this.#writeWhResourcesToPersistence(mergedDataEnv);
 
       console.log('...building dependencies');
       const dependenciesBuilder = await new DependenciesBuilder(
@@ -262,8 +254,8 @@ export class CreateLineage
           lineageId: lineage.id,
           logics,
           matDefinitions,
-          organizationId: this.#organizationId,
-          targetOrganizationId: this.#targetOrganizationId,
+          organizationId,
+          targetOrganizationId: request.targetOrganizationId,
         },
         auth,
         dbConnection,
@@ -277,24 +269,22 @@ export class CreateLineage
           materializationRepo: this.#materializationRepo,
         }
       );
-      const {dashboards, dependencies} = await dependenciesBuilder.build(request.biType);
-
-      // todo - merge dashboards and dependencies
+      const { dashboards, dependencies } = await dependenciesBuilder.build(
+        request.biType
+      );
 
       console.log('...writing dashboards to persistence');
       await this.#writeDashboardsToPersistence(dashboards);
-
+      
       console.log('...writing dependencies to persistence');
       await this.#writeDependenciesToPersistence(dependencies);
-
-      // todo - updateLineage;
-
-      if (!this.#newLineage)
-        throw new ReferenceError('Lineage property is undefined');
-
+      
+      console.log('...setting lineage complete state to true');
+      this.#updateLineage(lineage.id, {completed: true});
+      
       console.log('finished lineage creation.');
 
-      return Result.ok(this.#newLineage);
+      return Result.ok(lineage);
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);

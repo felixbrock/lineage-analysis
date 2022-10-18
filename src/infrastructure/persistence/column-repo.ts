@@ -1,4 +1,6 @@
 import {
+  AnyBulkWriteOperation,
+  BulkWriteResult,
   Db,
   DeleteResult,
   Document,
@@ -38,25 +40,27 @@ const collectionName = 'column';
 export default class ColumnRepo implements IColumnRepo {
   findOne = async (id: string, dbConnection: Db): Promise<Column | null> => {
     try {
-      
       const result: any = await dbConnection
         .collection(collectionName)
         .findOne({ _id: new ObjectId(sanitize(id)) });
-
-      
 
       if (!result) return null;
 
       return this.#toEntity(this.#buildProperties(result));
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error(''));
     }
   };
 
-  findBy = async (columnQueryDto: ColumnQueryDto, dbConnection: Db): Promise<Column[]> => {
+  findBy = async (
+    columnQueryDto: ColumnQueryDto,
+    dbConnection: Db
+  ): Promise<Column[]> => {
     try {
-      if (!Object.keys(columnQueryDto).length) return await this.all(dbConnection);   
+      if (!Object.keys(columnQueryDto).length)
+        return await this.all(dbConnection);
 
       const result: FindCursor = await dbConnection
         .collection(collectionName)
@@ -69,13 +73,17 @@ export default class ColumnRepo implements IColumnRepo {
         this.#toEntity(this.#buildProperties(element))
       );
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error(''));
     }
   };
 
   #buildFilter = (columnQueryDto: ColumnQueryDto): ColumnQueryFilter => {
-    const filter: ColumnQueryFilter = { lineageIds: columnQueryDto.lineageIds, organizationId: columnQueryDto.organizationId };
+    const filter: ColumnQueryFilter = {
+      lineageIds: columnQueryDto.lineageIds,
+      organizationId: columnQueryDto.organizationId,
+    };
 
     if (
       typeof columnQueryDto.relationName === 'string' &&
@@ -93,7 +101,9 @@ export default class ColumnRepo implements IColumnRepo {
       filter.name = new RegExp(`^${columnQueryDto.name}$`, 'i');
     if (columnQueryDto.name instanceof Array)
       filter.name = {
-        $in: columnQueryDto.name.map((element) => new RegExp(`^${element}$`, 'i')),
+        $in: columnQueryDto.name.map(
+          (element) => new RegExp(`^${element}$`, 'i')
+        ),
       };
 
     if (columnQueryDto.index) filter.index = columnQueryDto.index;
@@ -111,13 +121,11 @@ export default class ColumnRepo implements IColumnRepo {
   };
 
   all = async (dbConnection: Db): Promise<Column[]> => {
-    
     try {
-      
-      const result: FindCursor = await dbConnection.collection(collectionName).find();
+      const result: FindCursor = await dbConnection
+        .collection(collectionName)
+        .find();
       const results = await result.toArray();
-
-      
 
       if (!results || !results.length) return [];
 
@@ -125,15 +133,14 @@ export default class ColumnRepo implements IColumnRepo {
         this.#toEntity(this.#buildProperties(element))
       );
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error(''));
     }
   };
 
   insertOne = async (column: Column, dbConnection: Db): Promise<string> => {
-    
     try {
-      
       const result: InsertOneResult<Document> = await dbConnection
         .collection(collectionName)
         .insertOne(this.#toPersistence(sanitize(column)));
@@ -141,18 +148,19 @@ export default class ColumnRepo implements IColumnRepo {
       if (!result.acknowledged)
         throw new Error('Column creation failed. Insert not acknowledged');
 
-      
-
       return result.insertedId.toHexString();
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error(''));
     }
   };
 
-  insertMany = async (columns: Column[], dbConnection: Db): Promise<string[]> => {
+  insertMany = async (
+    columns: Column[],
+    dbConnection: Db
+  ): Promise<string[]> => {
     try {
-      
       const result: InsertManyResult<Document> = await dbConnection
         .collection(collectionName)
         .insertMany(
@@ -166,15 +174,45 @@ export default class ColumnRepo implements IColumnRepo {
         result.insertedIds[parseInt(key, 10)].toHexString()
       );
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error(''));
     }
   };
 
-  deleteOne = async (id: string, dbConnection: Db): Promise<string> => {
-    
+  replaceMany = async (
+    columns: Column[],
+    dbConnection: Db
+  ): Promise<number> => {
     try {
-      
+      const operations: AnyBulkWriteOperation<Document>[] = columns.map(
+        (el) => ({
+          replaceOne: {
+            filter: { _id: new ObjectId(sanitize(el.id)) },
+            replacement: this.#toPersistence(el),
+          },
+        })
+      );
+
+      const result: BulkWriteResult = await dbConnection
+        .collection(collectionName)
+        .bulkWrite(operations);
+
+      if (!result.isOk())
+        throw new Error(
+          `Bulk mat update failed. Update not ok. Error count: ${result.getWriteErrorCount()}`
+        );
+
+      return result.nMatched;
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error());
+    }
+  };
+
+  deleteOne = async (id: string, dbConnection: Db): Promise<string> => {
+    try {
       const result: DeleteResult = await dbConnection
         .collection(collectionName)
         .deleteOne({ _id: new ObjectId(sanitize(id)) });
@@ -182,11 +220,10 @@ export default class ColumnRepo implements IColumnRepo {
       if (!result.acknowledged)
         throw new Error('Column delete failed. Delete not acknowledged');
 
-      
-
       return result.deletedCount.toString();
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error(''));
     }
   };
@@ -203,7 +240,7 @@ export default class ColumnRepo implements IColumnRepo {
     type: column.type,
     materializationId: column.materializationId,
     lineageIds: column.lineageIds,
-    organizationId: column.organizationId
+    organizationId: column.organizationId,
   });
 
   #toPersistence = (column: Column): Document => ({
@@ -214,6 +251,6 @@ export default class ColumnRepo implements IColumnRepo {
     type: column.type,
     materializationId: column.materializationId,
     lineageIds: column.lineageIds,
-    organizationId: column.organizationId
+    organizationId: column.organizationId,
   });
 }

@@ -1,4 +1,6 @@
 import {
+  AnyBulkWriteOperation,
+  BulkWriteResult,
   Db,
   DeleteResult,
   Document,
@@ -58,7 +60,8 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
       return this.#toEntity(this.#buildProperties(result));
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error(''));
     }
   };
@@ -82,7 +85,8 @@ export default class MaterializationRepo implements IMaterializationRepo {
         this.#toEntity(this.#buildProperties(element))
       );
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error(''));
     }
   };
@@ -144,7 +148,8 @@ export default class MaterializationRepo implements IMaterializationRepo {
         this.#toEntity(this.#buildProperties(element))
       );
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error(''));
     }
   };
@@ -165,7 +170,8 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
       return result.insertedId.toHexString();
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error(''));
     }
   };
@@ -190,8 +196,39 @@ export default class MaterializationRepo implements IMaterializationRepo {
         result.insertedIds[parseInt(key, 10)].toHexString()
       );
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error(''));
+    }
+  };
+
+  replaceMany = async (
+    mats: Materialization[],
+    dbConnection: Db
+  ): Promise<number> => {
+    try {
+      const operations: AnyBulkWriteOperation<Document>[] =
+        mats.map((el) => ({
+          replaceOne: {
+            filter: { _id: new ObjectId(sanitize(el.id)) },
+            replacement: this.#toPersistence(el),
+          },
+        }));
+
+      const result: BulkWriteResult = await dbConnection
+        .collection(collectionName)
+        .bulkWrite(operations);
+
+      if (!result.isOk())
+        throw new Error(
+          `Bulk mat update failed. Update not ok. Error count: ${result.getWriteErrorCount()}`
+        );
+
+      return result.nMatched;
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error());
     }
   };
 
@@ -208,7 +245,8 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
       return result.deletedCount.toString();
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error(''));
     }
   };
