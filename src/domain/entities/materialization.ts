@@ -1,7 +1,15 @@
-export enum MaterializationType {
-  TABLE = 'BASE TABLE',
-  VIEW = 'VIEW',
-}
+export const materializationTypes = ['base table', 'view'] as const;
+export type MaterializationType = typeof materializationTypes[number];
+
+export const parseMaterializationType = (
+  materializationType: string
+): MaterializationType => {
+  const identifiedElement = materializationTypes.find(
+    (element) => element.toLowerCase() === materializationType.toLowerCase()
+  );
+  if (identifiedElement) return identifiedElement;
+  throw new Error('Provision of invalid type');
+};
 
 export interface MaterializationProperties {
   id: string;
@@ -11,9 +19,23 @@ export interface MaterializationProperties {
   databaseName: string;
   materializationType: MaterializationType;
   logicId?: string;
-  lineageId: string;
-  organizationId: string; 
+  lineageIds: string[];
+  organizationId: string;
 }
+
+export interface MaterializationPrototype {
+  id: string;
+  relationName: string;
+  name: string;
+  schemaName: string;
+  databaseName: string;
+  materializationType: MaterializationType;
+  logicId?: string;
+  lineageId: string;
+  organizationId: string;
+}
+
+export type MaterializationDto = MaterializationProperties;
 
 export class Materialization {
   #id: string;
@@ -30,7 +52,7 @@ export class Materialization {
 
   #logicId?: string;
 
-  #lineageId: string;
+  #lineageIds: string[];
 
   #organizationId: string;
 
@@ -62,8 +84,8 @@ export class Materialization {
     return this.#logicId;
   }
 
-  get lineageId(): string {
-    return this.#lineageId;
+  get lineageIds(): string[] {
+    return this.#lineageIds;
   }
 
   get organizationId(): string {
@@ -78,26 +100,62 @@ export class Materialization {
     this.#databaseName = properties.databaseName;
     this.#materializationType = properties.materializationType;
     this.#logicId = properties.logicId;
-    this.#lineageId = properties.lineageId;
+    this.#lineageIds = properties.lineageIds;
     this.#organizationId = properties.organizationId;
   }
 
-  static create = (properties: MaterializationProperties): Materialization => {
-    if (!properties.id) throw new TypeError('Materialization must have id');
-    if (!properties.relationName)
+  static create = (prototype: MaterializationPrototype): Materialization => {
+    if (!prototype.id) throw new TypeError('Materialization must have id');
+    if (!prototype.relationName)
       throw new TypeError('Materialization must have relationName');
-    if (!properties.name) throw new TypeError('Materialization must have name');
-    if (!properties.schemaName)
+    if (!prototype.name) throw new TypeError('Materialization must have name');
+    if (!prototype.schemaName)
       throw new TypeError('Materialization must have schema name');
-    if (!properties.databaseName)
+    if (!prototype.databaseName)
       throw new TypeError('Materialization must have database name');
-    if (!properties.materializationType)
+    if (!prototype.materializationType)
       throw new TypeError('Materialization must have materialization type');
-    if (!properties.lineageId) throw new TypeError('Materialization must have lineageId');
-    if (!properties.organizationId) throw new TypeError('Materialization must have organization id');
+    if (!prototype.lineageId)
+      throw new TypeError('Materialization must have lineageId');
+    if (!prototype.organizationId)
+      throw new TypeError('Materialization must have organization id');
 
-    const materialization = new Materialization(properties);
+    const materialization = new Materialization({
+      ...prototype,
+      lineageIds: [prototype.lineageId],
+    });
 
     return materialization;
   };
+
+  static build = (props: MaterializationProperties): Materialization => {
+    if (!props.id) throw new TypeError('Materialization must have id');
+    if (!props.relationName)
+      throw new TypeError('Materialization must have relationName');
+    if (!props.name) throw new TypeError('Materialization must have name');
+    if (!props.schemaName)
+      throw new TypeError('Materialization must have schema name');
+    if (!props.databaseName)
+      throw new TypeError('Materialization must have database name');
+    if (!props.materializationType)
+      throw new TypeError('Materialization must have materialization type');
+    if (!props.lineageIds.length)
+      throw new TypeError('Materialization must have lineageIds');
+    if (!props.organizationId)
+      throw new TypeError('Materialization must have organization id');
+
+    return new Materialization(props);
+  };
+
+  toDto = (): MaterializationDto => ({
+    id: this.#id,
+    relationName: this.#relationName,
+    materializationType: this.#materializationType,
+    name: this.#name,
+    schemaName: this.#schemaName,
+    databaseName: this.#databaseName,
+    logicId: this.#logicId,
+    lineageIds: this.#lineageIds,
+    organizationId: this.#organizationId,
+  });
 }

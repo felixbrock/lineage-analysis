@@ -1,6 +1,6 @@
 import { InjectionMode, asClass, createContainer } from 'awilix';
 
-import { CreateLineage } from '../domain/lineage/create-lineage';
+import { CreateLineage } from '../domain/lineage/create-lineage/create-lineage';
 import AccountApiRepo from './persistence/account-api-repo';
 import { GetAccounts } from '../domain/account-api/get-accounts';
 import { ParseSQL } from '../domain/sql-parser-api/parse-sql';

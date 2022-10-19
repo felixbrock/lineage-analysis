@@ -7,8 +7,8 @@ import iocRegister from './infrastructure/ioc-register';
 import {
   InternalInvokeType,
   parseInternalInvokeType,
-} from './infrastructure/shared/internal-invoke-controller';
-import { CreateLineageRequestDto } from './domain/lineage/create-lineage';
+} from './shared/internal-invoke-controller';
+import { CreateLineageRequestDto } from './domain/lineage/create-lineage/create-lineage';
 
 let serverlessExpressInstance: any;
 
@@ -67,8 +67,6 @@ const internalInvoke = async (
         manifest: event.req.manifest,
         targetOrganizationId: event.req.targetOrganizationId,
         biType: event.req.biType,
-        lineageCreatedAt: event.req.lineageCreatedAt,
-        lineageId: event.req.lineageId,
       };
 
       const auth = { jwt: event.auth.jwt };
@@ -107,7 +105,6 @@ const internalInvokeHandler = async (event: any): Promise<void> => {
 
 // eslint-disable-next-line import/prefer-default-export
 export const handler = async (event: any, context: any): Promise<any> => {
- 
   switch (event.internalInvokeType) {
     case 'create-lineage': {
       const invokeResult = await internalInvokeHandler(event);

@@ -1,11 +1,11 @@
 import jsonwebtoken from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
-import { appConfig } from '../../config';
+import { appConfig } from '../config';
 import {
   GetAccounts,
   GetAccountsResponseDto,
-} from '../../domain/account-api/get-accounts';
-import Result from '../../domain/value-types/transient-types/result';
+} from '../domain/account-api/get-accounts';
+import Result from '../domain/value-types/transient-types/result';
 
 export enum CodeHttp {
   OK = 200,
@@ -133,7 +133,8 @@ export abstract class InternalInvokeController<R> {
         isSystemInternal,
       });
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return Result.fail('');
     }
   }

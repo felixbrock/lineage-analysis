@@ -1,8 +1,10 @@
 // TODO: Violation of control flow. DI for express instead
 import { Request, Response } from 'express';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
-import { MaterializationType } from '../../../domain/entities/materialization';
-import { buildMaterializationDto } from '../../../domain/materialization/materialization-dto';
+import {
+  MaterializationType,
+  materializationTypes,
+} from '../../../domain/entities/materialization';
 import {
   ReadMaterializations,
   ReadMaterializationsAuthDto,
@@ -16,7 +18,7 @@ import {
   BaseController,
   CodeHttp,
   UserAccountInfo,
-} from '../../shared/base-controller';
+} from '../../../shared/base-controller';
 
 export default class ReadMaterializationsController extends BaseController {
   readonly #readMaterializations: ReadMaterializations;
@@ -50,7 +52,7 @@ export default class ReadMaterializationsController extends BaseController {
 
     const isMaterializationType = (
       queryParam: string
-    ): queryParam is MaterializationType => queryParam in MaterializationType;
+    ): queryParam is MaterializationType => queryParam in materializationTypes;
 
     if (materializationType) {
       if (typeof materializationType !== 'string')
@@ -137,7 +139,7 @@ export default class ReadMaterializationsController extends BaseController {
       }
 
       const resultValue = useCaseResult.value
-        ? useCaseResult.value.map((element) => buildMaterializationDto(element))
+        ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
 
       return ReadMaterializationsController.ok(res, resultValue, CodeHttp.OK);

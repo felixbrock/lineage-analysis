@@ -1,10 +1,10 @@
-export const BiLayers = ['Mode', 'Tableau', 'Metabase'] as const;
-export type BiLayer = typeof BiLayers[number];
+export const biLayers = ['Mode', 'Tableau', 'Metabase'] as const;
+export type BiType = typeof biLayers[number];
 
 export const parseBiLayer = (
   biLayer: string
-): BiLayer => {
-  const identifiedElement = BiLayers.find(
+): BiType => {
+  const identifiedElement = biLayers.find(
     (element) => element.toLowerCase() === biLayer.toLowerCase()
   );
   if (identifiedElement) return identifiedElement;

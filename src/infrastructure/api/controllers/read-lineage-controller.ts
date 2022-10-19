@@ -1,7 +1,6 @@
 // TODO: Violation of control flow. DI for express instead
 import { Request, Response } from 'express';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
-import { buildLineageDto } from '../../../domain/lineage/lineage-dto';
 import {
   ReadLineage,
   ReadLineageAuthDto,
@@ -15,7 +14,7 @@ import {
   BaseController,
   CodeHttp,
   UserAccountInfo,
-} from '../../shared/base-controller';
+} from '../../../shared/base-controller';
 
 export default class ReadLineageController extends BaseController {
   readonly #readLineage: ReadLineage;
@@ -78,7 +77,7 @@ export default class ReadLineageController extends BaseController {
       }
 
       const resultValue = useCaseResult.value
-        ? buildLineageDto(useCaseResult.value)
+        ? useCaseResult.value.toDto()
         : useCaseResult.value;
 
       return ReadLineageController.ok(res, resultValue, CodeHttp.OK);

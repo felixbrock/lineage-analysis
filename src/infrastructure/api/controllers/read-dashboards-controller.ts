@@ -1,7 +1,6 @@
 // TODO: Violation of control flow. DI for express instead
 import { Request, Response } from 'express';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
-import { buildDashboardDto } from '../../../domain/dashboard/dashboard-dto';
 import {
   ReadDashboards,
   ReadDashboardsAuthDto,
@@ -15,7 +14,7 @@ import {
   BaseController,
   CodeHttp,
   UserAccountInfo,
-} from '../../shared/base-controller';
+} from '../../../shared/base-controller';
 
 export default class ReadDashboardsController extends BaseController {
   readonly #readDashboards: ReadDashboards;
@@ -117,7 +116,7 @@ export default class ReadDashboardsController extends BaseController {
       }
 
       const resultValue = useCaseResult.value
-        ? useCaseResult.value.map((element) => buildDashboardDto(element))
+        ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
 
       return ReadDashboardsController.ok(res, resultValue, CodeHttp.OK);

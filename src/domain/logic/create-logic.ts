@@ -20,7 +20,7 @@ export interface CreateLogicRequestDto {
   lineageId: string;
   writeToPersistence: boolean;
   targetOrganizationId?: string;
-  catalogFile:string;
+  catalogFile: string;
 }
 
 export interface CreateLogicAuthDto {
@@ -50,7 +50,7 @@ export class CreateLogic
     this.#logicRepo = logicRepo;
   }
 
-  #getTablesAndCols = (catalogFile:string): CatalogModelData[] => {
+  #getTablesAndCols = (catalogFile: string): CatalogModelData[] => {
     const data = catalogFile;
 
     const catalog = JSON.parse(data);
@@ -89,7 +89,7 @@ export class CreateLogic
         throw new Error('Caller organization id missing');
       if (!request.targetOrganizationId && !auth.callerOrganizationId)
         throw new Error('No organization Id instance provided');
-        if (request.targetOrganizationId && auth.callerOrganizationId)
+      if (request.targetOrganizationId && auth.callerOrganizationId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
       let organizationId: string;
@@ -123,7 +123,7 @@ export class CreateLogic
         },
         {
           isSystemInternal: auth.isSystemInternal,
-          callerOrganizationId: auth.callerOrganizationId
+          callerOrganizationId: auth.callerOrganizationId,
         },
         this.#dbConnection
       );
@@ -138,7 +138,8 @@ export class CreateLogic
 
       return Result.ok(logic);
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return Result.fail('');
     }
   }

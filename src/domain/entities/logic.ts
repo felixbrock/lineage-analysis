@@ -13,17 +13,6 @@ interface DependentOn {
   dwDependencyDefinitions: MaterializationDefinition[];
 }
 
-export interface LogicProperties {
-  id: string;
-  relationName: string;
-  sql: string;
-  dependentOn: DependentOn;
-  parsedLogic: string;
-  statementRefs: Refs;
-  lineageId: string;
-  organizationId: string;
-}
-
 export interface LogicPrototype {
   id: string;
   relationName: string;
@@ -35,6 +24,18 @@ export interface LogicPrototype {
   catalog: CatalogModelData[];
   organizationId: string;
 }
+export interface LogicProperties {
+  id: string;
+  relationName: string;
+  sql: string;
+  dependentOn: DependentOn;
+  parsedLogic: string;
+  statementRefs: Refs;
+  lineageIds: string[];
+  organizationId: string;
+}
+
+type LogicDto = LogicProperties;
 
 export interface CatalogModelData {
   modelName: string;
@@ -165,7 +166,7 @@ export class Logic {
 
   #statementRefs: Refs;
 
-  #lineageId: string;
+  #lineageIds: string[];
 
   #organizationId: string;
 
@@ -193,8 +194,8 @@ export class Logic {
     return this.#statementRefs;
   }
 
-  get lineageId(): string {
-    return this.#lineageId;
+  get lineageIds(): string[] {
+    return this.#lineageIds;
   }
 
   get organizationId(): string {
@@ -208,7 +209,7 @@ export class Logic {
     this.#dependentOn = properties.dependentOn;
     this.#parsedLogic = properties.parsedLogic;
     this.#statementRefs = properties.statementRefs;
-    this.#lineageId = properties.lineageId;
+    this.#lineageIds = properties.lineageIds;
     this.#organizationId = properties.organizationId;
   }
 
@@ -241,10 +242,10 @@ export class Logic {
     ];
 
     if (definitionElements.some((element) => path.includes(element)))
-      return DependencyType.DEFINITION;
+      return 'definition';
     if (dataDependencyElementsRegex.some((element) => element.test(path)))
-      return DependencyType.DATA;
-    return DependencyType.QUERY;
+      return 'data';
+    return 'query';
   };
 
   /* Returns a single joined string value of an array value identified in the parsed SQL logic
@@ -1268,7 +1269,7 @@ export class Logic {
         nonSelfMaterializationRefs
       );
 
-      if (prototype.dependencyType === DependencyType.DEFINITION)
+      if (prototype.dependencyType === 'definition')
         return {
           alias: prototype.alias,
           context: prototype.context,
@@ -1315,8 +1316,7 @@ export class Logic {
           selfMaterializationRef
         );
 
-        if (isSelfRefColumn)
-          columnRef.dependencyType = DependencyType.DEFINITION;
+        if (isSelfRefColumn) columnRef.dependencyType = 'definition';
 
         return columnRef;
       }
@@ -1372,7 +1372,7 @@ export class Logic {
       );
 
       if (isSelfRefColumn || (columnRef.isWildcardRef && representation))
-        columnRef.dependencyType = DependencyType.DEFINITION;
+        columnRef.dependencyType = 'definition';
 
       return columnRef;
     });
@@ -1474,14 +1474,14 @@ export class Logic {
           (model) => model.columnNames[parseInt(columnNumber, 10) - 1]
         );
 
-        thisCol.dependencyType = DependencyType.DATA;
+        thisCol.dependencyType = 'data';
         if (realName) thisCol.alias = realName;
       }
 
       if (!nextCol) return;
       if (
-        column.dependencyType === DependencyType.DEFINITION &&
-        nextCol.dependencyType === DependencyType.DATA
+        column.dependencyType === 'definition' &&
+        nextCol.dependencyType === 'data'
       )
         nextCol.alias = column.name;
     });
@@ -1528,10 +1528,10 @@ export class Logic {
       const firstInWhenSequence =
         isWhenClause &&
         this.#whenClauseColumnRefProtoAreEqual(thisPrototype, nextPrototype) &&
-        !(prevPrototype.dependencyType === DependencyType.QUERY);
+        !(prevPrototype.dependencyType === 'query');
 
       if (firstInWhenSequence || singleWhenClause)
-        thisPrototype.dependencyType = DependencyType.QUERY;
+        thisPrototype.dependencyType = 'query';
     });
 
     return columnPrototypes;
@@ -1744,7 +1744,8 @@ export class Logic {
       definition: MaterializationDefinition | undefined
     ): definition is MaterializationDefinition => !!definition;
 
-    const mappingResults = materializationRefs.filter(ref => ref.type === 'dependency')
+    const mappingResults = materializationRefs
+      .filter((ref) => ref.type === 'dependency')
       .map((ref: MaterializationRef): MaterializationDefinition | undefined => {
         if (!ref.databaseName) {
           console.warn(
@@ -1770,7 +1771,7 @@ export class Logic {
           )
         );
 
-        if (matchingDefinitions.length) return undefined; 
+        if (matchingDefinitions.length) return undefined;
 
         return {
           relationName: potentiallyMissingRelationName,
@@ -1794,7 +1795,8 @@ export class Logic {
       throw new TypeError('Logic prototype must have SQL logic');
     if (!prototype.parsedLogic)
       throw new TypeError('Logic  prototype must have parsed SQL logic');
-    if (!prototype.lineageId) throw new TypeError('Logic must have lineageId');
+    if (!prototype.lineageId)
+      throw new TypeError('Logic must have lineageId');
     if (!prototype.organizationId)
       throw new TypeError('Logic must have organization id');
     if (!prototype.catalog)
@@ -1808,7 +1810,10 @@ export class Logic {
       prototype.catalog
     );
 
-    const dwDependencyDefinitions = this.#getDwDependencyDefinitions(statementRefs.materializations, prototype.dbtDependentOn);
+    const dwDependencyDefinitions = this.#getDwDependencyDefinitions(
+      statementRefs.materializations,
+      prototype.dbtDependentOn
+    );
 
     const dependentOn: DependentOn = {
       dbtDependencyDefinitions: prototype.dbtDependentOn,
@@ -1822,7 +1827,7 @@ export class Logic {
       dependentOn,
       parsedLogic: prototype.parsedLogic,
       statementRefs,
-      lineageId: prototype.lineageId,
+      lineageIds: [prototype.lineageId],
       organizationId: prototype.organizationId,
     });
 
@@ -1835,21 +1840,24 @@ export class Logic {
       throw new TypeError('Logic must have relationName');
     if (!properties.parsedLogic)
       throw new TypeError('Logic creation requires parsed SQL logic');
-    if (!properties.lineageId) throw new TypeError('Logic must have lineageId');
+    if (!properties.lineageIds.length)
+      throw new TypeError('Logic must have lineageIds');
 
-    const logic = new Logic({
-      id: properties.id,
-      relationName: properties.relationName,
-      sql: properties.sql,
-      dependentOn: properties.dependentOn,
-      parsedLogic: properties.parsedLogic,
-      statementRefs: properties.statementRefs,
-      lineageId: properties.lineageId,
-      organizationId: properties.organizationId,
-    });
+    const logic = new Logic(properties);
 
     return logic;
   };
+
+  toDto = (): LogicDto => ({
+    id: this.#id,
+    relationName: this.#relationName,
+    sql: this.#sql,
+    dependentOn: this.#dependentOn,
+    parsedLogic: this.#parsedLogic,
+    statementRefs: this.#statementRefs,
+    lineageIds: this.#lineageIds,
+    organizationId: this.#organizationId,
+  });
 
   static #insensitiveEquality = (str1: string, str2: string): boolean =>
     str1.toLowerCase() === str2.toLowerCase();

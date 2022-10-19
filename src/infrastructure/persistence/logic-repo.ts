@@ -1,4 +1,6 @@
 import {
+  AnyBulkWriteOperation,
+  BulkWriteResult,
   Db,
   DeleteResult,
   Document,
@@ -35,13 +37,13 @@ interface LogicPersistence {
   };
   parsedLogic: string;
   statementRefs: PersistenceStatementRefs;
-  lineageId: string;
+  lineageIds: string[];
   organizationId: string;
 }
 
 interface LogicQueryFilter {
   relationName?: RegExp;
-  lineageId: string;
+  lineageIds: string;
   organizationId: string;
 }
 
@@ -91,7 +93,7 @@ export default class LogicRepo implements ILogicRepo {
 
   #buildFilter = (logicQueryDto: LogicQueryDto): LogicQueryFilter => {
     const filter: LogicQueryFilter = {
-      lineageId: logicQueryDto.lineageId,
+      lineageIds: logicQueryDto.lineageId,
       organizationId: logicQueryDto.organizationId,
     };
 
@@ -155,6 +157,36 @@ export default class LogicRepo implements ILogicRepo {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error(''));
+    }
+  };
+
+  replaceMany = async (
+    logics: Logic[],
+    dbConnection: Db
+  ): Promise<number> => {
+    try {
+      const operations: AnyBulkWriteOperation<Document>[] =
+        logics.map((el) => ({
+          replaceOne: {
+            filter: { _id: new ObjectId(sanitize(el.id)) },
+            replacement: this.#toPersistence(el),
+          },
+        }));
+
+      const result: BulkWriteResult = await dbConnection
+        .collection(collectionName)
+        .bulkWrite(operations);
+
+      if (!result.isOk())
+        throw new Error(
+          `Bulk mat update failed. Update not ok. Error count: ${result.getWriteErrorCount()}`
+        );
+
+      return result.nMatched;
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error());
     }
   };
 
@@ -243,7 +275,7 @@ export default class LogicRepo implements ILogicRepo {
     },
     parsedLogic: logic.parsedLogic,
     statementRefs: this.#buildStatementRefs(logic.statementRefs),
-    lineageId: logic.lineageId,
+    lineageIds: logic.lineageIds,
     organizationId: logic.organizationId,
   });
 
@@ -254,7 +286,7 @@ export default class LogicRepo implements ILogicRepo {
     dependentOn: logic.dependentOn,
     parsedLogic: logic.parsedLogic,
     statementRefs: logic.statementRefs,
-    lineageId: logic.lineageId,
+    lineageIds: logic.lineageIds,
     organizationId: logic.organizationId,
   });
 }
