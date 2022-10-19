@@ -9,7 +9,7 @@ export interface ILineageRepo {
   findOne(dbConnection: DbConnection, id: string): Promise<Lineage | null>;
   findLatest(
     dbConnection: DbConnection,
-    organizationId: string
+    filter: {organizationId: string, completed?: boolean},
   ): Promise<Lineage | null>;
   all(dbConnection: DbConnection): Promise<Lineage[]>;
   insertOne(lineage: Lineage, dbConnection: DbConnection): Promise<string>;

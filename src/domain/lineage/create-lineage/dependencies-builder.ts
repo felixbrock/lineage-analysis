@@ -1,5 +1,4 @@
 import { ObjectId } from 'mongodb';
-import { IColumnRepo } from '../../column/i-column-repo';
 import { ReadColumns } from '../../column/read-columns';
 import { CreateDashboard } from '../../dashboard/create-dashboard';
 import {
@@ -7,6 +6,7 @@ import {
   CreateDependencyResponse,
 } from '../../dependency/create-dependency';
 import { CreateExternalDependency } from '../../dependency/create-external-dependency';
+import { Column } from '../../entities/column';
 import { Dashboard } from '../../entities/dashboard';
 import { Dependency } from '../../entities/dependency';
 import {
@@ -16,7 +16,7 @@ import {
   MaterializationDefinition,
   Refs,
 } from '../../entities/logic';
-import { IMaterializationRepo } from '../../materialization/i-materialization-repo';
+import { Materialization } from '../../entities/materialization';
 import { QueryHistoryDto } from '../../query-snowflake-history-api/query-history-dto';
 import {
   QueryHistoryResponseDto,
@@ -48,10 +48,6 @@ export default class DependenciesBuilder {
 
   readonly #querySnowflakeHistory: QuerySnowflakeHistory;
 
-  readonly #materializationRepo: IMaterializationRepo;
-
-  readonly #columnRepo: IColumnRepo;
-
   readonly #auth: Auth;
 
   readonly #dbConnection: DbConnection;
@@ -63,6 +59,10 @@ export default class DependenciesBuilder {
   readonly #organizationId: string;
 
   readonly #logics: Logic[];
+
+  readonly #mats: Materialization[];
+
+  readonly #columns: Column[];
 
   readonly #matDefinitions: MaterializationDefinition[];
 
@@ -84,6 +84,8 @@ export default class DependenciesBuilder {
       targetOrganizationId?: string;
       organizationId: string;
       logics: Logic[];
+      mats: Materialization[];
+      columns: Column[];
       matDefinitions: MaterializationDefinition[];
     },
     auth: Auth,
@@ -94,8 +96,6 @@ export default class DependenciesBuilder {
       createExternalDependency: CreateExternalDependency;
       readColumns: ReadColumns;
       querySnowflakeHistory: QuerySnowflakeHistory;
-      materializationRepo: IMaterializationRepo;
-      columnRepo: IColumnRepo;
     }
   ) {
     this.#createDashboard = dependencies.createDashboard;
@@ -103,8 +103,6 @@ export default class DependenciesBuilder {
     this.#createExternalDependency = dependencies.createExternalDependency;
     this.#readColumns = dependencies.readColumns;
     this.#querySnowflakeHistory = dependencies.querySnowflakeHistory;
-    this.#materializationRepo = dependencies.materializationRepo;
-    this.#columnRepo = dependencies.columnRepo;
 
     this.#auth = auth;
     this.#dbConnection = dbConnection;
@@ -113,6 +111,8 @@ export default class DependenciesBuilder {
     this.#targetOrganizationId = props.targetOrganizationId;
     this.#organizationId = props.organizationId;
     this.#logics = props.logics;
+    this.#mats = props.mats;
+    this.#columns = props.columns;
     this.#matDefinitions = props.matDefinitions;
   }
 
@@ -230,34 +230,38 @@ export default class DependenciesBuilder {
     if (relationNameElements.length !== 3)
       throw new RangeError('Unexpected number of dbt model id elements');
 
-    const materialization = await this.#materializationRepo.findBy(
-      {
-        name: dashboardRef.materializationName,
-        relationName: parentRelationNames[0],
-        lineageId: this.#lineageId,
-        organizationId: this.#organizationId,
-      },
-      this.#dbConnection
+    const materialization = this.#mats.find(
+      (el) =>
+        el.name === dashboardRef.materializationName &&
+        el.relationName === parentRelationNames[0] &&
+        el.lineageIds.includes(this.#lineageId) &&
+        el.organizationId === this.#organizationId
     );
-    const materializationId = materialization[0].id;
 
-    const column = await this.#columnRepo.findBy(
-      {
-        name: dashboardRef.columnName,
-        materializationId,
-        lineageId: this.#lineageId,
-        organizationId: this.#organizationId,
-      },
-      this.#dbConnection
+    if (!materialization)
+      throw new Error(
+        'Dashboard ref dependency built failed; Error: Materialization not found'
+      );
+
+    const column = this.#columns.find(
+      (el) =>
+        el.name === dashboardRef.columnName &&
+        el.materializationId === materialization.id &&
+        el.lineageIds.includes(this.#lineageId) &&
+        el.organizationId === this.#organizationId
     );
-    const columnId = column[0].id;
+
+    if (!column)
+      throw new Error(
+        'Dashboard ref dependency built failed; Error: Column not found'
+      );
 
     const createDashboardResult = await this.#createDashboard.execute(
       {
-        columnId,
+        columnId: column.id,
         columnName: dashboardRef.columnName,
         lineageId: this.#lineageId,
-        materializationId,
+        materializationId: materialization.id,
         materializationName: dashboardRef.materializationName,
         url: dashboardRef.url,
         targetOrganizationId: this.#targetOrganizationId,

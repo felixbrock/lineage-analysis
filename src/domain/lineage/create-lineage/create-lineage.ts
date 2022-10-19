@@ -120,6 +120,7 @@ export class CreateLineage
   }
 
   #writeWhResourcesToPersistence = async (props: {
+    lineage: Lineage;
     matsToCreate: Materialization[];
     matsToReplace: Materialization[];
     columnsToCreate: Column[];
@@ -127,14 +128,27 @@ export class CreateLineage
     logicsToCreate: Logic[];
     logicsToReplace: Logic[];
   }): Promise<void> => {
-    if (props.logicsToCreate)
-      await this.#logicRepo.insertMany(
-        props.logicsToCreate,
-        this.#dbConnection
-      );
-    if (props.logicsToReplace)
+    await this.#lineageRepo.insertOne(props.lineage, this.#dbConnection);
+
+    if (props.logicsToReplace.length)
       await this.#logicRepo.replaceMany(
         props.logicsToReplace,
+        this.#dbConnection
+      );
+    if (props.matsToReplace.length)
+      await this.#materializationRepo.replaceMany(
+        props.matsToReplace,
+        this.#dbConnection
+      );
+    if (props.columnsToReplace.length)
+      await this.#columnRepo.replaceMany(
+        props.columnsToReplace,
+        this.#dbConnection
+      );
+
+    if (props.logicsToCreate.length)
+      await this.#logicRepo.insertMany(
+        props.logicsToCreate,
         this.#dbConnection
       );
 
@@ -143,20 +157,10 @@ export class CreateLineage
         props.matsToCreate,
         this.#dbConnection
       );
-    if (props.matsToReplace)
-      await this.#materializationRepo.replaceMany(
-        props.matsToReplace,
-        this.#dbConnection
-      );
 
-    if (props.columnsToCreate)
+    if (props.columnsToCreate.length)
       await this.#columnRepo.insertMany(
         props.columnsToCreate,
-        this.#dbConnection
-      );
-    if (props.columnsToReplace)
-      await this.#columnRepo.replaceMany(
-        props.columnsToReplace,
         this.#dbConnection
       );
   };
@@ -234,11 +238,8 @@ export class CreateLineage
       console.log('...merging new lineage snapshot with last one');
       const dataEnvMerger = new DataEnvMerger(
         { columns, materializations, logics, organizationId },
-        remainingAuth,
         dbConnection,
         {
-          createColumn: this.#createColumn,
-          createMaterialization: this.#createMaterialization,
           lineageRepo: this.#lineageRepo,
           columnRepo: this.#columnRepo,
           logicRepo: this.#logicRepo,
@@ -249,7 +250,7 @@ export class CreateLineage
       const mergedDataEnv = await dataEnvMerger.merge();
 
       console.log('...writing dw resources to persistence');
-      await this.#writeWhResourcesToPersistence(mergedDataEnv);
+      await this.#writeWhResourcesToPersistence({ lineage, ...mergedDataEnv });
 
       console.log('...building dependencies');
       const dependenciesBuilder = await new DependenciesBuilder(
@@ -257,6 +258,10 @@ export class CreateLineage
           lineageId: lineage.id,
           logics: mergedDataEnv.logicsToCreate.concat(
             mergedDataEnv.logicsToReplace
+          ),
+          mats: mergedDataEnv.matsToCreate.concat(mergedDataEnv.matsToReplace),
+          columns: mergedDataEnv.columnsToCreate.concat(
+            mergedDataEnv.columnsToReplace
           ),
           matDefinitions,
           organizationId,
@@ -270,8 +275,6 @@ export class CreateLineage
           createExternalDependency: this.#createExternalDependency,
           readColumns: this.#readColumns,
           querySnowflakeHistory: this.#querySnowflakeHistory,
-          columnRepo: this.#columnRepo,
-          materializationRepo: this.#materializationRepo,
         }
       );
       const { dashboards, dependencies } = await dependenciesBuilder.build(
@@ -285,11 +288,18 @@ export class CreateLineage
       await this.#writeDependenciesToPersistence(dependencies);
 
       console.log('...setting lineage complete state to true');
-      this.#updateLineage(lineage.id, { completed: true });
+      await this.#updateLineage(lineage.id, { completed: true });
 
       console.log('finished lineage creation.');
 
-      return Result.ok(lineage);
+      return Result.ok(
+        Lineage.build({
+          id: lineage.id,
+          organizationId: lineage.organizationId,
+          createdAt: lineage.createdAt,
+          completed: true,
+        })
+      );
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);

@@ -2,6 +2,7 @@ import {
   Db,
   DeleteResult,
   Document,
+  Filter,
   FindCursor,
   InsertOneResult,
   ObjectId,
@@ -43,13 +44,16 @@ export default class LineageRepo implements ILineageRepo {
     }
   };
 
-  findLatest = async (dbConnection: Db, organizationId: string): Promise<Lineage | null> => {
+  findLatest = async (dbConnection: Db, filter: {organizationId: string, completed?: boolean}): Promise<Lineage | null> => {
     try {
+      const findFilter: Filter<Document> = {organizationId: filter.organizationId};
+      if(filter.completed) findFilter.completed = filter.completed;
+
       const result = await dbConnection
         .collection(collectionName)
         // todo- index on createdAt
         // .find({}, {createdAt: 1, _id:0}).sort({createdAt: -1}).limit(1);
-        .find({organizationId})
+        .find(filter)
         .sort({ createdAt: -1 })
         .limit(1);
       const results: any[] = await result.toArray();

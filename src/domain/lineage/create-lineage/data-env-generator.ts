@@ -211,7 +211,7 @@ export class DataEnvGenerator {
       relationName: string;
       schemaName: string;
       databaseName: string;
-      logicId: string;
+      logicId?: string;
       columns: {
         [key: string]: DbtCatalogColumnDefinition;
       };
@@ -318,7 +318,8 @@ export class DataEnvGenerator {
                 relationName: def.relationName,
                 schemaName: matRef.schemaName || '',
                 databaseName: matRef.databaseName || '',
-                logicId: 'todo - read from snowflake',
+                // 'todo - read from snowflake'
+                logicId: undefined,
                 lineageId: this.#lineageId,
                 targetOrganizationId: this.#targetOrganizationId,
                 writeToPersistence: false,
@@ -577,7 +578,8 @@ export class DataEnvGenerator {
           relationName: uniqueIdRelationNameMapping[key].relationName,
           schemaName: schema,
           databaseName: database,
-          logicId: 'todo - read from snowflake',
+          // 'todo - read from snowflake'
+          logicId: undefined,
           columns: source.columns,
         };
 
