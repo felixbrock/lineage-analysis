@@ -94,6 +94,8 @@ export default class ReadLogicsController extends BaseController {
 
       return ReadLogicsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return ReadLogicsController.fail(res, 'Internal error occurred while reading logics');
     }
   }

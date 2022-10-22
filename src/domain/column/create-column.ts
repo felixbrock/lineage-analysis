@@ -56,7 +56,7 @@ export class CreateColumn
         throw new Error('Caller organization id missing');
       if (!request.targetOrganizationId && !auth.callerOrganizationId)
         throw new Error('No organization Id instance provided');
-        if (request.targetOrganizationId && auth.callerOrganizationId)
+      if (request.targetOrganizationId && auth.callerOrganizationId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
       let organizationId: string;
@@ -86,7 +86,10 @@ export class CreateColumn
           lineageId: request.lineageId,
           targetOrganizationId: request.targetOrganizationId,
         },
-        { isSystemInternal: auth.isSystemInternal, callerOrganizationId: auth.callerOrganizationId },
+        {
+          isSystemInternal: auth.isSystemInternal,
+          callerOrganizationId: auth.callerOrganizationId,
+        },
         this.#dbConnection
       );
 
@@ -100,7 +103,8 @@ export class CreateColumn
 
       return Result.ok(column);
     } catch (error: unknown) {
-      if((error instanceof Error && error.message) || (!(error instanceof Error) && error)) if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return Result.fail('');
     }
   }

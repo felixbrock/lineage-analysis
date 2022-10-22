@@ -100,6 +100,8 @@ export default class ReadColumnsController extends BaseController {
 
       return ReadColumnsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return ReadColumnsController.fail(res, 'Internal error occurred while reading columns');
     }
   }

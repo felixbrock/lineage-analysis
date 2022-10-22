@@ -122,6 +122,8 @@ export default class ReadDependenciesController extends BaseController {
 
       return ReadDependenciesController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return ReadDependenciesController.fail(res, 'Internal error occurred while reading dependencies');
       
     }
