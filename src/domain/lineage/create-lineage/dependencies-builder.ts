@@ -17,11 +17,10 @@ import {
   Refs,
 } from '../../entities/logic';
 import { Materialization } from '../../entities/materialization';
-import { QueryHistoryDto } from '../../query-snowflake-history-api/query-history-dto';
 import {
-  QueryHistoryResponseDto,
-  QuerySnowflakeHistory,
-} from '../../query-snowflake-history-api/query-snowflake-history';
+  QuerySfQueryHistory,
+  QuerySfQueryHistoryResponseDto,
+} from '../../integration-api/snowflake/query-snowflake-history';
 import { DbConnection } from '../../services/i-db';
 import { BiType } from '../../value-types/bilayer';
 import SQLElement from '../../value-types/sql-element';
@@ -46,7 +45,7 @@ export default class DependenciesBuilder {
 
   readonly #readColumns: ReadColumns;
 
-  readonly #querySnowflakeHistory: QuerySnowflakeHistory;
+  readonly #querySfQueryHistory: QuerySfQueryHistory;
 
   readonly #auth: Auth;
 
@@ -95,14 +94,14 @@ export default class DependenciesBuilder {
       createDependency: CreateDependency;
       createExternalDependency: CreateExternalDependency;
       readColumns: ReadColumns;
-      querySnowflakeHistory: QuerySnowflakeHistory;
+      querySfQueryHistory: QuerySfQueryHistory;
     }
   ) {
     this.#createDashboard = dependencies.createDashboard;
     this.#createDependency = dependencies.createDependency;
     this.#createExternalDependency = dependencies.createExternalDependency;
     this.#readColumns = dependencies.readColumns;
-    this.#querySnowflakeHistory = dependencies.querySnowflakeHistory;
+    this.#querySfQueryHistory = dependencies.querySfQueryHistory;
 
     this.#auth = auth;
     this.#dbConnection = dbConnection;
@@ -116,34 +115,37 @@ export default class DependenciesBuilder {
     this.#matDefinitions = props.matDefinitions;
   }
 
-  #retrieveQueryHistory = async (biLayer: BiType): Promise<QueryHistoryDto> => {
-    const queryHistoryResult: QueryHistoryResponseDto =
-      await this.#querySnowflakeHistory.execute(
+  #retrieveQuerySfQueryHistory = async (biType: BiType): Promise<QuerySfQueryHistoryDto> => {
+    const querySfQueryHistoryResult: QuerySfQueryHistoryResponseDto =
+      await this.#querySfQueryHistory.execute(
         {
-          biLayer,
+          biType,
           limit: 10,
           targetOrganizationId: this.#targetOrganizationId,
         },
         this.#auth
       );
 
-    if (!queryHistoryResult.success) throw new Error(queryHistoryResult.error);
-    if (!queryHistoryResult.value)
+    if (!querySfQueryHistoryResult.success) throw new Error(querySfQueryHistoryResult.error);
+    if (!querySfQueryHistoryResult.value)
       throw new SyntaxError(`Retrival of query history failed`);
 
-    return queryHistoryResult.value;
+      QUERY_TEXT: string;
+
+
+    return querySfQueryHistoryResult.value;
   };
 
   /* Get all relevant dashboards that are data dependency to self materialization */
   static #getDashboardDataDependencyRefs = async (
     statementRefs: Refs,
-    queryHistory: QueryHistoryDto,
+    querySfQueryHistory: QuerySfQueryHistoryResponseDto,
     biLayer: BiType
   ): Promise<DashboardRef[]> => {
     const dependentDashboards: DashboardRef[] = [];
 
     statementRefs.columns.forEach((column) => {
-      queryHistory[Object.keys(queryHistory)[0]].forEach((entry) => {
+      querySfQueryHistory[Object.keys(querySfQueryHistory)[0]].forEach((entry) => {
         const sqlText: string = entry.QUERY_TEXT;
 
         const testUrl = sqlText.match(/"(https?:[^\s]+),/);
@@ -498,8 +500,8 @@ export default class DependenciesBuilder {
   build = async (biType?: BiType): Promise<BuildResult> => {
     // todo - should method be completely sync? Probably resolves once transformed into batch job.
 
-    let queryHistory: QueryHistoryDto;
-    if (biType) queryHistory = await this.#retrieveQueryHistory(biType);
+    let querySfQueryHistory: QuerySfQueryHistoryDto;
+    if (biType) querySfQueryHistory = await this.#retrieveQuerySfQueryHistory(biType);
 
     await Promise.all(
       this.#logics.map(async (logic) => {
@@ -534,11 +536,11 @@ export default class DependenciesBuilder {
           )
         );
 
-        if (biType && queryHistory) {
+        if (biType && querySfQueryHistory) {
           const dashboardDataDependencyRefs =
             await DependenciesBuilder.#getDashboardDataDependencyRefs(
               logic.statementRefs,
-              queryHistory,
+              querySfQueryHistory,
               biType
             );
 

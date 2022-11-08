@@ -260,7 +260,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
   ): MaterializationProperties => ({
     // eslint-disable-next-line no-underscore-dangle
     id: materialization._id.toHexString(),
-    materializationType: materialization.materializationType,
+    type: materialization.materializationType,
     relationName: materialization.relationName,
     name: materialization.name,
     schemaName: materialization.schemaName,

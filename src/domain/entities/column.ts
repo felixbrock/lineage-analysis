@@ -1,12 +1,60 @@
+export const columnDataTypes = [
+  'number',
+  'decimal',
+  'numeric',
+  'int',
+  'integer',
+  'bigint',
+  'smallint',
+  'tinyint',
+  'byteint',
+  'float',
+  'float4',
+  'float8',
+  'double',
+  'double precision',
+  'real',
+  'varchar',
+  'character',
+  'char',
+  'string',
+  'text',
+  'binary',
+  'varbinary',
+  'boolean',
+  'date',
+  'datetime',
+  'time',
+  'timestamp',
+  'timestamp_ltz',
+  'timestamp_ntz',
+  'timestamp_tz',
+  'variant',
+  'object',
+  'array',
+  'geography',
+] as const;
+export type ColumnDataType = typeof columnDataTypes[number];
+
+export const parseColumnDataType = (columnDataType: string): ColumnDataType => {
+  const identifiedElement = columnDataTypes.find(
+    (element) => element.toLowerCase() === columnDataType.toLowerCase()
+  );
+  if (identifiedElement) return identifiedElement;
+  throw new Error('Provision of invalid type');
+};
 export interface ColumnProperties {
   id: string;
   relationName: string;
   name: string;
   index: string;
-  type: string;
+  dataType: ColumnDataType;
   materializationId: string;
   lineageIds: string[];
   organizationId: string;
+  isIdentity?: boolean;
+  isNullable?: boolean;
+  comment?: string;
 }
 
 export interface ColumnPrototype {
@@ -14,10 +62,13 @@ export interface ColumnPrototype {
   relationName: string;
   name: string;
   index: string;
-  type: string;
+  dataType: ColumnDataType;
   materializationId: string;
   lineageId: string;
   organizationId: string;
+  isIdentity?: boolean;
+  isNullable?: boolean;
+  comment?: string;
 }
 
 type ColumnDto = ColumnProperties;
@@ -31,13 +82,19 @@ export class Column {
 
   #index: string;
 
-  #type: string;
+  #dataType: ColumnDataType;
 
   #materializationId: string;
 
   #lineageIds: string[];
 
   #organizationId: string;
+
+  #isIdentity?: boolean;
+
+  #isNullable?: boolean;
+
+  #comment?: string;
 
   get id(): string {
     return this.#id;
@@ -56,7 +113,7 @@ export class Column {
   }
 
   get type(): string {
-    return this.#type;
+    return this.#dataType;
   }
 
   get materializationId(): string {
@@ -71,15 +128,30 @@ export class Column {
     return this.#organizationId;
   }
 
-  private constructor(properties: ColumnProperties) {
-    this.#id = properties.id;
-    this.#relationName = properties.relationName;
-    this.#name = properties.name;
-    this.#index = properties.index;
-    this.#type = properties.type;
-    this.#materializationId = properties.materializationId;
-    this.#lineageIds = properties.lineageIds;
-    this.#organizationId = properties.organizationId;
+  get isIdentity(): boolean | undefined {
+    return this.#isIdentity;
+  }
+
+  get isNullable(): boolean | undefined {
+    return this.#isNullable;
+  }
+
+  get comment(): string | undefined {
+    return this.#comment;
+  }
+
+  private constructor(props: ColumnProperties) {
+    this.#id = props.id;
+    this.#relationName = props.relationName;
+    this.#name = props.name;
+    this.#index = props.index;
+    this.#dataType = props.dataType;
+    this.#materializationId = props.materializationId;
+    this.#lineageIds = props.lineageIds;
+    this.#organizationId = props.organizationId;
+    this.#isIdentity = props.isIdentity;
+    this.#isNullable = props.isNullable;
+    this.#comment = props.comment;
   }
 
   static create = (prototype: ColumnPrototype): Column => {
@@ -88,7 +160,7 @@ export class Column {
       throw new TypeError('Column must have relationName');
     if (!prototype.name) throw new TypeError('Column must have name');
     if (!prototype.index) throw new TypeError('Column must have index');
-    if (!prototype.type) throw new TypeError('Column must have type');
+    if (!prototype.dataType) throw new TypeError('Column must have type');
     if (!prototype.materializationId)
       throw new TypeError('Column must have materializationId');
     if (!prototype.lineageId)
@@ -98,6 +170,9 @@ export class Column {
 
     const column = Column.build({
       ...prototype,
+      isIdentity: prototype.isIdentity,
+      isNullable: prototype.isNullable,
+      comment: prototype.comment,
       lineageIds: [prototype.lineageId],
     });
 
@@ -110,7 +185,7 @@ export class Column {
       throw new TypeError('Column must have relationName');
     if (!props.name) throw new TypeError('Column must have name');
     if (!props.index) throw new TypeError('Column must have index');
-    if (!props.type) throw new TypeError('Column must have type');
+    if (!props.dataType) throw new TypeError('Column must have type');
     if (!props.materializationId)
       throw new TypeError('Column must have materializationId');
     if (!props.lineageIds.length)
@@ -126,9 +201,12 @@ export class Column {
     relationName: this.#relationName,
     name: this.#name,
     index: this.#index,
-    type: this.#type,
+    dataType: this.#dataType,
     materializationId: this.#materializationId,
     lineageIds: this.#lineageIds,
     organizationId: this.#organizationId,
+    isIdentity: this.#isIdentity,
+    isNullable: this.#isNullable,
+    comment: this.#comment,
   });
 }

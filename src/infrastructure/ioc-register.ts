@@ -22,8 +22,8 @@ import { CreateDependency } from '../domain/dependency/create-dependency';
 import { ReadLineage } from '../domain/lineage/read-lineage';
 import { ReadLogic } from '../domain/logic/read-logic';
 import Dbo from './persistence/db/mongo-db';
-import { QuerySnowflakeHistory } from '../domain/query-snowflake-history-api/query-snowflake-history';
-import QuerySnowflakeHistoryApiRepo from './persistence/query-snowflake-history-repo';
+import { QuerySfQueryHistory } from '../domain/integration-api/snowflake/query-snowflake-history';
+import QuerySfQueryHistoryApiRepo from './persistence/query-snowflake-history-repo';
 import { CreateExternalDependency } from '../domain/dependency/create-external-dependency';
 import DashboardRepo from './persistence/dashboard-repo';
 import { ReadDashboards } from '../domain/dashboard/read-dashboards';
@@ -52,7 +52,7 @@ iocRegister.register({
 
   parseSQL: asClass(ParseSQL),
   getAccounts: asClass(GetAccounts),
-  querySnowflakeHistory: asClass(QuerySnowflakeHistory),
+  querySfQueryHistory: asClass(QuerySfQueryHistory),
 
   logicRepo: asClass(LogicRepo),
   materializationRepo: asClass(MaterializationRepo),
@@ -63,7 +63,7 @@ iocRegister.register({
 
   accountApiRepo: asClass(AccountApiRepo),
   sqlParserApiRepo: asClass(SQLParserApiRepo),
-  queryHistoryApiRepo: asClass(QuerySnowflakeHistoryApiRepo),
+  querySfQueryHistoryApiRepo: asClass(QuerySfQueryHistoryApiRepo),
 
   dbo: asClass(Dbo).singleton()
 });

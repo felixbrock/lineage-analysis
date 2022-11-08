@@ -1,5 +1,5 @@
 import { CreateColumn } from '../../column/create-column';
-import { Column } from '../../entities/column';
+import { Column, ColumnDataType } from '../../entities/column';
 import { Logic, MaterializationDefinition, Refs } from '../../entities/logic';
 import {
   Materialization,
@@ -20,7 +20,7 @@ interface Auth {
   isSystemInternal: boolean;
 }
 
-export interface DataEnvProps {
+export interface DbtDataEnvProps {
   lineageId: string;
   dbtCatalog: string;
   dbtManifest: string;
@@ -80,10 +80,10 @@ interface DbtManifestResources {
 interface DbtCatalogColumnDefinition {
   name: string;
   index: string;
-  type: string;
+  dataType: ColumnDataType;
 }
 
-export class DataEnvGenerator {
+export class DbtDataEnvGenerator {
   readonly #createMaterialization: CreateMaterialization;
 
   readonly #createColumn: CreateColumn;
@@ -129,7 +129,7 @@ export class DataEnvGenerator {
   }
 
   constructor(
-    props: DataEnvProps,
+    props: DbtDataEnvProps,
     auth: Auth,
     dbConnection: DbConnection,
     dependencies: {
@@ -154,8 +154,8 @@ export class DataEnvGenerator {
   }
 
   /* Get dbt nodes from catalog.json */
-  static #getDbtCatalogResources = (file: string): DbtCatalogResources => {
-    const data = file;
+  #getDbtCatalogResources = (): DbtCatalogResources => {
+    const data = this.#dbtCatalog;
 
     const content = JSON.parse(data);
 
@@ -165,8 +165,8 @@ export class DataEnvGenerator {
   };
 
   /* Get dbt nodes from manifest.json */
-  static #getDbtManifestResources = (file: string): DbtManifestResources => {
-    const data = file;
+  #getDbtManifestResources = (): DbtManifestResources => {
+    const data = this.#dbtManifest;
 
     const content = JSON.parse(data);
 
@@ -186,7 +186,7 @@ export class DataEnvGenerator {
         relationName: sourceRelationName,
         name: columnDefinition.name,
         index: columnDefinition.index,
-        type: columnDefinition.type,
+        dataType: columnDefinition.dataType,
         materializationId: sourceId,
         lineageId: this.#lineageId,
         writeToPersistence: false,
@@ -206,7 +206,7 @@ export class DataEnvGenerator {
   /* Runs through manifest source objects and creates corresponding materialization objecst */
   #generateWarehouseSource = async (
     sourceProps: {
-      materializationType: MaterializationType;
+      type: MaterializationType;
       name: string;
       relationName: string;
       schemaName: string;
@@ -224,6 +224,7 @@ export class DataEnvGenerator {
       await this.#createMaterialization.execute(
         {
           ...createMaterializationProps,
+
           writeToPersistence: options.writeToPersistence,
           lineageId: this.#lineageId,
           targetOrganizationId: this.#targetOrganizationId,
@@ -278,19 +279,19 @@ export class DataEnvGenerator {
           (el) =>
             (typeof def.databaseName === 'string' &&
             typeof el.databaseName === 'string'
-              ? DataEnvGenerator.#insensitiveEquality(
+              ? DbtDataEnvGenerator.#insensitiveEquality(
                   el.databaseName,
                   def.databaseName
                 )
               : def.databaseName === el.databaseName) &&
             (typeof def.schemaName === 'string' &&
             typeof el.schemaName === 'string'
-              ? DataEnvGenerator.#insensitiveEquality(
+              ? DbtDataEnvGenerator.#insensitiveEquality(
                   el.schemaName,
                   def.schemaName
                 )
               : def.schemaName === el.schemaName) &&
-            DataEnvGenerator.#insensitiveEquality(
+            DbtDataEnvGenerator.#insensitiveEquality(
               el.name,
               def.materializationName
             )
@@ -313,7 +314,7 @@ export class DataEnvGenerator {
           const createMaterializationResult =
             await this.#createMaterialization.execute(
               {
-                materializationType: 'base table',
+                type: 'base table',
                 name: matRef.name,
                 relationName: def.relationName,
                 schemaName: matRef.schemaName || '',
@@ -345,7 +346,7 @@ export class DataEnvGenerator {
           );
 
         const relevantColumnRefs = statementRefs.columns.filter((col) =>
-          DataEnvGenerator.#insensitiveEquality(
+          DbtDataEnvGenerator.#insensitiveEquality(
             finalMat.name,
             col.materializationName
           )
@@ -355,10 +356,7 @@ export class DataEnvGenerator {
           (column1, index, self) =>
             index ===
             self.findIndex((column2) =>
-              DataEnvGenerator.#insensitiveEquality(
-                column1.name,
-                column2.name
-              )
+              DbtDataEnvGenerator.#insensitiveEquality(column1.name, column2.name)
             )
         );
 
@@ -369,7 +367,7 @@ export class DataEnvGenerator {
           await Promise.all(
             uniqueRelevantColumnRefs.map(async (el) =>
               this.#generateColumn(
-                { name: el.name, index: '-1', type: 'string' },
+                { name: el.name, index: '-1', dataType: 'string' },
                 finalMat.relationName,
                 finalMat.id
               )
@@ -446,7 +444,7 @@ export class DataEnvGenerator {
     );
 
     const mat = await this.#generateNodeMaterialization({
-      materializationType: parseMaterializationType(props.model.metadata.type),
+      type: parseMaterializationType(props.model.metadata.type),
       name: props.model.metadata.name,
       relationName: props.modelManifest.relation_name,
       schemaName: props.model.metadata.schema,
@@ -477,7 +475,7 @@ export class DataEnvGenerator {
     dbtDependentOn: MaterializationDefinition[];
   }): Promise<void> => {
     const mat = await this.#generateNodeMaterialization({
-      materializationType: parseMaterializationType(props.model.metadata.type),
+      type: parseMaterializationType(props.model.metadata.type),
       name: props.model.metadata.name,
       relationName: props.modelManifest.relation_name,
       schemaName: props.model.metadata.schema,
@@ -529,10 +527,8 @@ export class DataEnvGenerator {
       [key: string]: { relationName: string };
     } = {};
 
-    const dbtCatalogResources =
-      DataEnvGenerator.#getDbtCatalogResources(this.#dbtCatalog);
-    const dbtManifestResources =
-      DataEnvGenerator.#getDbtManifestResources(this.#dbtManifest);
+    const dbtCatalogResources = this.#getDbtCatalogResources();
+    const dbtManifestResources = this.#getDbtManifestResources();
 
     const dbtCatalogSourceKeys = Object.keys(dbtCatalogResources.sources);
     const dbtManifestSourceKeys = Object.keys(dbtManifestResources.sources);
@@ -573,7 +569,7 @@ export class DataEnvGenerator {
           );
 
         const sourceProps = {
-          materializationType: parseMaterializationType(type),
+          type: parseMaterializationType(type),
           name,
           relationName: uniqueIdRelationNameMapping[key].relationName,
           schemaName: schema,

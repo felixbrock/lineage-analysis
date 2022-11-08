@@ -18,23 +18,47 @@ import { IMaterializationRepo } from '../../materialization/i-materialization-re
 import { IDependencyRepo } from '../../dependency/i-dependency-repo';
 import { ILogicRepo } from '../../logic/i-logic-repo';
 import { DbConnection } from '../../services/i-db';
-import { QuerySnowflakeHistory } from '../../query-snowflake-history-api/query-snowflake-history';
+import { QuerySfQueryHistory } from '../../integration-api/snowflake/query-snowflake-history';
 import { Dashboard } from '../../entities/dashboard';
 import { CreateExternalDependency } from '../../dependency/create-external-dependency';
 import { IDashboardRepo } from '../../dashboard/i-dashboard-repo';
 import { CreateDashboard } from '../../dashboard/create-dashboard';
 import { buildLineage } from './build-lineage';
-import { DataEnvGenerator } from './data-env-generator';
+import { DbtDataEnvGenerator } from './dbt-data-env-generator';
 import DependenciesBuilder from './dependencies-builder';
 import { BiType } from '../../value-types/bilayer';
 import DataEnvMerger from './data-env-merger';
+import { SfDataEnvGenerator } from './sf-data-env-generator';
+import { QuerySnowflake } from '../../integration-api/snowflake/query-snowflake';
+
+export const buildVersionTypes = ['dbt', 'snowflake'] as const;
+export type BuildVersionType = typeof buildVersionTypes[number];
+
+export const parseBuildVersionType = (
+  buildVersionType: string
+): BuildVersionType => {
+  const identifiedElement = buildVersionTypes.find(
+    (element) => element.toLowerCase() === buildVersionType.toLowerCase()
+  );
+  if (identifiedElement) return identifiedElement;
+  throw new Error('Provision of invalid type');
+};
 
 export interface CreateLineageRequestDto {
   targetOrganizationId?: string;
-  catalog: string;
-  manifest: string;
+  catalog?: string;
+  manifest?: string;
   biType?: BiType;
 }
+
+interface DbtBasedBuildProps
+  extends Omit<CreateLineageRequestDto, 'catalog' | 'manifest'> {
+  catalog: string;
+  manifest: string;
+}
+
+interface SfBasedBuildProps
+  extends Omit<CreateLineageRequestDto, 'catalog' | 'manifest'> {}
 
 export interface CreateLineageAuthDto {
   jwt: string;
@@ -67,7 +91,7 @@ export class CreateLineage
 
   readonly #parseSQL: ParseSQL;
 
-  readonly #querySnowflakeHistory: QuerySnowflakeHistory;
+  readonly #querySnowflake: QuerySnowflake;
 
   readonly #lineageRepo: ILineageRepo;
 
@@ -92,7 +116,7 @@ export class CreateLineage
     createDependency: CreateDependency,
     createExternalDependency: CreateExternalDependency,
     parseSQL: ParseSQL,
-    querySnowflakeHistory: QuerySnowflakeHistory,
+    querySfQueryHistory: QuerySfQueryHistory,
     lineageRepo: ILineageRepo,
     logicRepo: ILogicRepo,
     materializationRepo: IMaterializationRepo,
@@ -100,7 +124,8 @@ export class CreateLineage
     dependencyRepo: IDependencyRepo,
     dashboardRepo: IDashboardRepo,
     readColumns: ReadColumns,
-    createDashboard: CreateDashboard
+    createDashboard: CreateDashboard,
+    querySnowflake: QuerySnowflake
   ) {
     this.#createLogic = createLogic;
     this.#createMaterialization = createMaterialization;
@@ -109,7 +134,6 @@ export class CreateLineage
     this.#createExternalDependency = createExternalDependency;
     this.#createDashboard = createDashboard;
     this.#parseSQL = parseSQL;
-    this.#querySnowflakeHistory = querySnowflakeHistory;
     this.#lineageRepo = lineageRepo;
     this.#logicRepo = logicRepo;
     this.#materializationRepo = materializationRepo;
@@ -117,6 +141,7 @@ export class CreateLineage
     this.#dependencyRepo = dependencyRepo;
     this.#dashboardRepo = dashboardRepo;
     this.#readColumns = readColumns;
+    this.#querySnowflake = querySnowflake;
   }
 
   #writeWhResourcesToPersistence = async (props: {
@@ -186,6 +211,109 @@ export class CreateLineage
     await this.#lineageRepo.updateOne(id, updateDto, this.#dbConnection);
   };
 
+  #buildDbtBased = async (
+    lineage: Lineage,
+    organizationId: string,
+    props: DbtBasedBuildProps,
+    auth: CreateLineageAuthDto
+  ) => {
+    console.log('...generating warehouse resources');
+    const { jwt, ...remainingAuth } = auth;
+    const dataEnvGenerator = new DbtDataEnvGenerator(
+      {
+        dbtCatalog: props.catalog,
+        dbtManifest: props.manifest,
+        lineageId: lineage.id,
+        targetOrganizationId: props.targetOrganizationId,
+      },
+      remainingAuth,
+      this.#dbConnection,
+      {
+        createColumn: this.#createColumn,
+        createLogic: this.#createLogic,
+        createMaterialization: this.#createMaterialization,
+        parseSQL: this.#parseSQL,
+      }
+    );
+    const { materializations, columns, logics, matDefinitions } =
+      await dataEnvGenerator.generate();
+
+    console.log('...merging new lineage snapshot with last one');
+    const dataEnvMerger = new DataEnvMerger(
+      { columns, materializations, logics, organizationId },
+      this.#dbConnection,
+      {
+        lineageRepo: this.#lineageRepo,
+        columnRepo: this.#columnRepo,
+        logicRepo: this.#logicRepo,
+        materializationRepo: this.#materializationRepo,
+      }
+    );
+
+    const mergedDataEnv = await dataEnvMerger.merge();
+
+    console.log('...writing dw resources to persistence');
+    await this.#writeWhResourcesToPersistence({ lineage, ...mergedDataEnv });
+
+    console.log('...building dependencies');
+    const dependenciesBuilder = await new DependenciesBuilder(
+      {
+        lineageId: lineage.id,
+        logics: mergedDataEnv.logicsToCreate.concat(
+          mergedDataEnv.logicsToReplace
+        ),
+        mats: mergedDataEnv.matsToCreate.concat(mergedDataEnv.matsToReplace),
+        columns: mergedDataEnv.columnsToCreate.concat(
+          mergedDataEnv.columnsToReplace
+        ),
+        matDefinitions,
+        organizationId,
+        targetOrganizationId: props.targetOrganizationId,
+      },
+      auth,
+      this.#dbConnection,
+      {
+        createDashboard: this.#createDashboard,
+        createDependency: this.#createDependency,
+        createExternalDependency: this.#createExternalDependency,
+        readColumns: this.#readColumns,
+        querySnowflake: this.#querySfQueryHistory,
+      }
+    );
+    const { dashboards, dependencies } = await dependenciesBuilder.build(
+      props.biType
+    );
+
+    console.log('...writing dashboards to persistence');
+    await this.#writeDashboardsToPersistence(dashboards);
+
+    console.log('...writing dependencies to persistence');
+    await this.#writeDependenciesToPersistence(dependencies);
+  };
+
+  #buildSfBased = async (
+    lineage: Lineage,
+    organizationId: string,
+    props: SfBasedBuildProps,
+    auth: CreateLineageAuthDto
+  ) => {
+    console.log('...generating warehouse resources');
+    const dataEnvGenerator = new SfDataEnvGenerator(
+      {
+        lineageId: lineage.id,
+        targetOrganizationId: props.targetOrganizationId,
+      },
+      auth,
+      this.#dbConnection,
+      {
+        createColumn: this.#createColumn,
+        createMaterialization: this.#createMaterialization,
+        querySnowflake: this.#querySnowflake,
+      }
+    );
+    const { materializations, columns } = await dataEnvGenerator.generate();
+  };
+
   async execute(
     request: CreateLineageRequestDto,
     auth: CreateLineageAuthDto,
@@ -201,91 +329,34 @@ export class CreateLineage
       if (request.targetOrganizationId && auth.callerOrganizationId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
-      this.#dbConnection = dbConnection;
-
       let organizationId: string;
       if (auth.callerOrganizationId) organizationId = auth.callerOrganizationId;
       else if (request.targetOrganizationId)
         organizationId = request.targetOrganizationId;
       else throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
+      this.#dbConnection = dbConnection;
+
       console.log('starting lineage creation...');
 
       console.log('...building lineage object');
       const lineage = buildLineage(organizationId);
 
-      console.log('...generating warehouse resources');
-      const { jwt, ...remainingAuth } = auth;
-      const dataEnvGenerator = new DataEnvGenerator(
-        {
-          dbtCatalog: request.catalog,
-          dbtManifest: request.manifest,
-          lineageId: lineage.id,
-          targetOrganizationId: request.targetOrganizationId,
-        },
-        remainingAuth,
-        dbConnection,
-        {
-          createColumn: this.#createColumn,
-          createLogic: this.#createLogic,
-          createMaterialization: this.#createMaterialization,
-          parseSQL: this.#parseSQL,
-        }
-      );
-      const { materializations, columns, logics, matDefinitions } =
-        await dataEnvGenerator.generate();
+      if (!!request.catalog !== !!request.manifest)
+        throw new Error(
+          'When creating lineage based on dbt both, the manifest and catalog file have to be provided'
+        );
 
-      console.log('...merging new lineage snapshot with last one');
-      const dataEnvMerger = new DataEnvMerger(
-        { columns, materializations, logics, organizationId },
-        dbConnection,
-        {
-          lineageRepo: this.#lineageRepo,
-          columnRepo: this.#columnRepo,
-          logicRepo: this.#logicRepo,
-          materializationRepo: this.#materializationRepo,
-        }
-      );
+      const { catalog, manifest, ...remainingReq } = request;
 
-      const mergedDataEnv = await dataEnvMerger.merge();
-
-      console.log('...writing dw resources to persistence');
-      await this.#writeWhResourcesToPersistence({ lineage, ...mergedDataEnv });
-
-      console.log('...building dependencies');
-      const dependenciesBuilder = await new DependenciesBuilder(
-        {
-          lineageId: lineage.id,
-          logics: mergedDataEnv.logicsToCreate.concat(
-            mergedDataEnv.logicsToReplace
-          ),
-          mats: mergedDataEnv.matsToCreate.concat(mergedDataEnv.matsToReplace),
-          columns: mergedDataEnv.columnsToCreate.concat(
-            mergedDataEnv.columnsToReplace
-          ),
-          matDefinitions,
-          organizationId,
-          targetOrganizationId: request.targetOrganizationId,
-        },
-        auth,
-        dbConnection,
-        {
-          createDashboard: this.#createDashboard,
-          createDependency: this.#createDependency,
-          createExternalDependency: this.#createExternalDependency,
-          readColumns: this.#readColumns,
-          querySnowflakeHistory: this.#querySnowflakeHistory,
-        }
-      );
-      const { dashboards, dependencies } = await dependenciesBuilder.build(
-        request.biType
-      );
-
-      console.log('...writing dashboards to persistence');
-      await this.#writeDashboardsToPersistence(dashboards);
-
-      console.log('...writing dependencies to persistence');
-      await this.#writeDependenciesToPersistence(dependencies);
+      catalog && manifest
+        ? await this.#buildDbtBased(
+            lineage,
+            organizationId,
+            { catalog, manifest, ...remainingReq },
+            auth
+          )
+        : await this.#buildSfBased(lineage, organizationId, request, auth);
 
       console.log('...setting lineage complete state to true');
       await this.#updateLineage(lineage.id, { completed: true });

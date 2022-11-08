@@ -1,7 +1,7 @@
 import { ObjectId } from 'mongodb';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { Column } from '../entities/column';
+import { Column, ColumnDataType } from '../entities/column';
 import { ReadColumns } from './read-columns';
 import { IColumnRepo } from './i-column-repo';
 import { DbConnection } from '../services/i-db';
@@ -10,11 +10,14 @@ export interface CreateColumnRequestDto {
   relationName: string;
   name: string;
   index: string;
-  type: string;
+  dataType: ColumnDataType;
   materializationId: string;
   lineageId: string;
   writeToPersistence: boolean;
   targetOrganizationId?: string;
+  isIdentity?: boolean;
+  isNullable?: boolean;
+  comment?: string;
 }
 
 export interface CreateColumnAuthDto {
@@ -73,10 +76,13 @@ export class CreateColumn
         relationName: request.relationName,
         name: request.name,
         index: request.index,
-        type: request.type,
+        dataType: request.dataType,
         materializationId: request.materializationId,
         lineageId: request.lineageId,
         organizationId,
+        isIdentity: request.isIdentity,
+        isNullable: request.isNullable,
+        comment: request.comment,
       });
 
       const readColumnsResult = await this.#readColumns.execute(

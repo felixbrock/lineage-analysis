@@ -237,7 +237,7 @@ export default class ColumnRepo implements IColumnRepo {
     relationName: column.relationName,
     name: column.name,
     index: column.index,
-    type: column.type,
+    dataType: column.type,
     materializationId: column.materializationId,
     lineageIds: column.lineageIds,
     organizationId: column.organizationId,

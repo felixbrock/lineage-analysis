@@ -13,13 +13,16 @@ import { DbConnection } from '../services/i-db';
 export interface CreateMaterializationRequestDto {
   id?: string;
   relationName: string;
-  materializationType: MaterializationType;
+  type: MaterializationType;
   name: string;
   schemaName: string;
   databaseName: string;
-  logicId?: string;
   lineageId: string;
   writeToPersistence: boolean;
+  logicId?: string;
+  ownerId?: string;
+  isTransient?: boolean;
+  comment?: string;
   targetOrganizationId?: string;
 }
 
@@ -80,13 +83,16 @@ export class CreateMaterialization
       const materialization = Materialization.create({
         id: request.id || new ObjectId().toHexString(),
         relationName: request.relationName,
-        materializationType: request.materializationType,
+        type: request.type,
         name: request.name,
         schemaName: request.schemaName,
         databaseName: request.databaseName,
-        logicId: request.logicId,
         lineageId: request.lineageId,
         organizationId,
+        logicId: request.logicId,
+        ownerId: request.ownerId,
+        isTransient: request.isTransient,
+        comment: request.comment,
       });
 
       const readMaterializationsResult =
