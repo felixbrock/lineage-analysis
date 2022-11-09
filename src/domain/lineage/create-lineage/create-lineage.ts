@@ -12,11 +12,11 @@ import { Dependency } from '../../entities/dependency';
 import { ReadColumns } from '../../column/read-columns';
 import { Materialization } from '../../entities/materialization';
 import { Column } from '../../entities/column';
-import { ILineageRepo, LineageUpdateDto } from '../i-lineage-repo';
-import { IColumnRepo } from '../../column/i-column-repo';
-import { IMaterializationRepo } from '../../materialization/i-materialization-repo';
+import { ILegacyLineageRepo, LineageUpdateDto } from '../i-lineage-repo';
+import { ILegacyColumnRepo } from '../../column/i-column-repo';
+import { ILegacyMaterializationRepo } from '../../materialization/i-materialization-repo';
 import { IDependencyRepo } from '../../dependency/i-dependency-repo';
-import { ILogicRepo } from '../../logic/i-logic-repo';
+import { ILegacyLogicRepo } from '../../logic/i-logic-repo';
 import { DbConnection } from '../../services/i-db';
 import { QuerySfQueryHistory } from '../../integration-api/snowflake/query-snowflake-history';
 import { Dashboard } from '../../entities/dashboard';
@@ -27,22 +27,10 @@ import { buildLineage } from './build-lineage';
 import { DbtDataEnvGenerator } from './dbt-data-env-generator';
 import DependenciesBuilder from './dependencies-builder';
 import { BiType } from '../../value-types/bilayer';
-import DataEnvMerger from './data-env-merger';
+import DbtDataEnvMerger from './dbt/dbt-data-env-merger';
 import { SfDataEnvGenerator } from './sf-data-env-generator';
 import { QuerySnowflake } from '../../integration-api/snowflake/query-snowflake';
-
-export const buildVersionTypes = ['dbt', 'snowflake'] as const;
-export type BuildVersionType = typeof buildVersionTypes[number];
-
-export const parseBuildVersionType = (
-  buildVersionType: string
-): BuildVersionType => {
-  const identifiedElement = buildVersionTypes.find(
-    (element) => element.toLowerCase() === buildVersionType.toLowerCase()
-  );
-  if (identifiedElement) return identifiedElement;
-  throw new Error('Provision of invalid type');
-};
+import SnowflakeDataEnvMerger from './snowflake/sf-data-env-merger';
 
 export interface CreateLineageRequestDto {
   targetOrganizationId?: string;
@@ -57,8 +45,7 @@ interface DbtBasedBuildProps
   manifest: string;
 }
 
-interface SfBasedBuildProps
-  extends Omit<CreateLineageRequestDto, 'catalog' | 'manifest'> {}
+type SfBasedBuildProps = Omit<CreateLineageRequestDto, 'catalog' | 'manifest'>
 
 export interface CreateLineageAuthDto {
   jwt: string;
@@ -93,13 +80,15 @@ export class CreateLineage
 
   readonly #querySnowflake: QuerySnowflake;
 
-  readonly #lineageRepo: ILineageRepo;
+  readonly #querySfQueryHistory: QuerySfQueryHistory;
 
-  readonly #logicRepo: ILogicRepo;
+  readonly #lineageRepo: ILegacyLineageRepo;
 
-  readonly #materializationRepo: IMaterializationRepo;
+  readonly #logicRepo: ILegacyLogicRepo;
 
-  readonly #columnRepo: IColumnRepo;
+  readonly #materializationRepo: ILegacyMaterializationRepo;
+
+  readonly #columnRepo: ILegacyColumnRepo;
 
   readonly #dependencyRepo: IDependencyRepo;
 
@@ -116,16 +105,16 @@ export class CreateLineage
     createDependency: CreateDependency,
     createExternalDependency: CreateExternalDependency,
     parseSQL: ParseSQL,
-    querySfQueryHistory: QuerySfQueryHistory,
-    lineageRepo: ILineageRepo,
-    logicRepo: ILogicRepo,
-    materializationRepo: IMaterializationRepo,
-    columnRepo: IColumnRepo,
+    lineageRepo: ILegacyLineageRepo,
+    logicRepo: ILegacyLogicRepo,
+    materializationRepo: ILegacyMaterializationRepo,
+    columnRepo: ILegacyColumnRepo,
     dependencyRepo: IDependencyRepo,
     dashboardRepo: IDashboardRepo,
     readColumns: ReadColumns,
     createDashboard: CreateDashboard,
-    querySnowflake: QuerySnowflake
+    querySnowflake: QuerySnowflake,
+    querySfQueryHistory: QuerySfQueryHistory
   ) {
     this.#createLogic = createLogic;
     this.#createMaterialization = createMaterialization;
@@ -142,9 +131,43 @@ export class CreateLineage
     this.#dashboardRepo = dashboardRepo;
     this.#readColumns = readColumns;
     this.#querySnowflake = querySnowflake;
+    this.#querySfQueryHistory = querySfQueryHistory;
   }
 
   #writeWhResourcesToPersistence = async (props: {
+    lineage: Lineage;
+    matsToCreate: Materialization[];
+    matsToReplace: Materialization[];
+    columnsToCreate: Column[];
+    columnsToReplace: Column[];
+  }): Promise<void> => {
+    await this.#lineageRepo.insertOne(props.lineage, this.#dbConnection);
+
+    if (props.matsToReplace.length)
+      await this.#materializationRepo.replaceMany(
+        props.matsToReplace,
+        this.#dbConnection
+      );
+    if (props.columnsToReplace.length)
+      await this.#columnRepo.replaceMany(
+        props.columnsToReplace,
+        this.#dbConnection
+      );
+
+    if (props.matsToCreate.length)
+      await this.#materializationRepo.insertMany(
+        props.matsToCreate,
+        this.#dbConnection
+      );
+
+    if (props.columnsToCreate.length)
+      await this.#columnRepo.insertMany(
+        props.columnsToCreate,
+        this.#dbConnection
+      );
+  };
+
+  #legacyWriteWhResourcesToPersistence = async (props: {
     lineage: Lineage;
     matsToCreate: Materialization[];
     matsToReplace: Materialization[];
@@ -216,7 +239,7 @@ export class CreateLineage
     organizationId: string,
     props: DbtBasedBuildProps,
     auth: CreateLineageAuthDto
-  ) => {
+  ): Promise<void> => {
     console.log('...generating warehouse resources');
     const { jwt, ...remainingAuth } = auth;
     const dataEnvGenerator = new DbtDataEnvGenerator(
@@ -239,7 +262,7 @@ export class CreateLineage
       await dataEnvGenerator.generate();
 
     console.log('...merging new lineage snapshot with last one');
-    const dataEnvMerger = new DataEnvMerger(
+    const dataEnvMerger = new DbtDataEnvMerger(
       { columns, materializations, logics, organizationId },
       this.#dbConnection,
       {
@@ -277,7 +300,7 @@ export class CreateLineage
         createDependency: this.#createDependency,
         createExternalDependency: this.#createExternalDependency,
         readColumns: this.#readColumns,
-        querySnowflake: this.#querySfQueryHistory,
+        querySfQueryHistory: this.#querySfQueryHistory,
       }
     );
     const { dashboards, dependencies } = await dependenciesBuilder.build(
@@ -296,7 +319,7 @@ export class CreateLineage
     organizationId: string,
     props: SfBasedBuildProps,
     auth: CreateLineageAuthDto
-  ) => {
+  ): Promise<void> => {
     console.log('...generating warehouse resources');
     const dataEnvGenerator = new SfDataEnvGenerator(
       {
@@ -312,6 +335,23 @@ export class CreateLineage
       }
     );
     const { materializations, columns } = await dataEnvGenerator.generate();
+
+    console.log('...merging new lineage snapshot with last one');
+    const dataEnvMerger = new SnowflakeDataEnvMerger(
+      { columns, materializations, organizationId },
+      {
+        lineageRepo: this.#lineageRepo,
+        columnRepo: this.#columnRepo,
+        materializationRepo: this.#materializationRepo,
+      }
+    );
+
+    const mergedDataEnv = await dataEnvMerger.merge();
+
+    console.log('...writing dw resources to persistence');
+    await this.#writeWhResourcesToPersistence({ lineage, ...mergedDataEnv });
+
+    
   };
 
   async execute(
@@ -349,15 +389,18 @@ export class CreateLineage
 
       const { catalog, manifest, ...remainingReq } = request;
 
-      catalog && manifest
-        ? await this.#buildDbtBased(
+      const dbtBased = catalog && manifest; 
+
+      if(dbtBased)
+          await this.#buildDbtBased(
             lineage,
             organizationId,
             { catalog, manifest, ...remainingReq },
             auth
-          )
-        : await this.#buildSfBased(lineage, organizationId, request, auth);
-
+          );
+      else 
+            await this.#buildSfBased(lineage, organizationId, request, auth);
+      
       console.log('...setting lineage complete state to true');
       await this.#updateLineage(lineage.id, { completed: true });
 

@@ -1,20 +1,20 @@
-import { IColumnRepo } from '../../column/i-column-repo';
-import { Column } from '../../entities/column';
-import { Logic } from '../../entities/logic';
-import { Materialization } from '../../entities/materialization';
-import { ILogicRepo } from '../../logic/i-logic-repo';
-import { IMaterializationRepo } from '../../materialization/i-materialization-repo';
-import { DbConnection } from '../../services/i-db';
-import { ILineageRepo } from '../i-lineage-repo';
+import { ILegacyColumnRepo } from '../../../column/i-column-repo';
+import { Column } from '../../../entities/column';
+import { Logic } from '../../../entities/logic';
+import { Materialization } from '../../../entities/materialization';
+import { ILegacyLogicRepo } from '../../../logic/i-logic-repo';
+import { ILegacyMaterializationRepo } from '../../../materialization/i-materialization-repo';
+import { DbConnection } from '../../../services/i-db';
+import { ILegacyLineageRepo } from '../../i-lineage-repo';
 
-export default class DataEnvMerger {
-  readonly #lineageRepo: ILineageRepo;
+export default class DbtDataEnvMerger {
+  readonly #lineageRepo: ILegacyLineageRepo;
 
-  readonly #materializationRepo: IMaterializationRepo;
+  readonly #materializationRepo: ILegacyMaterializationRepo;
 
-  readonly #columnRepo: IColumnRepo;
+  readonly #columnRepo: ILegacyColumnRepo;
 
-  readonly #logicRepo: ILogicRepo;
+  readonly #logicRepo: ILegacyLogicRepo;
 
   readonly #dbConnection: DbConnection;
 
@@ -75,10 +75,10 @@ export default class DataEnvMerger {
     },
     dbConnection: DbConnection,
     dependencies: {
-      lineageRepo: ILineageRepo;
-      materializationRepo: IMaterializationRepo;
-      columnRepo: IColumnRepo;
-      logicRepo: ILogicRepo;
+      lineageRepo: ILegacyLineageRepo;
+      materializationRepo: ILegacyMaterializationRepo;
+      columnRepo: ILegacyColumnRepo;
+      logicRepo: ILegacyLogicRepo;
     }
   ) {
     this.#lineageRepo = dependencies.lineageRepo;
@@ -91,7 +91,7 @@ export default class DataEnvMerger {
     this.#organizationId = props.organizationId;
     this.#matsToHandle = props.materializations;
     this.#columnsToHandleByMatId = props.columns.reduce(
-      DataEnvMerger.#groupByMatId,
+      DbtDataEnvMerger.#groupByMatId,
       {}
     );
     this.#logicsToHandle = props.logics;
@@ -300,7 +300,7 @@ export default class DataEnvMerger {
               },
               this.#dbConnection
             )
-          ).reduce(DataEnvMerger.#groupByMatId, {});
+          ).reduce(DbtDataEnvMerger.#groupByMatId, {});
 
         const { columnsToCreate, columnsToReplace } =
           await this.#mergeMatColumns(matToHandle.id, matchingMat.id);

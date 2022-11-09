@@ -1,6 +1,6 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { ILogicRepo } from './i-logic-repo';
+import { ILegacyLogicRepo } from './i-logic-repo';
 import { Logic } from '../entities/logic';
 import { DbConnection } from '../services/i-db';
 
@@ -23,11 +23,11 @@ export class ReadLogic
       DbConnection
     >
 {
-  readonly #logicRepo: ILogicRepo;
+  readonly #logicRepo: ILegacyLogicRepo;
 
   #dbConnection: DbConnection;
 
-  constructor(logicRepo: ILogicRepo) {
+  constructor(logicRepo: ILegacyLogicRepo) {
     this.#logicRepo = logicRepo;
   }
 

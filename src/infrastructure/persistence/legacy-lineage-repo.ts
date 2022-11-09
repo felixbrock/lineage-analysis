@@ -10,11 +10,8 @@ import {
 } from 'mongodb';
 import sanitize from 'mongo-sanitize';
 
-import {
-  ILineageRepo,
-  LineageUpdateDto,
-} from '../../domain/lineage/i-lineage-repo';
-import { Lineage, LineageProperties } from '../../domain/entities/lineage';
+import { ILegacyLineageRepo, LineageUpdateDto } from '../../domain/lineage/i-lineage-repo';
+import { Lineage, LineageProperties} from '../../domain/entities/lineage';
 
 interface LineagePersistence {
   _id: ObjectId;
@@ -30,7 +27,7 @@ interface UpdateFilter {
 
 const collectionName = 'lineage';
 
-export default class LineageRepo implements ILineageRepo {
+export default class LineageRepo implements ILegacyLineageRepo {
   findOne = async (dbConnection: Db, id: string): Promise<Lineage | null> => {
     try {
       const result: any = await dbConnection
@@ -47,15 +44,10 @@ export default class LineageRepo implements ILineageRepo {
     }
   };
 
-  findLatest = async (
-    dbConnection: Db,
-    filter: { organizationId: string; completed?: boolean }
-  ): Promise<Lineage | null> => {
+  findLatest = async (dbConnection: Db, filter: {organizationId: string, completed?: boolean}): Promise<Lineage | null> => {
     try {
-      const findFilter: Filter<Document> = {
-        organizationId: filter.organizationId,
-      };
-      if (filter.completed) findFilter.completed = filter.completed;
+      const findFilter: Filter<Document> = {organizationId: filter.organizationId};
+      if(filter.completed) findFilter.completed = filter.completed;
 
       const result = await dbConnection
         .collection(collectionName)
@@ -66,10 +58,8 @@ export default class LineageRepo implements ILineageRepo {
         .limit(1);
       const results: any[] = await result.toArray();
 
-      if (results.length > 1)
-        throw new Error(
-          'find latest lineage - multiple lineage objects returned from persistence'
-        );
+      if(results.length > 1)
+        throw new Error('find latest lineage - multiple lineage objects returned from persistence');
 
       if (!results.length) return null;
 
@@ -146,9 +136,9 @@ export default class LineageRepo implements ILineageRepo {
 
       return result.upsertedId;
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      if(error instanceof Error && error.message) console.trace(error.message); 
+    else if (!(error instanceof Error) && error) console.trace(error);
+    return Promise.reject(new Error(''));
     }
   };
 
@@ -177,13 +167,13 @@ export default class LineageRepo implements ILineageRepo {
     id: lineage._id.toHexString(),
     createdAt: lineage.createdAt,
     organizationId: lineage.organizationId,
-    completed: lineage.completed,
+    completed: lineage.completed
   });
 
   #toPersistence = (lineage: Lineage): LineagePersistence => ({
     _id: ObjectId.createFromHexString(lineage.id),
     createdAt: lineage.createdAt,
     organizationId: lineage.organizationId,
-    completed: lineage.completed,
+    completed: lineage.completed
   });
 }

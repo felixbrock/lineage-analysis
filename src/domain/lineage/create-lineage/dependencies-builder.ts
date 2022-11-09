@@ -17,6 +17,7 @@ import {
   Refs,
 } from '../../entities/logic';
 import { Materialization } from '../../entities/materialization';
+import { OrganizationLevelQueryResult } from '../../integration-api/i-integration-api-repo';
 import {
   QuerySfQueryHistory,
   QuerySfQueryHistoryResponseDto,
@@ -115,7 +116,9 @@ export default class DependenciesBuilder {
     this.#matDefinitions = props.matDefinitions;
   }
 
-  #retrieveQuerySfQueryHistory = async (biType: BiType): Promise<QuerySfQueryHistoryDto> => {
+  #retrieveQuerySfQueryHistory = async (
+    biType: BiType
+  ): Promise<OrganizationLevelQueryResult> => {
     const querySfQueryHistoryResult: QuerySfQueryHistoryResponseDto =
       await this.#querySfQueryHistory.execute(
         {
@@ -126,29 +129,29 @@ export default class DependenciesBuilder {
         this.#auth
       );
 
-    if (!querySfQueryHistoryResult.success) throw new Error(querySfQueryHistoryResult.error);
+    if (!querySfQueryHistoryResult.success)
+      throw new Error(querySfQueryHistoryResult.error);
     if (!querySfQueryHistoryResult.value)
       throw new SyntaxError(`Retrival of query history failed`);
 
-      QUERY_TEXT: string;
-
-
-    return querySfQueryHistoryResult.value;
+    return querySfQueryHistoryResult.value[this.#organizationId];
   };
 
   /* Get all relevant dashboards that are data dependency to self materialization */
   static #getDashboardDataDependencyRefs = async (
     statementRefs: Refs,
-    querySfQueryHistory: QuerySfQueryHistoryResponseDto,
+    querySfQueryHistory: OrganizationLevelQueryResult,
     biLayer: BiType
   ): Promise<DashboardRef[]> => {
     const dependentDashboards: DashboardRef[] = [];
 
     statementRefs.columns.forEach((column) => {
-      querySfQueryHistory[Object.keys(querySfQueryHistory)[0]].forEach((entry) => {
-        const sqlText: string = entry.QUERY_TEXT;
+      querySfQueryHistory.forEach((entry) => {
+        const queryText = entry.QUERY_TEXT;
+        if (typeof queryText !== 'string')
+          throw new Error('Retrieved bi layer query text not in string format');
 
-        const testUrl = sqlText.match(/"(https?:[^\s]+),/);
+        const testUrl = queryText.match(/"(https?:[^\s]+),/);
         const dashboardUrl = testUrl
           ? testUrl[1]
           : `${biLayer} dashboard: ${new ObjectId().toHexString()}`;
@@ -158,7 +161,7 @@ export default class DependenciesBuilder {
           ? column.alias.toUpperCase()
           : column.name.toUpperCase();
 
-        if (sqlText.includes(matName) && sqlText.includes(colName)) {
+        if (queryText.includes(matName) && queryText.includes(colName)) {
           dependentDashboards.push({
             url: dashboardUrl,
             materializationName: matName,
@@ -500,8 +503,9 @@ export default class DependenciesBuilder {
   build = async (biType?: BiType): Promise<BuildResult> => {
     // todo - should method be completely sync? Probably resolves once transformed into batch job.
 
-    let querySfQueryHistory: QuerySfQueryHistoryDto;
-    if (biType) querySfQueryHistory = await this.#retrieveQuerySfQueryHistory(biType);
+    const querySfQueryHistory: OrganizationLevelQueryResult | undefined = biType
+      ? await this.#retrieveQuerySfQueryHistory(biType)
+      : undefined;
 
     await Promise.all(
       this.#logics.map(async (logic) => {

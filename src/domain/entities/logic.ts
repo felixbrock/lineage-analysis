@@ -13,18 +13,25 @@ interface DependentOn {
   dwDependencyDefinitions: MaterializationDefinition[];
 }
 
-export interface LogicPrototype {
+interface DbtPrototypeProps {
+  dbtDependentOn: MaterializationDefinition[];
+}
+
+interface GeneralPrototypeProps {
   id: string;
   relationName: string;
-  modelName: string;
   sql: string;
-  dbtDependentOn: MaterializationDefinition[];
   parsedLogic: string;
   lineageId: string;
-  catalog: CatalogModelData[];
   organizationId: string;
+  catalog: ModelRepresentation[];
 }
-export interface LogicProperties {
+
+export interface LogicPrototype {
+  generalProps: GeneralPrototypeProps;
+  dbtProps?: DbtPrototypeProps;
+}
+export interface LogicProps {
   id: string;
   relationName: string;
   sql: string;
@@ -35,10 +42,10 @@ export interface LogicProperties {
   organizationId: string;
 }
 
-type LogicDto = LogicProperties;
+type LogicDto = LogicProps;
 
-export interface CatalogModelData {
-  modelName: string;
+export interface ModelRepresentation {
+  relationName: string;
   materializationName: string;
   columnNames: string[];
 }
@@ -202,7 +209,7 @@ export class Logic {
     return this.#organizationId;
   }
 
-  private constructor(properties: LogicProperties) {
+  private constructor(properties: LogicProps) {
     this.#id = properties.id;
     this.#relationName = properties.relationName;
     this.#sql = properties.sql;
@@ -1052,7 +1059,7 @@ export class Logic {
     columnPath: string,
     materializations: MaterializationRef[],
     columnName: string,
-    catalog: CatalogModelData[]
+    catalog: ModelRepresentation[]
   ): MaterializationRef => {
     const columnPathElements = columnPath.split('.');
 
@@ -1100,7 +1107,7 @@ export class Logic {
   by improving information coverage on object level  */
   static #buildSelfMaterializationRef = (
     matRefPrototypes: MaterializationRefPrototype[],
-    modelName: string
+    relationName: string
   ): MaterializationRef => {
     const lastSelectPositions = matRefPrototypes.map((materialization) => {
       const selfMatQualifiers = [
@@ -1147,9 +1154,9 @@ export class Logic {
     });
 
     if (!selfMatPrototype)
-      return { name: modelName, type: 'self', contexts: [] };
+      return { name: relationName, type: 'self', contexts: [] };
 
-    return { ...selfMatPrototype, name: modelName, type: 'self' };
+    return { ...selfMatPrototype, name: relationName, type: 'self' };
   };
 
   /* Transforming prototypes that are not representing the analyzed model itself (non-self) to materializationRefs, by improving information coverage on object level  */
@@ -1245,7 +1252,7 @@ export class Logic {
     columnRefPrototypes: ColumnRefPrototype[],
     nonSelfMaterializationRefs: MaterializationRef[],
     selfMaterializationRef: MaterializationRef,
-    catalog: CatalogModelData[]
+    catalog: ModelRepresentation[]
   ): ColumnRef[] => {
     columnRefPrototypes.forEach((prototype) => {
       const thisPrototype = prototype;
@@ -1447,7 +1454,7 @@ export class Logic {
   /* Assigns aliases for $ notation and columns with aliases */
   static #assignAliases = (
     statementRefsPrototype: RefsPrototype,
-    catalog: CatalogModelData[]
+    catalog: ModelRepresentation[]
   ): RefsPrototype => {
     statementRefsPrototype.columns.forEach((column, index) => {
       const thisCol = column;
@@ -1620,8 +1627,8 @@ export class Logic {
   /* Transforms RefsPrototype object to Refs object by identifying missing materialization refs */
   static #buildStatementRefs = (
     refsPrototype: RefsPrototype,
-    modelName: string,
-    catalog: CatalogModelData[]
+    relationName: string,
+    catalog: ModelRepresentation[]
   ): Refs => {
     const explicitRefsPrototype = this.#clearAmbiguity(refsPrototype);
 
@@ -1632,7 +1639,7 @@ export class Logic {
 
     const selfMaterializationRef = this.#buildSelfMaterializationRef(
       refsPrototype.materializations,
-      modelName
+      relationName
     );
 
     const nonSelfMatRefsPrototypes =
@@ -1683,8 +1690,8 @@ export class Logic {
   /* Runs through tree of parsed logic and extract all refs of materializations and columns (self and parent materializations and columns) */
   static #getStatementRefs = (
     fileObj: any,
-    modelName: string,
-    catalog: CatalogModelData[]
+    relationName: string,
+    catalog: ModelRepresentation[]
   ): Refs => {
     const statementRefsPrototype: RefsPrototype = {
       materializations: [],
@@ -1732,13 +1739,17 @@ export class Logic {
       });
     }
 
-    return this.#buildStatementRefs(statementRefsPrototype, modelName, catalog);
+    return this.#buildStatementRefs(
+      statementRefsPrototype,
+      relationName,
+      catalog
+    );
   };
 
   /* Retrieving relation names for external non-dbt mats that are referenced by sql model logic */
   static #getDwDependencyDefinitions = (
     materializationRefs: MaterializationRef[],
-    dependencyDefinitions: MaterializationDefinition[]
+    dbtDependencyDefinitions: MaterializationDefinition[]
   ): MaterializationDefinition[] => {
     const isDefinition = (
       definition: MaterializationDefinition | undefined
@@ -1764,7 +1775,7 @@ export class Logic {
 
         const potentiallyMissingRelationName = `${ref.databaseName}.${ref.schemaName}.${ref.name}`;
 
-        const matchingDefinitions = dependencyDefinitions.filter((el) =>
+        const matchingDefinitions = dbtDependencyDefinitions.filter((el) =>
           this.#insensitiveEquality(
             el.relationName.replace(/"/g, ''),
             potentiallyMissingRelationName
@@ -1786,55 +1797,55 @@ export class Logic {
   };
 
   static create = (prototype: LogicPrototype): Logic => {
-    if (!prototype.id) throw new TypeError('Logic prototype must have id');
-    if (!prototype.relationName)
+    const { generalProps, dbtProps } = prototype;
+
+    if (!generalProps.id) throw new TypeError('Logic prototype must have id');
+    if (!generalProps.relationName)
       throw new TypeError('Logic prototype must have relationName');
-    if (!prototype.modelName)
-      throw new TypeError('Logic prototype must have model name');
-    if (!prototype.sql)
+    if (!generalProps.sql)
       throw new TypeError('Logic prototype must have SQL logic');
-    if (!prototype.parsedLogic)
+    if (!generalProps.parsedLogic)
       throw new TypeError('Logic  prototype must have parsed SQL logic');
-    if (!prototype.lineageId)
+    if (!generalProps.lineageId)
       throw new TypeError('Logic must have lineageId');
-    if (!prototype.organizationId)
+    if (!generalProps.organizationId)
       throw new TypeError('Logic must have organization id');
-    if (!prototype.catalog)
+    if (!generalProps.catalog)
       throw new TypeError('Logic prototype must have catalog data');
 
-    const parsedLogicObj = JSON.parse(prototype.parsedLogic);
+    const parsedLogicObj = JSON.parse(generalProps.parsedLogic);
 
     const statementRefs = this.#getStatementRefs(
       parsedLogicObj.file,
-      prototype.modelName,
-      prototype.catalog
+      generalProps.relationName,
+      generalProps.catalog
     );
 
     const dwDependencyDefinitions = this.#getDwDependencyDefinitions(
       statementRefs.materializations,
-      prototype.dbtDependentOn
+      dbtProps? dbtProps.dbtDependentOn : []
     );
 
     const dependentOn: DependentOn = {
-      dbtDependencyDefinitions: prototype.dbtDependentOn,
+      dbtDependencyDefinitions: dbtProps ? dbtProps.dbtDependentOn : [],
       dwDependencyDefinitions,
     };
 
     const logic = this.build({
-      id: prototype.id,
-      relationName: prototype.relationName,
-      sql: prototype.sql,
+      id: generalProps.id,
+      relationName: generalProps.relationName,
+      sql: generalProps.sql,
       dependentOn,
-      parsedLogic: prototype.parsedLogic,
+      parsedLogic: generalProps.parsedLogic,
       statementRefs,
-      lineageIds: [prototype.lineageId],
-      organizationId: prototype.organizationId,
+      lineageIds: [generalProps.lineageId],
+      organizationId: generalProps.organizationId,
     });
 
     return logic;
   };
 
-  static build = (properties: LogicProperties): Logic => {
+  static build = (properties: LogicProps): Logic => {
     if (!properties.id) throw new TypeError('Logic must have id');
     if (!properties.relationName)
       throw new TypeError('Logic must have relationName');

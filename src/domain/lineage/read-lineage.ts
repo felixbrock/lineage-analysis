@@ -1,6 +1,6 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { ILineageRepo } from './i-lineage-repo';
+import { ILegacyLineageRepo } from './i-lineage-repo';
 import { Lineage } from '../entities/lineage';
 import { DbConnection } from '../services/i-db';
 
@@ -23,11 +23,11 @@ export class ReadLineage
       DbConnection
     >
 {
-  readonly #lineageRepo: ILineageRepo;
+  readonly #lineageRepo: ILegacyLineageRepo;
 
   #dbConnection: DbConnection;
 
-  constructor(lineageRepo: ILineageRepo) {
+  constructor(lineageRepo: ILegacyLineageRepo) {
     this.#lineageRepo = lineageRepo;
   }
 

@@ -1,18 +1,23 @@
-import { CreateColumn } from '../../column/create-column';
+import { CreateLogic } from '../../../logic/create-logic';
+import { CreateColumn } from '../../../column/create-column';
 import {
   Column,
   ColumnDataType,
   parseColumnDataType,
-} from '../../entities/column';
-import { Logic } from '../../entities/logic';
+} from '../../../entities/column';
+import { Logic, ModelRepresentation } from '../../../entities/logic';
 import {
   Materialization,
   MaterializationType,
   parseMaterializationType,
-} from '../../entities/materialization';
-import { QuerySnowflake } from '../../integration-api/snowflake/query-snowflake';
-import { CreateMaterialization } from '../../materialization/create-materialization';
-import { DbConnection } from '../../services/i-db';
+} from '../../../entities/materialization';
+import { QuerySnowflake } from '../../../integration-api/snowflake/query-snowflake';
+import { CreateMaterialization } from '../../../materialization/create-materialization';
+import { DbConnection } from '../../../services/i-db';
+import {
+  ParseSQL,
+  ParseSQLResponseDto,
+} from '../../../sql-parser-api/parse-sql';
 
 interface Auth {
   jwt: string;
@@ -45,10 +50,15 @@ interface MaterializationRepresentation {
   databaseName: string;
   schemaName: string;
   name: string;
+  relationName: string;
   type: MaterializationType;
   ownerId?: string;
   isTransient?: boolean;
   comment?: string;
+}
+
+interface LogicRepresentation {
+  sql: string;
 }
 
 export class SfDataEnvGenerator {
@@ -56,7 +66,11 @@ export class SfDataEnvGenerator {
 
   readonly #createColumn: CreateColumn;
 
+  readonly #createLogic: CreateLogic;
+
   readonly #querySnowflake: QuerySnowflake;
+
+  readonly #parseSQL: ParseSQL;
 
   readonly #lineageId: string;
 
@@ -86,6 +100,8 @@ export class SfDataEnvGenerator {
     return this.#logics;
   }
 
+  #catalog: ModelRepresentation[] = [];
+
   constructor(
     props: DataEnvProps,
     auth: Auth,
@@ -93,7 +109,9 @@ export class SfDataEnvGenerator {
     dependencies: {
       createMaterialization: CreateMaterialization;
       createColumn: CreateColumn;
+      createLogic: CreateLogic;
       querySnowflake: QuerySnowflake;
+      parseSQL: ParseSQL;
     }
   ) {
     if (auth.isSystemInternal && !props.targetOrganizationId)
@@ -111,9 +129,11 @@ export class SfDataEnvGenerator {
       this.#organizationId = props.targetOrganizationId;
     else throw new Error('Missing orgId');
 
-    this.#querySnowflake = dependencies.querySnowflake;
     this.#createMaterialization = dependencies.createMaterialization;
     this.#createColumn = dependencies.createColumn;
+    this.#createLogic = dependencies.createLogic;
+    this.#querySnowflake = dependencies.querySnowflake;
+    this.#parseSQL = dependencies.parseSQL;
 
     this.#auth = auth;
     this.#dbConnection = dbConnection;
@@ -130,7 +150,7 @@ export class SfDataEnvGenerator {
       'select table_catalog, table_schema, table_name, table_owner, table_type, is_transient, comment  from cito.information_schema.tables';
     const queryResult = await this.#querySnowflake.execute(
       { query, targetOrganizationId: this.#targetOrganizationId },
-      this.#auth,
+      this.#auth
     );
     if (!queryResult.success) {
       throw new Error(queryResult.error);
@@ -139,44 +159,77 @@ export class SfDataEnvGenerator {
 
     const results = queryResult.value;
 
-    const matRepresentations: MaterializationRepresentation[] = results[this.#organizationId].map(
-      (el) => {
-        const {
-          TABLE_CATALOG: databaseName,
-          TABLE_SCHEMA: schemaName,
-          TABLE_NAME: name,
-          TABLE_OWNER: ownerId,
-          TABLE_TYPE: type,
-          IS_TRANSIENT: isTransient,
-          COMMENT: comment,
-        } = el;
+    const matRepresentations: MaterializationRepresentation[] = results[
+      this.#organizationId
+    ].map((el) => {
+      const {
+        TABLE_CATALOG: databaseName,
+        TABLE_SCHEMA: schemaName,
+        TABLE_NAME: name,
+        TABLE_OWNER: ownerId,
+        TABLE_TYPE: type,
+        IS_TRANSIENT: isTransient,
+        COMMENT: comment,
+      } = el;
 
-        if (
-          typeof databaseName !== 'string' ||
-          typeof schemaName !== 'string' ||
-          typeof name !== 'string' ||
-          typeof ownerId !== 'string' ||
-          typeof type !== 'string' ||
-          typeof isTransient !== 'boolean' ||
-          typeof comment !== 'string'
-        )
-          throw new Error(
-            'Received mat representation field value in unexpected format'
-          );
+      if (
+        typeof databaseName !== 'string' ||
+        typeof schemaName !== 'string' ||
+        typeof name !== 'string' ||
+        typeof ownerId !== 'string' ||
+        typeof type !== 'string' ||
+        typeof isTransient !== 'boolean' ||
+        typeof comment !== 'string'
+      )
+        throw new Error(
+          'Received mat representation field value in unexpected format'
+        );
 
-        return {
-          databaseName,
-          schemaName,
-          name,
-          ownerId,
-          type: parseMaterializationType(type.toLowerCase()),
-          isTransient,
-          comment,
-        };
-      }
-    );
+      return {
+        databaseName,
+        schemaName,
+        name,
+        relationName: `${el.databaseName}.${el.schemaName}.${el.name}`,
+        ownerId,
+        type: parseMaterializationType(type.toLowerCase()),
+        isTransient,
+        comment,
+      };
+    });
 
     return matRepresentations;
+  };
+
+  /* Get logic representations from Snowflake */
+  #getLogicRepresentation = async (
+    ddlObjectType: 'table' | 'view',
+    relationName: string
+  ): Promise<LogicRepresentation> => {
+    const query = `select get_ddl('${ddlObjectType}', '${relationName}' , true) as sql`;
+    const queryResult = await this.#querySnowflake.execute(
+      { query, targetOrganizationId: this.#targetOrganizationId },
+      this.#auth
+    );
+    if (!queryResult.success) {
+      throw new Error(queryResult.error);
+    }
+    if (!queryResult.value) throw new Error('Query did not return a value');
+
+    const results = queryResult.value;
+
+    const organizationResults = results[this.#organizationId];
+
+    if (organizationResults.length !== 1)
+      throw new Error('No or multiple sql logic instances returned for mat');
+
+    const { SQL: sql } = organizationResults[0];
+
+    if (typeof sql !== 'string')
+      throw new Error(
+        'Received mat representation field value in unexpected format'
+      );
+
+    return { sql };
   };
 
   /* Get column representations from snowflake */
@@ -185,8 +238,7 @@ export class SfDataEnvGenerator {
       'select table_catalog, table_schema, table_name, column_name, ordinal_position, is_nullable, data_type, is_identity, comment from cito.information_schema.columns limit 10';
     const queryResult = await this.#querySnowflake.execute(
       { query, targetOrganizationId: this.#targetOrganizationId },
-      this.#auth,
-      
+      this.#auth
     );
     if (!queryResult.success) {
       throw new Error(queryResult.error);
@@ -195,7 +247,9 @@ export class SfDataEnvGenerator {
 
     const results = queryResult.value;
 
-    const columnRepresentations: ColumnRepresentation[] = results[this.#organizationId].map((el) => {
+    const columnRepresentations: ColumnRepresentation[] = results[
+      this.#organizationId
+    ].map((el) => {
       const {
         TABLE_CATALOG: databaseName,
         TABLE_SCHEMA: schemaName,
@@ -237,6 +291,20 @@ export class SfDataEnvGenerator {
     return columnRepresentations;
   };
 
+  /* Sends sql to parse SQL microservices and receives parsed SQL logic back */
+  #parseLogic = async (sql: string): Promise<string> => {
+    const parseSQLResult: ParseSQLResponseDto = await this.#parseSQL.execute({
+      dialect: 'snowflake',
+      sql,
+    });
+
+    if (!parseSQLResult.success) throw new Error(parseSQLResult.error);
+    if (!parseSQLResult.value)
+      throw new SyntaxError(`Parsing of SQL logic failed`);
+
+    return JSON.stringify(parseSQLResult.value);
+  };
+
   #generateColumn = async (
     columnRepresentation: ColumnRepresentation,
     matId: string
@@ -266,16 +334,60 @@ export class SfDataEnvGenerator {
     return createColumnResult.value;
   };
 
+  #generateLogic = async (
+    logicRepresentation: LogicRepresentation,
+    relationName: string
+  ): Promise<Logic> => {
+    const parsedLogic = await this.#parseLogic(logicRepresentation.sql);
+
+    const createLogicResult = await this.#createLogic.execute(
+      {
+        props: {
+          generalProps: {
+            relationName,
+            sql: logicRepresentation.sql,
+            lineageId: this.#lineageId,
+            parsedLogic,
+            targetOrganizationId: this.#targetOrganizationId,
+            catalog: this.#catalog,
+          },
+        },
+        options: {
+          writeToPersistence: false,
+        },
+      },
+      this.#auth,
+      this.#dbConnection
+    );
+
+    if (!createLogicResult.success) throw new Error(createLogicResult.error);
+    if (!createLogicResult.value)
+      throw new SyntaxError(`Creation of logic failed`);
+
+    const logic = createLogicResult.value;
+
+    this.#logics.push(logic);
+
+    return logic;
+  };
+
   /* Creates materialization object and its column objects */
-  #generateDWResources = async (
+  #generateDWResource = async (
     resourceProps: {
       matRepresentation: MaterializationRepresentation;
+      logicRepresentation: LogicRepresentation;
       columnRepresentations: ColumnRepresentation[];
       relationName: string;
     },
     options: { writeToPersistence: boolean }
   ): Promise<void> => {
-    const { matRepresentation, columnRepresentations } = resourceProps;
+    const { matRepresentation, columnRepresentations, logicRepresentation } =
+      resourceProps;
+
+    const { id: logicId } = await this.#generateLogic(
+      logicRepresentation,
+      resourceProps.relationName
+    );
 
     const createMaterializationResult =
       await this.#createMaterialization.execute(
@@ -283,6 +395,7 @@ export class SfDataEnvGenerator {
           ...matRepresentation,
           relationName: resourceProps.relationName,
           writeToPersistence: options.writeToPersistence,
+          logicId,
           lineageId: this.#lineageId,
           targetOrganizationId: this.#targetOrganizationId,
         },
@@ -307,10 +420,53 @@ export class SfDataEnvGenerator {
     this.#columns.push(...generatedColumns);
   };
 
-  /* Runs through dbt nodes and creates objects like logic, materializations and columns */
+  #generateCatalog = (
+    matRepresentations: MaterializationRepresentation[],
+    colRepresentationsByRelationName: {
+      [key: string]: ColumnRepresentation[];
+    }
+  ): void => {
+    
+    const modelRepresentations = matRepresentations.map(
+      (el): ModelRepresentation => ({
+        relationName: el.relationName,
+        materializationName: el.name,
+        columnNames: colRepresentationsByRelationName[el.relationName].map(
+          (colRep) => colRep.name
+        ),
+      })
+    );
+
+    this.#catalog.push(...modelRepresentations);
+  };
+
+  static #groupByRelationName = <T extends { relationName: string }>(
+    accumulation: { [key: string]: T[] },
+    element: T
+  ): { [key: string]: T[] } => {
+    const localAcc = accumulation;
+
+    const key = element.relationName;
+    if (!(key in accumulation)) {
+      localAcc[key] = [];
+    }
+    localAcc[key].push(element);
+    return localAcc;
+  };
+
+  /* Runs through snowflake and creates objects like logic, materializations and columns */
   generate = async (): Promise<GenerateResult> => {
     const matRepresentations = await this.#getMatRepresentations();
     const columnRepresentations = await this.#getColumnRepresentations();
+
+    const colRepresentationsByRelationName: {
+      [key: string]: ColumnRepresentation[];
+    } = columnRepresentations.reduce(
+      SfDataEnvGenerator.#groupByRelationName,
+      {}
+    );
+
+    this.#generateCatalog(matRepresentations, colRepresentationsByRelationName);
 
     await Promise.all(
       matRepresentations.map(async (el) => {
@@ -318,15 +474,17 @@ export class SfDataEnvGenerator {
           writeToPersistence: false,
         };
 
-        const relationName = `${el.databaseName}.${el.schemaName}.${el.name}`;
+        const logicRepresentation = await this.#getLogicRepresentation(
+          el.type === 'view' ? 'view' : 'table',
+          el.relationName
+        );
 
-        await this.#generateDWResources(
+        await this.#generateDWResource(
           {
             matRepresentation: el,
-            columnRepresentations: columnRepresentations.filter(
-              (colRep) => colRep.relationName === relationName
-            ),
-            relationName,
+            logicRepresentation,
+            columnRepresentations: colRepresentationsByRelationName[el.relationName],
+            relationName: el.relationName,
           },
           options
         );

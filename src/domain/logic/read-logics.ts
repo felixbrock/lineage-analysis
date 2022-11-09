@@ -2,7 +2,7 @@ import { Logic } from '../entities/logic';
 import { DbConnection } from '../services/i-db';
 import IUseCase from '../services/use-case';
 import Result from '../value-types/transient-types/result';
-import { ILogicRepo, LogicQueryDto } from './i-logic-repo';
+import { ILegacyLogicRepo, LogicQueryDto } from './i-logic-repo';
 
 export interface ReadLogicsRequestDto {
   relationName?: string;
@@ -26,11 +26,11 @@ export class ReadLogics
       DbConnection
     >
 {
-  readonly #logicRepo: ILogicRepo;
+  readonly #logicRepo: ILegacyLogicRepo;
 
   #dbConnection: DbConnection;
 
-  constructor(logicRepo: ILogicRepo) {
+  constructor(logicRepo: ILegacyLogicRepo) {
     this.#logicRepo = logicRepo;
   }
 

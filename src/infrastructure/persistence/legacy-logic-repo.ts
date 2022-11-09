@@ -11,7 +11,7 @@ import {
 } from 'mongodb';
 import sanitize from 'mongo-sanitize';
 
-import {  ILogicRepo, LogicQueryDto } from '../../domain/logic/i-logic-repo';
+import { ILegacyLogicRepo, LogicQueryDto } from '../../domain/logic/i-logic-repo';
 import {
   ColumnRef,
   Logic,
@@ -49,7 +49,7 @@ interface LogicQueryFilter {
 
 const collectionName = 'logic';
 
-export default class LogicRepo implements ILogicRepo {
+export default class LogicRepo implements ILegacyLogicRepo {
   findOne = async (id: string, dbConnection: Db): Promise<Logic | null> => {
     try {
       const result: any = await dbConnection

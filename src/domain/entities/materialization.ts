@@ -54,7 +54,7 @@ export class Materialization {
 
   #databaseName: string;
 
-  #materializationType: MaterializationType;
+  #type: MaterializationType;
 
   #lineageIds: string[];
 
@@ -88,8 +88,8 @@ export class Materialization {
     return this.#databaseName;
   }
 
-  get materializationType(): MaterializationType {
-    return this.#materializationType;
+  get type(): MaterializationType {
+    return this.#type;
   }
 
   get lineageIds(): string[] {
@@ -122,7 +122,7 @@ export class Materialization {
     this.#name = props.name;
     this.#schemaName = props.schemaName;
     this.#databaseName = props.databaseName;
-    this.#materializationType = props.type;
+    this.#type = props.type;
     this.#lineageIds = props.lineageIds;
     this.#organizationId = props.organizationId;
     this.#logicId = props.logicId;
@@ -181,7 +181,7 @@ export class Materialization {
   toDto = (): MaterializationDto => ({
     id: this.#id,
     relationName: this.#relationName,
-    type: this.#materializationType,
+    type: this.#type,
     name: this.#name,
     schemaName: this.#schemaName,
     databaseName: this.#databaseName,

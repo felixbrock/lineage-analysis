@@ -2,7 +2,7 @@ import { Column } from '../entities/column';
 import { DbConnection } from '../services/i-db';
 import IUseCase from '../services/use-case';
 import Result from '../value-types/transient-types/result';
-import { IColumnRepo, ColumnQueryDto } from './i-column-repo';
+import { ILegacyColumnRepo, ColumnQueryDto } from './i-column-repo';
 
 export interface ReadColumnsRequestDto {
   relationName?: string | string[];
@@ -30,11 +30,11 @@ export class ReadColumns
       DbConnection
     >
 {
-  readonly #columnRepo: IColumnRepo;
+  readonly #columnRepo: ILegacyColumnRepo;
 
   #dbConnection: DbConnection;
 
-  constructor(columnRepo: IColumnRepo) {
+  constructor(columnRepo: ILegacyColumnRepo) {
     this.#columnRepo = columnRepo;
   }
 

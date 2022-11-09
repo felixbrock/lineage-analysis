@@ -1,6 +1,6 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { IMaterializationRepo } from './i-materialization-repo';
+import { ILegacyMaterializationRepo } from './i-materialization-repo';
 import { DbConnection } from '../services/i-db';
 import { Materialization } from '../entities/materialization';
 
@@ -23,11 +23,11 @@ export class ReadMaterialization
       DbConnection
     >
 {
-  readonly #materializationRepo: IMaterializationRepo;
+  readonly #materializationRepo: ILegacyMaterializationRepo;
 
   #dbConnection: DbConnection;
 
-  constructor(materializationRepo: IMaterializationRepo) {
+  constructor(materializationRepo: ILegacyMaterializationRepo) {
     this.#materializationRepo = materializationRepo;
   }
 

@@ -3,7 +3,7 @@ import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { Column, ColumnDataType } from '../entities/column';
 import { ReadColumns } from './read-columns';
-import { IColumnRepo } from './i-column-repo';
+import { ILegacyColumnRepo } from './i-column-repo';
 import { DbConnection } from '../services/i-db';
 
 export interface CreateColumnRequestDto {
@@ -36,13 +36,13 @@ export class CreateColumn
       DbConnection
     >
 {
-  readonly #columnRepo: IColumnRepo;
+  readonly #columnRepo: ILegacyColumnRepo;
 
   readonly #readColumns: ReadColumns;
 
   #dbConnection: DbConnection;
 
-  constructor(readColumns: ReadColumns, columnRepo: IColumnRepo) {
+  constructor(readColumns: ReadColumns, columnRepo: ILegacyColumnRepo) {
     this.#readColumns = readColumns;
     this.#columnRepo = columnRepo;
   }

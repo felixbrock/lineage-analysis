@@ -1,10 +1,8 @@
 import Result from '../../value-types/transient-types/result';
 import IUseCase from '../../services/use-case';
 import { BiType } from '../../value-types/bilayer';
-import {
-  SnowflakeQueryResultDto,
-} from '../i-integration-api-repo';
 import { QuerySnowflake } from './query-snowflake';
+import { SnowflakeQueryResult } from '../i-integration-api-repo';
 
 export interface QuerySfQueryHistoryRequestDto {
   biType: BiType;
@@ -17,7 +15,7 @@ export interface QuerySfQueryHistoryAuthDto {
   callerOrganizationId?: string;
 }
 
-export type QuerySfQueryHistoryResponseDto = Result<SnowflakeQueryResultDto>;
+export type QuerySfQueryHistoryResponseDto = Result<SnowflakeQueryResult>;
 
 export class QuerySfQueryHistory
   implements

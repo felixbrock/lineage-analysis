@@ -11,7 +11,7 @@ import {
 } from 'mongodb';
 import sanitize from 'mongo-sanitize';
 
-import { ColumnQueryDto, IColumnRepo } from '../../domain/column/i-column-repo';
+import { ColumnQueryDto, ILegacyColumnRepo } from '../../domain/column/i-column-repo';
 import { Column, ColumnProperties, parseColumnDataType } from '../../domain/entities/column';
 
 interface ColumnPersistence {
@@ -19,7 +19,7 @@ interface ColumnPersistence {
   relationName: string;
   name: string;
   index: string;
-  dataType: string;
+  type: string;
   materializationId: string;
   lineageIds: string[];
   organizationId: string;
@@ -37,7 +37,7 @@ interface ColumnQueryFilter {
 
 const collectionName = 'column';
 
-export default class ColumnRepo implements IColumnRepo {
+export default class ColumnRepo implements ILegacyColumnRepo {
   findOne = async (id: string, dbConnection: Db): Promise<Column | null> => {
     try {
       const result: any = await dbConnection
@@ -237,7 +237,7 @@ export default class ColumnRepo implements IColumnRepo {
     relationName: column.relationName,
     name: column.name,
     index: column.index,
-    dataType: parseColumnDataType(column.dataType),
+    dataType: parseColumnDataType(column.type),
     materializationId: column.materializationId,
     lineageIds: column.lineageIds,
     organizationId: column.organizationId,

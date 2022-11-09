@@ -1,19 +1,27 @@
-import { CreateColumn } from '../../column/create-column';
-import { Column, ColumnDataType } from '../../entities/column';
-import { Logic, MaterializationDefinition, Refs } from '../../entities/logic';
+import { CreateColumn } from '../../../column/create-column';
+import { Column, ColumnDataType } from '../../../entities/column';
+import {
+  Logic,
+  MaterializationDefinition,
+  ModelRepresentation,
+  Refs,
+} from '../../../entities/logic';
 import {
   Materialization,
   MaterializationType,
   materializationTypes,
   parseMaterializationType,
-} from '../../entities/materialization';
-import { CreateLogic } from '../../logic/create-logic';
+} from '../../../entities/materialization';
+import { CreateLogic } from '../../../logic/create-logic';
 import {
   CreateMaterialization,
   CreateMaterializationRequestDto,
-} from '../../materialization/create-materialization';
-import { DbConnection } from '../../services/i-db';
-import { ParseSQL, ParseSQLResponseDto } from '../../sql-parser-api/parse-sql';
+} from '../../../materialization/create-materialization';
+import { DbConnection } from '../../../services/i-db';
+import {
+  ParseSQL,
+  ParseSQLResponseDto,
+} from '../../../sql-parser-api/parse-sql';
 
 interface Auth {
   callerOrganizationId?: string;
@@ -71,10 +79,19 @@ interface DbtCatalogResources {
   sources: { [key: string]: DbtCatalogSource };
 }
 
+interface DbtCatalog extends DbtCatalogResources {
+  [key: string]: unknown;
+}
+
+interface DbtManifest extends Omit<DbtManifestResources, 'parentMap'> {
+  [key: string]: unknown;
+  parent_map: { [key: string]: string[] };
+}
+
 interface DbtManifestResources {
   nodes: { [key: string]: DbtManifestNode };
   sources: { [key: string]: DbtManifestSource };
-  parent_map: { [key: string]: string[] };
+  parentMap: { [key: string]: string[] };
 }
 
 interface DbtCatalogColumnDefinition {
@@ -94,9 +111,9 @@ export class DbtDataEnvGenerator {
 
   readonly #lineageId: string;
 
-  readonly #dbtCatalog: string;
+  readonly #dbtCatalog: DbtCatalog;
 
-  readonly #dbtManifest: string;
+  readonly #dbtManifest: DbtManifest;
 
   readonly #targetOrganizationId?: string;
 
@@ -148,32 +165,23 @@ export class DbtDataEnvGenerator {
     this.#dbConnection = dbConnection;
 
     this.#lineageId = props.lineageId;
-    this.#dbtCatalog = props.dbtCatalog;
-    this.#dbtManifest = props.dbtManifest;
+    this.#dbtCatalog = JSON.parse(props.dbtCatalog);
+    this.#dbtManifest = JSON.parse(props.dbtManifest);
     this.#targetOrganizationId = props.targetOrganizationId;
   }
 
   /* Get dbt nodes from catalog.json */
   #getDbtCatalogResources = (): DbtCatalogResources => {
-    const data = this.#dbtCatalog;
-
-    const content = JSON.parse(data);
-
-    const { nodes, sources } = content;
+    const { nodes, sources } = this.#dbtCatalog;
 
     return { nodes, sources };
   };
 
   /* Get dbt nodes from manifest.json */
   #getDbtManifestResources = (): DbtManifestResources => {
-    const data = this.#dbtManifest;
+    const { nodes, sources, parent_map: parentMap } = this.#dbtManifest;
 
-    const content = JSON.parse(data);
-
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    const { nodes, sources, parent_map } = content;
-
-    return { nodes, sources, parent_map };
+    return { nodes, sources, parentMap };
   };
 
   #generateColumn = async (
@@ -356,7 +364,10 @@ export class DbtDataEnvGenerator {
           (column1, index, self) =>
             index ===
             self.findIndex((column2) =>
-              DbtDataEnvGenerator.#insensitiveEquality(column1.name, column2.name)
+              DbtDataEnvGenerator.#insensitiveEquality(
+                column1.name,
+                column2.name
+              )
             )
         );
 
@@ -404,6 +415,67 @@ export class DbtDataEnvGenerator {
     return materialization;
   };
 
+  #mapModelNameRelationName = (): { [key: string]: string } => {
+    const mapping: { [key: string]: string } = {};
+
+    Object.entries(this.#dbtManifest.nodes).forEach((el) => {
+      const [key, value] = el;
+
+      mapping[key] = value.relation_name;
+    });
+
+    Object.entries(this.#dbtManifest.sources).forEach((el) => {
+      const [key, value] = el;
+
+      mapping[key] = value.relation_name;
+    });
+
+    return mapping;
+  };
+
+  #getTablesAndCols = (): ModelRepresentation[] => {
+    const modelNameRelationNameMapping = this.#mapModelNameRelationName();
+
+    const catalogNodes = this.#dbtCatalog.nodes;
+
+    const result: ModelRepresentation[] = [];
+
+    Object.entries(catalogNodes).forEach((entry) => {
+      const [modelName, body]: [string, unknown] = entry;
+
+      const relationName = modelNameRelationNameMapping[modelName];
+
+      const isBody = (
+        element: unknown
+      ): element is {
+        metadata: { name: string; [key: string]: unknown };
+        columns: { [key: string]: unknown };
+      } =>
+        typeof element === 'object' &&
+        !!element &&
+        'metadata' in element &&
+        'columns' in element;
+
+      if (!isBody(body))
+        throw new Error('Received unexpected dbt catalog nodes body syntax');
+
+      const { metadata, columns } = body;
+
+      const { name } = metadata;
+      const columnNames = Object.keys(columns);
+
+      const modelData: ModelRepresentation = {
+        relationName,
+        materializationName: name,
+        columnNames,
+      };
+
+      result.push(modelData);
+    });
+
+    return result;
+  };
+
   /* Generate dbt model node */
   #generateDbtModelNode = async (props: {
     model: DbtCatalogNode;
@@ -416,15 +488,22 @@ export class DbtDataEnvGenerator {
 
     const createLogicResult = await this.#createLogic.execute(
       {
-        relationName: props.modelManifest.relation_name,
-        sql,
-        modelName: props.model.metadata.name,
-        dbtDependentOn: props.dbtDependentOn,
-        lineageId: this.#lineageId,
-        parsedLogic,
-        targetOrganizationId: this.#targetOrganizationId,
-        writeToPersistence: false,
-        catalogFile: this.#dbtCatalog,
+        props: {
+          generalProps: {
+            relationName: props.modelManifest.relation_name,
+            sql,
+            lineageId: this.#lineageId,
+            parsedLogic,
+            targetOrganizationId: this.#targetOrganizationId,
+            catalog: this.#getTablesAndCols(),
+          },
+          dbtProps: {
+            dbtDependentOn: props.dbtDependentOn,
+          },
+        },
+        options: {
+          writeToPersistence: false,
+        },
       },
       this.#auth,
       this.#dbConnection
@@ -616,7 +695,7 @@ export class DbtDataEnvGenerator {
     await Promise.all(
       dbtCatalogNodeKeys.map(async (key) => {
         const dependsOn: string[] = [
-          ...new Set(dbtManifestResources.parent_map[key]),
+          ...new Set(dbtManifestResources.parentMap[key]),
         ];
 
         const dependsOnRelationName = dependsOn.map(

@@ -7,7 +7,7 @@ import {
   Materialization,
 } from '../entities/materialization';
 import { ReadMaterializations } from './read-materializations';
-import { IMaterializationRepo } from './i-materialization-repo';
+import { ILegacyMaterializationRepo } from './i-materialization-repo';
 import { DbConnection } from '../services/i-db';
 
 export interface CreateMaterializationRequestDto {
@@ -44,13 +44,13 @@ export class CreateMaterialization
 {
   readonly #readMaterializations: ReadMaterializations;
 
-  readonly #materializationRepo: IMaterializationRepo;
+  readonly #materializationRepo: ILegacyMaterializationRepo;
 
   #dbConnection: DbConnection;
 
   constructor(
     readMaterializations: ReadMaterializations,
-    materializationRepo: IMaterializationRepo
+    materializationRepo: ILegacyMaterializationRepo
   ) {
     this.#readMaterializations = readMaterializations;
     this.#materializationRepo = materializationRepo;

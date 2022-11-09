@@ -112,7 +112,7 @@ export class Column {
     return this.#index;
   }
 
-  get type(): string {
+  get dataType(): string {
     return this.#dataType;
   }
 

@@ -1,8 +1,7 @@
 import Result from '../../value-types/transient-types/result';
 import IUseCase from '../../services/use-case';
 import {
-  IIntegrationApiRepo,
-  SnowflakeQueryResultDto,
+  IIntegrationApiRepo, SnowflakeQueryResult,
 } from '../i-integration-api-repo';
 
 export interface QuerySnowflakeRequestDto {
@@ -14,7 +13,7 @@ export interface QuerySnowflakeAuthDto {
   jwt: string;
 }
 
-export type QuerySnowflakeResponseDto = Result<SnowflakeQueryResultDto>;
+export type QuerySnowflakeResponseDto = Result<SnowflakeQueryResult>;
 
 export class QuerySnowflake
   implements
@@ -35,7 +34,7 @@ export class QuerySnowflake
     auth: QuerySnowflakeAuthDto
   ): Promise<QuerySnowflakeResponseDto> {
     try {
-      const querySnowflakeResponse: SnowflakeQueryResultDto =
+      const querySnowflakeResponse: SnowflakeQueryResult =
         await this.#integrationApiRepo.querySnowflake(request, auth.jwt);
 
       return Result.ok(querySnowflakeResponse);
