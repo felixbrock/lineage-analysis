@@ -12,16 +12,6 @@ export interface MaterializationQueryDto {
   organizationId: string;
 }
 
-export interface ILegacyMaterializationRepo {
-  findOne(id: string, dbConnection: DbConnection): Promise<Materialization | null>;
-  findBy(materializationQueryDto: MaterializationQueryDto, dbConnection: DbConnection): Promise<Materialization[]>;
-  all(dbConnection: DbConnection): Promise<Materialization[]>;
-  insertOne(materialization: Materialization, dbConnection: DbConnection): Promise<string>;
-  insertMany(materializations: Materialization[], dbConnection: DbConnection): Promise<string[]>;
-  replaceMany(materializations: Materialization[], dbConnection: DbConnection): Promise<number>;
-  deleteOne(id: string, dbConnection: DbConnection): Promise<string>;
-}
-
 export interface IMaterializationRepo {
   findOne(id: string, dbConnection: DbConnection): Promise<Materialization | null>;
   findBy(materializationQueryDto: MaterializationQueryDto, dbConnection: DbConnection): Promise<Materialization[]>;
