@@ -5,7 +5,7 @@ export interface LineagePrototype {
 }
 
 export interface LineageProperties
-  extends Omit<LineagePrototype, 'createdAt' | 'completed'> {
+  extends Omit<LineagePrototype, 'createdAt'> {
   createdAt: string;
   completed: boolean;
 }

@@ -1,4 +1,3 @@
-import { ObjectId } from 'mongodb';
 import { ReadColumns } from '../../column/read-columns';
 import { CreateDashboard } from '../../dashboard/create-dashboard';
 import {
@@ -14,6 +13,7 @@ import {
   DashboardRef,
   Logic,
   MaterializationDefinition,
+  ModelRepresentation,
   Refs,
 } from '../../entities/logic';
 import { Materialization } from '../../entities/materialization';
@@ -64,7 +64,7 @@ export default class DependenciesBuilder {
 
   readonly #columns: Column[];
 
-  readonly #matDefinitions: MaterializationDefinition[];
+  readonly #catalog: ModelRepresentation[];
 
   #dependencies: Dependency[] = [];
 
@@ -86,7 +86,7 @@ export default class DependenciesBuilder {
       logics: Logic[];
       mats: Materialization[];
       columns: Column[];
-      matDefinitions: MaterializationDefinition[];
+      catalog: ModelRepresentation[];
     },
     auth: Auth,
     dbConnection: DbConnection,
@@ -113,7 +113,7 @@ export default class DependenciesBuilder {
     this.#logics = props.logics;
     this.#mats = props.mats;
     this.#columns = props.columns;
-    this.#matDefinitions = props.matDefinitions;
+    this.#catalog = props.catalog;
   }
 
   #retrieveQuerySfQueryHistory = async (

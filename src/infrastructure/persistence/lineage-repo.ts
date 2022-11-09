@@ -1,16 +1,4 @@
 import {
-  Db,
-  DeleteResult,
-  Document,
-  Filter,
-  FindCursor,
-  InsertOneResult,
-  ObjectId,
-  UpdateResult,
-} from 'mongodb';
-import sanitize from 'mongo-sanitize';
-
-import {
   ILineageRepo,
   LineageUpdateDto,
 } from '../../domain/lineage/i-lineage-repo';

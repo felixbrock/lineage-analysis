@@ -13,29 +13,6 @@ const defaultPort = 8081;
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : defaultPort;
 const apiRoot = process.env.API_ROOT || 'api';
 
-// const getServiceDiscoveryNamespace = (): string | null => {
-//   switch (nodeEnv) {
-//     case 'development':
-//       return null;
-//     case 'test':
-//       return 'lineage-staging';
-//     case 'production':
-//       return 'lineage';
-//     default:
-//       throw new Error('No valid nodenv value provided');
-//   }
-// };
-
-export interface MongoDbConfig {
-  url: string;
-  dbName: string;
-}
-
-const getMongodbConfig = (): MongoDbConfig => ({
-  url: process.env.DATABASE_URL || '',
-  dbName: process.env.DATABASE_NAME || '',
-});
-
 const getCognitoUserPoolId = (): string => {
   switch (nodeEnv) {
     case 'development':
@@ -80,8 +57,7 @@ export const appConfig = {
   apiRoot: {
     sqlParser: process.env.API_ROOT_SQL_PARSER,
     integrationService: process.env.API_ROOT_INTEGRATION_SERVICE,
-    accountService: process.env.API_ROOT_ACCOUNT_SERVICE
+    accountService: process.env.API_ROOT_ACCOUNT_SERVICE,
   },
   baseUrl: getBaseUrlConfig(),
-  mongodb: getMongodbConfig(),
 };

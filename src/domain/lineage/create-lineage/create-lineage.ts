@@ -12,11 +12,8 @@ import { Dependency } from '../../entities/dependency';
 import { ReadColumns } from '../../column/read-columns';
 import { Materialization } from '../../entities/materialization';
 import { Column } from '../../entities/column';
-import { ILegacyLineageRepo, LineageUpdateDto } from '../i-lineage-repo';
-import { ILegacyColumnRepo } from '../../column/i-column-repo';
-import { ILegacyMaterializationRepo } from '../../materialization/i-materialization-repo';
+import { ILineageRepo, LineageUpdateDto } from '../i-lineage-repo';
 import { IDependencyRepo } from '../../dependency/i-dependency-repo';
-import { ILegacyLogicRepo } from '../../logic/i-logic-repo';
 import { DbConnection } from '../../services/i-db';
 import { QuerySfQueryHistory } from '../../integration-api/snowflake/query-snowflake-history';
 import { Dashboard } from '../../entities/dashboard';
@@ -30,7 +27,9 @@ import { BiType } from '../../value-types/bilayer';
 import DataEnvMerger from './data-env-merger';
 import { SfDataEnvGenerator } from './sf-data-env-generator';
 import { QuerySnowflake } from '../../integration-api/snowflake/query-snowflake';
-import SnowflakeDataEnvMerger from './snowflake/sf-data-env-merger';
+import { ILogicRepo } from '../../logic/i-logic-repo';
+import { IMaterializationRepo } from '../../materialization/i-materialization-repo';
+import { IColumnRepo } from '../../column/i-column-repo';
 
 export interface CreateLineageRequestDto {
   targetOrganizationId?: string;
@@ -45,7 +44,7 @@ interface DbtBasedBuildProps
   manifest: string;
 }
 
-type SfBasedBuildProps = Omit<CreateLineageRequestDto, 'catalog' | 'manifest'>
+type SfBasedBuildProps = Omit<CreateLineageRequestDto, 'catalog' | 'manifest'>;
 
 export interface CreateLineageAuthDto {
   jwt: string;
@@ -82,13 +81,13 @@ export class CreateLineage
 
   readonly #querySfQueryHistory: QuerySfQueryHistory;
 
-  readonly #lineageRepo: ILegacyLineageRepo;
+  readonly #lineageRepo: ILineageRepo;
 
-  readonly #logicRepo: ILegacyLogicRepo;
+  readonly #logicRepo: ILogicRepo;
 
-  readonly #materializationRepo: ILegacyMaterializationRepo;
+  readonly #materializationRepo: IMaterializationRepo;
 
-  readonly #columnRepo: ILegacyColumnRepo;
+  readonly #columnRepo: IColumnRepo;
 
   readonly #dependencyRepo: IDependencyRepo;
 
@@ -105,10 +104,10 @@ export class CreateLineage
     createDependency: CreateDependency,
     createExternalDependency: CreateExternalDependency,
     parseSQL: ParseSQL,
-    lineageRepo: ILegacyLineageRepo,
-    logicRepo: ILegacyLogicRepo,
-    materializationRepo: ILegacyMaterializationRepo,
-    columnRepo: ILegacyColumnRepo,
+    lineageRepo: ILineageRepo,
+    logicRepo: ILogicRepo,
+    materializationRepo: IMaterializationRepo,
+    columnRepo: IColumnRepo,
     dependencyRepo: IDependencyRepo,
     dashboardRepo: IDashboardRepo,
     readColumns: ReadColumns,
@@ -234,43 +233,6 @@ export class CreateLineage
     await this.#lineageRepo.updateOne(id, updateDto, this.#dbConnection);
   };
 
-  #buildDbtBased = async (
-    lineage: Lineage,
-    organizationId: string,
-    props: DbtBasedBuildProps,
-    auth: CreateLineageAuthDto
-  ): Promise<void> => {
-    
-  };
-
-  #buildSfBased = async (
-    lineage: Lineage,
-    organizationId: string,
-    props: SfBasedBuildProps,
-    auth: CreateLineageAuthDto
-  ): Promise<void> => {
-    console.log('...generating warehouse resources');
-    const dataEnvGenerator = ;
-    const { materializations, columns, logics } = await dataEnvGenerator.generate();
-
-    console.log('...merging new lineage snapshot with last one');
-    const dataEnvMerger = new SnowflakeDataEnvMerger(
-      { columns, materializations, organizationId },
-      {
-        lineageRepo: this.#lineageRepo,
-        columnRepo: this.#columnRepo,
-        materializationRepo: this.#materializationRepo,
-      }
-    );
-
-    const mergedDataEnv = await dataEnvMerger.merge();
-
-    console.log('...writing dw resources to persistence');
-    await this.#writeWhResourcesToPersistence({ lineage, ...mergedDataEnv });
-
-    
-  };
-
   async execute(
     request: CreateLineageRequestDto,
     auth: CreateLineageAuthDto,
@@ -304,101 +266,99 @@ export class CreateLineage
           'When creating lineage based on dbt both, the manifest and catalog file have to be provided'
         );
 
-      const { dbtCatalog, dbtManifest, ...remainingReq } = request;
+      const { dbtCatalog, dbtManifest } = request;
 
       const dbtBased = dbtCatalog && dbtManifest;
-      
-      
+
       console.log('...generating warehouse resources');
-    const { jwt, ...remainingAuth } = auth;
-    const dataEnvGenerator = dbtBased ? new DbtDataEnvGenerator(
-      {
-        dbtCatalog,
-        dbtManifest,
-        lineageId: lineage.id,
-        targetOrganizationId: request.targetOrganizationId,
-      },
-      remainingAuth,
-      this.#dbConnection,
-      {
-        createColumn: this.#createColumn,
-        createLogic: this.#createLogic,
-        createMaterialization: this.#createMaterialization,
-        parseSQL: this.#parseSQL,
-      }
-    ): new SfDataEnvGenerator(
-      {
-        lineageId: lineage.id,
-        targetOrganizationId: request.targetOrganizationId,
-      },
-      auth,
-      this.#dbConnection,
-      {
-        createColumn: this.#createColumn,
-        createMaterialization: this.#createMaterialization,
-        createLogic: this.#createLogic,
-        parseSQL: this.#parseSQL,
-        querySnowflake: this.#querySnowflake,
+      const { jwt, ...remainingAuth } = auth;
+      const dataEnvGenerator = dbtBased
+        ? new DbtDataEnvGenerator(
+            {
+              dbtCatalog,
+              dbtManifest,
+              lineageId: lineage.id,
+              targetOrganizationId: request.targetOrganizationId,
+            },
+            remainingAuth,
+            this.#dbConnection,
+            {
+              createColumn: this.#createColumn,
+              createLogic: this.#createLogic,
+              createMaterialization: this.#createMaterialization,
+              parseSQL: this.#parseSQL,
+            }
+          )
+        : new SfDataEnvGenerator(
+            {
+              lineageId: lineage.id,
+              targetOrganizationId: request.targetOrganizationId,
+            },
+            auth,
+            this.#dbConnection,
+            {
+              createColumn: this.#createColumn,
+              createMaterialization: this.#createMaterialization,
+              createLogic: this.#createLogic,
+              parseSQL: this.#parseSQL,
+              querySnowflake: this.#querySnowflake,
+            }
+          );
+      const { materializations, columns, logics, catalog } =
+        await dataEnvGenerator.generate();
 
-      }
-    );
-    const { materializations, columns, logics, catalog } =
-      await dataEnvGenerator.generate();
+      console.log('...merging new lineage snapshot with last one');
+      const dataEnvMerger = new DataEnvMerger(
+        { columns, materializations, logics, organizationId },
+        this.#dbConnection,
+        {
+          lineageRepo: this.#lineageRepo,
+          columnRepo: this.#columnRepo,
+          logicRepo: this.#logicRepo,
+          materializationRepo: this.#materializationRepo,
+        }
+      );
 
-    console.log('...merging new lineage snapshot with last one');
-    const dataEnvMerger = new DataEnvMerger(
-      { columns, materializations, logics, organizationId },
-      this.#dbConnection,
-      {
-        lineageRepo: this.#lineageRepo,
-        columnRepo: this.#columnRepo,
-        logicRepo: this.#logicRepo,
-        materializationRepo: this.#materializationRepo,
-      }
-    );
+      const mergedDataEnv = await dataEnvMerger.merge();
 
-    const mergedDataEnv = await dataEnvMerger.merge();
+      console.log('...writing dw resources to persistence');
+      await this.#writeWhResourcesToPersistence({ lineage, ...mergedDataEnv });
 
-    console.log('...writing dw resources to persistence');
-    await this.#writeWhResourcesToPersistence({ lineage, ...mergedDataEnv });
+      console.log('...building dependencies');
+      const dependenciesBuilder = await new DependenciesBuilder(
+        {
+          lineageId: lineage.id,
+          logics: mergedDataEnv.logicsToCreate.concat(
+            mergedDataEnv.logicsToReplace
+          ),
+          mats: mergedDataEnv.matsToCreate.concat(mergedDataEnv.matsToReplace),
+          columns: mergedDataEnv.columnsToCreate.concat(
+            mergedDataEnv.columnsToReplace
+          ),
+          catalog,
+          organizationId,
+          targetOrganizationId: request.targetOrganizationId,
+        },
+        auth,
+        this.#dbConnection,
+        {
+          createDashboard: this.#createDashboard,
+          createDependency: this.#createDependency,
+          createExternalDependency: this.#createExternalDependency,
+          readColumns: this.#readColumns,
+          querySfQueryHistory: this.#querySfQueryHistory,
+        }
+      );
+      const { dashboards, dependencies } = await dependenciesBuilder.build(
+        request.biType
+      );
 
-    console.log('...building dependencies');
-    const dependenciesBuilder = await new DependenciesBuilder(
-      {
-        lineageId: lineage.id,
-        logics: mergedDataEnv.logicsToCreate.concat(
-          mergedDataEnv.logicsToReplace
-        ),
-        mats: mergedDataEnv.matsToCreate.concat(mergedDataEnv.matsToReplace),
-        columns: mergedDataEnv.columnsToCreate.concat(
-          mergedDataEnv.columnsToReplace
-        ),
-        matDefinitions,
-        organizationId,
-        targetOrganizationId: props.targetOrganizationId,
-      },
-      auth,
-      this.#dbConnection,
-      {
-        createDashboard: this.#createDashboard,
-        createDependency: this.#createDependency,
-        createExternalDependency: this.#createExternalDependency,
-        readColumns: this.#readColumns,
-        querySfQueryHistory: this.#querySfQueryHistory,
-      }
-    );
-    const { dashboards, dependencies } = await dependenciesBuilder.build(
-      props.biType
-    );
+      console.log('...writing dashboards to persistence');
+      await this.#writeDashboardsToPersistence(dashboards);
 
-    console.log('...writing dashboards to persistence');
-    await this.#writeDashboardsToPersistence(dashboards);
+      console.log('...writing dependencies to persistence');
+      await this.#writeDependenciesToPersistence(dependencies);
 
-    console.log('...writing dependencies to persistence');
-    await this.#writeDependenciesToPersistence(dependencies);
-
-      
-      
       console.log('...setting lineage complete state to true');
       await this.#updateLineage(lineage.id, { completed: true });
 
