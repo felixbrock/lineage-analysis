@@ -27,15 +27,15 @@ import { buildLineage } from './build-lineage';
 import { DbtDataEnvGenerator } from './dbt-data-env-generator';
 import DependenciesBuilder from './dependencies-builder';
 import { BiType } from '../../value-types/bilayer';
-import DbtDataEnvMerger from './dbt/dbt-data-env-merger';
+import DataEnvMerger from './data-env-merger';
 import { SfDataEnvGenerator } from './sf-data-env-generator';
 import { QuerySnowflake } from '../../integration-api/snowflake/query-snowflake';
 import SnowflakeDataEnvMerger from './snowflake/sf-data-env-merger';
 
 export interface CreateLineageRequestDto {
   targetOrganizationId?: string;
-  catalog?: string;
-  manifest?: string;
+  dbtCatalog?: string;
+  dbtManifest?: string;
   biType?: BiType;
 }
 
@@ -240,14 +240,83 @@ export class CreateLineage
     props: DbtBasedBuildProps,
     auth: CreateLineageAuthDto
   ): Promise<void> => {
+    
+  };
+
+  #buildSfBased = async (
+    lineage: Lineage,
+    organizationId: string,
+    props: SfBasedBuildProps,
+    auth: CreateLineageAuthDto
+  ): Promise<void> => {
     console.log('...generating warehouse resources');
-    const { jwt, ...remainingAuth } = auth;
-    const dataEnvGenerator = new DbtDataEnvGenerator(
+    const dataEnvGenerator = ;
+    const { materializations, columns, logics } = await dataEnvGenerator.generate();
+
+    console.log('...merging new lineage snapshot with last one');
+    const dataEnvMerger = new SnowflakeDataEnvMerger(
+      { columns, materializations, organizationId },
       {
-        dbtCatalog: props.catalog,
-        dbtManifest: props.manifest,
+        lineageRepo: this.#lineageRepo,
+        columnRepo: this.#columnRepo,
+        materializationRepo: this.#materializationRepo,
+      }
+    );
+
+    const mergedDataEnv = await dataEnvMerger.merge();
+
+    console.log('...writing dw resources to persistence');
+    await this.#writeWhResourcesToPersistence({ lineage, ...mergedDataEnv });
+
+    
+  };
+
+  async execute(
+    request: CreateLineageRequestDto,
+    auth: CreateLineageAuthDto,
+    dbConnection: DbConnection
+  ): Promise<CreateLineageResponseDto> {
+    try {
+      if (auth.isSystemInternal && !request.targetOrganizationId)
+        throw new Error('Target organization id missing');
+      if (!auth.isSystemInternal && !auth.callerOrganizationId)
+        throw new Error('Caller organization id missing');
+      if (!request.targetOrganizationId && !auth.callerOrganizationId)
+        throw new Error('No organization Id instance provided');
+      if (request.targetOrganizationId && auth.callerOrganizationId)
+        throw new Error('callerOrgId and targetOrgId provided. Not allowed');
+
+      let organizationId: string;
+      if (auth.callerOrganizationId) organizationId = auth.callerOrganizationId;
+      else if (request.targetOrganizationId)
+        organizationId = request.targetOrganizationId;
+      else throw new Error('callerOrgId and targetOrgId provided. Not allowed');
+
+      this.#dbConnection = dbConnection;
+
+      console.log('starting lineage creation...');
+
+      console.log('...building lineage object');
+      const lineage = buildLineage(organizationId);
+
+      if (!!request.dbtCatalog !== !!request.dbtManifest)
+        throw new Error(
+          'When creating lineage based on dbt both, the manifest and catalog file have to be provided'
+        );
+
+      const { dbtCatalog, dbtManifest, ...remainingReq } = request;
+
+      const dbtBased = dbtCatalog && dbtManifest;
+      
+      
+      console.log('...generating warehouse resources');
+    const { jwt, ...remainingAuth } = auth;
+    const dataEnvGenerator = dbtBased ? new DbtDataEnvGenerator(
+      {
+        dbtCatalog,
+        dbtManifest,
         lineageId: lineage.id,
-        targetOrganizationId: props.targetOrganizationId,
+        targetOrganizationId: request.targetOrganizationId,
       },
       remainingAuth,
       this.#dbConnection,
@@ -257,12 +326,27 @@ export class CreateLineage
         createMaterialization: this.#createMaterialization,
         parseSQL: this.#parseSQL,
       }
+    ): new SfDataEnvGenerator(
+      {
+        lineageId: lineage.id,
+        targetOrganizationId: request.targetOrganizationId,
+      },
+      auth,
+      this.#dbConnection,
+      {
+        createColumn: this.#createColumn,
+        createMaterialization: this.#createMaterialization,
+        createLogic: this.#createLogic,
+        parseSQL: this.#parseSQL,
+        querySnowflake: this.#querySnowflake,
+
+      }
     );
-    const { materializations, columns, logics, matDefinitions } =
+    const { materializations, columns, logics, catalog } =
       await dataEnvGenerator.generate();
 
     console.log('...merging new lineage snapshot with last one');
-    const dataEnvMerger = new DbtDataEnvMerger(
+    const dataEnvMerger = new DataEnvMerger(
       { columns, materializations, logics, organizationId },
       this.#dbConnection,
       {
@@ -312,94 +396,8 @@ export class CreateLineage
 
     console.log('...writing dependencies to persistence');
     await this.#writeDependenciesToPersistence(dependencies);
-  };
 
-  #buildSfBased = async (
-    lineage: Lineage,
-    organizationId: string,
-    props: SfBasedBuildProps,
-    auth: CreateLineageAuthDto
-  ): Promise<void> => {
-    console.log('...generating warehouse resources');
-    const dataEnvGenerator = new SfDataEnvGenerator(
-      {
-        lineageId: lineage.id,
-        targetOrganizationId: props.targetOrganizationId,
-      },
-      auth,
-      this.#dbConnection,
-      {
-        createColumn: this.#createColumn,
-        createMaterialization: this.#createMaterialization,
-        querySnowflake: this.#querySnowflake,
-      }
-    );
-    const { materializations, columns } = await dataEnvGenerator.generate();
-
-    console.log('...merging new lineage snapshot with last one');
-    const dataEnvMerger = new SnowflakeDataEnvMerger(
-      { columns, materializations, organizationId },
-      {
-        lineageRepo: this.#lineageRepo,
-        columnRepo: this.#columnRepo,
-        materializationRepo: this.#materializationRepo,
-      }
-    );
-
-    const mergedDataEnv = await dataEnvMerger.merge();
-
-    console.log('...writing dw resources to persistence');
-    await this.#writeWhResourcesToPersistence({ lineage, ...mergedDataEnv });
-
-    
-  };
-
-  async execute(
-    request: CreateLineageRequestDto,
-    auth: CreateLineageAuthDto,
-    dbConnection: DbConnection
-  ): Promise<CreateLineageResponseDto> {
-    try {
-      if (auth.isSystemInternal && !request.targetOrganizationId)
-        throw new Error('Target organization id missing');
-      if (!auth.isSystemInternal && !auth.callerOrganizationId)
-        throw new Error('Caller organization id missing');
-      if (!request.targetOrganizationId && !auth.callerOrganizationId)
-        throw new Error('No organization Id instance provided');
-      if (request.targetOrganizationId && auth.callerOrganizationId)
-        throw new Error('callerOrgId and targetOrgId provided. Not allowed');
-
-      let organizationId: string;
-      if (auth.callerOrganizationId) organizationId = auth.callerOrganizationId;
-      else if (request.targetOrganizationId)
-        organizationId = request.targetOrganizationId;
-      else throw new Error('callerOrgId and targetOrgId provided. Not allowed');
-
-      this.#dbConnection = dbConnection;
-
-      console.log('starting lineage creation...');
-
-      console.log('...building lineage object');
-      const lineage = buildLineage(organizationId);
-
-      if (!!request.catalog !== !!request.manifest)
-        throw new Error(
-          'When creating lineage based on dbt both, the manifest and catalog file have to be provided'
-        );
-
-      const { catalog, manifest, ...remainingReq } = request;
-
-      const dbtBased = catalog && manifest; 
-
-      if(dbtBased)
-          await this.#buildDbtBased(
-            lineage,
-            organizationId,
-            { catalog, manifest, ...remainingReq },
-            auth
-          );
-      else 
-            await this.#buildSfBased(lineage, organizationId, request, auth);
+      
       
       console.log('...setting lineage complete state to true');
       await this.#updateLineage(lineage.id, { completed: true });

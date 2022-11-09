@@ -1,23 +1,21 @@
-import { CreateLogic } from '../../../logic/create-logic';
-import { CreateColumn } from '../../../column/create-column';
+import { CreateLogic } from '../../logic/create-logic';
+import { CreateColumn } from '../../column/create-column';
 import {
   Column,
   ColumnDataType,
   parseColumnDataType,
-} from '../../../entities/column';
-import { Logic, ModelRepresentation } from '../../../entities/logic';
+} from '../../entities/column';
+import { Logic, ModelRepresentation } from '../../entities/logic';
 import {
   Materialization,
   MaterializationType,
   parseMaterializationType,
-} from '../../../entities/materialization';
-import { QuerySnowflake } from '../../../integration-api/snowflake/query-snowflake';
-import { CreateMaterialization } from '../../../materialization/create-materialization';
-import { DbConnection } from '../../../services/i-db';
-import {
-  ParseSQL,
-  ParseSQLResponseDto,
-} from '../../../sql-parser-api/parse-sql';
+} from '../../entities/materialization';
+import { QuerySnowflake } from '../../integration-api/snowflake/query-snowflake';
+import { CreateMaterialization } from '../../materialization/create-materialization';
+import { DbConnection } from '../../services/i-db';
+import { ParseSQL, ParseSQLResponseDto } from '../../sql-parser-api/parse-sql';
+import { GenerateResult, IDataEnvGenerator } from './i-data-env-generator';
 
 interface Auth {
   jwt: string;
@@ -28,12 +26,6 @@ interface Auth {
 export interface DataEnvProps {
   lineageId: string;
   targetOrganizationId?: string;
-}
-
-export interface GenerateResult {
-  materializations: Materialization[];
-  columns: Column[];
-  logics: Logic[];
 }
 
 interface ColumnRepresentation {
@@ -61,7 +53,7 @@ interface LogicRepresentation {
   sql: string;
 }
 
-export class SfDataEnvGenerator {
+export class SfDataEnvGenerator implements IDataEnvGenerator {
   readonly #createMaterialization: CreateMaterialization;
 
   readonly #createColumn: CreateColumn;
@@ -426,7 +418,6 @@ export class SfDataEnvGenerator {
       [key: string]: ColumnRepresentation[];
     }
   ): void => {
-    
     const modelRepresentations = matRepresentations.map(
       (el): ModelRepresentation => ({
         relationName: el.relationName,
@@ -483,7 +474,8 @@ export class SfDataEnvGenerator {
           {
             matRepresentation: el,
             logicRepresentation,
-            columnRepresentations: colRepresentationsByRelationName[el.relationName],
+            columnRepresentations:
+              colRepresentationsByRelationName[el.relationName],
             relationName: el.relationName,
           },
           options
@@ -495,6 +487,7 @@ export class SfDataEnvGenerator {
       materializations: this.#materializations,
       columns: this.#columns,
       logics: this.#logics,
+      catalog: this.#catalog,
     };
   };
 }

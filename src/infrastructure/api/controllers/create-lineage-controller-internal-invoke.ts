@@ -42,15 +42,15 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
       Buffer.from(content, 'base64').toString('utf8');
 
     // https://stackoverflow.com/questions/50966023/which-variant-of-base64-encoding-is-created-by-buffer-tostringbase64
-    if (!isBase64(req.catalog) || !isBase64(req.manifest))
+    if (!isBase64(req.dbtCatalog) || !isBase64(req.dbtManifest))
       throw new Error(
         'Catalog of manifest not in base64 format or in wrong base64 variant (required variant: RFC 4648 §4)'
       );
 
     return {
       ...req,
-      catalog: toUtf8(req.catalog),
-      manifest: toUtf8(req.manifest),
+      dbtCatalog: toUtf8(req.dbtCatalog),
+      dbtManifest: toUtf8(req.dbtManifest),
     };
   };
 

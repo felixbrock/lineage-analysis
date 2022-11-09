@@ -50,8 +50,8 @@ export default class CreateLineageController extends BaseController {
 
     return {
       ...body,
-      catalog: toUtf8(body.catalog),
-      manifest: toUtf8(body.manifest),
+      dbtCatalog: toUtf8(body.catalog),
+      dbtManifest: toUtf8(body.manifest),
     };
   };
 

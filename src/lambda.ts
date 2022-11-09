@@ -63,8 +63,8 @@ const internalInvoke = async (
         );
 
       const req: CreateLineageRequestDto = {
-        catalog: event.req.catalog,
-        manifest: event.req.manifest,
+        dbtCatalog: event.req.catalog,
+        dbtManifest: event.req.manifest,
         targetOrganizationId: event.req.targetOrganizationId,
         biType: event.req.biType,
       };
