@@ -20,6 +20,7 @@ import {
   Materialization,
   MaterializationProperties,
 } from '../../domain/entities/materialization';
+import { QuerySnowflake } from '../../domain/integration-api/snowflake/query-snowflake';
 
 interface MaterializationPersistence {
   _id: ObjectId;
@@ -47,6 +48,12 @@ interface MaterializationQueryFilter {
 const collectionName = 'materialization';
 
 export default class MaterializationRepo implements ILegacyMaterializationRepo {
+  readonly #querySnowflake: QuerySnowflake;
+
+  constructor(querySnowflake: QuerySnowflake) {
+    this.#querySnowflake = querySnowflake;
+  }
+
   findOne = async (
     id: string,
     dbConnection: Db
@@ -236,7 +243,7 @@ export default class MaterializationRepo implements ILegacyMaterializationRepo {
     try {
       const result: DeleteResult = await dbConnection
         .collection(collectionName)
-        .deleteOne({ _id: new ObjectId(sanitize(id)) });
+        .
 
       if (!result.acknowledged)
         throw new Error(

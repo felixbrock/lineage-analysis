@@ -19,5 +19,4 @@ export interface IDashboardRepo {
   all(dbConnection: DbConnection): Promise<Dashboard[]>;
   insertOne(Dashboard: Dashboard, dbConnection: DbConnection): Promise<string>;
   insertMany(dashboards: Dashboard[], dbConnection: DbConnection): Promise<string[]>;
-  deleteOne(id: string, dbConnection: DbConnection): Promise<string>;
 }

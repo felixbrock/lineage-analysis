@@ -1,18 +1,37 @@
 import { Logic } from '../entities/logic';
-import { DbConnection } from '../services/i-db';
 
 export interface LogicQueryDto {
   relationName?: string;
-  lineageId: string;
-  organizationId: string;
+  logicId: string;
+}
+
+export interface Auth {
+  jwt: string;
+  callerOrgId: string;
+  isSystemInternal: boolean;
 }
 
 export interface ILogicRepo {
-  findOne(id: string, dbConnection: DbConnection): Promise<Logic | null>;
-  findBy(materializationQueryDto: LogicQueryDto, dbConnection: DbConnection): Promise<Logic[]>;
-  all(dbConnection: DbConnection): Promise<Logic[]>;
-  insertOne(logic: Logic, dbConnection: DbConnection): Promise<string>;
-  insertMany(logics: Logic[], dbConnection: DbConnection): Promise<string[]>;
-  replaceMany(logics: Logic[], dbConnection: DbConnection): Promise<number>;
-  deleteOne(id: string, dbConnection: DbConnection): Promise<string>;
+  findOne(
+    logicId: string,
+    targetOrgId: string,
+    auth: Auth
+  ): Promise<Logic | null>;
+  findBy(
+    logicQueryDto: LogicQueryDto,
+    targetOrgId: string,
+    auth: Auth
+  ): Promise<Logic[]>;
+  all(targetOrgId: string, auth: Auth): Promise<Logic[]>;
+  insertOne(logic: Logic, targetOrgId: string, auth: Auth): Promise<string>;
+  insertMany(
+    logics: Logic[],
+    targetOrgId: string,
+    auth: Auth
+  ): Promise<string[]>;
+  replaceMany(
+    logics: Logic[],
+    targetOrgId: string,
+    auth: Auth
+  ): Promise<number>;
 }

@@ -21,7 +21,7 @@ import { OrganizationLevelQueryResult } from '../../integration-api/i-integratio
 import {
   QuerySfQueryHistory,
   QuerySfQueryHistoryResponseDto,
-} from '../../integration-api/snowflake/query-snowflake-history';
+} from '../../snowflake-api/query-snowflake-history';
 import { DbConnection } from '../../services/i-db';
 import { BiType } from '../../value-types/bilayer';
 import SQLElement from '../../value-types/sql-element';

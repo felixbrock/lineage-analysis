@@ -1,8 +1,8 @@
-import Result from '../../value-types/transient-types/result';
-import IUseCase from '../../services/use-case';
-import { BiType } from '../../value-types/bilayer';
+import Result from '../value-types/transient-types/result';
+import IUseCase from '../services/use-case';
+import { BiType } from '../value-types/bilayer';
+import { SnowflakeQueryResult } from './i-snowflake-api-repo';
 import { QuerySnowflake } from './query-snowflake';
-import { SnowflakeQueryResult } from '../i-integration-api-repo';
 
 export interface QuerySfQueryHistoryRequestDto {
   biType: BiType;
@@ -13,6 +13,7 @@ export interface QuerySfQueryHistoryRequestDto {
 export interface QuerySfQueryHistoryAuthDto {
   jwt: string;
   callerOrganizationId?: string;
+  isSystemInternal: boolean;
 }
 
 export type QuerySfQueryHistoryResponseDto = Result<SnowflakeQueryResult>;
@@ -90,13 +91,13 @@ export class QuerySfQueryHistory
       const queryResult =
         await this.#querySnowflake.execute(
           {
-            query: QuerySfQueryHistory.#buildQuery(
+            queryText: QuerySfQueryHistory.#buildQuery(
               request.limit,
               request.biType
             ),
-            targetOrganizationId: organizationId,
+            targetOrgId: organizationId,
           },
-          {jwt: auth.jwt}
+          auth
         );
 
       if(!queryResult.success) throw new Error(queryResult.error);

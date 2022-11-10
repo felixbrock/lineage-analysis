@@ -34,6 +34,7 @@
     "@types/jest": "^27.4.1",
     "@types/jsonwebtoken": "^8.5.8",
     "@types/morgan": "^1.9.3",
+    "@types/snowflake-sdk": "^1.6.9",
     "@typescript-eslint/eslint-plugin": "^5.0.0",
     "@typescript-eslint/parser": "^5.0.0",
     "eslint": "^8.2.0",
@@ -60,6 +61,7 @@
     "helmet": "^5.1.0",
     "jsonwebtoken": "^8.5.1",
     "jwks-rsa": "^2.1.4",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+    "snowflake-sdk": "^1.6.15"
   }
 }

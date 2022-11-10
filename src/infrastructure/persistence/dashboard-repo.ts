@@ -17,6 +17,7 @@ import {
     Dashboard,
     DashboardProperties,
   } from '../../domain/entities/dashboard';
+import { QuerySnowflake } from '../../domain/integration-api/snowflake/query-snowflake';
   
   interface DashboardPersistence {
     url?: string;
@@ -44,6 +45,12 @@ import {
   const collectionName = 'dashboard';
   
   export default class DashboardRepo implements IDashboardRepo {
+    readonly #querySnowflake: QuerySnowflake;
+
+    constructor(querySnowflake: QuerySnowflake) {
+      this.#querySnowflake = querySnowflake;
+    }
+
     findOne = async (
       id: string,
       dbConnection: Db
@@ -172,7 +179,7 @@ import {
       try {
         const result: DeleteResult = await dbConnection
           .collection(collectionName)
-          .deleteOne({ _id: new ObjectId(sanitize(id)) });
+          .
   
         if (!result.acknowledged)
           throw new Error('Dashboard delete failed. Delete not acknowledged');

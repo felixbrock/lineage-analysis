@@ -19,7 +19,6 @@ export interface MaterializationProperties {
   databaseName: string;
   type: MaterializationType;
   lineageIds: string[];
-  organizationId: string;
   logicId?: string ;
   ownerId?: string ;
   isTransient?: boolean ;
@@ -34,7 +33,6 @@ export interface MaterializationPrototype {
   name: string;
   type: MaterializationType;
   lineageId: string;
-  organizationId: string;
   logicId?: string;
   ownerId?: string;
   isTransient?: boolean;
@@ -58,7 +56,6 @@ export class Materialization {
 
   #lineageIds: string[];
 
-  #organizationId: string;
 
   #logicId: string | undefined;
 
@@ -96,9 +93,6 @@ export class Materialization {
     return this.#lineageIds;
   }
 
-  get organizationId(): string {
-    return this.#organizationId;
-  }
 
   get logicId(): string | undefined {
     return this.#logicId;
@@ -124,7 +118,6 @@ export class Materialization {
     this.#databaseName = props.databaseName;
     this.#type = props.type;
     this.#lineageIds = props.lineageIds;
-    this.#organizationId = props.organizationId;
     this.#logicId = props.logicId;
     this.#ownerId = props.ownerId;
     this.#isTransient = props.isTransient;
@@ -144,8 +137,6 @@ export class Materialization {
       throw new TypeError('Materialization must have materialization type');
     if (!prototype.lineageId)
       throw new TypeError('Materialization must have lineageId');
-    if (!prototype.organizationId)
-      throw new TypeError('Materialization must have organization id');
 
     const materialization = new Materialization({
       ...prototype,
@@ -172,8 +163,6 @@ export class Materialization {
       throw new TypeError('Materialization must have materialization type');
     if (!props.lineageIds.length)
       throw new TypeError('Materialization must have lineageIds');
-    if (!props.organizationId)
-      throw new TypeError('Materialization must have organization id');
 
     return new Materialization(props);
   };
@@ -186,7 +175,6 @@ export class Materialization {
     schemaName: this.#schemaName,
     databaseName: this.#databaseName,
     lineageIds: this.#lineageIds,
-    organizationId: this.#organizationId,
     logicId: this.#logicId,
     ownerId: this.#ownerId,
     isTransient: this.#isTransient,

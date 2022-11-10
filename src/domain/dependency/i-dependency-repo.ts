@@ -15,5 +15,5 @@ export interface IDependencyRepo {
   all(dbConnection: DbConnection): Promise<Dependency[]>;
   insertOne(dependency: Dependency, dbConnection: DbConnection): Promise<string>;
   insertMany(dependencies: Dependency[], dbConnection: DbConnection): Promise<string[]>;
-  deleteOne(id: string, dbConnection: DbConnection): Promise<string>;
+  
 }

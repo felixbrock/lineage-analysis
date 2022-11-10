@@ -13,6 +13,7 @@ import sanitize from 'mongo-sanitize';
 
 import { ColumnQueryDto, IColumnRepo } from '../../domain/column/i-column-repo';
 import { Column, ColumnProperties, parseColumnDataType } from '../../domain/entities/column';
+import { QuerySnowflake } from '../../domain/integration-api/snowflake/query-snowflake';
 
 interface ColumnPersistence {
   _id: ObjectId;
@@ -37,9 +38,45 @@ interface ColumnQueryFilter {
 
 const collectionName = 'column';
 
-export default class ColumnRepo implements IColumnRepo {
+export default class ColunRepo implements IColumnRepo {
+  readonly #querySnowflake: QuerySnowflake;
+
+  constructor(querySnowflake: QuerySnowflake) {
+    this.#querySnowflake = querySnowflake;
+  }
+
   findOne = async (id: string, dbConnection: Db): Promise<Column | null> => {
     try {
+      const {
+        ID: id,
+        NAME: name,
+        RELATION_NAME: relationName,
+        INDEX: index,
+        DATA_TYPE: dataType,
+        IS_IDENTITY: isIdentity,
+        IS_NULLABLE: isNullable,
+        MATERIALIZATION_ID: materializationId,
+        LINEAGE_IDS: lineageIds,
+        COMMENT: comment,
+      } = result[0];
+
+      if (
+        typeof id !== 'string' ||
+        typeof name !== 'string' ||
+        typeof relationName !== 'string' ||
+        typeof index !== 'string' ||
+        typeof dataType !== 'string' ||
+        typeof isIdentity !== 'boolean' ||
+        typeof isNullable !== 'boolean' ||
+        typeof materializationId !== 'string' ||
+        typeof lineageIds !== 'string' ||
+        typeof comment !== 'string'
+      )
+        throw new Error(
+          'Retrieved unexpected column field types from persistence'
+        );
+
+
       const result: any = await dbConnection
         .collection(collectionName)
         .findOne({ _id: new ObjectId(sanitize(id)) });
@@ -215,7 +252,7 @@ export default class ColumnRepo implements IColumnRepo {
     try {
       const result: DeleteResult = await dbConnection
         .collection(collectionName)
-        .deleteOne({ _id: new ObjectId(sanitize(id)) });
+        .
 
       if (!result.acknowledged)
         throw new Error('Column delete failed. Delete not acknowledged');

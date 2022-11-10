@@ -51,7 +51,6 @@ export interface ColumnProperties {
   dataType: ColumnDataType;
   materializationId: string;
   lineageIds: string[];
-  organizationId: string;
   isIdentity?: boolean;
   isNullable?: boolean;
   comment?: string;
@@ -65,7 +64,6 @@ export interface ColumnPrototype {
   dataType: ColumnDataType;
   materializationId: string;
   lineageId: string;
-  organizationId: string;
   isIdentity?: boolean;
   isNullable?: boolean;
   comment?: string;
@@ -88,7 +86,6 @@ export class Column {
 
   #lineageIds: string[];
 
-  #organizationId: string;
 
   #isIdentity?: boolean;
 
@@ -124,9 +121,6 @@ export class Column {
     return this.#lineageIds;
   }
 
-  get organizationId(): string {
-    return this.#organizationId;
-  }
 
   get isIdentity(): boolean | undefined {
     return this.#isIdentity;
@@ -148,7 +142,6 @@ export class Column {
     this.#dataType = props.dataType;
     this.#materializationId = props.materializationId;
     this.#lineageIds = props.lineageIds;
-    this.#organizationId = props.organizationId;
     this.#isIdentity = props.isIdentity;
     this.#isNullable = props.isNullable;
     this.#comment = props.comment;
@@ -165,10 +158,8 @@ export class Column {
       throw new TypeError('Column must have materializationId');
     if (!prototype.lineageId)
       throw new TypeError('Column must have lineage id');
-    if (!prototype.organizationId)
-      throw new TypeError('Column must have organizationId');
 
-    const column = Column.build({
+      const column = Column.build({
       ...prototype,
       isIdentity: prototype.isIdentity,
       isNullable: prototype.isNullable,
@@ -190,8 +181,6 @@ export class Column {
       throw new TypeError('Column must have materializationId');
     if (!props.lineageIds.length)
       throw new TypeError('Column must have lineage ids');
-    if (!props.organizationId)
-      throw new TypeError('Column must have organizationId');
 
     return new Column(props);
   };
@@ -204,7 +193,6 @@ export class Column {
     dataType: this.#dataType,
     materializationId: this.#materializationId,
     lineageIds: this.#lineageIds,
-    organizationId: this.#organizationId,
     isIdentity: this.#isIdentity,
     isNullable: this.#isNullable,
     comment: this.#comment,

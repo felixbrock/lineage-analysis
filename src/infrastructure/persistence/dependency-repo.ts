@@ -18,6 +18,7 @@ import {
   DependencyProperties,
   DependencyType,
 } from '../../domain/entities/dependency';
+import { QuerySnowflake } from '../../domain/integration-api/snowflake/query-snowflake';
 
 interface DependencyPersistence {
   _id: ObjectId;
@@ -39,6 +40,12 @@ interface DependencyQueryFilter {
 const collectionName = 'dependency';
 
 export default class DependencyRepo implements IDependencyRepo {
+  readonly #querySnowflake: QuerySnowflake;
+
+  constructor(querySnowflake: QuerySnowflake) {
+    this.#querySnowflake = querySnowflake;
+  }
+
   findOne = async (
     id: string,
     dbConnection: Db
@@ -164,7 +171,7 @@ export default class DependencyRepo implements IDependencyRepo {
     try {
       const result: DeleteResult = await dbConnection
         .collection(collectionName)
-        .deleteOne({ _id: new ObjectId(sanitize(id)) });
+        .
 
       if (!result.acknowledged)
         throw new Error('Dependency delete failed. Delete not acknowledged');

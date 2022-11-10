@@ -1,10 +1,6 @@
 import axios, { AxiosRequestConfig } from 'axios';
-import {
-  IIntegrationApiRepo,
-  QuerySfQueryHistoryDto,
-  SnowflakeQueryResultDto,
-} from '../../domain/integration-api/i-integration-api-repo';
 import { appConfig } from '../../config';
+import { IIntegrationApiRepo } from '../../domain/integration-api/i-integration-api-repo';
 
 export default class IntegrationApiRepo implements IIntegrationApiRepo {
   #version = 'v1';
@@ -13,19 +9,18 @@ export default class IntegrationApiRepo implements IIntegrationApiRepo {
 
   #apiRoot = appConfig.express.apiRoot;
 
-  querySnowflake = async (
-    body: {query: string, targetOrganizationId?: string},
+  readSnowflakeProfile = async (
+    targetOrgId: string,
     jwt: string
-  ): Promise<SnowflakeQueryResultDto> => {
+  ): Promise<SnowflakeProfileDto> => {
     try {
 
       const config: AxiosRequestConfig = {
         headers: { Authorization: `Bearer ${jwt}` },
       };
 
-      const response = await axios.post(
-        `${this.#baseUrl}/${this.#apiRoot}/${this.#version}/snowflake/query`,
-        body,
+      const response = await axios.get(
+        `${this.#baseUrl}/${this.#apiRoot}/${this.#version}/snowflake/profiles/${targetOrgId}`,
         config
       );
       const jsonResponse = response.data;

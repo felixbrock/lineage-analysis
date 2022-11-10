@@ -23,7 +23,6 @@ interface GeneralPrototypeProps {
   sql: string;
   parsedLogic: string;
   lineageId: string;
-  organizationId: string;
   catalog: ModelRepresentation[];
 }
 
@@ -39,7 +38,6 @@ export interface LogicProps {
   parsedLogic: string;
   statementRefs: Refs;
   lineageIds: string[];
-  organizationId: string;
 }
 
 type LogicDto = LogicProps;
@@ -175,8 +173,6 @@ export class Logic {
 
   #lineageIds: string[];
 
-  #organizationId: string;
-
   get id(): string {
     return this.#id;
   }
@@ -205,10 +201,6 @@ export class Logic {
     return this.#lineageIds;
   }
 
-  get organizationId(): string {
-    return this.#organizationId;
-  }
-
   private constructor(properties: LogicProps) {
     this.#id = properties.id;
     this.#relationName = properties.relationName;
@@ -217,7 +209,6 @@ export class Logic {
     this.#parsedLogic = properties.parsedLogic;
     this.#statementRefs = properties.statementRefs;
     this.#lineageIds = properties.lineageIds;
-    this.#organizationId = properties.organizationId;
   }
 
   /* Adds a key to an already existing path that describes the current exploration route through a json tree */
@@ -1808,8 +1799,6 @@ export class Logic {
       throw new TypeError('Logic  prototype must have parsed SQL logic');
     if (!generalProps.lineageId)
       throw new TypeError('Logic must have lineageId');
-    if (!generalProps.organizationId)
-      throw new TypeError('Logic must have organization id');
     if (!generalProps.catalog)
       throw new TypeError('Logic prototype must have catalog data');
 
@@ -1839,7 +1828,6 @@ export class Logic {
       parsedLogic: generalProps.parsedLogic,
       statementRefs,
       lineageIds: [generalProps.lineageId],
-      organizationId: generalProps.organizationId,
     });
 
     return logic;
@@ -1867,7 +1855,6 @@ export class Logic {
     parsedLogic: this.#parsedLogic,
     statementRefs: this.#statementRefs,
     lineageIds: this.#lineageIds,
-    organizationId: this.#organizationId,
   });
 
   static #insensitiveEquality = (str1: string, str2: string): boolean =>

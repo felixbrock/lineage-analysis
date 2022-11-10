@@ -19,7 +19,7 @@ export interface IMaterializationRepo {
   insertOne(materialization: Materialization, dbConnection: DbConnection): Promise<string>;
   insertMany(materializations: Materialization[], dbConnection: DbConnection): Promise<string[]>;
   replaceMany(materializations: Materialization[], dbConnection: DbConnection): Promise<number>;
-  deleteOne(id: string, dbConnection: DbConnection): Promise<string>;
+  
 }
 
 

@@ -15,7 +15,7 @@ import { Column } from '../../entities/column';
 import { ILineageRepo, LineageUpdateDto } from '../i-lineage-repo';
 import { IDependencyRepo } from '../../dependency/i-dependency-repo';
 import { DbConnection } from '../../services/i-db';
-import { QuerySfQueryHistory } from '../../integration-api/snowflake/query-snowflake-history';
+import { QuerySfQueryHistory } from '../../snowflake-api/query-snowflake-history';
 import { Dashboard } from '../../entities/dashboard';
 import { CreateExternalDependency } from '../../dependency/create-external-dependency';
 import { IDashboardRepo } from '../../dashboard/i-dashboard-repo';
@@ -37,14 +37,6 @@ export interface CreateLineageRequestDto {
   dbtManifest?: string;
   biType?: BiType;
 }
-
-interface DbtBasedBuildProps
-  extends Omit<CreateLineageRequestDto, 'catalog' | 'manifest'> {
-  catalog: string;
-  manifest: string;
-}
-
-type SfBasedBuildProps = Omit<CreateLineageRequestDto, 'catalog' | 'manifest'>;
 
 export interface CreateLineageAuthDto {
   jwt: string;

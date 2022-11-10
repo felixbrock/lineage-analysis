@@ -59,5 +59,9 @@ export const appConfig = {
     integrationService: process.env.API_ROOT_INTEGRATION_SERVICE,
     accountService: process.env.API_ROOT_ACCOUNT_SERVICE,
   },
+  snowflake: {
+    applicationName:
+      process.env.SNOWFLAKE_APPLICATION_NAME || 'snowflake-connector',
+  },
   baseUrl: getBaseUrlConfig(),
 };

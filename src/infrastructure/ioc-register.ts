@@ -22,7 +22,7 @@ import { CreateDependency } from '../domain/dependency/create-dependency';
 import { ReadLineage } from '../domain/lineage/read-lineage';
 import { ReadLogic } from '../domain/logic/read-logic';
 import Dbo from './persistence/db/mongo-db';
-import { QuerySfQueryHistory } from '../domain/integration-api/snowflake/query-snowflake-history';
+import { QuerySfQueryHistory } from '../domain/snowflake-api/query-snowflake-history';
 import QuerySfQueryHistoryApiRepo from './persistence/query-snowflake-history-repo';
 import { CreateExternalDependency } from '../domain/dependency/create-external-dependency';
 import DashboardRepo from './persistence/dashboard-repo';
