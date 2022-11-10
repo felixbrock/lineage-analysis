@@ -10,7 +10,7 @@ import { GetSnowflakeProfile } from '../integration-api/get-snowflake-profile';
 
 export interface QuerySnowflakeRequestDto {
   queryText: string;
-  binds: (string|number)[];
+  binds: (string|number)[] | (string|number)[][];
   targetOrgId?: string;
 }
 

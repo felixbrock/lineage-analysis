@@ -2,7 +2,7 @@ import { Logic } from '../entities/logic';
 
 export interface LogicQueryDto {
   relationName?: string;
-  logicId: string;
+  lineageId: string;
 }
 
 export interface Auth {

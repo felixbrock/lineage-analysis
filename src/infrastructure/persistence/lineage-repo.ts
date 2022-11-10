@@ -10,6 +10,7 @@ import {
   getUpdateQuery,
 } from './shared/query';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
+import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 
 export default class LineageRepo implements ILineageRepo {
   readonly #matName = 'lineage';
@@ -19,6 +20,23 @@ export default class LineageRepo implements ILineageRepo {
   constructor(querySnowflake: QuerySnowflake) {
     this.#querySnowflake = querySnowflake;
   }
+
+  #buildLineage = (sfEntity: SnowflakeEntity): Lineage => {const {
+    ID: id,
+    COMPLETED: completed,
+    CREATED_AT: createdAt,
+  } = sfEntity;
+
+  if (
+    typeof id !== 'string' ||
+    typeof completed !== 'boolean' ||
+    typeof createdAt !== 'string'
+  )
+    throw new Error(
+      'Retrieved unexpected lineage field types from persistence'
+    );
+
+  return this.#toEntity({ id, completed, createdAt });};
 
   findOne = async (
     lineageId: string,
@@ -39,29 +57,14 @@ export default class LineageRepo implements ILineageRepo {
 
       if (!result.success) throw new Error(result.error);
       if (!result.value) throw new Error('Missing sf query value');
-      if (result.value.length !== 1)
-        throw new Error(`Multiple or no lineage entities with id found`);
+      if (result.value.length > 1)
+        throw new Error(`Multiple lineage entities with id found`);
 
-      const {
-        ID: id,
-        COMPLETED: completed,
-        CREATED_AT: createdAt,
-      } = result.value[0];
-
-      if (
-        typeof id !== 'string' ||
-        typeof completed !== 'boolean' ||
-        typeof createdAt !== 'string'
-      )
-        throw new Error(
-          'Retrieved unexpected lineage field types from persistence'
-        );
-
-      return this.#toEntity({ id, completed, createdAt });
+      return !result.value.length ? null : this.#buildLineage(result.value[0]);
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      return Promise.reject(new Error());
     }
   };
 
@@ -106,7 +109,7 @@ export default class LineageRepo implements ILineageRepo {
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      return Promise.reject(new Error());
     }
   };
 
@@ -139,7 +142,7 @@ export default class LineageRepo implements ILineageRepo {
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      return Promise.reject(new Error());
     }
   };
 
@@ -172,7 +175,7 @@ export default class LineageRepo implements ILineageRepo {
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      return Promise.reject(new Error());
     }
   };
 
@@ -207,7 +210,7 @@ export default class LineageRepo implements ILineageRepo {
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      return Promise.reject(new Error());
     }
   };
 

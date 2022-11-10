@@ -37,7 +37,7 @@ export default class SQLParserApiRepoImpl implements ISQLParserApiRepo {
            create as much lineage as possible instead of failing */
       if (error instanceof Error && error.message.includes('500'))
         return { file: [{}, {}] };
-      return Promise.reject(new Error(''));
+      return Promise.reject(new Error());
     }
   };
 }

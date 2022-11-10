@@ -1,5 +1,4 @@
 import { Column } from '../entities/column';
-import { DbConnection } from '../services/i-db';
 
 export interface ColumnQueryDto {
   relationName?: string | string[];
@@ -8,17 +7,34 @@ export interface ColumnQueryDto {
   type?: string;
   materializationId?: string | string[];
   lineageId: string;
-  organizationId: string;
+}
+export interface Auth {
+  jwt: string;
+  callerOrgId: string;
+  isSystemInternal: boolean;
 }
 
 export interface IColumnRepo {
-  findOne(id: string, dbConnection: DbConnection): Promise<Column | null>;
+  findOne(
+    columnId: string,
+    targetOrgId: string,
+    auth: Auth
+  ): Promise<Column | null>;
   findBy(
     columnQueryDto: ColumnQueryDto,
-    dbConnection: DbConnection
+    targetOrgId: string,
+    auth: Auth
   ): Promise<Column[]>;
-  all(dbConnection: DbConnection): Promise<Column[]>;
-  insertOne(column: Column, dbConnection: DbConnection): Promise<string>;
-  insertMany(columns: Column[], dbConnection: DbConnection): Promise<string[]>;
-  replaceMany(columns: Column[], dbConnection: DbConnection): Promise<number>;
+  all(targetOrgId: string, auth: Auth): Promise<Column[]>;
+  insertOne(column: Column, targetOrgId: string, auth: Auth): Promise<string>;
+  insertMany(
+    columns: Column[],
+    targetOrgId: string,
+    auth: Auth
+  ): Promise<string[]>;
+  replaceMany(
+    columns: Column[],
+    targetOrgId: string,
+    auth: Auth
+  ): Promise<number>;
 }

@@ -69,7 +69,7 @@ export default class MaterializationRepo implements ILegacyMaterializationRepo {
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      return Promise.reject(new Error());
     }
   };
 
@@ -94,7 +94,7 @@ export default class MaterializationRepo implements ILegacyMaterializationRepo {
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      return Promise.reject(new Error());
     }
   };
 
@@ -102,7 +102,7 @@ export default class MaterializationRepo implements ILegacyMaterializationRepo {
     materializationQueryDto: MaterializationQueryDto
   ): MaterializationQueryFilter => {
     const filter: MaterializationQueryFilter = {
-      lineageIds: materializationQueryDto.lineageId ,
+      lineageIds: materializationQueryDto.lineageId,
       organizationId: materializationQueryDto.organizationId,
     };
 
@@ -157,7 +157,7 @@ export default class MaterializationRepo implements ILegacyMaterializationRepo {
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      return Promise.reject(new Error());
     }
   };
 
@@ -179,7 +179,7 @@ export default class MaterializationRepo implements ILegacyMaterializationRepo {
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      return Promise.reject(new Error());
     }
   };
 
@@ -205,7 +205,7 @@ export default class MaterializationRepo implements ILegacyMaterializationRepo {
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      return Promise.reject(new Error());
     }
   };
 
@@ -214,13 +214,12 @@ export default class MaterializationRepo implements ILegacyMaterializationRepo {
     dbConnection: Db
   ): Promise<number> => {
     try {
-      const operations: AnyBulkWriteOperation<Document>[] =
-        mats.map((el) => ({
-          replaceOne: {
-            filter: { _id: new ObjectId(sanitize(el.id)) },
-            replacement: this.#toPersistence(el),
-          },
-        }));
+      const operations: AnyBulkWriteOperation<Document>[] = mats.map((el) => ({
+        replaceOne: {
+          filter: { _id: new ObjectId(sanitize(el.id)) },
+          replacement: this.#toPersistence(el),
+        },
+      }));
 
       const result: BulkWriteResult = await dbConnection
         .collection(collectionName)
@@ -236,25 +235,6 @@ export default class MaterializationRepo implements ILegacyMaterializationRepo {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error());
-    }
-  };
-
-  deleteOne = async (id: string, dbConnection: Db): Promise<string> => {
-    try {
-      const result: DeleteResult = await dbConnection
-        .collection(collectionName)
-        .
-
-      if (!result.acknowledged)
-        throw new Error(
-          'Materialization delete failed. Delete not acknowledged'
-        );
-
-      return result.deletedCount.toString();
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
     }
   };
 

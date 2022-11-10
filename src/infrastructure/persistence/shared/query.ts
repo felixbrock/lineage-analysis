@@ -1,6 +1,8 @@
+type SelectType = 'parse_json';
+
 export interface ColumnDefinition {
   name: string;
-  selectType?: string;
+  selectType?: SelectType;
 }
 
 const relationPath = 'cito.lineage';
@@ -24,7 +26,7 @@ export const getInsertQuery = (
 export const getUpdateQuery = (
   matName: string,
   columnDefinitions: ColumnDefinition[],
-  rows: unknown[]
+  rows: string[]
 ): string => `
         merge into ${relationPath}.${matName} target
         using (
@@ -41,4 +43,3 @@ export const getUpdateQuery = (
         .map((el) => `target.${el.name} = source.${el.name}`)
         .join(', ')};
         `;
-const 

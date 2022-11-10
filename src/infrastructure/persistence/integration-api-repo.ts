@@ -29,7 +29,7 @@ export default class IntegrationApiRepo implements IIntegrationApiRepo {
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      return Promise.reject(new Error());
     }
   };
 }

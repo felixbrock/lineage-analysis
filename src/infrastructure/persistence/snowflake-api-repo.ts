@@ -8,13 +8,10 @@ import {
 import { appConfig } from '../../config';
 import Result from '../../domain/value-types/transient-types/result';
 
-
-
-
 export default class SnowflakeApiRepo implements ISnowflakeApiRepo {
   runQuery = async (
     queryText: string,
-    binds: (string | number)[],
+    binds: (string | number)[] | (string | number)[][],
     options: DbOptions
   ): Promise<Result<SnowflakeQueryResult[]>> =>
     new Promise((resolve) => {

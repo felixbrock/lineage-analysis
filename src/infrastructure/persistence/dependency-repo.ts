@@ -60,7 +60,7 @@ export default class DependencyRepo implements IDependencyRepo {
       return this.#toEntity(this.#buildProperties(result));
     } catch (error: unknown) {
       if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      return Promise.reject(new Error());
     }
   };
 
@@ -84,7 +84,7 @@ export default class DependencyRepo implements IDependencyRepo {
       );
     } catch (error: unknown) {
       if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      return Promise.reject(new Error());
     }
   };
 
@@ -117,7 +117,7 @@ export default class DependencyRepo implements IDependencyRepo {
       );
     } catch (error: unknown) {
       if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      return Promise.reject(new Error());
     }
   };
 
@@ -137,7 +137,7 @@ export default class DependencyRepo implements IDependencyRepo {
       return result.insertedId.toHexString();
     } catch (error: unknown) {
       if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      return Promise.reject(new Error());
     }
   };
 
@@ -163,25 +163,11 @@ export default class DependencyRepo implements IDependencyRepo {
       );
     } catch (error: unknown) {
       if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      return Promise.reject(new Error());
     }
   };
 
-  deleteOne = async (id: string, dbConnection: Db): Promise<string> => {
-    try {
-      const result: DeleteResult = await dbConnection
-        .collection(collectionName)
-        .
 
-      if (!result.acknowledged)
-        throw new Error('Dependency delete failed. Delete not acknowledged');
-
-      return result.deletedCount.toString();
-    } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
-    }
-  };
 
   #toEntity = (properties: DependencyProperties): Dependency =>
     Dependency.build(properties);

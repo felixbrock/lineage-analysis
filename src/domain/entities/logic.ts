@@ -8,7 +8,7 @@ export interface MaterializationDefinition {
   databaseName?: string;
 }
 
-interface DependentOn {
+export interface DependentOn {
   dbtDependencyDefinitions: MaterializationDefinition[];
   dwDependencyDefinitions: MaterializationDefinition[];
 }
