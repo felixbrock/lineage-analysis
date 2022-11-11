@@ -8,7 +8,6 @@ import {
   CreateLineageResponseDto,
 } from '../../../domain/lineage/create-lineage/create-lineage';
 import Result from '../../../domain/value-types/transient-types/result';
-import Dbo from '../../persistence/db/mongo-db';
 
 import {
   BaseController,
@@ -21,17 +20,14 @@ export default class CreateLineageController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  readonly #dbo: Dbo;
 
   constructor(
     createLineage: CreateLineage,
     getAccounts: GetAccounts,
-    dbo: Dbo
   ) {
     super();
     this.#createLineage = createLineage;
     this.#getAccounts = getAccounts;
-    this.#dbo = dbo;
   }
 
   #buildRequestDto = (req: Request): CreateLineageRequestDto => {
@@ -61,7 +57,7 @@ export default class CreateLineageController extends BaseController {
   ): CreateLineageAuthDto => ({
     jwt,
     isSystemInternal: userAccountInfo.isSystemInternal,
-    callerOrganizationId: userAccountInfo.callerOrganizationId
+    callerOrgId: userAccountInfo.callerOrgId
   });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
@@ -94,7 +90,6 @@ export default class CreateLineageController extends BaseController {
         await this.#createLineage.execute(
           requestDto,
           authDto,
-          this.#dbo.
         );
 
       if (!useCaseResult.success) {

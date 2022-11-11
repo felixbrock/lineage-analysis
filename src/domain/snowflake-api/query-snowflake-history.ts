@@ -7,12 +7,12 @@ import { QuerySnowflake } from './query-snowflake';
 export interface QuerySfQueryHistoryRequestDto {
   biType: BiType;
   limit: number;
-  targetOrganizationId?: string;
+  targetOrgId?: string;
 }
 
 export interface QuerySfQueryHistoryAuthDto {
   jwt: string;
-  callerOrganizationId?: string;
+  callerOrgId?: string;
   isSystemInternal: boolean;
 }
 
@@ -32,23 +32,22 @@ export class QuerySfQueryHistory
     this.#querySnowflake = querySnowflake;
   }
 
-  static #buildQuery = (limit: number, biType: BiType): string => {
+  static #buildQuery = (biType: BiType): string => {
     let condition = '';
     let regex = '';
-    const limitNumber = limit;
     switch (biType) {
       case 'Mode': {
         // eslint-disable-next-line no-useless-escape
         regex = 'https://modeanalytics.com[^s"]+';
         condition = `REGEXP_COUNT(QUERY_TEXT,'${regex}') > 0
-        limit ${limitNumber}`;
+        limit ?`;
         break;
       }
       case 'Tableau': {
         // eslint-disable-next-line no-useless-escape
         regex = '"TableauSQL"';
         condition = `REGEXP_COUNT(QUERY_TEXT,'${regex}') > 0
-         limit ${limitNumber}`;
+         limit ?`;
         break;
       }
       case 'Metabase': {
@@ -59,7 +58,7 @@ export class QuerySfQueryHistory
         AND CHARINDEX('WHERE 1 <> 1 LIMIT 0', QUERY_TEXT) = 0
         AND CHARINDEX('source', QUERY_TEXT) = 0
         AND WAREHOUSE_ID IS NOT NULL
-        limit ${limitNumber}`;
+        limit ?`;
         break;
       }
       default: {
@@ -76,32 +75,26 @@ export class QuerySfQueryHistory
     request: QuerySfQueryHistoryRequestDto,
     auth: QuerySfQueryHistoryAuthDto
   ): Promise<QuerySfQueryHistoryResponseDto> {
-    if (!request.targetOrganizationId && !auth.callerOrganizationId)
+    if (!request.targetOrgId && !auth.callerOrgId)
       throw new Error('No organization Id instance provided');
-    if (request.targetOrganizationId && auth.callerOrganizationId)
+    if (request.targetOrgId && auth.callerOrgId)
       throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
-    let organizationId: string;
-    if (auth.callerOrganizationId) organizationId = auth.callerOrganizationId;
-    else if (request.targetOrganizationId)
-      organizationId = request.targetOrganizationId;
-    else throw new Error('Unhandled organization id declaration');
+    try {
+      const binds = [request.limit];
+      const queryText = QuerySfQueryHistory.#buildQuery(request.biType);
 
-   try {
-      const queryResult =
-        await this.#querySnowflake.execute(
-          {
-            queryText: QuerySfQueryHistory.#buildQuery(
-              request.limit,
-              request.biType
-            ),
-            targetOrgId: organizationId,
-          },
-          auth
-        );
+      const queryResult = await this.#querySnowflake.execute(
+        {
+          queryText,
+          binds,
+          targetOrgId: request.targetOrgId,
+        },
+        auth
+      );
 
-      if(!queryResult.success) throw new Error(queryResult.error);
-      if(!queryResult.value) throw new Error('Query result is missing value');
+      if (!queryResult.success) throw new Error(queryResult.error);
+      if (!queryResult.value) throw new Error('Query result is missing value');
 
       return Result.ok(queryResult.value);
     } catch (error: unknown) {

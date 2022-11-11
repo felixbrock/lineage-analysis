@@ -27,20 +27,20 @@ const getCognitoUserPoolId = (): string => {
 };
 
 export interface BaseUrlConfig {
-  testEngine: string;
+  sqlParser: string;
   integrationService: string;
   accountService: string;
 }
 
 const getBaseUrlConfig = (): BaseUrlConfig => {
-  const testEngine = process.env.BASE_URL_TEST_ENGINE;
+  const sqlParser = process.env.BASE_URL_SQL_PARSER;
   const integrationService = process.env.BASE_URL_INTEGRATION_SERVICE;
   const accountService = process.env.BASE_URL_ACCOUNT_SERVICE;
 
-  if (!testEngine || !integrationService || !accountService)
+  if (!sqlParser || !integrationService || !accountService)
     throw new Error('Missing Base url env values');
 
-  return { testEngine, integrationService, accountService };
+  return { sqlParser, integrationService, accountService };
 };
 
 export const appConfig = {

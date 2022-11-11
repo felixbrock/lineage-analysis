@@ -8,7 +8,6 @@ import {
   ReadLogicResponseDto,
 } from '../../../domain/logic/read-logic';
 import Result from '../../../domain/value-types/transient-types/result';
-import Dbo from '../../persistence/db/mongo-db';
 
 import {
   BaseController,
@@ -21,26 +20,22 @@ export default class ReadLogicController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  readonly #dbo: Dbo;
 
-  constructor(readLogic: ReadLogic, getAccounts: GetAccounts, dbo: Dbo) {
+  constructor(readLogic: ReadLogic, getAccounts: GetAccounts) {
     super();
     this.#readLogic = readLogic;
     this.#getAccounts = getAccounts;
-    this.#dbo = dbo;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadLogicRequestDto => ({
     id: httpRequest.params.id,
   });
 
-  #buildAuthDto = (userAccountInfo: UserAccountInfo): ReadLogicAuthDto => {
-    if (!userAccountInfo.callerOrganizationId) throw new Error('Unauthorized');
-
-    return {
-      callerOrganizationId: userAccountInfo.callerOrganizationId,
-    };
-  };
+  #buildAuthDto = (userAccountInfo: UserAccountInfo, jwt: string): ReadLogicAuthDto => ({
+    callerOrgId: userAccountInfo.callerOrgId,
+    isSystemInternal: userAccountInfo.isSystemInternal,
+    jwt
+  });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {
@@ -63,12 +58,11 @@ export default class ReadLogicController extends BaseController {
         throw new ReferenceError('Authorization failed');
 
       const requestDto: ReadLogicRequestDto = this.#buildRequestDto(req);
-      const authDto = this.#buildAuthDto(getUserAccountInfoResult.value);
+      const authDto = this.#buildAuthDto(getUserAccountInfoResult.value, jwt);
 
       const useCaseResult: ReadLogicResponseDto = await this.#readLogic.execute(
         requestDto,
         authDto,
-        this.#dbo.
       );
 
       if (!useCaseResult.success) {

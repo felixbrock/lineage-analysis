@@ -8,7 +8,6 @@ import {
   ReadDashboardsResponseDto,
 } from '../../../domain/dashboard/read-dashboards';
 import Result from '../../../domain/value-types/transient-types/result';
-import Dbo from '../../persistence/db/mongo-db';
 
 import {
   BaseController,
@@ -21,17 +20,10 @@ export default class ReadDashboardsController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  readonly #dbo: Dbo;
-
-  constructor(
-    readDashboards: ReadDashboards,
-    getAccounts: GetAccounts,
-    dbo: Dbo
-  ) {
+  constructor(readDashboards: ReadDashboards, getAccounts: GetAccounts) {
     super();
     this.#readDashboards = readDashboards;
     this.#getAccounts = getAccounts;
-    this.#dbo = dbo;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadDashboardsRequestDto => {
@@ -44,7 +36,7 @@ export default class ReadDashboardsController extends BaseController {
       columnId,
       materializationId,
       lineageId,
-      targetOrganizationId
+      targetOrgId,
     } = httpRequest.query;
 
     if (!lineageId)
@@ -69,14 +61,18 @@ export default class ReadDashboardsController extends BaseController {
       materializationId:
         typeof materializationId === 'string' ? materializationId : undefined,
       lineageId,
-      targetOrganizationId: typeof targetOrganizationId === 'string' ? targetOrganizationId : undefined,
+      targetOrgId: typeof targetOrgId === 'string' ? targetOrgId : undefined,
     };
   };
 
-  #buildAuthDto = (userAccountInfo: UserAccountInfo): ReadDashboardsAuthDto => ({
-      callerOrganizationId: userAccountInfo.callerOrganizationId,
-      isSystemInternal: userAccountInfo.isSystemInternal,
-    });
+  #buildAuthDto = (
+    userAccountInfo: UserAccountInfo,
+    jwt: string
+  ): ReadDashboardsAuthDto => ({
+    callerOrgId: userAccountInfo.callerOrgId,
+    isSystemInternal: userAccountInfo.isSystemInternal,
+    jwt,
+  });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {
@@ -102,14 +98,10 @@ export default class ReadDashboardsController extends BaseController {
         throw new ReferenceError('Authorization failed');
 
       const requestDto: ReadDashboardsRequestDto = this.#buildRequestDto(req);
-      const authDto = this.#buildAuthDto(getUserAccountInfoResult.value);
+      const authDto = this.#buildAuthDto(getUserAccountInfoResult.value, jwt);
 
       const useCaseResult: ReadDashboardsResponseDto =
-        await this.#readDashboards.execute(
-          requestDto,
-          authDto,
-          this.#dbo.
-        );
+        await this.#readDashboards.execute(requestDto, authDto);
 
       if (!useCaseResult.success) {
         return ReadDashboardsController.badRequest(res);
@@ -123,7 +115,10 @@ export default class ReadDashboardsController extends BaseController {
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      return ReadDashboardsController.fail(res, 'Internal error occurred while reading dashboards');
+      return ReadDashboardsController.fail(
+        res,
+        'Internal error occurred while reading dashboards'
+      );
     }
   }
 }

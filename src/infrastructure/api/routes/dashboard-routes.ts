@@ -7,7 +7,6 @@ const dashboardsRoutes = Router();
 const readDashboardsController = new ReadDashbordController(
   app.resolve('readDashboards'),
   app.resolve('getAccounts'),
-  app.resolve('dbo')
 );
 
 dashboardsRoutes.get('/', (req, res) => {

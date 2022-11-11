@@ -8,7 +8,6 @@ import {
   ReadLogicsResponseDto,
 } from '../../../domain/logic/read-logics';
 import Result from '../../../domain/value-types/transient-types/result';
-import Dbo from '../../persistence/db/mongo-db';
 
 import {
   BaseController,
@@ -21,17 +20,15 @@ export default class ReadLogicsController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  readonly #dbo: Dbo;
 
-  constructor(readLogics: ReadLogics, getAccounts: GetAccounts, dbo: Dbo) {
+  constructor(readLogics: ReadLogics, getAccounts: GetAccounts) {
     super();
     this.#readLogics = readLogics;
     this.#getAccounts = getAccounts;
-    this.#dbo = dbo;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadLogicsRequestDto => {
-    const { relationName, lineageId, targetOrganizationId } = httpRequest.query;
+    const { relationName, lineageId, targetOrgId } = httpRequest.query;
 
     if (!lineageId)
       throw new TypeError(
@@ -45,14 +42,15 @@ export default class ReadLogicsController extends BaseController {
     return {
       relationName: typeof relationName === 'string' ? relationName : undefined,
       lineageId,
-      targetOrganizationId: typeof targetOrganizationId === 'string' ? targetOrganizationId : undefined,
+      targetOrgId: typeof targetOrgId === 'string' ? targetOrgId : undefined,
     };
   };
 
-  #buildAuthDto = (userAccountInfo: UserAccountInfo): ReadLogicsAuthDto => ({
-      callerOrganizationId: userAccountInfo.callerOrganizationId,
-      isSystemInternal: userAccountInfo.isSystemInternal,
-    });
+  #buildAuthDto = (userAccountInfo: UserAccountInfo, jwt: string): ReadLogicsAuthDto => ({
+    callerOrgId: userAccountInfo.callerOrgId,
+    isSystemInternal: userAccountInfo.isSystemInternal,
+    jwt
+  });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {
@@ -75,13 +73,12 @@ export default class ReadLogicsController extends BaseController {
         throw new ReferenceError('Authorization failed');
 
       const requestDto: ReadLogicsRequestDto = this.#buildRequestDto(req);
-      const authDto = this.#buildAuthDto(getUserAccountInfoResult.value);
+      const authDto = this.#buildAuthDto(getUserAccountInfoResult.value, jwt);
 
       const useCaseResult: ReadLogicsResponseDto =
         await this.#readLogics.execute(
           requestDto,
           authDto,
-          this.#dbo.
         );
 
       if (!useCaseResult.success) {

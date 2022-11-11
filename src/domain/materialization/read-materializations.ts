@@ -2,7 +2,7 @@ import {
   MaterializationType,
   Materialization,
 } from '../entities/materialization';
-import {  } from '../services/i-db';
+import {} from '../services/i-db';
 import IUseCase from '../services/use-case';
 import Result from '../value-types/transient-types/result';
 import {
@@ -18,12 +18,13 @@ export interface ReadMaterializationsRequestDto {
   databaseName?: string;
   logicId?: string;
   lineageId: string;
-  targetOrganizationId?: string;
+  targetOrgId?: string;
 }
 
 export interface ReadMaterializationsAuthDto {
-  callerOrganizationId?: string;
+  callerOrgId?: string;
   isSystemInternal: boolean;
+  jwt: string;
 }
 
 export type ReadMaterializationsResponseDto = Result<Materialization[]>;
@@ -33,13 +34,10 @@ export class ReadMaterializations
     IUseCase<
       ReadMaterializationsRequestDto,
       ReadMaterializationsResponseDto,
-      ReadMaterializationsAuthDto,
-      
+      ReadMaterializationsAuthDto
     >
 {
   readonly #materializationRepo: IMaterializationRepo;
-
-  #: ;
 
   constructor(materializationRepo: IMaterializationRepo) {
     this.#materializationRepo = materializationRepo;
@@ -47,32 +45,23 @@ export class ReadMaterializations
 
   async execute(
     request: ReadMaterializationsRequestDto,
-    auth: ReadMaterializationsAuthDto,
-    : 
+    auth: ReadMaterializationsAuthDto
   ): Promise<ReadMaterializationsResponseDto> {
     try {
-      if (auth.isSystemInternal && !request.targetOrganizationId)
+      if (auth.isSystemInternal && !request.targetOrgId)
         throw new Error('Target organization id missing');
-      if (!auth.isSystemInternal && !auth.callerOrganizationId)
+      if (!auth.isSystemInternal && !auth.callerOrgId)
         throw new Error('Caller organization id missing');
-      if (!request.targetOrganizationId && !auth.callerOrganizationId)
+      if (!request.targetOrgId && !auth.callerOrgId)
         throw new Error('No organization Id instance provided');
-      if (request.targetOrganizationId && auth.callerOrganizationId)
+      if (request.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
-
-      let organizationId;
-      if (auth.isSystemInternal && request.targetOrganizationId)
-        organizationId = request.targetOrganizationId;
-      else if (auth.callerOrganizationId)
-        organizationId = auth.callerOrganizationId;
-      else throw new Error('Unhandled organizationId allocation');
-
-      this.# = ;
 
       const materializations: Materialization[] =
         await this.#materializationRepo.findBy(
-          this.#buildMaterializationQueryDto(request, organizationId),
-          this.#
+          this.#buildMaterializationQueryDto(request),
+          auth,
+          request.targetOrgId
         );
       if (!materializations)
         throw new Error(`Queried materializations do not exist`);
@@ -86,12 +75,10 @@ export class ReadMaterializations
   }
 
   #buildMaterializationQueryDto = (
-    request: ReadMaterializationsRequestDto,
-    organizationId: string
+    request: ReadMaterializationsRequestDto
   ): MaterializationQueryDto => {
     const queryDto: MaterializationQueryDto = {
       lineageId: request.lineageId,
-      organizationId,
     };
 
     if (request.relationName) queryDto.relationName = request.relationName;

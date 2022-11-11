@@ -117,7 +117,7 @@ export default class DashboardRepo implements IDashboardRepo {
   ): Promise<Dashboard[]> => {
     try {
       if (!Object.keys(dashboardQueryDto).length)
-        return await this.all(targetOrgId, auth);
+        return await this.all(auth, targetOrgId);
 
       // using binds to tell snowflake to escape params to avoid sql injection attack
       const binds: (string | number)[] = [dashboardQueryDto.lineageId];
@@ -169,7 +169,7 @@ export default class DashboardRepo implements IDashboardRepo {
     }
   };
 
-  all = async (targetOrgId?: string, auth: Auth): Promise<Dashboard[]> => {
+  all = async (auth: Auth, targetOrgId?: string): Promise<Dashboard[]> => {
     try {
       const queryText = `select * from cito.lineage.${this.#matName};`;
 
@@ -204,8 +204,8 @@ export default class DashboardRepo implements IDashboardRepo {
 
   insertOne = async (
     dashboard: Dashboard,
+    auth: Auth,
     targetOrgId?: string,
-    auth: Auth
   ): Promise<string> => {
     try {
       const binds = this.#getBinds(dashboard);
@@ -234,8 +234,8 @@ export default class DashboardRepo implements IDashboardRepo {
 
   insertMany = async (
     dashboards: Dashboard[],
+    auth: Auth,
     targetOrgId?: string,
-    auth: Auth
   ): Promise<string[]> => {
     try {
       const binds = dashboards.map((dashboard) => this.#getBinds(dashboard));
@@ -266,8 +266,8 @@ export default class DashboardRepo implements IDashboardRepo {
 
   replaceMany = async (
     dashboards: Dashboard[],
+    auth: Auth,
     targetOrgId?: string,
-    auth: Auth
   ): Promise<number> => {
     try {
       const binds = dashboards.map((dashboard) => this.#getBinds(dashboard));

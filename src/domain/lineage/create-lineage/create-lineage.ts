@@ -32,7 +32,7 @@ import DataEnvMerger from './data-env-merger';
 import DependenciesBuilder from './dependencies-builder';
 
 export interface CreateLineageRequestDto {
-  targetOrganizationId?: string;
+  targetOrgId?: string;
   dbtCatalog?: string;
   dbtManifest?: string;
   biType?: BiType;
@@ -41,7 +41,7 @@ export interface CreateLineageRequestDto {
 export interface CreateLineageAuthDto {
   jwt: string;
   isSystemInternal: boolean;
-  callerOrganizationId?: string;
+  callerOrgId?: string;
 }
 
 export type CreateLineageResponseDto = Result<Lineage>;
@@ -229,23 +229,23 @@ export class CreateLineage
     auth: CreateLineageAuthDto
   ): Promise<CreateLineageResponseDto> {
     try {
-      if (auth.isSystemInternal && !request.targetOrganizationId)
+      if (auth.isSystemInternal && !request.targetOrgId)
         throw new Error('Target organization id missing');
-      if (!auth.isSystemInternal && !auth.callerOrganizationId)
+      if (!auth.isSystemInternal && !auth.callerOrgId)
         throw new Error('Caller organization id missing');
-      if (!request.targetOrganizationId && !auth.callerOrganizationId)
+      if (!request.targetOrgId && !auth.callerOrgId)
         throw new Error('No organization Id instance provided');
-      if (request.targetOrganizationId && auth.callerOrganizationId)
+      if (request.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
       let orgId: string;
-      if (auth.callerOrganizationId) orgId = auth.callerOrganizationId;
-      else if (request.targetOrganizationId)
-        orgId = request.targetOrganizationId;
+      if (auth.callerOrgId) orgId = auth.callerOrgId;
+      else if (request.targetOrgId)
+        orgId = request.targetOrgId;
       else throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
       this.#auth = auth;
-      this.#targetOrgId = request.targetOrganizationId;
+      this.#targetOrgId = request.targetOrgId;
 
       console.log('starting lineage creation...');
 
@@ -262,16 +262,15 @@ export class CreateLineage
       const dbtBased = dbtCatalog && dbtManifest;
 
       console.log('...generating warehouse resources');
-      const { jwt, ...remainingAuth } = auth;
       const dataEnvGenerator = dbtBased
         ? new DbtDataEnvGenerator(
             {
               dbtCatalog,
               dbtManifest,
               lineageId: lineage.id,
-              targetOrganizationId: request.targetOrganizationId,
+              targetOrgId: request.targetOrgId,
             },
-            remainingAuth,
+            auth,
             {
               createColumn: this.#createColumn,
               createLogic: this.#createLogic,
@@ -282,7 +281,7 @@ export class CreateLineage
         : new SfDataEnvGenerator(
             {
               lineageId: lineage.id,
-              targetOrganizationId: request.targetOrganizationId,
+              targetOrgId: request.targetOrgId,
             },
             auth,
             {
@@ -298,7 +297,8 @@ export class CreateLineage
 
       console.log('...merging new lineage snapshot with last one');
       const dataEnvMerger = new DataEnvMerger(
-        { columns, materializations, logics, organizationId: orgId },
+        { columns, materializations, logics},
+        auth,
         {
           lineageRepo: this.#lineageRepo,
           columnRepo: this.#columnRepo,
@@ -325,7 +325,7 @@ export class CreateLineage
           ),
           catalog,
           organizationId: orgId,
-          targetOrganizationId: request.targetOrganizationId,
+          targetOrgId: request.targetOrgId,
         },
         auth,
         {

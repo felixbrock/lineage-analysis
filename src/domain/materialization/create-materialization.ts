@@ -1,5 +1,6 @@
 // todo - clean architecture violation
 
+import { v4 as uuidv4 } from 'uuid';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import {
@@ -8,8 +9,7 @@ import {
 } from '../entities/materialization';
 import { ReadMaterializations } from './read-materializations';
 import { IMaterializationRepo } from './i-materialization-repo';
-import {  } from '../services/i-db';
-import { v4 as uuidv4 } from 'uuid';
+import {} from '../services/i-db';
 
 export interface CreateMaterializationRequestDto {
   id?: string;
@@ -24,12 +24,13 @@ export interface CreateMaterializationRequestDto {
   ownerId?: string;
   isTransient?: boolean;
   comment?: string;
-  targetOrganizationId?: string;
+  targetOrgId?: string;
 }
 
 export interface CreateMaterializationAuthDto {
   isSystemInternal: boolean;
-  callerOrganizationId?: string;
+  callerOrgId?: string;
+  jwt: string;
 }
 
 export type CreateMaterializationResponseDto = Result<Materialization>;
@@ -39,15 +40,12 @@ export class CreateMaterialization
     IUseCase<
       CreateMaterializationRequestDto,
       CreateMaterializationResponseDto,
-      CreateMaterializationAuthDto,
-      
+      CreateMaterializationAuthDto
     >
 {
   readonly #readMaterializations: ReadMaterializations;
 
   readonly #materializationRepo: IMaterializationRepo;
-
-  #: ;
 
   constructor(
     readMaterializations: ReadMaterializations,
@@ -59,27 +57,17 @@ export class CreateMaterialization
 
   async execute(
     request: CreateMaterializationRequestDto,
-    auth: CreateMaterializationAuthDto,
-    : 
+    auth: CreateMaterializationAuthDto
   ): Promise<CreateMaterializationResponseDto> {
     try {
-      if (auth.isSystemInternal && !request.targetOrganizationId)
+      if (auth.isSystemInternal && !request.targetOrgId)
         throw new Error('Target organization id missing');
-      if (!auth.isSystemInternal && !auth.callerOrganizationId)
+      if (!auth.isSystemInternal && !auth.callerOrgId)
         throw new Error('Caller organization id missing');
-      if (!request.targetOrganizationId && !auth.callerOrganizationId)
+      if (!request.targetOrgId && !auth.callerOrgId)
         throw new Error('No organization Id instance provided');
-      if (request.targetOrganizationId && auth.callerOrganizationId)
+      if (request.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
-
-      let organizationId: string;
-      if (auth.isSystemInternal && request.targetOrganizationId)
-        organizationId = request.targetOrganizationId;
-      else if (!auth.isSystemInternal && auth.callerOrganizationId)
-        organizationId = auth.callerOrganizationId;
-      else throw new Error('Unhandled organization id declaration');
-
-      this.# = ;
 
       const materialization = Materialization.create({
         id: request.id || uuidv4(),
@@ -89,7 +77,6 @@ export class CreateMaterialization
         schemaName: request.schemaName,
         databaseName: request.databaseName,
         lineageId: request.lineageId,
-        organizationId,
         logicId: request.logicId,
         ownerId: request.ownerId,
         isTransient: request.isTransient,
@@ -101,13 +88,9 @@ export class CreateMaterialization
           {
             relationName: request.relationName,
             lineageId: request.lineageId,
-            targetOrganizationId: request.targetOrganizationId,
+            targetOrgId: request.targetOrgId,
           },
-          {
-            isSystemInternal: auth.isSystemInternal,
-            callerOrganizationId: auth.callerOrganizationId,
-          },
-          this.#
+          auth
         );
 
       if (!readMaterializationsResult.success)
@@ -120,7 +103,8 @@ export class CreateMaterialization
       if (request.writeToPersistence)
         await this.#materializationRepo.insertOne(
           materialization,
-          this.#
+          auth,
+          request.targetOrgId
         );
 
       return Result.ok(materialization);

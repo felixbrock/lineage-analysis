@@ -13,7 +13,7 @@ export interface CreateColumnRequestDto {
   materializationId: string;
   lineageId: string;
   writeToPersistence: boolean;
-  targetOrganizationId?: string;
+  targetOrgId?: string;
   isIdentity?: boolean;
   isNullable?: boolean;
   comment?: string;
@@ -21,7 +21,7 @@ export interface CreateColumnRequestDto {
 
 export interface CreateColumnAuthDto {
   isSystemInternal: boolean;
-  callerOrganizationId?: string;
+  callerOrgId?: string;
   jwt:string;
 }
 
@@ -49,13 +49,13 @@ export class CreateColumn
     auth: CreateColumnAuthDto
   ): Promise<CreateColumnResponseDto> {
     try {
-      if (auth.isSystemInternal && !request.targetOrganizationId)
+      if (auth.isSystemInternal && !request.targetOrgId)
         throw new Error('Target organization id missing');
-      if (!auth.isSystemInternal && !auth.callerOrganizationId)
+      if (!auth.isSystemInternal && !auth.callerOrgId)
         throw new Error('Caller organization id missing');
-      if (!request.targetOrganizationId && !auth.callerOrganizationId)
+      if (!request.targetOrgId && !auth.callerOrgId)
         throw new Error('No organization Id instance provided');
-      if (request.targetOrganizationId && auth.callerOrganizationId)
+      if (request.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
       const column = Column.create({
@@ -76,7 +76,7 @@ export class CreateColumn
           name: request.name,
           materializationId: request.materializationId,
           lineageId: request.lineageId,
-          targetOrganizationId: request.targetOrganizationId,
+          targetOrgId: request.targetOrgId,
         },
         auth
       );
@@ -90,7 +90,7 @@ export class CreateColumn
         await this.#columnRepo.insertOne(
           column,
           auth,
-          request.targetOrganizationId
+          request.targetOrgId
         );
 
       return Result.ok(column);

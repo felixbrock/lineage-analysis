@@ -10,8 +10,8 @@ export default class IntegrationApiRepo implements IIntegrationApiRepo {
   #apiRoot = appConfig.express.apiRoot;
 
   getSnowflakeProfile = async (
+    jwt: string,
     targetOrgId?: string,
-    jwt: string
   ): Promise<SnowflakeProfileDto> => {
     try {
 

@@ -12,13 +12,13 @@ export interface CreateDashboardRequestDto {
   columnName: string;
   columnId: string;
   lineageId: string;
-  targetOrganizationId?: string;
+  targetOrgId?: string;
   writeToPersistence: boolean;
 }
 
 export interface CreateDashboardAuthDto {
   isSystemInternal: boolean;
-  callerOrganizationId?: string;
+  callerOrgId?: string;
   jwt:string
 }
 
@@ -48,13 +48,13 @@ export class CreateDashboard
     auth: CreateDashboardAuthDto,
   ): Promise<CreateDashboardResponseDto> {
     try {
-      if (auth.isSystemInternal && !request.targetOrganizationId)
+      if (auth.isSystemInternal && !request.targetOrgId)
         throw new Error('Target organization id missing');
-      if (!auth.isSystemInternal && !auth.callerOrganizationId)
+      if (!auth.isSystemInternal && !auth.callerOrgId)
         throw new Error('Caller organization id missing');
-      if (!request.targetOrganizationId && !auth.callerOrganizationId)
+      if (!request.targetOrgId && !auth.callerOrgId)
         throw new Error('No organization Id instance provided');
-        if (request.targetOrganizationId && auth.callerOrganizationId)
+        if (request.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
       const dashboard = Dashboard.create({
@@ -73,7 +73,7 @@ export class CreateDashboard
         {
           url: request.url,
           lineageId: request.lineageId,
-          targetOrganizationId: request.targetOrganizationId,
+          targetOrgId: request.targetOrgId,
         },
         auth,
       );
@@ -86,7 +86,7 @@ export class CreateDashboard
         throw new Error(`Dashboard already exists`);
 
       if (request.writeToPersistence)
-        await this.#dashboardRepo.insertOne(dashboard, auth, request.targetOrganizationId);
+        await this.#dashboardRepo.insertOne(dashboard, auth, request.targetOrgId);
 
       return Result.ok(dashboard);
     } catch (error: unknown) {

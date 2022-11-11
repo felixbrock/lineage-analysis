@@ -9,7 +9,7 @@ import {
 } from '../../../domain/dependency/read-dependencies';
 import { DependencyType, dependencyTypes } from '../../../domain/entities/dependency';
 import Result from '../../../domain/value-types/transient-types/result';
-import Dbo from '../../persistence/db/mongo-db';
+
 
 import {
   BaseController,
@@ -22,21 +22,17 @@ export default class ReadDependenciesController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  readonly #dbo: Dbo;
-
   constructor(
     readDependencies: ReadDependencies,
     getAccounts: GetAccounts,
-    dbo: Dbo
   ) {
     super();
     this.#readDependencies = readDependencies;
     this.#getAccounts = getAccounts;
-    this.#dbo = dbo;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadDependenciesRequestDto => {
-    const { type, headId, tailId, lineageId, targetOrganizationId } = httpRequest.query;
+    const { type, headId, tailId, lineageId, targetOrgId } = httpRequest.query;
 
     const isDependencyType = (
       queryParam: string
@@ -68,16 +64,15 @@ export default class ReadDependenciesController extends BaseController {
       headId: typeof headId === 'string' ? headId : undefined,
       tailId: typeof tailId === 'string' ? tailId : undefined,
       lineageId,
-      targetOrganizationId: typeof targetOrganizationId === 'string' ? targetOrganizationId : undefined,
+      targetOrgId: typeof targetOrgId === 'string' ? targetOrgId : undefined,
     };
   };
 
-  #buildAuthDto = (
-    userAccountInfo: UserAccountInfo
-  ): ReadDependenciesAuthDto => ({
-      callerOrganizationId: userAccountInfo.callerOrganizationId,
-      isSystemInternal: userAccountInfo.isSystemInternal,
-    });
+  #buildAuthDto = (userAccountInfo: UserAccountInfo, jwt: string): ReadDependenciesAuthDto => ({
+    callerOrgId: userAccountInfo.callerOrgId,
+    isSystemInternal: userAccountInfo.isSystemInternal,
+    jwt
+  });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {
@@ -103,13 +98,12 @@ export default class ReadDependenciesController extends BaseController {
         throw new ReferenceError('Authorization failed');
 
       const requestDto: ReadDependenciesRequestDto = this.#buildRequestDto(req);
-      const authDto = this.#buildAuthDto(getUserAccountInfoResult.value);
+      const authDto = this.#buildAuthDto(getUserAccountInfoResult.value, jwt);
 
       const useCaseResult: ReadDependenciesResponseDto =
         await this.#readDependencies.execute(
           requestDto,
           authDto,
-          this.#dbo.
         );
 
       if (!useCaseResult.success) {

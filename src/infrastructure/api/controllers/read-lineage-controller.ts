@@ -8,7 +8,6 @@ import {
   ReadLineageResponseDto,
 } from '../../../domain/lineage/read-lineage';
 import Result from '../../../domain/value-types/transient-types/result';
-import Dbo from '../../persistence/db/mongo-db';
 
 import {
   BaseController,
@@ -21,26 +20,22 @@ export default class ReadLineageController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  readonly #dbo: Dbo;
 
-  constructor(readLineage: ReadLineage, getAccounts: GetAccounts, dbo: Dbo) {
+  constructor(readLineage: ReadLineage, getAccounts: GetAccounts) {
     super();
     this.#readLineage = readLineage;
     this.#getAccounts = getAccounts;
-    this.#dbo = dbo;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadLineageRequestDto => ({
     id: httpRequest.params.id,
   });
 
-  #buildAuthDto = (userAccountInfo: UserAccountInfo): ReadLineageAuthDto => {
-    if (!userAccountInfo.callerOrganizationId) throw new Error('Unauthorized');
-
-    return {
-      callerOrganizationId: userAccountInfo.callerOrganizationId,
-    };
-  };
+  #buildAuthDto = (userAccountInfo: UserAccountInfo, jwt: string): ReadLineageAuthDto => ({
+    callerOrgId: userAccountInfo.callerOrgId,
+    isSystemInternal: userAccountInfo.isSystemInternal,
+    jwt
+  });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {
@@ -63,13 +58,12 @@ export default class ReadLineageController extends BaseController {
         throw new ReferenceError('Authorization failed');
 
       const requestDto: ReadLineageRequestDto = this.#buildRequestDto(req);
-      const authDto = this.#buildAuthDto(getUserAccountInfoResult.value);
+      const authDto = this.#buildAuthDto(getUserAccountInfoResult.value, jwt);
 
       const useCaseResult: ReadLineageResponseDto =
         await this.#readLineage.execute(
           requestDto,
           authDto,
-          this.#dbo.
         );
 
       if (!useCaseResult.success) {

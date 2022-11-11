@@ -22,7 +22,7 @@ import { ParseSQL, ParseSQLResponseDto } from '../../sql-parser-api/parse-sql';
 import { GenerateResult, IDataEnvGenerator } from './i-data-env-generator';
 
 interface Auth {
-  callerOrganizationId?: string;
+  callerOrgId?: string;
   isSystemInternal: boolean;
   jwt: string;
 }
@@ -31,7 +31,7 @@ export interface DbtDataEnvProps {
   lineageId: string;
   dbtCatalog: string;
   dbtManifest: string;
-  targetOrganizationId?: string;
+  targetOrgId?: string;
 }
 
 interface DbtNodeMetadata {
@@ -151,7 +151,7 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
     this.#lineageId = props.lineageId;
     this.#dbtCatalog = JSON.parse(props.dbtCatalog);
     this.#dbtManifest = JSON.parse(props.dbtManifest);
-    this.#targetOrgId = props.targetOrganizationId;
+    this.#targetOrgId = props.targetOrgId;
   }
 
   /* Get dbt nodes from catalog.json */
@@ -182,7 +182,7 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
         materializationId: sourceId,
         lineageId: this.#lineageId,
         writeToPersistence: false,
-        targetOrganizationId: this.#targetOrgId,
+        targetOrgId: this.#targetOrgId,
       },
       this.#auth
     );
@@ -218,7 +218,7 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
 
           writeToPersistence: options.writeToPersistence,
           lineageId: this.#lineageId,
-          targetOrganizationId: this.#targetOrgId,
+          targetOrgId: this.#targetOrgId,
         },
         this.#auth
       );
@@ -312,7 +312,7 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
                 // 'todo - read from snowflake'
                 logicId: undefined,
                 lineageId: this.#lineageId,
-                targetOrganizationId: this.#targetOrgId,
+                targetOrgId: this.#targetOrgId,
                 writeToPersistence: false,
               },
               this.#auth
@@ -410,7 +410,7 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
             sql,
             lineageId: this.#lineageId,
             parsedLogic,
-            targetOrganizationId: this.#targetOrgId,
+            targetOrgId: this.#targetOrgId,
             catalog: this.#catalog,
           },
           dbtProps: {
@@ -445,7 +445,7 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
       databaseName: props.model.metadata.database,
       logicId: logic.id,
       lineageId: this.#lineageId,
-      targetOrganizationId: this.#targetOrgId,
+      targetOrgId: this.#targetOrgId,
       writeToPersistence: false,
     });
 
@@ -475,7 +475,7 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
       schemaName: props.model.metadata.schema,
       databaseName: props.model.metadata.database,
       lineageId: this.#lineageId,
-      targetOrganizationId: this.#targetOrgId,
+      targetOrgId: this.#targetOrgId,
       writeToPersistence: false,
     });
 

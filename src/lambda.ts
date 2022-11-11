@@ -55,7 +55,7 @@ const internalInvoke = async (
       if (
         !event.req.catalog ||
         !event.req.manifest ||
-        !event.req.targetOrganizationId
+        !event.req.targetOrgId
       )
         throw new Error(
           `Cannot invoke ${internalInvokeType}. Missing req params.`
@@ -64,7 +64,7 @@ const internalInvoke = async (
       const req: CreateLineageRequestDto = {
         dbtCatalog: event.req.catalog,
         dbtManifest: event.req.manifest,
-        targetOrganizationId: event.req.targetOrganizationId,
+        targetOrgId: event.req.targetOrgId,
         biType: event.req.biType,
       };
 

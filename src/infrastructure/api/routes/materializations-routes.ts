@@ -7,7 +7,6 @@ const materializationsRoutes = Router();
 const readMaterializationsController = new ReadMaterializationsController(
   app.resolve('readMaterializations'),
   app.resolve('getAccounts'),
-  app.resolve('dbo')
 );
 
 materializationsRoutes.get('/', (req, res) => {

@@ -7,7 +7,7 @@ import {  IMaterializationRepo } from '../../materialization/i-materialization-r
 import { ILineageRepo } from '../i-lineage-repo';
 
 interface Auth 
-  {callerOrgId: string, isSystemInternal: boolean, jwt: string}
+  {callerOrgId?: string, isSystemInternal: boolean, jwt: string}
 
 
 export default class DataEnvMerger {

@@ -4,8 +4,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import v1Router from './routes/v1';
-import iocRegister from '../ioc-register';
-import Dbo from '../persistence/db/mongo-db';
 
 interface AppConfig {
   port: number;
@@ -23,11 +21,7 @@ export default class ExpressApp {
   }
 
   async start(runningLocal: boolean): Promise<Application> {
-    const dbo: Dbo = iocRegister.resolve('dbo');
-
     try {
-      await dbo.connectToServer();
-
       this.configApp();
 
       if (runningLocal)
@@ -46,11 +40,11 @@ export default class ExpressApp {
   }
 
   private configApp(): void {
-    this.#expressApp.use(express.json({limit: '10mb'}));
+    this.#expressApp.use(express.json({ limit: '10mb' }));
     this.#expressApp.use(express.urlencoded({ extended: true, limit: '10mb' }));
     this.#expressApp.use(cors());
     this.#expressApp.use(compression());
-    this.#expressApp.use(morgan("combined"));
+    this.#expressApp.use(morgan('combined'));
     this.#expressApp.use(helmet());
     this.#expressApp.use(v1Router);
   }

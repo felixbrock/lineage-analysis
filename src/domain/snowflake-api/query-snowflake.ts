@@ -1,6 +1,6 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import {  } from '../services/i-db';
+import {} from '../services/i-db';
 import {
   ISnowflakeApiRepo,
   SnowflakeQueryResult,
@@ -10,12 +10,12 @@ import { GetSnowflakeProfile } from '../integration-api/get-snowflake-profile';
 
 export interface QuerySnowflakeRequestDto {
   queryText: string;
-  binds: (string|number)[] | (string|number)[][];
+  binds: (string | number)[] | (string | number)[][];
   targetOrgId?: string;
 }
 
 export interface QuerySnowflakeAuthDto {
-  callerOrganizationId?: string;
+  callerOrgId?: string;
   isSystemInternal: boolean;
   jwt: string;
 }
@@ -27,8 +27,7 @@ export class QuerySnowflake
     IUseCase<
       QuerySnowflakeRequestDto,
       QuerySnowflakeResponseDto,
-      QuerySnowflakeAuthDto,
-      
+      QuerySnowflakeAuthDto
     >
 {
   readonly #snowflakeApiRepo: ISnowflakeApiRepo;
@@ -62,47 +61,54 @@ export class QuerySnowflake
     return readSnowflakeProfileResult.value;
   };
 
-
-
   async execute(
     request: QuerySnowflakeRequestDto,
     auth: QuerySnowflakeAuthDto
   ): Promise<QuerySnowflakeResponseDto> {
     if (auth.isSystemInternal && !request.targetOrgId)
       throw new Error('Target organization id missing');
-    if (!auth.isSystemInternal && !auth.callerOrganizationId)
+    if (!auth.isSystemInternal && !auth.callerOrgId)
       throw new Error('Caller organization id missing');
-    if (!request.targetOrgId && !auth.callerOrganizationId)
+    if (!request.targetOrgId && !auth.callerOrgId)
       throw new Error('No organization Id instance provided');
-    if (request.targetOrgId && auth.callerOrganizationId)
+    if (request.targetOrgId && auth.callerOrgId)
       throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
     let orgId: string;
-    if (auth.callerOrganizationId) orgId = auth.callerOrganizationId;
+    if (auth.callerOrgId) orgId = auth.callerOrgId;
     else if (request.targetOrgId) orgId = request.targetOrgId;
     else throw new Error('Missing orgId');
 
     try {
-      const profile: SnowflakeProfileDto = await this.#getProfile(orgId, auth.jwt);
+      const profile: SnowflakeProfileDto = await this.#getProfile(
+        orgId,
+        auth.jwt
+      );
 
-      const queryResult = await this.#snowflakeApiRepo.runQuery(request.queryText, request.binds, {
-        account: profile.accountId,
-        username: profile.username,
-        password: profile.password,
-        warehouse: profile.warehouseName,
-      });
+      const queryResult = await this.#snowflakeApiRepo.runQuery(
+        request.queryText,
+        request.binds,
+        {
+          account: profile.accountId,
+          username: profile.username,
+          password: profile.password,
+          warehouse: profile.warehouseName,
+        }
+      );
 
       const queryResultBaseMsg = `AcccountId: ${
         profile.accountId
-      } \nOrganizationId: ${profile.organizationId} \n${request.queryText.substring(
-        0,
-        1000
-      )}${request.queryText.length > 1000 ? '...' : ''}`;
+      } \nOrganizationId: ${
+        profile.organizationId
+      } \n${request.queryText.substring(0, 1000)}${
+        request.queryText.length > 1000 ? '...' : ''
+      }`;
 
-      if(!queryResult.success)  
-      throw new Error(
-        `Sf query failed \n${queryResultBaseMsg} \nError msg: ${queryResult.error}`);
-    else console.log(`Sf query succeeded \n${queryResultBaseMsg}`);
+      if (!queryResult.success)
+        throw new Error(
+          `Sf query failed \n${queryResultBaseMsg} \nError msg: ${queryResult.error}`
+        );
+      else console.log(`Sf query succeeded \n${queryResultBaseMsg}`);
 
       const value =
         queryResult.success && queryResult.value

@@ -42,7 +42,7 @@ export default class ReadMaterializationsController extends BaseController {
       databaseName,
       logicId,
       lineageId,
-      targetOrganizationId,
+      targetOrgId,
     } = httpRequest.query;
 
     const isMaterializationType = (
@@ -81,18 +81,17 @@ export default class ReadMaterializationsController extends BaseController {
       databaseName: typeof databaseName === 'string' ? databaseName : undefined,
       logicId: typeof logicId === 'string' ? logicId : undefined,
       lineageId,
-      targetOrganizationId:
-        typeof targetOrganizationId === 'string'
-          ? targetOrganizationId
-          : undefined,
+      targetOrgId: typeof targetOrgId === 'string' ? targetOrgId : undefined,
     };
   };
 
   #buildAuthDto = (
-    userAccountInfo: UserAccountInfo
+    userAccountInfo: UserAccountInfo,
+    jwt: string
   ): ReadMaterializationsAuthDto => ({
-    callerOrganizationId: userAccountInfo.callerOrganizationId,
+    callerOrgId: userAccountInfo.callerOrgId,
     isSystemInternal: userAccountInfo.isSystemInternal,
+    jwt,
   });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
@@ -120,7 +119,7 @@ export default class ReadMaterializationsController extends BaseController {
 
       const requestDto: ReadMaterializationsRequestDto =
         this.#buildRequestDto(req);
-      const authDto = this.#buildAuthDto(getUserAccountInfoResult.value);
+      const authDto = this.#buildAuthDto(getUserAccountInfoResult.value, jwt);
 
       const useCaseResult: ReadMaterializationsResponseDto =
         await this.#readMaterializations.execute(requestDto, authDto);

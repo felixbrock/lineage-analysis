@@ -13,12 +13,12 @@ export interface CreateExternalDependencyRequestDto {
   dashboard: Dashboard;
   lineageId: string;
   writeToPersistence: boolean;
-  targetOrganizationId?: string;
+  targetOrgId?: string;
 }
 
 export interface CreateExternalDependencyAuthDto {
   isSystemInternal: boolean;
-  callerOrganizationId?: string;
+  callerOrgId?: string;
   jwt: string;
 }
 
@@ -49,13 +49,13 @@ export class CreateExternalDependency
     auth: CreateExternalDependencyAuthDto
   ): Promise<CreateExternalDependencyResponse> {
     try {
-      if (auth.isSystemInternal && !request.targetOrganizationId)
+      if (auth.isSystemInternal && !request.targetOrgId)
         throw new Error('Target organization id missing');
-      if (!auth.isSystemInternal && !auth.callerOrganizationId)
+      if (!auth.isSystemInternal && !auth.callerOrgId)
         throw new Error('Caller organization id missing');
-      if (!request.targetOrganizationId && !auth.callerOrganizationId)
+      if (!request.targetOrgId && !auth.callerOrgId)
         throw new Error('No organization Id instance provided');
-      if (request.targetOrganizationId && auth.callerOrganizationId)
+      if (request.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
       const dependency = Dependency.create({
@@ -73,7 +73,7 @@ export class CreateExternalDependency
             headId: request.dashboard.id,
             tailId: request.dashboard.columnId,
             lineageId: request.lineageId,
-            targetOrganizationId: request.targetOrganizationId,
+            targetOrgId: request.targetOrgId,
           },
           auth
         );
@@ -91,7 +91,7 @@ export class CreateExternalDependency
         await this.#dependencyRepo.insertOne(
           dependency,
           auth,
-          request.targetOrganizationId
+          request.targetOrgId
         );
 
       return Result.ok(dependency);

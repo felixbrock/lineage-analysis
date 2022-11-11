@@ -21,7 +21,7 @@ export enum CodeHttp {
 export interface UserAccountInfo {
   userId?: string;
   accountId?: string;
-  callerOrganizationId?: string;
+  callerOrgId?: string;
   isSystemInternal: boolean;
 }
 
@@ -103,7 +103,7 @@ export abstract class InternalInvokeController<R> {
         return Result.ok({
           isSystemInternal,
           accountId: undefined,
-          callerOrganizationId: undefined,
+          callerOrgId: undefined,
           userId: undefined,
         });
 
@@ -129,7 +129,7 @@ export abstract class InternalInvokeController<R> {
       return Result.ok({
         userId: authPayload.username,
         accountId: getAccountsResult.value[0].id,
-        callerOrganizationId: getAccountsResult.value[0].organizationId,
+        callerOrgId: getAccountsResult.value[0].organizationId,
         isSystemInternal,
       });
     } catch (error: unknown) {

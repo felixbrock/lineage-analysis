@@ -96,8 +96,8 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
   findOne = async (
     materializationId: string,
-    targetOrgId?: string,
-    auth: Auth
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<Materialization | null> => {
     try {
       const queryText = `select * from cito.lineage.${this.#matName}
@@ -130,12 +130,12 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
   findBy = async (
     materializationQueryDto: MaterializationQueryDto,
-    targetOrgId?: string,
-    auth: Auth
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<Materialization[]> => {
     try {
       if (!Object.keys(materializationQueryDto).length)
-        return await this.all(targetOrgId, auth);
+        return await this.all(auth, targetOrgId);
 
       // using binds to tell snowflake to escape params to avoid sql injection attack
       const binds: (string | number)[] = [materializationQueryDto.lineageId];
@@ -197,7 +197,10 @@ export default class MaterializationRepo implements IMaterializationRepo {
     }
   };
 
-  all = async (targetOrgId?: string, auth: Auth): Promise<Materialization[]> => {
+  all = async (
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<Materialization[]> => {
     try {
       const queryText = `select * from cito.lineage.${this.#matName};`;
 
@@ -237,8 +240,8 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
   insertOne = async (
     materialization: Materialization,
-    targetOrgId?: string,
-    auth: Auth
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<string> => {
     try {
       const binds = this.#getBinds(materialization);
@@ -267,8 +270,8 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
   insertMany = async (
     materializations: Materialization[],
-    targetOrgId?: string,
-    auth: Auth
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<string[]> => {
     try {
       const binds = materializations.map((materialization) =>
@@ -301,8 +304,8 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
   replaceMany = async (
     materializations: Materialization[],
-    targetOrgId?: string,
-    auth: Auth
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<number> => {
     try {
       const binds = materializations.map((materialization) =>

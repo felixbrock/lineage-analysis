@@ -16,12 +16,12 @@ export interface CreateDependencyRequestDto {
   parentRelationNames: string[];
   lineageId: string;
   writeToPersistence: boolean;
-  targetOrganizationId?: string;
+  targetOrgId?: string;
 }
 
 export interface CreateDependencyAuthDto {
   isSystemInternal: boolean;
-  callerOrganizationId?: string;
+  callerOrgId?: string;
   jwt: string;
 }
 
@@ -58,7 +58,7 @@ export class CreateDependency
         relationName: parentRelationNames,
         name: dependencyRef.name,
         lineageId,
-        targetOrganizationId: this.#targetOrgId,
+        targetOrgId: this.#targetOrgId,
       },
       this.#auth
     );
@@ -96,7 +96,7 @@ export class CreateDependency
         relationName: selfRelationName,
         lineageId,
         name: dependencyRef.alias || dependencyRef.name,
-        targetOrganizationId: this.#targetOrgId,
+        targetOrgId: this.#targetOrgId,
       },
       this.#auth
     );
@@ -143,17 +143,17 @@ export class CreateDependency
     auth: CreateDependencyAuthDto
   ): Promise<CreateDependencyResponse> {
     try {
-      if (auth.isSystemInternal && !request.targetOrganizationId)
+      if (auth.isSystemInternal && !request.targetOrgId)
         throw new Error('Target organization id missing');
-      if (!auth.isSystemInternal && !auth.callerOrganizationId)
+      if (!auth.isSystemInternal && !auth.callerOrgId)
         throw new Error('Caller organization id missing');
-      if (!request.targetOrganizationId && !auth.callerOrganizationId)
+      if (!request.targetOrgId && !auth.callerOrgId)
         throw new Error('No organization Id instance provided');
-      if (request.targetOrganizationId && auth.callerOrganizationId)
+      if (request.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
       this.#auth = auth;
-      this.#targetOrgId = request.targetOrganizationId;
+      this.#targetOrgId = request.targetOrgId;
 
       const headColumn = await this.#getSelfColumn(
         request.selfRelationName,
@@ -186,7 +186,7 @@ export class CreateDependency
           headId: headColumn.id,
           tailId: parentId,
           lineageId: request.lineageId,
-          targetOrganizationId: request.targetOrganizationId,
+          targetOrgId: request.targetOrgId,
         },
         auth
       );
@@ -204,7 +204,7 @@ export class CreateDependency
         await this.#dependencyRepo.insertOne(
           dependency,
           auth,
-          request.targetOrganizationId
+          request.targetOrgId
         );
 
       return Result.ok(dependency);

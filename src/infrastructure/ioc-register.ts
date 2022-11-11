@@ -22,11 +22,14 @@ import { CreateDependency } from '../domain/dependency/create-dependency';
 import { ReadLineage } from '../domain/lineage/read-lineage';
 import { ReadLogic } from '../domain/logic/read-logic';
 import { QuerySfQueryHistory } from '../domain/snowflake-api/query-snowflake-history';
-import QuerySfQueryHistoryApiRepo from './persistence/query-snowflake-history-repo';
 import { CreateExternalDependency } from '../domain/dependency/create-external-dependency';
 import DashboardRepo from './persistence/dashboard-repo';
 import { ReadDashboards } from '../domain/dashboard/read-dashboards';
 import { CreateDashboard } from '../domain/dashboard/create-dashboard';
+import SnowflakeApiRepo from './persistence/snowflake-api-repo';
+import IntegrationApiRepo from './persistence/integration-api-repo';
+import { QuerySnowflake } from '../domain/snowflake-api/query-snowflake';
+import { GetSnowflakeProfile } from '../domain/integration-api/get-snowflake-profile';
 
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
@@ -50,6 +53,8 @@ iocRegister.register({
   readDashboards: asClass(ReadDashboards),
 
   parseSQL: asClass(ParseSQL),
+  querySnowflake: asClass(QuerySnowflake),
+  getSnowflakeProfile: asClass(GetSnowflakeProfile),
   getAccounts: asClass(GetAccounts),
   querySfQueryHistory: asClass(QuerySfQueryHistory),
 
@@ -62,8 +67,8 @@ iocRegister.register({
 
   accountApiRepo: asClass(AccountApiRepo),
   sqlParserApiRepo: asClass(SQLParserApiRepo),
-  querySfQueryHistoryApiRepo: asClass(QuerySfQueryHistoryApiRepo),
-
+  integrationApiRepo: asClass(IntegrationApiRepo),
+  snowflakeApiRepo: asClass(SnowflakeApiRepo),
 });
 
 export default iocRegister;

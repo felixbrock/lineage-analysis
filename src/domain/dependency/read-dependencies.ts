@@ -9,11 +9,11 @@ export interface ReadDependenciesRequestDto {
   headId?: string;
   tailId?: string;
   lineageId: string;
-  targetOrganizationId?: string;
+  targetOrgId?: string;
 }
 
 export interface ReadDependenciesAuthDto {
-  callerOrganizationId?: string;
+  callerOrgId?: string;
   isSystemInternal: boolean;
   jwt:string;
 }
@@ -39,19 +39,19 @@ export class ReadDependencies
     auth: ReadDependenciesAuthDto
   ): Promise<ReadDependenciesResponseDto> {
     try {
-      if (auth.isSystemInternal && !request.targetOrganizationId)
+      if (auth.isSystemInternal && !request.targetOrgId)
         throw new Error('Target organization id missing');
-      if (!auth.isSystemInternal && !auth.callerOrganizationId)
+      if (!auth.isSystemInternal && !auth.callerOrgId)
         throw new Error('Caller organization id missing');
-      if (!request.targetOrganizationId && !auth.callerOrganizationId)
+      if (!request.targetOrgId && !auth.callerOrgId)
         throw new Error('No organization Id instance provided');
-      if (request.targetOrganizationId && auth.callerOrganizationId)
+      if (request.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
       const dependencies: Dependency[] = await this.#dependencyRepo.findBy(
         this.#buildDependencyQueryDto(request),
         auth,
-        request.targetOrganizationId
+        request.targetOrgId
       );
       if (!dependencies)
         throw new ReferenceError(`Queried dependencies do not exist`);

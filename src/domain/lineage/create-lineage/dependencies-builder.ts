@@ -28,7 +28,7 @@ import { SnowflakeQueryResult } from '../../snowflake-api/i-snowflake-api-repo';
 
 interface Auth {
   jwt: string;
-  callerOrganizationId?: string;
+  callerOrgId?: string;
   isSystemInternal: boolean;
 }
 
@@ -52,7 +52,7 @@ export default class DependenciesBuilder {
 
   readonly #lineageId: string;
 
-  readonly #targetOrganizationId?: string;
+  readonly #targetOrgId?: string;
 
   readonly #logics: Logic[];
 
@@ -77,7 +77,7 @@ export default class DependenciesBuilder {
   constructor(
     props: {
       lineageId: string;
-      targetOrganizationId?: string;
+      targetOrgId?: string;
       organizationId: string;
       logics: Logic[];
       mats: Materialization[];
@@ -102,7 +102,7 @@ export default class DependenciesBuilder {
     this.#auth = auth;
 
     this.#lineageId = props.lineageId;
-    this.#targetOrganizationId = props.targetOrganizationId;
+    this.#targetOrgId = props.targetOrgId;
     this.#logics = props.logics;
     this.#mats = props.mats;
     this.#columns = props.columns;
@@ -117,7 +117,7 @@ export default class DependenciesBuilder {
         {
           biType,
           limit: 10,
-          targetOrganizationId: this.#targetOrganizationId,
+          targetOrgId: this.#targetOrgId,
         },
         this.#auth
       );
@@ -260,7 +260,7 @@ export default class DependenciesBuilder {
         materializationId: materialization.id,
         materializationName: dashboardRef.materializationName,
         url: dashboardRef.url,
-        targetOrganizationId: this.#targetOrganizationId,
+        targetOrgId: this.#targetOrgId,
         writeToPersistence: false,
       },
       this.#auth,
@@ -280,7 +280,7 @@ export default class DependenciesBuilder {
         {
           dashboard,
           lineageId: this.#lineageId,
-          targetOrganizationId: this.#targetOrganizationId,
+          targetOrgId: this.#targetOrgId,
           writeToPersistence: false,
         },
         this.#auth,
@@ -332,7 +332,7 @@ export default class DependenciesBuilder {
               selfRelationName: relationName,
               parentRelationNames,
               lineageId: this.#lineageId,
-              targetOrganizationId: this.#targetOrganizationId,
+              targetOrgId: this.#targetOrgId,
               writeToPersistence: false,
             },
             this.#auth,
@@ -384,7 +384,7 @@ export default class DependenciesBuilder {
         selfRelationName: relationName,
         parentRelationNames,
         lineageId: this.#lineageId,
-        targetOrganizationId: this.#targetOrganizationId,
+        targetOrgId: this.#targetOrgId,
         writeToPersistence: false,
       },
       this.#auth
@@ -451,7 +451,7 @@ export default class DependenciesBuilder {
       {
         relationName,
         lineageId: this.#lineageId,
-        targetOrganizationId: this.#targetOrganizationId,
+        targetOrgId: this.#targetOrgId,
       },
       this.#auth
     );

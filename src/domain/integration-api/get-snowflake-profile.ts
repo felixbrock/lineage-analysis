@@ -25,8 +25,8 @@ export class GetSnowflakeProfile
 {
   readonly #integrationApiRepo: IIntegrationApiRepo;
 
-  constructor(snowflakeprofileApiRepo: IIntegrationApiRepo) {
-    this.#integrationApiRepo = snowflakeprofileApiRepo;
+  constructor(integrationApiRepo: IIntegrationApiRepo) {
+    this.#integrationApiRepo = integrationApiRepo;
   }
 
   async execute(

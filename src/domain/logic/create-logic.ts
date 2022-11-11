@@ -1,12 +1,16 @@
 // todo clean architecture violation
 
+import { v4 as uuidv4 } from 'uuid';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { ModelRepresentation, Logic, MaterializationDefinition } from '../entities/logic';
+import {
+  ModelRepresentation,
+  Logic,
+  MaterializationDefinition,
+} from '../entities/logic';
 import { ILogicRepo } from './i-logic-repo';
 import { ReadLogics } from './read-logics';
-import {  } from '../services/i-db';
-import { v4 as uuidv4 } from 'uuid';
+import {} from '../services/i-db';
 
 interface DbtRequestProps {
   dbtDependentOn: MaterializationDefinition[];
@@ -18,7 +22,7 @@ interface GeneralRequestProps {
   parsedLogic: string;
   lineageId: string;
   catalog: ModelRepresentation[];
-  targetOrganizationId?: string;
+  targetOrgId?: string;
 }
 
 export interface CreateLogicRequestDto {
@@ -33,25 +37,19 @@ export interface CreateLogicRequestDto {
 
 export interface CreateLogicAuthDto {
   isSystemInternal: boolean;
-  callerOrganizationId?: string;
+  callerOrgId?: string;
+  jwt: string;
 }
 
 export type CreateLogicResponse = Result<Logic>;
 
 export class CreateLogic
   implements
-    IUseCase<
-      CreateLogicRequestDto,
-      CreateLogicResponse,
-      CreateLogicAuthDto,
-      
-    >
+    IUseCase<CreateLogicRequestDto, CreateLogicResponse, CreateLogicAuthDto>
 {
   readonly #readLogics: ReadLogics;
 
   readonly #logicRepo: ILogicRepo;
-
-  #: ;
 
   constructor(readLogics: ReadLogics, logicRepo: ILogicRepo) {
     this.#readLogics = readLogics;
@@ -60,29 +58,19 @@ export class CreateLogic
 
   async execute(
     request: CreateLogicRequestDto,
-    auth: CreateLogicAuthDto,
-    : 
+    auth: CreateLogicAuthDto
   ): Promise<CreateLogicResponse> {
     const { dbtProps, generalProps: commonProps } = request.props;
 
     try {
-      if (auth.isSystemInternal && !commonProps.targetOrganizationId)
+      if (auth.isSystemInternal && !commonProps.targetOrgId)
         throw new Error('Target organization id missing');
-      if (!auth.isSystemInternal && !auth.callerOrganizationId)
+      if (!auth.isSystemInternal && !auth.callerOrgId)
         throw new Error('Caller organization id missing');
-      if (!commonProps.targetOrganizationId && !auth.callerOrganizationId)
+      if (!commonProps.targetOrgId && !auth.callerOrgId)
         throw new Error('No organization Id instance provided');
-      if (commonProps.targetOrganizationId && auth.callerOrganizationId)
+      if (commonProps.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
-
-      let organizationId: string;
-      if (auth.isSystemInternal && commonProps.targetOrganizationId)
-        organizationId = commonProps.targetOrganizationId;
-      else if (!auth.isSystemInternal && auth.callerOrganizationId)
-        organizationId = auth.callerOrganizationId;
-      else throw new Error('Unhandled organization id declaration');
-
-      this.# = ;
 
       const logic = Logic.create({
         generalProps: {
@@ -92,7 +80,6 @@ export class CreateLogic
           sql: commonProps.sql,
           parsedLogic: commonProps.parsedLogic,
           lineageId: commonProps.lineageId,
-          organizationId,
           catalog: commonProps.catalog,
         },
         dbtProps,
@@ -102,13 +89,9 @@ export class CreateLogic
         {
           relationName: commonProps.relationName,
           lineageId: commonProps.lineageId,
-          targetOrganizationId: commonProps.targetOrganizationId,
+          targetOrgId: commonProps.targetOrgId,
         },
-        {
-          isSystemInternal: auth.isSystemInternal,
-          callerOrganizationId: auth.callerOrganizationId,
-        },
-        this.#
+        auth
       );
 
       if (!readLogicsResult.success) throw new Error(readLogicsResult.error);
@@ -117,7 +100,11 @@ export class CreateLogic
         throw new ReferenceError('Logic to be created already exists');
 
       if (request.options.writeToPersistence)
-        await this.#logicRepo.insertOne(logic, );
+        await this.#logicRepo.insertOne(
+          logic,
+          auth,
+          request.props.generalProps.targetOrgId
+        );
 
       return Result.ok(logic);
     } catch (error: unknown) {

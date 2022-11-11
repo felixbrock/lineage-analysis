@@ -3,7 +3,12 @@ import {
   ILogicRepo,
   LogicQueryDto,
 } from '../../domain/logic/i-logic-repo';
-import { DependentOn, Logic, LogicProps, Refs } from '../../domain/entities/logic';
+import {
+  DependentOn,
+  Logic,
+  LogicProps,
+  Refs,
+} from '../../domain/entities/logic';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import {
   ColumnDefinition,
@@ -55,11 +60,23 @@ export default class LogicRepo implements ILogicRepo {
         'Retrieved unexpected logic field types from persistence'
       );
 
-    const isDependentOnObj = (el: unknown): el is DependentOn => !!el && 'dbtDependencyDefinitions' in el && 'dwDependencyDefinitions' in el;
-    const isRefsObj = (el: unknown): el is Refs => !!el && 'materializations' in el && 'columns' in el && 'wildcards' in el;
-    const isStringArray = (value: unknown): value is string[] => Array.isArray(value) && value.every(el => typeof el === 'string');
+    const isDependentOnObj = (el: unknown): el is DependentOn =>
+      !!el &&
+      'dbtDependencyDefinitions' in (el as DependentOn) &&
+      'dwDependencyDefinitions' in (el as DependentOn);
+    const isRefsObj = (el: unknown): el is Refs =>
+      !!el && 'materializations' in (el as Refs) && 'columns' in (el as Refs) && 'wildcards' in (el as Refs);
+    const isStringArray = (value: unknown): value is string[] =>
+      Array.isArray(value) && value.every((el) => typeof el === 'string');
 
-    if(!isDependentOnObj(dependentOn) || !isRefsObj(statementRefs) || !isStringArray(lineageIds)) throw new Error('Type mismatch detected when reading logic from persistence');
+    if (
+      !isDependentOnObj(dependentOn) ||
+      !isRefsObj(statementRefs) ||
+      !isStringArray(lineageIds)
+    )
+      throw new Error(
+        'Type mismatch detected when reading logic from persistence'
+      );
 
     return this.#toEntity({
       id,
@@ -74,8 +91,8 @@ export default class LogicRepo implements ILogicRepo {
 
   findOne = async (
     logicId: string,
-    targetOrgId?: string,
-    auth: Auth
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<Logic | null> => {
     try {
       const queryText = `select * from cito.lineage.${this.#matName}
@@ -94,7 +111,7 @@ export default class LogicRepo implements ILogicRepo {
       if (result.value.length > 1)
         throw new Error(`Multiple logic entities with id found`);
 
-      return !result.value.length ? null :  this.#buildLogic(result.value[0]);
+      return !result.value.length ? null : this.#buildLogic(result.value[0]);
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
@@ -104,12 +121,12 @@ export default class LogicRepo implements ILogicRepo {
 
   findBy = async (
     logicQueryDto: LogicQueryDto,
-    targetOrgId?: string,
-    auth: Auth
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<Logic[]> => {
     try {
       if (!Object.keys(logicQueryDto).length)
-        return await this.all(targetOrgId, auth);
+        return await this.all(auth, targetOrgId);
 
       // using binds to tell snowflake to escape params to avoid sql injection attack
       const binds: (string | number)[] = [logicQueryDto.lineageId];
@@ -138,7 +155,7 @@ export default class LogicRepo implements ILogicRepo {
     }
   };
 
-  all = async (targetOrgId?: string, auth: Auth): Promise<Logic[]> => {
+  all = async (auth: Auth, targetOrgId?: string): Promise<Logic[]> => {
     try {
       const queryText = `select * from cito.lineage.${this.#matName};`;
 
@@ -162,8 +179,8 @@ export default class LogicRepo implements ILogicRepo {
 
   insertOne = async (
     logic: Logic,
-    targetOrgId?: string,
-    auth: Auth
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<string> => {
     try {
       const binds = [
@@ -199,8 +216,8 @@ export default class LogicRepo implements ILogicRepo {
 
   insertMany = async (
     logics: Logic[],
-    targetOrgId?: string,
-    auth: Auth
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<string[]> => {
     try {
       const binds = logics.map((el) => [
@@ -239,8 +256,8 @@ export default class LogicRepo implements ILogicRepo {
 
   replaceMany = async (
     logics: Logic[],
-    targetOrgId?: string,
-    auth: Auth
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<number> => {
     try {
       const binds = logics.map((el) => [

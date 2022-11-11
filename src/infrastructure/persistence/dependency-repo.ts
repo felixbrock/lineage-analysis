@@ -64,8 +64,8 @@ export default class DependencyRepo implements IDependencyRepo {
   
     findOne = async (
       dependencyId: string,
+      auth: Auth,
       targetOrgId?: string,
-      auth: Auth
     ): Promise<Dependency | null> => {
       try {
         const queryText = `select * from cito.lineage.${this.#matName}
@@ -94,12 +94,12 @@ export default class DependencyRepo implements IDependencyRepo {
     
     findBy = async (
       dependencyQueryDto: DependencyQueryDto,
+      auth: Auth,
       targetOrgId?: string,
-      auth: Auth
       ): Promise<Dependency[]> => {
         try {
           if (!Object.keys(dependencyQueryDto).length)
-          return await this.all(targetOrgId, auth);
+          return await this.all( auth, targetOrgId);
           
           // using binds to tell snowflake to escape params to avoid sql injection attack
         const binds: (string | number)[] = [dependencyQueryDto.lineageId];
@@ -139,7 +139,10 @@ export default class DependencyRepo implements IDependencyRepo {
       }
     };
   
-    all = async (targetOrgId?: string, auth: Auth): Promise<Dependency[]> => {
+    all = async (
+      auth: Auth,
+      targetOrgId?: string,
+       ): Promise<Dependency[]> => {
       try {
         const queryText = `select * from cito.lineage.${this.#matName};`;
   
@@ -171,8 +174,8 @@ export default class DependencyRepo implements IDependencyRepo {
   
     insertOne = async (
       dependency: Dependency,
+      auth: Auth,
       targetOrgId?: string,
-      auth: Auth
     ): Promise<string> => {
       try {
         const binds = this.#getBinds(dependency);
@@ -201,8 +204,8 @@ export default class DependencyRepo implements IDependencyRepo {
   
     insertMany = async (
       dependencys: Dependency[],
+      auth: Auth,
       targetOrgId?: string,
-      auth: Auth
     ): Promise<string[]> => {
       try {
         const binds = dependencys.map((dependency) => this.#getBinds(dependency));

@@ -13,12 +13,12 @@ export interface ReadDashboardsRequestDto {
   columnId?: string;
   materializationId?: string;
   lineageId: string;
-  targetOrganizationId?: string;
+  targetOrgId?: string;
 }
 
 export interface ReadDashboardsAuthDto {
   isSystemInternal: boolean;
-  callerOrganizationId?: string;
+  callerOrgId?: string;
   jwt:string;
 }
 
@@ -43,19 +43,19 @@ export class ReadDashboards
     auth: ReadDashboardsAuthDto
   ): Promise<ReadDashboardsResponseDto> {
     try {
-      if (auth.isSystemInternal && !request.targetOrganizationId)
+      if (auth.isSystemInternal && !request.targetOrgId)
         throw new Error('Target organization id missing');
-      if (!auth.isSystemInternal && !auth.callerOrganizationId)
+      if (!auth.isSystemInternal && !auth.callerOrgId)
         throw new Error('Caller organization id missing');
-      if (!request.targetOrganizationId && !auth.callerOrganizationId)
+      if (!request.targetOrgId && !auth.callerOrgId)
         throw new Error('No organization Id instance provided');
-      if (request.targetOrganizationId && auth.callerOrganizationId)
+      if (request.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
       const dashboards: Dashboard[] = await this.#dashboardRepo.findBy(
         this.#buildDashboardQueryDto(request),
         auth,
-        request.targetOrganizationId
+        request.targetOrgId
       );
       if (!dashboards)
         throw new ReferenceError(`Queried dashboards do not exist`);
