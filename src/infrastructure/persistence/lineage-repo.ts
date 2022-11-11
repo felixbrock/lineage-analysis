@@ -13,7 +13,7 @@ import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 
 export default class LineageRepo implements ILineageRepo {
-  readonly #matName = 'lineage';
+  readonly #matName = 'lineage_snapshots';
 
   readonly #querySnowflake: QuerySnowflake;
 

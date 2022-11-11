@@ -13,7 +13,7 @@ import {
 } from './shared/query';
 
 export default class DashboardRepo implements IDashboardRepo {
-  readonly #matName = 'dashboard';
+  readonly #matName = 'dashboards';
 
   readonly #colDefinitions: ColumnDefinition[] = [
     { name: 'id' },

@@ -18,7 +18,7 @@ import {
 import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 
 export default class LogicRepo implements ILogicRepo {
-  readonly #matName = 'logic';
+  readonly #matName = 'logics';
 
   readonly #colDefinitions: ColumnDefinition[] = [
     { name: 'id' },

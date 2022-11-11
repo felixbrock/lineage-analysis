@@ -16,7 +16,7 @@ import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import { ColumnDefinition, getInsertQuery } from './shared/query';
 
 export default class DependencyRepo implements IDependencyRepo {
-    readonly #matName = 'dependency';
+    readonly #matName = 'dependencies';
   
     readonly #colDefinitions: ColumnDefinition[] = [{ name: 'id', },
     { name: 'type', },

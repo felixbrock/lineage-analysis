@@ -17,7 +17,7 @@ import {
 } from './shared/query';
 
 export default class ColunRepo implements IColumnRepo {
-  readonly #matName = 'column';
+  readonly #matName = 'columns';
 
   readonly #colDefinitions: ColumnDefinition[] = [
     { name: 'id' },

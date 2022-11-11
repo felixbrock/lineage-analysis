@@ -17,7 +17,7 @@ import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 
 export default class MaterializationRepo implements IMaterializationRepo {
-  readonly #matName = 'materialization';
+  readonly #matName = 'materializations';
 
   readonly #colDefinitions: ColumnDefinition[] = [
     { name: 'id' },
