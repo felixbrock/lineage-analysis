@@ -1,8 +1,8 @@
 import { Logic } from '../entities/logic';
-import { DbConnection } from '../services/i-db';
+import {  } from '../services/i-db';
 import IUseCase from '../services/use-case';
 import Result from '../value-types/transient-types/result';
-import { ILegacyLogicRepo, LogicQueryDto } from './i-logic-repo';
+import { ILogicRepo, LogicQueryDto } from './i-logic-repo';
 
 export interface ReadLogicsRequestDto {
   relationName?: string;
@@ -23,21 +23,21 @@ export class ReadLogics
       ReadLogicsRequestDto,
       ReadLogicsResponseDto,
       ReadLogicsAuthDto,
-      DbConnection
+      
     >
 {
-  readonly #logicRepo: ILegacyLogicRepo;
+  readonly #logicRepo: ILogicRepo;
 
-  #dbConnection: DbConnection;
+  #: ;
 
-  constructor(logicRepo: ILegacyLogicRepo) {
+  constructor(logicRepo: ILogicRepo) {
     this.#logicRepo = logicRepo;
   }
 
   async execute(
     request: ReadLogicsRequestDto,
     auth: ReadLogicsAuthDto,
-    dbConnection: DbConnection
+    : 
   ): Promise<ReadLogicsResponseDto> {
     try {
       if (auth.isSystemInternal && !request.targetOrganizationId)
@@ -56,11 +56,11 @@ export class ReadLogics
         organizationId = auth.callerOrganizationId;
       else throw new Error('Unhandled organizationId allocation');
 
-      this.#dbConnection = dbConnection;
+      this.# = ;
 
       const logics: Logic[] = await this.#logicRepo.findBy(
         this.#buildLogicQueryDto(request, organizationId),
-        this.#dbConnection
+        this.#
       );
       if (!logics) throw new Error(`Queried logics do not exist`);
 

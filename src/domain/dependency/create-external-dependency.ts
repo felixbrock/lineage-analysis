@@ -1,10 +1,11 @@
 // todo clean architecture violation
-import { ObjectId } from 'mongodb';
+
+import { v4 as uuidv4 } from 'uuid';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { Dependency} from '../entities/dependency';
+import { Dependency } from '../entities/dependency';
 import { IDependencyRepo } from './i-dependency-repo';
-import { DbConnection } from '../services/i-db';
+import {} from '../services/i-db';
 import { Dashboard } from '../entities/dashboard';
 import { ReadDependencies } from './read-dependencies';
 
@@ -18,6 +19,7 @@ export interface CreateExternalDependencyRequestDto {
 export interface CreateExternalDependencyAuthDto {
   isSystemInternal: boolean;
   callerOrganizationId?: string;
+  jwt: string;
 }
 
 export type CreateExternalDependencyResponse = Result<Dependency>;
@@ -27,15 +29,12 @@ export class CreateExternalDependency
     IUseCase<
       CreateExternalDependencyRequestDto,
       CreateExternalDependencyResponse,
-      CreateExternalDependencyAuthDto,
-      DbConnection
+      CreateExternalDependencyAuthDto
     >
 {
   readonly #readDependencies: ReadDependencies;
 
   readonly #dependencyRepo: IDependencyRepo;
-
-  #dbConnection: DbConnection;
 
   constructor(
     readDependencies: ReadDependencies,
@@ -47,8 +46,7 @@ export class CreateExternalDependency
 
   async execute(
     request: CreateExternalDependencyRequestDto,
-    auth: CreateExternalDependencyAuthDto,
-    dbConnection: DbConnection
+    auth: CreateExternalDependencyAuthDto
   ): Promise<CreateExternalDependencyResponse> {
     try {
       if (auth.isSystemInternal && !request.targetOrganizationId)
@@ -57,25 +55,15 @@ export class CreateExternalDependency
         throw new Error('Caller organization id missing');
       if (!request.targetOrganizationId && !auth.callerOrganizationId)
         throw new Error('No organization Id instance provided');
-        if (request.targetOrganizationId && auth.callerOrganizationId)
+      if (request.targetOrganizationId && auth.callerOrganizationId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
-      let organizationId: string;
-      if (auth.isSystemInternal && request.targetOrganizationId)
-        organizationId = request.targetOrganizationId;
-      else if (!auth.isSystemInternal && auth.callerOrganizationId)
-        organizationId = auth.callerOrganizationId;
-      else throw new Error('Unhandled organization id declaration');
-
-      this.#dbConnection = dbConnection;
-
       const dependency = Dependency.create({
-        id: new ObjectId().toHexString(),
+        id: uuidv4(),
         type: 'external',
         headId: request.dashboard.id,
         tailId: request.dashboard.columnId,
         lineageId: request.lineageId,
-        organizationId,
       });
 
       const readExternalDependenciesResult =
@@ -87,8 +75,7 @@ export class CreateExternalDependency
             lineageId: request.lineageId,
             targetOrganizationId: request.targetOrganizationId,
           },
-          { isSystemInternal: auth.isSystemInternal, callerOrganizationId: auth.callerOrganizationId },
-          dbConnection
+          auth
         );
 
       if (!readExternalDependenciesResult.success)
@@ -101,11 +88,16 @@ export class CreateExternalDependency
         );
 
       if (request.writeToPersistence)
-        await this.#dependencyRepo.insertOne(dependency, this.#dbConnection);
+        await this.#dependencyRepo.insertOne(
+          dependency,
+          auth,
+          request.targetOrganizationId
+        );
 
       return Result.ok(dependency);
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
       return Result.fail('');
     }
   }

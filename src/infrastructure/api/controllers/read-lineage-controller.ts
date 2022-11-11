@@ -69,7 +69,7 @@ export default class ReadLineageController extends BaseController {
         await this.#readLineage.execute(
           requestDto,
           authDto,
-          this.#dbo.dbConnection
+          this.#dbo.
         );
 
       if (!useCaseResult.success) {

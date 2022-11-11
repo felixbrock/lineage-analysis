@@ -1,10 +1,9 @@
-import { ObjectId } from 'mongodb';
+import { v4 as uuidv4 } from 'uuid';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { Dashboard } from '../entities/dashboard';
 import { ReadDashboards } from './read-dashboards';
 import { IDashboardRepo } from './i-dashboard-repo';
-import { DbConnection } from '../services/i-db';
 
 export interface CreateDashboardRequestDto {
   url?: string;
@@ -20,6 +19,7 @@ export interface CreateDashboardRequestDto {
 export interface CreateDashboardAuthDto {
   isSystemInternal: boolean;
   callerOrganizationId?: string;
+  jwt:string
 }
 
 export type CreateDashboardResponseDto = Result<Dashboard>;
@@ -29,15 +29,14 @@ export class CreateDashboard
     IUseCase<
       CreateDashboardRequestDto,
       CreateDashboardResponseDto,
-      CreateDashboardAuthDto,
-      DbConnection
+      CreateDashboardAuthDto
+      
     >
 {
   readonly #dashboardRepo: IDashboardRepo;
 
   readonly #readDashboards: ReadDashboards;
 
-  #dbConnection: DbConnection;
 
   constructor(readDashboards: ReadDashboards, dashboardRepo: IDashboardRepo) {
     this.#readDashboards = readDashboards;
@@ -47,7 +46,6 @@ export class CreateDashboard
   async execute(
     request: CreateDashboardRequestDto,
     auth: CreateDashboardAuthDto,
-    dbConnection: DbConnection
   ): Promise<CreateDashboardResponseDto> {
     try {
       if (auth.isSystemInternal && !request.targetOrganizationId)
@@ -59,24 +57,14 @@ export class CreateDashboard
         if (request.targetOrganizationId && auth.callerOrganizationId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
-      let organizationId: string;
-      if (auth.isSystemInternal && request.targetOrganizationId)
-        organizationId = request.targetOrganizationId;
-      else if (!auth.isSystemInternal && auth.callerOrganizationId)
-        organizationId = auth.callerOrganizationId;
-      else throw new Error('Unhandled organization id declaration');
-
-      this.#dbConnection = dbConnection;
-
       const dashboard = Dashboard.create({
-        id: new ObjectId().toHexString(),
+        id: uuidv4(),
         lineageId: request.lineageId,
         url: request.url,
         materializationName: request.materializationName,
         columnName: request.columnName,
         columnId: request.columnId,
         materializationId: request.materializationId,
-        organizationId,
       });
 
       if (!request.url) return Result.ok(dashboard);
@@ -87,8 +75,7 @@ export class CreateDashboard
           lineageId: request.lineageId,
           targetOrganizationId: request.targetOrganizationId,
         },
-        { isSystemInternal: auth.isSystemInternal, callerOrganizationId: auth.callerOrganizationId },
-        this.#dbConnection
+        auth,
       );
 
       if (!readDashboardsResult.success)
@@ -99,7 +86,7 @@ export class CreateDashboard
         throw new Error(`Dashboard already exists`);
 
       if (request.writeToPersistence)
-        await this.#dashboardRepo.insertOne(dashboard, this.#dbConnection);
+        await this.#dashboardRepo.insertOne(dashboard, auth, request.targetOrganizationId);
 
       return Result.ok(dashboard);
     } catch (error: unknown) {

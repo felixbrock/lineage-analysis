@@ -17,13 +17,14 @@ import {
   CreateMaterialization,
   CreateMaterializationRequestDto,
 } from '../../materialization/create-materialization';
-import { DbConnection } from '../../services/i-db';
+import {} from '../../services/i-db';
 import { ParseSQL, ParseSQLResponseDto } from '../../sql-parser-api/parse-sql';
 import { GenerateResult, IDataEnvGenerator } from './i-data-env-generator';
 
 interface Auth {
   callerOrganizationId?: string;
   isSystemInternal: boolean;
+  jwt: string;
 }
 
 export interface DbtDataEnvProps {
@@ -106,11 +107,9 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
 
   readonly #dbtManifest: DbtManifest;
 
-  readonly #targetOrganizationId?: string;
+  readonly #targetOrgId?: string;
 
   readonly #auth: Auth;
-
-  readonly #dbConnection;
 
   #materializations: Materialization[] = [];
 
@@ -135,7 +134,6 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
   constructor(
     props: DbtDataEnvProps,
     auth: Auth,
-    dbConnection: DbConnection,
     dependencies: {
       createMaterialization: CreateMaterialization;
       createColumn: CreateColumn;
@@ -149,12 +147,11 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
     this.#createLogic = dependencies.createLogic;
 
     this.#auth = auth;
-    this.#dbConnection = dbConnection;
 
     this.#lineageId = props.lineageId;
     this.#dbtCatalog = JSON.parse(props.dbtCatalog);
     this.#dbtManifest = JSON.parse(props.dbtManifest);
-    this.#targetOrganizationId = props.targetOrganizationId;
+    this.#targetOrgId = props.targetOrganizationId;
   }
 
   /* Get dbt nodes from catalog.json */
@@ -185,10 +182,9 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
         materializationId: sourceId,
         lineageId: this.#lineageId,
         writeToPersistence: false,
-        targetOrganizationId: this.#targetOrganizationId,
+        targetOrganizationId: this.#targetOrgId,
       },
-      this.#auth,
-      this.#dbConnection
+      this.#auth
     );
 
     if (!createColumnResult.success) throw new Error(createColumnResult.error);
@@ -222,10 +218,9 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
 
           writeToPersistence: options.writeToPersistence,
           lineageId: this.#lineageId,
-          targetOrganizationId: this.#targetOrganizationId,
+          targetOrganizationId: this.#targetOrgId,
         },
-        this.#auth,
-        this.#dbConnection
+        this.#auth
       );
 
     if (!createMaterializationResult.success)
@@ -317,11 +312,10 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
                 // 'todo - read from snowflake'
                 logicId: undefined,
                 lineageId: this.#lineageId,
-                targetOrganizationId: this.#targetOrganizationId,
+                targetOrganizationId: this.#targetOrgId,
                 writeToPersistence: false,
               },
-              this.#auth,
-              this.#dbConnection
+              this.#auth
             );
 
           if (!createMaterializationResult.success)
@@ -384,11 +378,7 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
     req: CreateMaterializationRequestDto
   ): Promise<Materialization> => {
     const createMaterializationResult =
-      await this.#createMaterialization.execute(
-        req,
-        this.#auth,
-        this.#dbConnection
-      );
+      await this.#createMaterialization.execute(req, this.#auth);
 
     if (!createMaterializationResult.success)
       throw new Error(createMaterializationResult.error);
@@ -420,7 +410,7 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
             sql,
             lineageId: this.#lineageId,
             parsedLogic,
-            targetOrganizationId: this.#targetOrganizationId,
+            targetOrganizationId: this.#targetOrgId,
             catalog: this.#catalog,
           },
           dbtProps: {
@@ -431,8 +421,7 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
           writeToPersistence: false,
         },
       },
-      this.#auth,
-      this.#dbConnection
+      this.#auth
     );
 
     if (!createLogicResult.success) throw new Error(createLogicResult.error);
@@ -456,7 +445,7 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
       databaseName: props.model.metadata.database,
       logicId: logic.id,
       lineageId: this.#lineageId,
-      targetOrganizationId: this.#targetOrganizationId,
+      targetOrganizationId: this.#targetOrgId,
       writeToPersistence: false,
     });
 
@@ -486,7 +475,7 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
       schemaName: props.model.metadata.schema,
       databaseName: props.model.metadata.database,
       lineageId: this.#lineageId,
-      targetOrganizationId: this.#targetOrganizationId,
+      targetOrganizationId: this.#targetOrgId,
       writeToPersistence: false,
     });
 
@@ -550,6 +539,8 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
       const modelRepresentation: ModelRepresentation = {
         relationName: uniqueIdRelationNameMapping[key].relationName,
         materializationName: source.metadata.name,
+        schemaName: source.metadata.schema,
+        databaseName: source.metadata.database,
         columnNames: Object.keys(source.columns).map(
           (colKey) => source.columns[colKey].name
         ),
@@ -612,6 +603,8 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
       const modelRepresentation: ModelRepresentation = {
         relationName: uniqueIdRelationNameMapping[key].relationName,
         materializationName: model.metadata.name,
+        schemaName: model.metadata.schema,
+        databaseName: model.metadata.database,
         columnNames: Object.keys(model.columns).map(
           (colKey) => model.columns[colKey].name
         ),

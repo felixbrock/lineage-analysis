@@ -1,5 +1,5 @@
 // todo - clean architecture violation
-import { ObjectId } from 'mongodb';
+
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import {
@@ -7,8 +7,9 @@ import {
   Materialization,
 } from '../entities/materialization';
 import { ReadMaterializations } from './read-materializations';
-import { ILegacyMaterializationRepo } from './i-materialization-repo';
-import { DbConnection } from '../services/i-db';
+import { IMaterializationRepo } from './i-materialization-repo';
+import {  } from '../services/i-db';
+import { v4 as uuidv4 } from 'uuid';
 
 export interface CreateMaterializationRequestDto {
   id?: string;
@@ -39,18 +40,18 @@ export class CreateMaterialization
       CreateMaterializationRequestDto,
       CreateMaterializationResponseDto,
       CreateMaterializationAuthDto,
-      DbConnection
+      
     >
 {
   readonly #readMaterializations: ReadMaterializations;
 
-  readonly #materializationRepo: ILegacyMaterializationRepo;
+  readonly #materializationRepo: IMaterializationRepo;
 
-  #dbConnection: DbConnection;
+  #: ;
 
   constructor(
     readMaterializations: ReadMaterializations,
-    materializationRepo: ILegacyMaterializationRepo
+    materializationRepo: IMaterializationRepo
   ) {
     this.#readMaterializations = readMaterializations;
     this.#materializationRepo = materializationRepo;
@@ -59,7 +60,7 @@ export class CreateMaterialization
   async execute(
     request: CreateMaterializationRequestDto,
     auth: CreateMaterializationAuthDto,
-    dbConnection: DbConnection
+    : 
   ): Promise<CreateMaterializationResponseDto> {
     try {
       if (auth.isSystemInternal && !request.targetOrganizationId)
@@ -78,10 +79,10 @@ export class CreateMaterialization
         organizationId = auth.callerOrganizationId;
       else throw new Error('Unhandled organization id declaration');
 
-      this.#dbConnection = dbConnection;
+      this.# = ;
 
       const materialization = Materialization.create({
-        id: request.id || new ObjectId().toHexString(),
+        id: request.id || uuidv4(),
         relationName: request.relationName,
         type: request.type,
         name: request.name,
@@ -106,7 +107,7 @@ export class CreateMaterialization
             isSystemInternal: auth.isSystemInternal,
             callerOrganizationId: auth.callerOrganizationId,
           },
-          this.#dbConnection
+          this.#
         );
 
       if (!readMaterializationsResult.success)
@@ -119,7 +120,7 @@ export class CreateMaterialization
       if (request.writeToPersistence)
         await this.#materializationRepo.insertOne(
           materialization,
-          this.#dbConnection
+          this.#
         );
 
       return Result.ok(materialization);

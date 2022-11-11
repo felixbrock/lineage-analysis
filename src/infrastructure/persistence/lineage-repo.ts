@@ -40,7 +40,7 @@ export default class LineageRepo implements ILineageRepo {
 
   findOne = async (
     lineageId: string,
-    targetOrgId: string,
+    targetOrgId?: string,
     auth: Auth
   ): Promise<Lineage | null> => {
     try {
@@ -70,7 +70,7 @@ export default class LineageRepo implements ILineageRepo {
 
   findLatest = async (
     filter: { completed: boolean },
-    targetOrgId: string,
+    targetOrgId?: string,
     auth: Auth
   ): Promise<Lineage | null> => {
     try {
@@ -113,7 +113,7 @@ export default class LineageRepo implements ILineageRepo {
     }
   };
 
-  all = async (targetOrgId: string, auth: Auth): Promise<Lineage[]> => {
+  all = async (targetOrgId?: string, auth: Auth): Promise<Lineage[]> => {
     try {
       const queryText = `select * from cito.lineage.${this.#matName};`;
 
@@ -148,7 +148,7 @@ export default class LineageRepo implements ILineageRepo {
 
   insertOne = async (
     lineage: Lineage,
-    targetOrgId: string,
+    targetOrgId?: string,
     auth: Auth
   ): Promise<string> => {
     const colDefinitions: ColumnDefinition[] = [
@@ -182,7 +182,7 @@ export default class LineageRepo implements ILineageRepo {
   updateOne = async (
     lineageId: string,
     updateDto: LineageUpdateDto,
-    targetOrgId: string,
+    targetOrgId?: string,
     auth: Auth
   ): Promise<string> => {
     const colDefinitions: ColumnDefinition[] = [{ name: 'id' }];

@@ -11,11 +11,11 @@ import {
   MaterializationType,
   parseMaterializationType,
 } from '../../entities/materialization';
-import { QuerySnowflake } from '../../integration-api/snowflake/query-snowflake';
 import { CreateMaterialization } from '../../materialization/create-materialization';
-import { DbConnection } from '../../services/i-db';
+import {  } from '../../services/i-db';
 import { ParseSQL, ParseSQLResponseDto } from '../../sql-parser-api/parse-sql';
 import { GenerateResult, IDataEnvGenerator } from './i-data-env-generator';
+import { QuerySnowflake } from '../../snowflake-api/query-snowflake';
 
 interface Auth {
   jwt: string;
@@ -35,6 +35,13 @@ interface ColumnRepresentation {
   index: string;
   isIdentity?: boolean;
   isNullable?: boolean;
+  comment?: string;
+}
+
+interface DatabaseRepresentation {
+  name: string;
+  ownerId: string;
+  isTransient: boolean;
   comment?: string;
 }
 
@@ -66,13 +73,11 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
 
   readonly #lineageId: string;
 
-  readonly #targetOrganizationId?: string;
+  readonly #targetOrgId?: string;
 
   readonly #auth: Auth;
 
   readonly #organizationId: string;
-
-  readonly #dbConnection;
 
   #materializations: Materialization[] = [];
 
@@ -97,7 +102,6 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
   constructor(
     props: DataEnvProps,
     auth: Auth,
-    dbConnection: DbConnection,
     dependencies: {
       createMaterialization: CreateMaterialization;
       createColumn: CreateColumn;
@@ -128,20 +132,77 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
     this.#parseSQL = dependencies.parseSQL;
 
     this.#auth = auth;
-    this.#dbConnection = dbConnection;
 
     this.#lineageId = props.lineageId;
-    this.#targetOrganizationId = props.targetOrganizationId;
+    this.#targetOrgId = props.targetOrganizationId;
   }
 
+  /* Get database representations from snowflake */
+  #getDbRepresentations = async (): Promise<
+  DatabaseRepresentation[]
+> => {
+  const binds = [targetDbName];
+  const queryText =
+    'select database_name, database_owner, is_transient, comment from cito.information_schema.databases';
+  const queryResult = await this.#querySnowflake.execute(
+    { queryText, targetOrgId: this.#targetOrgId, binds },
+    this.#auth
+  );
+  if (!queryResult.success) {
+    throw new Error(queryResult.error);
+  }
+  if (!queryResult.value) throw new Error('Query did not return a value');
+
+  const results = queryResult.value;
+
+  const matRepresentations: MaterializationRepresentation[] = results.map((el) => {
+    const {
+      TABLE_CATALOG: databaseName,
+      TABLE_SCHEMA: schemaName,
+      TABLE_NAME: name,
+      TABLE_OWNER: ownerId,
+      TABLE_TYPE: type,
+      IS_TRANSIENT: isTransient,
+      COMMENT: comment,
+    } = el;
+
+    if (
+      typeof databaseName !== 'string' ||
+      typeof schemaName !== 'string' ||
+      typeof name !== 'string' ||
+      typeof ownerId !== 'string' ||
+      typeof type !== 'string' ||
+      typeof isTransient !== 'boolean' ||
+      typeof comment !== 'string'
+    )
+      throw new Error(
+        'Received mat representation field value in unexpected format'
+      );
+
+    return {
+      databaseName,
+      schemaName,
+      name,
+      relationName: `${el.databaseName}.${el.schemaName}.${el.name}`,
+      ownerId,
+      type: parseMaterializationType(type.toLowerCase()),
+      isTransient,
+      comment,
+    };
+  });
+
+  return matRepresentations;
+};
+
   /* Get materialization representations from snowflake */
-  #getMatRepresentations = async (): Promise<
+  #getMatRepresentations = async (targetDbName: string): Promise<
     MaterializationRepresentation[]
   > => {
-    const query =
-      'select table_catalog, table_schema, table_name, table_owner, table_type, is_transient, comment  from cito.information_schema.tables';
+    const binds = [targetDbName];
+    const queryText =
+      'select table_catalog, table_schema, table_name, table_owner, table_type, is_transient, comment  from ?.information_schema.tables';
     const queryResult = await this.#querySnowflake.execute(
-      { query, targetOrganizationId: this.#targetOrganizationId },
+      { queryText, targetOrgId: this.#targetOrgId, binds },
       this.#auth
     );
     if (!queryResult.success) {
@@ -151,9 +212,7 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
 
     const results = queryResult.value;
 
-    const matRepresentations: MaterializationRepresentation[] = results[
-      this.#organizationId
-    ].map((el) => {
+    const matRepresentations: MaterializationRepresentation[] = results.map((el) => {
       const {
         TABLE_CATALOG: databaseName,
         TABLE_SCHEMA: schemaName,
@@ -197,9 +256,10 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
     ddlObjectType: 'table' | 'view',
     relationName: string
   ): Promise<LogicRepresentation> => {
-    const query = `select get_ddl('${ddlObjectType}', '${relationName}' , true) as sql`;
+    const binds = [ddlObjectType, relationName];
+    const queryText = `select get_ddl(?, ?, true) as sql`;
     const queryResult = await this.#querySnowflake.execute(
-      { query, targetOrganizationId: this.#targetOrganizationId },
+      { queryText, targetOrgId: this.#targetOrgId, binds },
       this.#auth
     );
     if (!queryResult.success) {
@@ -209,12 +269,10 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
 
     const results = queryResult.value;
 
-    const organizationResults = results[this.#organizationId];
-
-    if (organizationResults.length !== 1)
+    if (results.length !== 1)
       throw new Error('No or multiple sql logic instances returned for mat');
 
-    const { SQL: sql } = organizationResults[0];
+    const { SQL: sql } = results[0];
 
     if (typeof sql !== 'string')
       throw new Error(
@@ -225,11 +283,12 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
   };
 
   /* Get column representations from snowflake */
-  #getColumnRepresentations = async (): Promise<ColumnRepresentation[]> => {
-    const query =
-      'select table_catalog, table_schema, table_name, column_name, ordinal_position, is_nullable, data_type, is_identity, comment from cito.information_schema.columns limit 10';
+  #getColumnRepresentations = async (targetDbName: string): Promise<ColumnRepresentation[]> => {
+    const binds = [targetDbName];
+    const queryText =
+      'select table_catalog, table_schema, table_name, column_name, ordinal_position, is_nullable, data_type, is_identity, comment from ?.information_schema.columns';
     const queryResult = await this.#querySnowflake.execute(
-      { query, targetOrganizationId: this.#targetOrganizationId },
+      { queryText, targetOrgId: this.#targetOrgId, binds },
       this.#auth
     );
     if (!queryResult.success) {
@@ -239,9 +298,7 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
 
     const results = queryResult.value;
 
-    const columnRepresentations: ColumnRepresentation[] = results[
-      this.#organizationId
-    ].map((el) => {
+    const columnRepresentations: ColumnRepresentation[] = results.map((el) => {
       const {
         TABLE_CATALOG: databaseName,
         TABLE_SCHEMA: schemaName,
@@ -312,11 +369,10 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
         isNullable: columnRepresentation.isNullable,
         comment: columnRepresentation.comment,
         lineageId: this.#lineageId,
-        targetOrganizationId: this.#targetOrganizationId,
+        targetOrganizationId: this.#targetOrgId,
         writeToPersistence: false,
       },
       this.#auth,
-      this.#dbConnection
     );
 
     if (!createColumnResult.success) throw new Error(createColumnResult.error);
@@ -340,7 +396,7 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
             sql: logicRepresentation.sql,
             lineageId: this.#lineageId,
             parsedLogic,
-            targetOrganizationId: this.#targetOrganizationId,
+            targetOrganizationId: this.#targetOrgId,
             catalog: this.#catalog,
           },
         },
@@ -349,7 +405,6 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
         },
       },
       this.#auth,
-      this.#dbConnection
     );
 
     if (!createLogicResult.success) throw new Error(createLogicResult.error);
@@ -389,10 +444,9 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
           writeToPersistence: options.writeToPersistence,
           logicId,
           lineageId: this.#lineageId,
-          targetOrganizationId: this.#targetOrganizationId,
+          targetOrganizationId: this.#targetOrgId,
         },
         this.#auth,
-        this.#dbConnection
       );
 
     if (!createMaterializationResult.success)
@@ -422,6 +476,8 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
       (el): ModelRepresentation => ({
         relationName: el.relationName,
         materializationName: el.name,
+        schemaName: el.schemaName,
+        databaseName: el.databaseName,
         columnNames: colRepresentationsByRelationName[el.relationName].map(
           (colRep) => colRep.name
         ),
@@ -447,6 +503,8 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
 
   /* Runs through snowflake and creates objects like logic, materializations and columns */
   generate = async (): Promise<GenerateResult> => {
+    const accessibleDbs = await.
+
     const matRepresentations = await this.#getMatRepresentations();
     const columnRepresentations = await this.#getColumnRepresentations();
 

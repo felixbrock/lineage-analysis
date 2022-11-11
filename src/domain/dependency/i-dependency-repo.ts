@@ -1,19 +1,38 @@
 import { Dependency, DependencyType } from '../entities/dependency';
-import { DbConnection } from '../services/i-db';
 
 export interface DependencyQueryDto {
   type?: DependencyType;
   headId?: string;
   tailId?: string;
   lineageId: string;
-  organizationId: string;
+}
+
+export interface Auth {
+  jwt: string;
+  callerOrgId?: string;
+  isSystemInternal: boolean;
 }
 
 export interface IDependencyRepo {
-  findOne(id: string, dbConnection: DbConnection): Promise<Dependency | null>;
-  findBy(dependencyQueryDto: DependencyQueryDto, dbConnection: DbConnection): Promise<Dependency[]>;
-  all(dbConnection: DbConnection): Promise<Dependency[]>;
-  insertOne(dependency: Dependency, dbConnection: DbConnection): Promise<string>;
-  insertMany(dependencies: Dependency[], dbConnection: DbConnection): Promise<string[]>;
-  
+  findOne(
+    dependencyId: string,
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<Dependency | null>;
+  findBy(
+    dependencyQueryDto: DependencyQueryDto,
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<Dependency[]>;
+  all(auth: Auth, targetOrgId?: string): Promise<Dependency[]>;
+  insertOne(
+    dependency: Dependency,
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<string>;
+  insertMany(
+    dependencys: Dependency[],
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<string[]>;
 }

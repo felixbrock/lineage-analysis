@@ -87,7 +87,7 @@ export default class ReadColumnsController extends BaseController {
         await this.#readColumns.execute(
           requestDto,
           authDto,
-          this.#dbo.dbConnection
+          this.#dbo.
         );
 
       if (!useCaseResult.success) {

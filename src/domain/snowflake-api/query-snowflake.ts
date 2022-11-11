@@ -1,6 +1,6 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { DbConnection } from '../services/i-db';
+import {  } from '../services/i-db';
 import {
   ISnowflakeApiRepo,
   SnowflakeQueryResult,
@@ -28,7 +28,7 @@ export class QuerySnowflake
       QuerySnowflakeRequestDto,
       QuerySnowflakeResponseDto,
       QuerySnowflakeAuthDto,
-      DbConnection
+      
     >
 {
   readonly #snowflakeApiRepo: ISnowflakeApiRepo;

@@ -42,9 +42,7 @@ export interface LogicProps {
 
 type LogicDto = LogicProps;
 
-export interface ModelRepresentation {
-  relationName: string;
-  materializationName: string;
+export interface ModelRepresentation extends MaterializationDefinition {
   columnNames: string[];
 }
 

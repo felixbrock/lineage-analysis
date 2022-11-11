@@ -11,7 +11,7 @@ export const parseMaterializationType = (
   throw new Error('Provision of invalid type');
 };
 
-export interface MaterializationProperties {
+export interface MaterializationProps {
   id: string;
   relationName: string;
   name: string;
@@ -39,7 +39,7 @@ export interface MaterializationPrototype {
   comment?: string;
 }
 
-export type MaterializationDto = MaterializationProperties;
+export type MaterializationDto = MaterializationProps;
 
 export class Materialization {
   #id: string;
@@ -110,7 +110,7 @@ export class Materialization {
     return this.#comment;
   }
 
-  private constructor(props: MaterializationProperties) {
+  private constructor(props: MaterializationProps) {
     this.#id = props.id;
     this.#relationName = props.relationName;
     this.#name = props.name;
@@ -150,7 +150,7 @@ export class Materialization {
     return materialization;
   };
 
-  static build = (props: MaterializationProperties): Materialization => {
+  static build = (props: MaterializationProps): Materialization => {
     if (!props.id) throw new TypeError('Materialization must have id');
     if (!props.relationName)
       throw new TypeError('Materialization must have relationName');

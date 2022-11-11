@@ -14,7 +14,7 @@ import { Materialization } from '../../entities/materialization';
 import { Column } from '../../entities/column';
 import { ILineageRepo, LineageUpdateDto } from '../i-lineage-repo';
 import { IDependencyRepo } from '../../dependency/i-dependency-repo';
-import { DbConnection } from '../../services/i-db';
+import {} from '../../services/i-db';
 import { QuerySfQueryHistory } from '../../snowflake-api/query-snowflake-history';
 import { Dashboard } from '../../entities/dashboard';
 import { CreateExternalDependency } from '../../dependency/create-external-dependency';
@@ -22,14 +22,14 @@ import { IDashboardRepo } from '../../dashboard/i-dashboard-repo';
 import { CreateDashboard } from '../../dashboard/create-dashboard';
 import { buildLineage } from './build-lineage';
 import { DbtDataEnvGenerator } from './dbt-data-env-generator';
-import DependenciesBuilder from './dependencies-builder';
 import { BiType } from '../../value-types/bilayer';
-import DataEnvMerger from './data-env-merger';
 import { SfDataEnvGenerator } from './sf-data-env-generator';
-import { QuerySnowflake } from '../../integration-api/snowflake/query-snowflake';
 import { ILogicRepo } from '../../logic/i-logic-repo';
 import { IMaterializationRepo } from '../../materialization/i-materialization-repo';
 import { IColumnRepo } from '../../column/i-column-repo';
+import { QuerySnowflake } from '../../snowflake-api/query-snowflake';
+import DataEnvMerger from './data-env-merger';
+import DependenciesBuilder from './dependencies-builder';
 
 export interface CreateLineageRequestDto {
   targetOrganizationId?: string;
@@ -51,8 +51,7 @@ export class CreateLineage
     IUseCase<
       CreateLineageRequestDto,
       CreateLineageResponseDto,
-      CreateLineageAuthDto,
-      DbConnection
+      CreateLineageAuthDto
     >
 {
   readonly #createLogic: CreateLogic;
@@ -87,7 +86,9 @@ export class CreateLineage
 
   readonly #readColumns: ReadColumns;
 
-  #dbConnection: DbConnection;
+  #targetOrgId?: string;
+
+  #auth?: CreateLineageAuthDto;
 
   constructor(
     createLogic: CreateLogic,
@@ -131,104 +132,101 @@ export class CreateLineage
     matsToReplace: Materialization[];
     columnsToCreate: Column[];
     columnsToReplace: Column[];
-  }): Promise<void> => {
-    await this.#lineageRepo.insertOne(props.lineage, this.#dbConnection);
-
-    if (props.matsToReplace.length)
-      await this.#materializationRepo.replaceMany(
-        props.matsToReplace,
-        this.#dbConnection
-      );
-    if (props.columnsToReplace.length)
-      await this.#columnRepo.replaceMany(
-        props.columnsToReplace,
-        this.#dbConnection
-      );
-
-    if (props.matsToCreate.length)
-      await this.#materializationRepo.insertMany(
-        props.matsToCreate,
-        this.#dbConnection
-      );
-
-    if (props.columnsToCreate.length)
-      await this.#columnRepo.insertMany(
-        props.columnsToCreate,
-        this.#dbConnection
-      );
-  };
-
-  #legacyWriteWhResourcesToPersistence = async (props: {
-    lineage: Lineage;
-    matsToCreate: Materialization[];
-    matsToReplace: Materialization[];
-    columnsToCreate: Column[];
-    columnsToReplace: Column[];
     logicsToCreate: Logic[];
     logicsToReplace: Logic[];
   }): Promise<void> => {
-    await this.#lineageRepo.insertOne(props.lineage, this.#dbConnection);
+    if (!this.#auth) throw new Error('auth obj not avaible');
+
+    await this.#lineageRepo.insertOne(
+      props.lineage,
+      this.#auth,
+      this.#targetOrgId
+    );
 
     if (props.logicsToReplace.length)
       await this.#logicRepo.replaceMany(
         props.logicsToReplace,
-        this.#dbConnection
+        this.#auth,
+        this.#targetOrgId
       );
     if (props.matsToReplace.length)
       await this.#materializationRepo.replaceMany(
         props.matsToReplace,
-        this.#dbConnection
+        this.#auth,
+        this.#targetOrgId
       );
     if (props.columnsToReplace.length)
       await this.#columnRepo.replaceMany(
         props.columnsToReplace,
-        this.#dbConnection
+        this.#auth,
+        this.#targetOrgId
       );
 
     if (props.logicsToCreate.length)
       await this.#logicRepo.insertMany(
         props.logicsToCreate,
-        this.#dbConnection
+        this.#auth,
+        this.#targetOrgId
       );
 
     if (props.matsToCreate.length)
       await this.#materializationRepo.insertMany(
         props.matsToCreate,
-        this.#dbConnection
+        this.#auth,
+        this.#targetOrgId
       );
 
     if (props.columnsToCreate.length)
       await this.#columnRepo.insertMany(
         props.columnsToCreate,
-        this.#dbConnection
+        this.#auth,
+        this.#targetOrgId
       );
   };
 
   #writeDashboardsToPersistence = async (
     dashboards: Dashboard[]
   ): Promise<void> => {
+    if (!this.#auth) throw new Error('auth obj not avaible');
+
     if (dashboards.length)
-      await this.#dashboardRepo.insertMany(dashboards, this.#dbConnection);
+      await this.#dashboardRepo.insertMany(
+        dashboards,
+        this.#auth,
+        this.#targetOrgId
+      );
   };
 
   #writeDependenciesToPersistence = async (
     dependencies: Dependency[]
   ): Promise<void> => {
+    if (!this.#auth) throw new Error('auth obj not avaible');
+
     if (dependencies.length)
-      await this.#dependencyRepo.insertMany(dependencies, this.#dbConnection);
+      await this.#dependencyRepo.insertMany(
+        dependencies,
+        this.#auth,
+        this.#targetOrgId
+      );
   };
 
   #updateLineage = async (
     id: string,
     updateDto: LineageUpdateDto
   ): Promise<void> => {
-    await this.#lineageRepo.updateOne(id, updateDto, this.#dbConnection);
+    if (!this.#auth) throw new Error('auth obj not avaible');
+
+    await this.#lineageRepo.updateOne(
+      id,
+      updateDto,
+      this.#auth,
+      this.#targetOrgId
+    );
   };
 
   async execute(
     request: CreateLineageRequestDto,
-    auth: CreateLineageAuthDto,
-    dbConnection: DbConnection
+    auth: CreateLineageAuthDto
   ): Promise<CreateLineageResponseDto> {
     try {
       if (auth.isSystemInternal && !request.targetOrganizationId)
@@ -240,18 +238,19 @@ export class CreateLineage
       if (request.targetOrganizationId && auth.callerOrganizationId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
-      let organizationId: string;
-      if (auth.callerOrganizationId) organizationId = auth.callerOrganizationId;
+      let orgId: string;
+      if (auth.callerOrganizationId) orgId = auth.callerOrganizationId;
       else if (request.targetOrganizationId)
-        organizationId = request.targetOrganizationId;
+        orgId = request.targetOrganizationId;
       else throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
-      this.#dbConnection = dbConnection;
+      this.#auth = auth;
+      this.#targetOrgId = request.targetOrganizationId;
 
       console.log('starting lineage creation...');
 
       console.log('...building lineage object');
-      const lineage = buildLineage(organizationId);
+      const lineage = buildLineage();
 
       if (!!request.dbtCatalog !== !!request.dbtManifest)
         throw new Error(
@@ -273,7 +272,6 @@ export class CreateLineage
               targetOrganizationId: request.targetOrganizationId,
             },
             remainingAuth,
-            this.#dbConnection,
             {
               createColumn: this.#createColumn,
               createLogic: this.#createLogic,
@@ -287,7 +285,6 @@ export class CreateLineage
               targetOrganizationId: request.targetOrganizationId,
             },
             auth,
-            this.#dbConnection,
             {
               createColumn: this.#createColumn,
               createMaterialization: this.#createMaterialization,
@@ -301,8 +298,7 @@ export class CreateLineage
 
       console.log('...merging new lineage snapshot with last one');
       const dataEnvMerger = new DataEnvMerger(
-        { columns, materializations, logics, organizationId },
-        this.#dbConnection,
+        { columns, materializations, logics, organizationId: orgId },
         {
           lineageRepo: this.#lineageRepo,
           columnRepo: this.#columnRepo,
@@ -328,11 +324,10 @@ export class CreateLineage
             mergedDataEnv.columnsToReplace
           ),
           catalog,
-          organizationId,
+          organizationId: orgId,
           targetOrganizationId: request.targetOrganizationId,
         },
         auth,
-        this.#dbConnection,
         {
           createDashboard: this.#createDashboard,
           createDependency: this.#createDependency,
@@ -359,7 +354,6 @@ export class CreateLineage
       return Result.ok(
         Lineage.build({
           id: lineage.id,
-          organizationId: lineage.organizationId,
           createdAt: lineage.createdAt,
           completed: true,
         })

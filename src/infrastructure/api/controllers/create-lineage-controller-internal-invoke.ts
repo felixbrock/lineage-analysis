@@ -90,7 +90,7 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
         await this.#createLineage.execute(
           this.#transformReq(req.req),
           authDto,
-          this.#dbo.dbConnection
+          this.#dbo.
         );
 
       if (!useCaseResult.success) {
@@ -104,7 +104,7 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
       return InternalInvokeCreateLineageController.ok(resultValue, CodeHttp.CREATED);
 
       // this.#createLineage
-      //   .execute(requestDto, authDto, this.#dbo.dbConnection)
+      //   .execute(requestDto, authDto, this.#dbo.)
       //   .then((result) => {
       //     if (!result.success) console.error(result.error);
       //   })

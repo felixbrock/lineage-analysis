@@ -1,71 +1,126 @@
 import {
-  AnyBulkWriteOperation,
-  BulkWriteResult,
-  Db,
-  DeleteResult,
-  Document,
-  FindCursor,
-  InsertManyResult,
-  InsertOneResult,
-  ObjectId,
-} from 'mongodb';
-import sanitize from 'mongo-sanitize';
-
-import {
-  ILegacyMaterializationRepo,
+  Auth,
+  IMaterializationRepo,
   MaterializationQueryDto,
 } from '../../domain/materialization/i-materialization-repo';
 import {
-  MaterializationType,
   Materialization,
-  MaterializationProperties,
+  MaterializationProps,
+  parseMaterializationType,
 } from '../../domain/entities/materialization';
-import { QuerySnowflake } from '../../domain/integration-api/snowflake/query-snowflake';
+import {
+  ColumnDefinition,
+  getInsertQuery,
+  getUpdateQuery,
+} from './shared/query';
+import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
+import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 
-interface MaterializationPersistence {
-  _id: ObjectId;
-  materializationType: MaterializationType;
-  relationName: string;
-  name: string;
-  schemaName: string;
-  databaseName: string;
-  logicId?: string;
-  lineageIds: string[];
-  organizationId: string;
-}
+export default class MaterializationRepo implements IMaterializationRepo {
+  readonly #matName = 'materialization';
 
-interface MaterializationQueryFilter {
-  materializationType?: MaterializationType;
-  relationName?: RegExp;
-  name?: RegExp | { [key: string]: RegExp[] };
-  schemaName?: RegExp;
-  databaseName?: RegExp;
-  logicId?: string;
-  lineageIds: string;
-  organizationId: string;
-}
+  readonly #colDefinitions: ColumnDefinition[] = [
+    { name: 'id' },
+    { name: 'name' },
+    { name: 'schema_name' },
+    { name: 'database_name' },
+    { name: 'relation_name' },
+    { name: 'type' },
+    { name: 'isTransient' },
+    { name: 'logicId' },
+    { name: 'ownerId' },
+    { name: 'lineageIds' },
+    { name: 'comment' },
+  ];
 
-const collectionName = 'materialization';
-
-export default class MaterializationRepo implements ILegacyMaterializationRepo {
   readonly #querySnowflake: QuerySnowflake;
 
   constructor(querySnowflake: QuerySnowflake) {
     this.#querySnowflake = querySnowflake;
   }
 
+  #buildMaterialization = (sfEntity: SnowflakeEntity): Materialization => {
+    const {
+      ID: id,
+      NAME: name,
+      SCHEMA_NAME: schemaName,
+      DATABASE_NAME: databaseName,
+      RELATION_NAME: relationName,
+      TYPE: type,
+      IS_TRANSIENT: isTransient,
+      LOGIC_ID: logicId,
+      OWNER_ID: ownerId,
+      LINEAGE_IDS: lineageIds,
+      COMMENT: comment,
+    } = sfEntity;
+
+    if (
+      typeof id !== 'string' ||
+      typeof name !== 'string' ||
+      typeof schemaName !== 'string' ||
+      typeof databaseName !== 'string' ||
+      typeof relationName !== 'string' ||
+      typeof type !== 'string' ||
+      typeof isTransient !== 'boolean' ||
+      typeof logicId !== 'string' ||
+      typeof ownerId !== 'string' ||
+      typeof lineageIds !== 'object' ||
+      typeof comment !== 'string'
+    )
+      throw new Error(
+        'Retrieved unexpected materialization field types from persistence'
+      );
+
+    const isStringArray = (value: unknown): value is string[] =>
+      Array.isArray(value) && value.every((el) => typeof el === 'string');
+
+    if (!isStringArray(lineageIds))
+      throw new Error(
+        'Type mismatch detected when reading materialization from persistence'
+      );
+
+    return this.#toEntity({
+      id,
+      name,
+      schemaName,
+      databaseName,
+      relationName,
+      type: parseMaterializationType(type),
+      isTransient,
+      logicId,
+      ownerId,
+      lineageIds,
+      comment,
+    });
+  };
+
   findOne = async (
-    id: string,
-    dbConnection: Db
+    materializationId: string,
+    targetOrgId?: string,
+    auth: Auth
   ): Promise<Materialization | null> => {
     try {
-      const result: any = await dbConnection
-        .collection(collectionName)
-        .findOne({ _id: new ObjectId(sanitize(id)) });
+      const queryText = `select * from cito.lineage.${this.#matName}
+            } where id = ?;`;
 
-      if (!result) return null;
+      // using binds to tell snowflake to escape params to avoid sql injection attack
+      const binds: (string | number)[] = [materializationId];
 
-      return this.#toEntity(this.#buildProperties(result));
+      const result = await this.#querySnowflake.execute(
+        { queryText, targetOrgId, binds },
+        auth
+      );
+
+      if (!result.success) throw new Error(result.error);
+      if (!result.value) throw new Error('Missing sf query value');
+      if (result.value.length !== 1)
+        throw new Error(
+          `Multiple or no materialization entities with id found`
+        );
+
+      return !result.value.length
+        ? null
+        : this.#buildMaterialization(result.value[0]);
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
@@ -75,22 +130,66 @@ export default class MaterializationRepo implements ILegacyMaterializationRepo {
 
   findBy = async (
     materializationQueryDto: MaterializationQueryDto,
-    dbConnection: Db
+    targetOrgId?: string,
+    auth: Auth
   ): Promise<Materialization[]> => {
     try {
       if (!Object.keys(materializationQueryDto).length)
-        return await this.all(dbConnection);
+        return await this.all(targetOrgId, auth);
 
-      const result: FindCursor = await dbConnection
-        .collection(collectionName)
-        .find(this.#buildFilter(sanitize(materializationQueryDto)));
-      const results = await result.toArray();
+      // using binds to tell snowflake to escape params to avoid sql injection attack
+      const binds: (string | number)[] = [materializationQueryDto.lineageId];
+      let whereClause = 'array_contains(?::variant, lineage_ids) ';
 
-      if (!results || !results.length) return [];
+      if (materializationQueryDto.relationName) {
+        binds.push(materializationQueryDto.relationName);
+        whereClause = whereClause.concat('and relation_name = ? ');
+      }
+      if (materializationQueryDto.type) {
+        binds.push(materializationQueryDto.type);
+        whereClause = whereClause.concat('and type = ? ');
+      }
+      if (materializationQueryDto.name) {
+        binds.push(
+          Array.isArray(materializationQueryDto.name)
+            ? materializationQueryDto.name.map((el) => `'${el}'`).join(', ')
+            : materializationQueryDto.name
+        );
+        whereClause = whereClause.concat(
+          Array.isArray(materializationQueryDto.name)
+            ? 'and array_contains(name::variant, array_construct(?))'
+            : 'and name = ? '
+        );
+      }
+      if (materializationQueryDto.schemaName) {
+        binds.push(materializationQueryDto.schemaName);
+        whereClause = whereClause.concat('and schema_name = ? ');
+      }
+      if (materializationQueryDto.databaseName) {
+        binds.push(materializationQueryDto.databaseName);
+        whereClause = whereClause.concat('and database_name = ? ');
+      }
+      if (materializationQueryDto.logicId) {
+        binds.push(materializationQueryDto.logicId);
+        whereClause = whereClause.concat('and logic_id = ? ');
+      }
 
-      return results.map((element: any) =>
-        this.#toEntity(this.#buildProperties(element))
+      const queryText = `select * from cito.lineage.${this.#matName}
+          } where  ${whereClause};`;
+
+      const result = await this.#querySnowflake.execute(
+        { queryText, targetOrgId, binds },
+        auth
       );
+
+      if (!result.success) throw new Error(result.error);
+      if (!result.value) throw new Error('Missing sf query value');
+      if (result.value.length !== 1)
+        throw new Error(
+          `Multiple or no materialization entities with id found`
+        );
+
+      return result.value.map((el) => this.#buildMaterialization(el));
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
@@ -98,84 +197,67 @@ export default class MaterializationRepo implements ILegacyMaterializationRepo {
     }
   };
 
-  #buildFilter = (
-    materializationQueryDto: MaterializationQueryDto
-  ): MaterializationQueryFilter => {
-    const filter: MaterializationQueryFilter = {
-      lineageIds: materializationQueryDto.lineageId,
-      organizationId: materializationQueryDto.organizationId,
-    };
-
-    if (materializationQueryDto.materializationType)
-      filter.materializationType = materializationQueryDto.materializationType;
-    if (materializationQueryDto.relationName)
-      filter.relationName = new RegExp(
-        `^${materializationQueryDto.relationName}$`,
-        'i'
-      );
-
-    if (
-      typeof materializationQueryDto.name === 'string' &&
-      materializationQueryDto.name
-    )
-      filter.name = new RegExp(`^${materializationQueryDto.name}$`, 'i');
-    if (materializationQueryDto.name instanceof Array)
-      filter.name = {
-        $in: materializationQueryDto.name.map(
-          (element) => new RegExp(`^${element}$`, 'i')
-        ),
-      };
-
-    if (materializationQueryDto.schemaName)
-      filter.schemaName = new RegExp(
-        `^${materializationQueryDto.schemaName}$`,
-        'i'
-      );
-    if (materializationQueryDto.databaseName)
-      filter.databaseName = new RegExp(
-        `^${materializationQueryDto.databaseName}$`,
-        'i'
-      );
-    if (materializationQueryDto.logicId)
-      filter.logicId = materializationQueryDto.logicId;
-
-    return filter;
-  };
-
-  all = async (dbConnection: Db): Promise<Materialization[]> => {
+  all = async (targetOrgId?: string, auth: Auth): Promise<Materialization[]> => {
     try {
-      const result: FindCursor = await dbConnection
-        .collection(collectionName)
-        .find();
-      const results = await result.toArray();
+      const queryText = `select * from cito.lineage.${this.#matName};`;
 
-      if (!results || !results.length) return [];
-
-      return results.map((element: any) =>
-        this.#toEntity(this.#buildProperties(element))
+      const result = await this.#querySnowflake.execute(
+        { queryText, targetOrgId, binds: [] },
+        auth
       );
+
+      if (!result.success) throw new Error(result.error);
+      if (!result.value) throw new Error('Missing sf query value');
+      if (result.value.length !== 1)
+        throw new Error(
+          `Multiple or no materialization entities with id found`
+        );
+
+      return result.value.map((el) => this.#buildMaterialization(el));
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error());
     }
   };
+
+  #getBinds = (el: Materialization): (string | number)[] => [
+    el.id,
+    el.name,
+    el.schemaName,
+    el.databaseName,
+    el.relationName,
+    el.type,
+    el.isTransient ? el.isTransient.toString() : 'null',
+    el.logicId || 'null',
+    el.ownerId || 'null',
+    JSON.stringify(el.lineageIds),
+    el.comment || 'null',
+  ];
 
   insertOne = async (
     materialization: Materialization,
-    dbConnection: Db
+    targetOrgId?: string,
+    auth: Auth
   ): Promise<string> => {
     try {
-      const result: InsertOneResult<Document> = await dbConnection
-        .collection(collectionName)
-        .insertOne(this.#toPersistence(sanitize(materialization)));
+      const binds = this.#getBinds(materialization);
 
-      if (!result.acknowledged)
-        throw new Error(
-          'Materialization creation failed. Insert not acknowledged'
-        );
+      const row = `(${binds.map(() => '?').join(', ')})`;
 
-      return result.insertedId.toHexString();
+      const queryText = getInsertQuery(this.#matName, this.#colDefinitions, [
+        row,
+      ]);
+
+      const result = await this.#querySnowflake.execute(
+        { queryText, targetOrgId, binds },
+        auth
+      );
+
+      if (!result.success) throw new Error(result.error);
+      if (!result.value) throw new Error('Missing sf query value');
+
+      return materialization.id;
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
@@ -185,23 +267,31 @@ export default class MaterializationRepo implements ILegacyMaterializationRepo {
 
   insertMany = async (
     materializations: Materialization[],
-    dbConnection: Db
+    targetOrgId?: string,
+    auth: Auth
   ): Promise<string[]> => {
     try {
-      const result: InsertManyResult<Document> = await dbConnection
-        .collection(collectionName)
-        .insertMany(
-          materializations.map((element) =>
-            this.#toPersistence(sanitize(element))
-          )
-        );
-
-      if (!result.acknowledged)
-        throw new Error('Logic creations failed. Inserts not acknowledged');
-
-      return Object.keys(result.insertedIds).map((key) =>
-        result.insertedIds[parseInt(key, 10)].toHexString()
+      const binds = materializations.map((materialization) =>
+        this.#getBinds(materialization)
       );
+
+      const rows = binds.map((el) => `(${el.map(() => '?').join(', ')})`);
+
+      const queryText = getInsertQuery(
+        this.#matName,
+        this.#colDefinitions,
+        rows
+      );
+
+      const result = await this.#querySnowflake.execute(
+        { queryText, targetOrgId, binds },
+        auth
+      );
+
+      if (!result.success) throw new Error(result.error);
+      if (!result.value) throw new Error('Missing sf query value');
+
+      return materializations.map((el) => el.id);
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
@@ -210,27 +300,32 @@ export default class MaterializationRepo implements ILegacyMaterializationRepo {
   };
 
   replaceMany = async (
-    mats: Materialization[],
-    dbConnection: Db
+    materializations: Materialization[],
+    targetOrgId?: string,
+    auth: Auth
   ): Promise<number> => {
     try {
-      const operations: AnyBulkWriteOperation<Document>[] = mats.map((el) => ({
-        replaceOne: {
-          filter: { _id: new ObjectId(sanitize(el.id)) },
-          replacement: this.#toPersistence(el),
-        },
-      }));
+      const binds = materializations.map((materialization) =>
+        this.#getBinds(materialization)
+      );
 
-      const result: BulkWriteResult = await dbConnection
-        .collection(collectionName)
-        .bulkWrite(operations);
+      const rows = binds.map((el) => `(${el.map(() => '?').join(', ')})`);
 
-      if (!result.isOk())
-        throw new Error(
-          `Bulk mat update failed. Update not ok. Error count: ${result.getWriteErrorCount()}`
-        );
+      const queryText = getUpdateQuery(
+        this.#matName,
+        this.#colDefinitions,
+        rows
+      );
 
-      return result.nMatched;
+      const result = await this.#querySnowflake.execute(
+        { queryText, targetOrgId, binds },
+        auth
+      );
+
+      if (!result.success) throw new Error(result.error);
+      if (!result.value) throw new Error('Missing sf query value');
+
+      return materializations.length;
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
@@ -238,34 +333,6 @@ export default class MaterializationRepo implements ILegacyMaterializationRepo {
     }
   };
 
-  #toEntity = (
-    materializationProperties: MaterializationProperties
-  ): Materialization => Materialization.build(materializationProperties);
-
-  #buildProperties = (
-    materialization: MaterializationPersistence
-  ): MaterializationProperties => ({
-    // eslint-disable-next-line no-underscore-dangle
-    id: materialization._id.toHexString(),
-    type: materialization.materializationType,
-    relationName: materialization.relationName,
-    name: materialization.name,
-    schemaName: materialization.schemaName,
-    databaseName: materialization.databaseName,
-    logicId: materialization.logicId,
-    lineageIds: materialization.lineageIds,
-    organizationId: materialization.organizationId,
-  });
-
-  #toPersistence = (materialization: Materialization): Document => ({
-    _id: ObjectId.createFromHexString(materialization.id),
-    materializationType: materialization.type,
-    relationName: materialization.relationName,
-    name: materialization.name,
-    schemaName: materialization.schemaName,
-    databaseName: materialization.databaseName,
-    logicId: materialization.logicId,
-    lineageIds: materialization.lineageIds,
-    organizationId: materialization.organizationId,
-  });
+  #toEntity = (materializationProps: MaterializationProps): Materialization =>
+    Materialization.build(materializationProps);
 }

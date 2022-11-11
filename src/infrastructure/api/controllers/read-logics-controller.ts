@@ -81,7 +81,7 @@ export default class ReadLogicsController extends BaseController {
         await this.#readLogics.execute(
           requestDto,
           authDto,
-          this.#dbo.dbConnection
+          this.#dbo.
         );
 
       if (!useCaseResult.success) {

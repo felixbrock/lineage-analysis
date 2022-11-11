@@ -10,31 +10,31 @@ export interface ColumnQueryDto {
 }
 export interface Auth {
   jwt: string;
-  callerOrgId: string;
+  callerOrgId?: string;
   isSystemInternal: boolean;
 }
 
 export interface IColumnRepo {
   findOne(
     columnId: string,
-    targetOrgId: string,
-    auth: Auth
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<Column | null>;
   findBy(
     columnQueryDto: ColumnQueryDto,
-    targetOrgId: string,
-    auth: Auth
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<Column[]>;
-  all(targetOrgId: string, auth: Auth): Promise<Column[]>;
-  insertOne(column: Column, targetOrgId: string, auth: Auth): Promise<string>;
+  all(auth: Auth, targetOrgId?: string): Promise<Column[]>;
+  insertOne(column: Column, auth: Auth, targetOrgId?: string): Promise<string>;
   insertMany(
     columns: Column[],
-    targetOrgId: string,
-    auth: Auth
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<string[]>;
   replaceMany(
     columns: Column[],
-    targetOrgId: string,
-    auth: Auth
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<number>;
 }

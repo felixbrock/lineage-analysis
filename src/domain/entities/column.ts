@@ -43,7 +43,7 @@ export const parseColumnDataType = (columnDataType: string): ColumnDataType => {
   if (identifiedElement) return identifiedElement;
   throw new Error('Provision of invalid type');
 };
-export interface ColumnProperties {
+export interface ColumnProps {
   id: string;
   relationName: string;
   name: string;
@@ -69,7 +69,7 @@ export interface ColumnPrototype {
   comment?: string;
 }
 
-type ColumnDto = ColumnProperties;
+type ColumnDto = ColumnProps;
 
 export class Column {
   #id: string;
@@ -134,7 +134,7 @@ export class Column {
     return this.#comment;
   }
 
-  private constructor(props: ColumnProperties) {
+  private constructor(props: ColumnProps) {
     this.#id = props.id;
     this.#relationName = props.relationName;
     this.#name = props.name;
@@ -170,7 +170,7 @@ export class Column {
     return column;
   };
 
-  static build = (props: ColumnProperties): Column => {
+  static build = (props: ColumnProps): Column => {
     if (!props.id) throw new TypeError('Column must have id');
     if (!props.relationName)
       throw new TypeError('Column must have relationName');

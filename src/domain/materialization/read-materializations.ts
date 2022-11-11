@@ -2,11 +2,11 @@ import {
   MaterializationType,
   Materialization,
 } from '../entities/materialization';
-import { DbConnection } from '../services/i-db';
+import {  } from '../services/i-db';
 import IUseCase from '../services/use-case';
 import Result from '../value-types/transient-types/result';
 import {
-  ILegacyMaterializationRepo,
+  IMaterializationRepo,
   MaterializationQueryDto,
 } from './i-materialization-repo';
 
@@ -34,21 +34,21 @@ export class ReadMaterializations
       ReadMaterializationsRequestDto,
       ReadMaterializationsResponseDto,
       ReadMaterializationsAuthDto,
-      DbConnection
+      
     >
 {
-  readonly #materializationRepo: ILegacyMaterializationRepo;
+  readonly #materializationRepo: IMaterializationRepo;
 
-  #dbConnection: DbConnection;
+  #: ;
 
-  constructor(materializationRepo: ILegacyMaterializationRepo) {
+  constructor(materializationRepo: IMaterializationRepo) {
     this.#materializationRepo = materializationRepo;
   }
 
   async execute(
     request: ReadMaterializationsRequestDto,
     auth: ReadMaterializationsAuthDto,
-    dbConnection: DbConnection
+    : 
   ): Promise<ReadMaterializationsResponseDto> {
     try {
       if (auth.isSystemInternal && !request.targetOrganizationId)
@@ -67,12 +67,12 @@ export class ReadMaterializations
         organizationId = auth.callerOrganizationId;
       else throw new Error('Unhandled organizationId allocation');
 
-      this.#dbConnection = dbConnection;
+      this.# = ;
 
       const materializations: Materialization[] =
         await this.#materializationRepo.findBy(
           this.#buildMaterializationQueryDto(request, organizationId),
-          this.#dbConnection
+          this.#
         );
       if (!materializations)
         throw new Error(`Queried materializations do not exist`);

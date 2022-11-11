@@ -1,4 +1,4 @@
-export interface DashboardProperties {
+export interface DashboardProps {
   id: string;
   url?: string;
   name?: string;
@@ -20,7 +20,7 @@ export interface DashboardPrototype {
   materializationId: string;
 }
 
-type DashboardDto = DashboardProperties;
+type DashboardDto = DashboardProps;
 
 export class Dashboard {
   #url?: string;
@@ -73,7 +73,7 @@ export class Dashboard {
   }
 
 
-  private constructor(properties: DashboardProperties) {
+  private constructor(properties: DashboardProps) {
     this.#url = properties.url;
     this.#name = properties.name;
     this.#materializationName = properties.materializationName;
@@ -105,7 +105,7 @@ export class Dashboard {
     return dashboard;
   };
 
-  static build = (props: DashboardProperties): Dashboard => {
+  static build = (props: DashboardProps): Dashboard => {
     if (!props.materializationName)
       throw new TypeError('Dashboard must have materialisation');
     if (!props.columnName) throw new TypeError('Dashboard must have column');

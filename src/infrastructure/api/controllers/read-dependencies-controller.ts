@@ -109,7 +109,7 @@ export default class ReadDependenciesController extends BaseController {
         await this.#readDependencies.execute(
           requestDto,
           authDto,
-          this.#dbo.dbConnection
+          this.#dbo.
         );
 
       if (!useCaseResult.success) {

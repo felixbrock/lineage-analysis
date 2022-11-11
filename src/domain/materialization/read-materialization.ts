@@ -1,7 +1,7 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { ILegacyMaterializationRepo } from './i-materialization-repo';
-import { DbConnection } from '../services/i-db';
+import { IMaterializationRepo } from './i-materialization-repo';
+import {  } from '../services/i-db';
 import { Materialization } from '../entities/materialization';
 
 export interface ReadMaterializationRequestDto {
@@ -20,28 +20,28 @@ export class ReadMaterialization
       ReadMaterializationRequestDto,
       ReadMaterializationResponseDto,
       ReadMaterializationAuthDto,
-      DbConnection
+      
     >
 {
-  readonly #materializationRepo: ILegacyMaterializationRepo;
+  readonly #materializationRepo: IMaterializationRepo;
 
-  #dbConnection: DbConnection;
+  #: ;
 
-  constructor(materializationRepo: ILegacyMaterializationRepo) {
+  constructor(materializationRepo: IMaterializationRepo) {
     this.#materializationRepo = materializationRepo;
   }
 
   async execute(
     request: ReadMaterializationRequestDto,
     auth: ReadMaterializationAuthDto,
-    dbConnection: DbConnection
+    : 
   ): Promise<ReadMaterializationResponseDto> {
     try {
-      this.#dbConnection = dbConnection;
+      this.# = ;
 
       const materialization = await this.#materializationRepo.findOne(
         request.id,
-        this.#dbConnection
+        this.#
       );
       if (!materialization)
         throw new Error(`Materialization with id ${request.id} does not exist`);

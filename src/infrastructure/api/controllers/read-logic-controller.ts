@@ -68,7 +68,7 @@ export default class ReadLogicController extends BaseController {
       const useCaseResult: ReadLogicResponseDto = await this.#readLogic.execute(
         requestDto,
         authDto,
-        this.#dbo.dbConnection
+        this.#dbo.
       );
 
       if (!useCaseResult.success) {

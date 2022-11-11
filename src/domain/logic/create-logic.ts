@@ -1,11 +1,12 @@
 // todo clean architecture violation
-import { ObjectId } from 'mongodb';
+
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { ModelRepresentation, Logic, MaterializationDefinition } from '../entities/logic';
-import { ILegacyLogicRepo } from './i-logic-repo';
+import { ILogicRepo } from './i-logic-repo';
 import { ReadLogics } from './read-logics';
-import { DbConnection } from '../services/i-db';
+import {  } from '../services/i-db';
+import { v4 as uuidv4 } from 'uuid';
 
 interface DbtRequestProps {
   dbtDependentOn: MaterializationDefinition[];
@@ -43,16 +44,16 @@ export class CreateLogic
       CreateLogicRequestDto,
       CreateLogicResponse,
       CreateLogicAuthDto,
-      DbConnection
+      
     >
 {
   readonly #readLogics: ReadLogics;
 
-  readonly #logicRepo: ILegacyLogicRepo;
+  readonly #logicRepo: ILogicRepo;
 
-  #dbConnection: DbConnection;
+  #: ;
 
-  constructor(readLogics: ReadLogics, logicRepo: ILegacyLogicRepo) {
+  constructor(readLogics: ReadLogics, logicRepo: ILogicRepo) {
     this.#readLogics = readLogics;
     this.#logicRepo = logicRepo;
   }
@@ -60,7 +61,7 @@ export class CreateLogic
   async execute(
     request: CreateLogicRequestDto,
     auth: CreateLogicAuthDto,
-    dbConnection: DbConnection
+    : 
   ): Promise<CreateLogicResponse> {
     const { dbtProps, generalProps: commonProps } = request.props;
 
@@ -81,11 +82,11 @@ export class CreateLogic
         organizationId = auth.callerOrganizationId;
       else throw new Error('Unhandled organization id declaration');
 
-      this.#dbConnection = dbConnection;
+      this.# = ;
 
       const logic = Logic.create({
         generalProps: {
-          id: new ObjectId().toHexString(),
+          id: uuidv4(),
           relationName: commonProps.relationName,
 
           sql: commonProps.sql,
@@ -107,7 +108,7 @@ export class CreateLogic
           isSystemInternal: auth.isSystemInternal,
           callerOrganizationId: auth.callerOrganizationId,
         },
-        this.#dbConnection
+        this.#
       );
 
       if (!readLogicsResult.success) throw new Error(readLogicsResult.error);
@@ -116,7 +117,7 @@ export class CreateLogic
         throw new ReferenceError('Logic to be created already exists');
 
       if (request.options.writeToPersistence)
-        await this.#logicRepo.insertOne(logic, dbConnection);
+        await this.#logicRepo.insertOne(logic, );
 
       return Result.ok(logic);
     } catch (error: unknown) {

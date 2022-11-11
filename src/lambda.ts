@@ -48,7 +48,6 @@ const internalInvoke = async (
   const createLineageController = new InternalInvokeCreateLineageController(
     iocRegister.resolve('createLineage'),
     iocRegister.resolve('getAccounts'),
-    iocRegister.resolve('dbo')
   );
 
   switch (internalInvokeType) {

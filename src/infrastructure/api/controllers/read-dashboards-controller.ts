@@ -108,7 +108,7 @@ export default class ReadDashboardsController extends BaseController {
         await this.#readDashboards.execute(
           requestDto,
           authDto,
-          this.#dbo.dbConnection
+          this.#dbo.
         );
 
       if (!useCaseResult.success) {

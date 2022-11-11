@@ -94,7 +94,7 @@ export default class CreateLineageController extends BaseController {
         await this.#createLineage.execute(
           requestDto,
           authDto,
-          this.#dbo.dbConnection
+          this.#dbo.
         );
 
       if (!useCaseResult.success) {
@@ -108,7 +108,7 @@ export default class CreateLineageController extends BaseController {
       return CreateLineageController.ok(res, resultValue, CodeHttp.CREATED);
 
       // this.#createLineage
-      //   .execute(requestDto, authDto, this.#dbo.dbConnection)
+      //   .execute(requestDto, authDto, this.#dbo.)
       //   .then((result) => {
       //     if (!result.success) console.error(result.error);
       //   })

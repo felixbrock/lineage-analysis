@@ -12,7 +12,6 @@ import {
   ReadMaterializationsResponseDto,
 } from '../../../domain/materialization/read-materializations';
 import Result from '../../../domain/value-types/transient-types/result';
-import Dbo from '../../persistence/db/mongo-db';
 
 import {
   BaseController,
@@ -25,17 +24,13 @@ export default class ReadMaterializationsController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  readonly #dbo: Dbo;
-
   constructor(
     readMaterializations: ReadMaterializations,
-    getAccounts: GetAccounts,
-    dbo: Dbo
+    getAccounts: GetAccounts
   ) {
     super();
     this.#readMaterializations = readMaterializations;
     this.#getAccounts = getAccounts;
-    this.#dbo = dbo;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadMaterializationsRequestDto => {
@@ -128,11 +123,7 @@ export default class ReadMaterializationsController extends BaseController {
       const authDto = this.#buildAuthDto(getUserAccountInfoResult.value);
 
       const useCaseResult: ReadMaterializationsResponseDto =
-        await this.#readMaterializations.execute(
-          requestDto,
-          authDto,
-          this.#dbo.dbConnection
-        );
+        await this.#readMaterializations.execute(requestDto, authDto);
 
       if (!useCaseResult.success) {
         return ReadMaterializationsController.badRequest(res);

@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid';
 import { ReadColumns } from '../../column/read-columns';
 import { CreateDashboard } from '../../dashboard/create-dashboard';
 import {
@@ -12,19 +13,18 @@ import {
   ColumnRef,
   DashboardRef,
   Logic,
-  MaterializationDefinition,
   ModelRepresentation,
   Refs,
 } from '../../entities/logic';
 import { Materialization } from '../../entities/materialization';
-import { OrganizationLevelQueryResult } from '../../integration-api/i-integration-api-repo';
 import {
   QuerySfQueryHistory,
   QuerySfQueryHistoryResponseDto,
 } from '../../snowflake-api/query-snowflake-history';
-import { DbConnection } from '../../services/i-db';
+import {  } from '../../services/i-db';
 import { BiType } from '../../value-types/bilayer';
 import SQLElement from '../../value-types/sql-element';
+import { SnowflakeQueryResult } from '../../snowflake-api/i-snowflake-api-repo';
 
 interface Auth {
   jwt: string;
@@ -50,13 +50,9 @@ export default class DependenciesBuilder {
 
   readonly #auth: Auth;
 
-  readonly #dbConnection: DbConnection;
-
   readonly #lineageId: string;
 
   readonly #targetOrganizationId?: string;
-
-  readonly #organizationId: string;
 
   readonly #logics: Logic[];
 
@@ -89,7 +85,6 @@ export default class DependenciesBuilder {
       catalog: ModelRepresentation[];
     },
     auth: Auth,
-    dbConnection: DbConnection,
     dependencies: {
       createDashboard: CreateDashboard;
       createDependency: CreateDependency;
@@ -105,11 +100,9 @@ export default class DependenciesBuilder {
     this.#querySfQueryHistory = dependencies.querySfQueryHistory;
 
     this.#auth = auth;
-    this.#dbConnection = dbConnection;
 
     this.#lineageId = props.lineageId;
     this.#targetOrganizationId = props.targetOrganizationId;
-    this.#organizationId = props.organizationId;
     this.#logics = props.logics;
     this.#mats = props.mats;
     this.#columns = props.columns;
@@ -118,7 +111,7 @@ export default class DependenciesBuilder {
 
   #retrieveQuerySfQueryHistory = async (
     biType: BiType
-  ): Promise<OrganizationLevelQueryResult> => {
+  ): Promise<SnowflakeQueryResult> => {
     const querySfQueryHistoryResult: QuerySfQueryHistoryResponseDto =
       await this.#querySfQueryHistory.execute(
         {
@@ -134,19 +127,19 @@ export default class DependenciesBuilder {
     if (!querySfQueryHistoryResult.value)
       throw new SyntaxError(`Retrival of query history failed`);
 
-    return querySfQueryHistoryResult.value[this.#organizationId];
+    return querySfQueryHistoryResult.value;
   };
 
   /* Get all relevant dashboards that are data dependency to self materialization */
   static #getDashboardDataDependencyRefs = async (
     statementRefs: Refs,
-    querySfQueryHistory: OrganizationLevelQueryResult,
+    querySfQueryHistoryResult: SnowflakeQueryResult,
     biLayer: BiType
   ): Promise<DashboardRef[]> => {
     const dependentDashboards: DashboardRef[] = [];
 
     statementRefs.columns.forEach((column) => {
-      querySfQueryHistory.forEach((entry) => {
+      querySfQueryHistoryResult.forEach((entry) => {
         const queryText = entry.QUERY_TEXT;
         if (typeof queryText !== 'string')
           throw new Error('Retrieved bi layer query text not in string format');
@@ -154,7 +147,7 @@ export default class DependenciesBuilder {
         const testUrl = queryText.match(/"(https?:[^\s]+),/);
         const dashboardUrl = testUrl
           ? testUrl[1]
-          : `${biLayer} dashboard: ${new ObjectId().toHexString()}`;
+          : `${biLayer} dashboard: ${uuidv4()}`;
 
         const matName = column.materializationName.toUpperCase();
         const colName = column.alias
@@ -239,8 +232,7 @@ export default class DependenciesBuilder {
       (el) =>
         el.name === dashboardRef.materializationName &&
         el.relationName === parentRelationNames[0] &&
-        el.lineageIds.includes(this.#lineageId) &&
-        el.organizationId === this.#organizationId
+        el.lineageIds.includes(this.#lineageId)
     );
 
     if (!materialization)
@@ -252,8 +244,7 @@ export default class DependenciesBuilder {
       (el) =>
         el.name === dashboardRef.columnName &&
         el.materializationId === materialization.id &&
-        el.lineageIds.includes(this.#lineageId) &&
-        el.organizationId === this.#organizationId
+        el.lineageIds.includes(this.#lineageId)
     );
 
     if (!column)
@@ -272,11 +263,7 @@ export default class DependenciesBuilder {
         targetOrganizationId: this.#targetOrganizationId,
         writeToPersistence: false,
       },
-      {
-        isSystemInternal: this.#auth.isSystemInternal,
-        callerOrganizationId: this.#auth.callerOrganizationId,
-      },
-      this.#dbConnection
+      this.#auth,
     );
 
     if (!createDashboardResult.success)
@@ -296,11 +283,7 @@ export default class DependenciesBuilder {
           targetOrganizationId: this.#targetOrganizationId,
           writeToPersistence: false,
         },
-        {
-          isSystemInternal: this.#auth.isSystemInternal,
-          callerOrganizationId: this.#auth.callerOrganizationId,
-        },
-        this.#dbConnection
+        this.#auth,
       );
 
     if (!createExternalDependencyResult.success)
@@ -352,11 +335,7 @@ export default class DependenciesBuilder {
               targetOrganizationId: this.#targetOrganizationId,
               writeToPersistence: false,
             },
-            {
-              isSystemInternal: this.#auth.isSystemInternal,
-              callerOrganizationId: this.#auth.callerOrganizationId,
-            },
-            this.#dbConnection
+            this.#auth,
           );
 
           return createDependencyResult;
@@ -408,11 +387,7 @@ export default class DependenciesBuilder {
         targetOrganizationId: this.#targetOrganizationId,
         writeToPersistence: false,
       },
-      {
-        isSystemInternal: this.#auth.isSystemInternal,
-        callerOrganizationId: this.#auth.callerOrganizationId,
-      },
-      this.#dbConnection
+      this.#auth
     );
 
     if (!createDependencyResult.success)
@@ -431,31 +406,31 @@ export default class DependenciesBuilder {
   #getDependenciesForWildcard = async (
     dependencyRef: ColumnRef
   ): Promise<ColumnRef[]> => {
-    const catalogMatches = this.#matDefinitions.filter((dependency) => {
+    const catalogMatches = this.#catalog.filter((catalogEl) => {
       const nameIsEqual = DependenciesBuilder.#insensitiveEquality(
         dependencyRef.materializationName,
-        dependency.materializationName
+        catalogEl.materializationName
       );
 
       const schemaNameIsEqual =
         !dependencyRef.schemaName ||
         (typeof dependencyRef.schemaName === 'string' &&
-        typeof dependency.schemaName === 'string'
+        typeof catalogEl.schemaName === 'string'
           ? DependenciesBuilder.#insensitiveEquality(
               dependencyRef.schemaName,
-              dependency.schemaName
+              catalogEl.schemaName
             )
-          : dependencyRef.schemaName === dependency.schemaName);
+          : dependencyRef.schemaName === catalogEl.schemaName);
 
       const databaseNameIsEqual =
         !dependencyRef.databaseName ||
         (typeof dependencyRef.databaseName === 'string' &&
-        typeof dependency.databaseName === 'string'
+        typeof catalogEl.databaseName === 'string'
           ? DependenciesBuilder.#insensitiveEquality(
               dependencyRef.databaseName,
-              dependency.databaseName
+              catalogEl.databaseName
             )
-          : dependencyRef.databaseName === dependency.databaseName);
+          : dependencyRef.databaseName === catalogEl.databaseName);
 
       return nameIsEqual && schemaNameIsEqual && databaseNameIsEqual;
     });
@@ -478,11 +453,7 @@ export default class DependenciesBuilder {
         lineageId: this.#lineageId,
         targetOrganizationId: this.#targetOrganizationId,
       },
-      {
-        isSystemInternal: this.#auth.isSystemInternal,
-        callerOrganizationId: this.#auth.callerOrganizationId,
-      },
-      this.#dbConnection
+      this.#auth
     );
 
     if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
@@ -503,7 +474,7 @@ export default class DependenciesBuilder {
   build = async (biType?: BiType): Promise<BuildResult> => {
     // todo - should method be completely sync? Probably resolves once transformed into batch job.
 
-    const querySfQueryHistory: OrganizationLevelQueryResult | undefined = biType
+    const querySfQueryHistory: SnowflakeQueryResult | undefined = biType
       ? await this.#retrieveQuerySfQueryHistory(biType)
       : undefined;
 

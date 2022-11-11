@@ -1,6 +1,6 @@
 import axios, { AxiosRequestConfig } from 'axios';
 import { appConfig } from '../../config';
-import { IIntegrationApiRepo } from '../../domain/integration-api/i-integration-api-repo';
+import { IIntegrationApiRepo, SnowflakeProfileDto } from '../../domain/integration-api/i-integration-api-repo';
 
 export default class IntegrationApiRepo implements IIntegrationApiRepo {
   #version = 'v1';
@@ -9,8 +9,8 @@ export default class IntegrationApiRepo implements IIntegrationApiRepo {
 
   #apiRoot = appConfig.express.apiRoot;
 
-  readSnowflakeProfile = async (
-    targetOrgId: string,
+  getSnowflakeProfile = async (
+    targetOrgId?: string,
     jwt: string
   ): Promise<SnowflakeProfileDto> => {
     try {

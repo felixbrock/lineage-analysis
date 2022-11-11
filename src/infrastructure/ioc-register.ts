@@ -15,13 +15,12 @@ import { CreateColumn } from '../domain/column/create-column';
 import { ReadLogics } from '../domain/logic/read-logics';
 import { ReadMaterializations } from '../domain/materialization/read-materializations';
 import { ReadMaterialization } from '../domain/materialization/read-materialization';
-import LineageRepo from './persistence/legacy-lineage-repo';
+import LineageRepo from './persistence/lineage-repo';
 import { ReadDependencies } from '../domain/dependency/read-dependencies';
 import DependencyRepo from './persistence/dependency-repo';
 import { CreateDependency } from '../domain/dependency/create-dependency';
 import { ReadLineage } from '../domain/lineage/read-lineage';
 import { ReadLogic } from '../domain/logic/read-logic';
-import Dbo from './persistence/db/mongo-db';
 import { QuerySfQueryHistory } from '../domain/snowflake-api/query-snowflake-history';
 import QuerySfQueryHistoryApiRepo from './persistence/query-snowflake-history-repo';
 import { CreateExternalDependency } from '../domain/dependency/create-external-dependency';
@@ -65,7 +64,6 @@ iocRegister.register({
   sqlParserApiRepo: asClass(SQLParserApiRepo),
   querySfQueryHistoryApiRepo: asClass(QuerySfQueryHistoryApiRepo),
 
-  dbo: asClass(Dbo).singleton()
 });
 
 export default iocRegister;

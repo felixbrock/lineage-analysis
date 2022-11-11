@@ -74,7 +74,7 @@ export default class LogicRepo implements ILogicRepo {
 
   findOne = async (
     logicId: string,
-    targetOrgId: string,
+    targetOrgId?: string,
     auth: Auth
   ): Promise<Logic | null> => {
     try {
@@ -104,7 +104,7 @@ export default class LogicRepo implements ILogicRepo {
 
   findBy = async (
     logicQueryDto: LogicQueryDto,
-    targetOrgId: string,
+    targetOrgId?: string,
     auth: Auth
   ): Promise<Logic[]> => {
     try {
@@ -138,7 +138,7 @@ export default class LogicRepo implements ILogicRepo {
     }
   };
 
-  all = async (targetOrgId: string, auth: Auth): Promise<Logic[]> => {
+  all = async (targetOrgId?: string, auth: Auth): Promise<Logic[]> => {
     try {
       const queryText = `select * from cito.lineage.${this.#matName};`;
 
@@ -162,7 +162,7 @@ export default class LogicRepo implements ILogicRepo {
 
   insertOne = async (
     logic: Logic,
-    targetOrgId: string,
+    targetOrgId?: string,
     auth: Auth
   ): Promise<string> => {
     try {
@@ -199,7 +199,7 @@ export default class LogicRepo implements ILogicRepo {
 
   insertMany = async (
     logics: Logic[],
-    targetOrgId: string,
+    targetOrgId?: string,
     auth: Auth
   ): Promise<string[]> => {
     try {
@@ -239,7 +239,7 @@ export default class LogicRepo implements ILogicRepo {
 
   replaceMany = async (
     logics: Logic[],
-    targetOrgId: string,
+    targetOrgId?: string,
     auth: Auth
   ): Promise<number> => {
     try {

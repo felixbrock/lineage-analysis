@@ -14,7 +14,7 @@ export const parseDependencyType = (dependencyType: string): DependencyType => {
   throw new Error('Provision of invalid type');
 };
 
-export interface DependencyProperties {
+export interface DependencyProps {
   id: string;
   type: DependencyType;
   headId: string;
@@ -30,7 +30,7 @@ export interface DependencyPrototype {
   lineageId: string;
 }
 
-type DependencyDto = DependencyProperties;
+type DependencyDto = DependencyProps;
 
 export class Dependency {
   #id: string;
@@ -65,7 +65,7 @@ export class Dependency {
   }
 
 
-  private constructor(properties: DependencyProperties) {
+  private constructor(properties: DependencyProps) {
     this.#id = properties.id;
     this.#type = properties.type;
     this.#headId = properties.headId;
@@ -92,7 +92,7 @@ export class Dependency {
     return dependency;
   };
 
-  static build = (props: DependencyProperties): Dependency => {
+  static build = (props: DependencyProps): Dependency => {
     if (!props.id) throw new TypeError('Dependency object must have id');
     if (!props.type) throw new TypeError('Dependency object must have type');
     if (!props.headId)

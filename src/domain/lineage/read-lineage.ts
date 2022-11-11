@@ -1,8 +1,8 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { ILegacyLineageRepo } from './i-lineage-repo';
+import { ILineageRepo } from './i-lineage-repo';
 import { Lineage } from '../entities/lineage';
-import { DbConnection } from '../services/i-db';
+import {  } from '../services/i-db';
 
 export interface ReadLineageRequestDto {
   id?: string;
@@ -20,28 +20,28 @@ export class ReadLineage
       ReadLineageRequestDto,
       ReadLineageResponseDto,
       ReadLineageAuthDto,
-      DbConnection
+      
     >
 {
-  readonly #lineageRepo: ILegacyLineageRepo;
+  readonly #lineageRepo: ILineageRepo;
 
-  #dbConnection: DbConnection;
+  #: ;
 
-  constructor(lineageRepo: ILegacyLineageRepo) {
+  constructor(lineageRepo: ILineageRepo) {
     this.#lineageRepo = lineageRepo;
   }
 
   async execute(
     request: ReadLineageRequestDto,
     auth: ReadLineageAuthDto,
-    dbConnection: DbConnection
+    : 
   ): Promise<ReadLineageResponseDto> {
     try {
-      this.#dbConnection = dbConnection;
+      this.# = ;
 
       const lineage = request.id
-        ? await this.#lineageRepo.findOne(this.#dbConnection, request.id)
-        : await this.#lineageRepo.findLatest(this.#dbConnection, {
+        ? await this.#lineageRepo.findOne(this.#, request.id)
+        : await this.#lineageRepo.findLatest(this.#, {
             organizationId: auth.callerOrganizationId, completed: true
           });
       if (!lineage)

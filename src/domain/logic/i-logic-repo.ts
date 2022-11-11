@@ -7,31 +7,31 @@ export interface LogicQueryDto {
 
 export interface Auth {
   jwt: string;
-  callerOrgId: string;
+  callerOrgId?: string;
   isSystemInternal: boolean;
 }
 
 export interface ILogicRepo {
   findOne(
     logicId: string,
-    targetOrgId: string,
-    auth: Auth
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<Logic | null>;
   findBy(
     logicQueryDto: LogicQueryDto,
-    targetOrgId: string,
-    auth: Auth
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<Logic[]>;
-  all(targetOrgId: string, auth: Auth): Promise<Logic[]>;
-  insertOne(logic: Logic, targetOrgId: string, auth: Auth): Promise<string>;
+  all(auth: Auth, targetOrgId?: string): Promise<Logic[]>;
+  insertOne(logic: Logic, auth: Auth, targetOrgId?: string): Promise<string>;
   insertMany(
     logics: Logic[],
-    targetOrgId: string,
-    auth: Auth
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<string[]>;
   replaceMany(
     logics: Logic[],
-    targetOrgId: string,
-    auth: Auth
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<number>;
 }
