@@ -240,8 +240,7 @@ export class CreateLineage
 
       let orgId: string;
       if (auth.callerOrgId) orgId = auth.callerOrgId;
-      else if (request.targetOrgId)
-        orgId = request.targetOrgId;
+      else if (request.targetOrgId) orgId = request.targetOrgId;
       else throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
       this.#auth = auth;
@@ -252,52 +251,55 @@ export class CreateLineage
       console.log('...building lineage object');
       const lineage = buildLineage();
 
-      if (!!request.dbtCatalog !== !!request.dbtManifest)
-        throw new Error(
-          'When creating lineage based on dbt both, the manifest and catalog file have to be provided'
-        );
-
       const { dbtCatalog, dbtManifest } = request;
 
       const dbtBased = dbtCatalog && dbtManifest;
 
       console.log('...generating warehouse resources');
-      const dataEnvGenerator = dbtBased
-        ? new DbtDataEnvGenerator(
-            {
-              dbtCatalog,
-              dbtManifest,
-              lineageId: lineage.id,
-              targetOrgId: request.targetOrgId,
-            },
-            auth,
-            {
-              createColumn: this.#createColumn,
-              createLogic: this.#createLogic,
-              createMaterialization: this.#createMaterialization,
-              parseSQL: this.#parseSQL,
-            }
-          )
-        : new SfDataEnvGenerator(
-            {
-              lineageId: lineage.id,
-              targetOrgId: request.targetOrgId,
-            },
-            auth,
-            {
-              createColumn: this.#createColumn,
-              createMaterialization: this.#createMaterialization,
-              createLogic: this.#createLogic,
-              parseSQL: this.#parseSQL,
-              querySnowflake: this.#querySnowflake,
-            }
+      let dataEnvGenerator: DbtDataEnvGenerator | SfDataEnvGenerator;
+      if (dbtBased)
+        dataEnvGenerator = new DbtDataEnvGenerator(
+          {
+            dbtCatalog,
+            dbtManifest,
+            lineageId: lineage.id,
+            targetOrgId: request.targetOrgId,
+          },
+          auth,
+          {
+            createColumn: this.#createColumn,
+            createLogic: this.#createLogic,
+            createMaterialization: this.#createMaterialization,
+            parseSQL: this.#parseSQL,
+          }
+        );
+      else {
+        const {callerOrgId} = auth;
+        if (!callerOrgId)
+          throw new Error(
+            'Sf based lineage creation has to be invoked by user'
           );
+
+        dataEnvGenerator = new SfDataEnvGenerator(
+          {
+            lineageId: lineage.id,
+          },
+          {...auth, callerOrgId},
+          {
+            createColumn: this.#createColumn,
+            createMaterialization: this.#createMaterialization,
+            createLogic: this.#createLogic,
+            parseSQL: this.#parseSQL,
+            querySnowflake: this.#querySnowflake,
+          }
+        );
+      }
       const { materializations, columns, logics, catalog } =
         await dataEnvGenerator.generate();
 
       console.log('...merging new lineage snapshot with last one');
       const dataEnvMerger = new DataEnvMerger(
-        { columns, materializations, logics},
+        { columns, materializations, logics },
         auth,
         {
           lineageRepo: this.#lineageRepo,

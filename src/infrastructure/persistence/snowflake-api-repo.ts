@@ -13,9 +13,9 @@ export default class SnowflakeApiRepo implements ISnowflakeApiRepo {
     queryText: string,
     binds: (string | number)[] | (string | number)[][],
     options: DbOptions
-  ): Promise<Result<SnowflakeQueryResult[]>> =>
+  ): Promise<Result<SnowflakeQueryResult>> =>
     new Promise((resolve) => {
-      const results: SnowflakeQueryResult[] = [];
+      const results: SnowflakeQueryResult = [];
 
       const destroy = (conn: Connection, error?: Error): void => {
         if (!conn.isUp()) return;

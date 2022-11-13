@@ -43,11 +43,11 @@ export class QuerySnowflake
   }
 
   #getProfile = async (
-    orgId: string,
-    jwt: string
+    jwt: string,
+    targetOrgId?: string,
   ): Promise<SnowflakeProfileDto> => {
     const readSnowflakeProfileResult = await this.#getSnowflakeProfile.execute(
-      { targetOrgId: orgId },
+      {targetOrgId},
       {
         jwt,
       }
@@ -74,15 +74,10 @@ export class QuerySnowflake
     if (request.targetOrgId && auth.callerOrgId)
       throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
-    let orgId: string;
-    if (auth.callerOrgId) orgId = auth.callerOrgId;
-    else if (request.targetOrgId) orgId = request.targetOrgId;
-    else throw new Error('Missing orgId');
-
     try {
       const profile: SnowflakeProfileDto = await this.#getProfile(
-        orgId,
-        auth.jwt
+        auth.jwt,
+        auth.isSystemInternal ? request.targetOrgId: undefined,
       );
 
       const queryResult = await this.#snowflakeApiRepo.runQuery(
@@ -100,7 +95,8 @@ export class QuerySnowflake
         profile.accountId
       } \nOrganizationId: ${
         profile.organizationId
-      } \n${request.queryText.substring(0, 1000)}${
+      } \n Binds: ${JSON.stringify(request.binds)}
+      \n${request.queryText.substring(0, 1000)}${
         request.queryText.length > 1000 ? '...' : ''
       }`;
 
@@ -110,17 +106,17 @@ export class QuerySnowflake
         );
       else console.log(`Sf query succeeded \n${queryResultBaseMsg}`);
 
-      const value =
-        queryResult.success && queryResult.value
-          ? JSON.parse(
-              JSON.stringify(queryResult.value).replace(
-                /[", ']null[", ']/g,
-                'null'
-              )
-            )
-          : [];
+      // const value =
+      //   queryResult.success && queryResult.value
+      //     ? JSON.parse(
+      //         JSON.stringify(queryResult.value).replace(
+      //           /[", ']null[", ']/g,
+      //           'null'
+      //         )
+      //       )
+      //     : [];
 
-      return Result.ok(value);
+      return Result.ok(queryResult.value);
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);

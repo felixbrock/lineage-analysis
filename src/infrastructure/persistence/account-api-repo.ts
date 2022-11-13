@@ -17,7 +17,7 @@ export default class AccountApiRepo implements IAccountApiRepo {
         params,
       };
 
-      const response = await axios.get(`${appConfig.apiRoot.accountService}/api/v1/accounts`, config);
+      const response = await axios.get(`${appConfig.baseUrl.accountService}/api/v1/accounts`, config);
       const jsonResponse = response.data;
       if (response.status === 200) return jsonResponse;
       throw new Error(jsonResponse.message);

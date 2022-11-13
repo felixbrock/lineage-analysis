@@ -5,9 +5,7 @@ import {
   SnowflakeProfileDto,
 } from './i-integration-api-repo';
 
-export interface GetSnowflakeProfileRequestDto {
-  targetOrgId?: string;
-}
+export type GetSnowflakeProfileRequestDto = {targetOrgId?: string};
 
 export interface GetSnowflakeProfileAuthDto {
   jwt: string;
@@ -37,7 +35,7 @@ export class GetSnowflakeProfile
       const getSnowflakeProfileResponse: SnowflakeProfileDto =
         await this.#integrationApiRepo.getSnowflakeProfile(
           auth.jwt,
-          request.targetOrgId
+          request.targetOrgId,
         );
 
       return Result.ok(getSnowflakeProfileResponse);

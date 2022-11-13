@@ -18,7 +18,7 @@ export default class SQLParserApiRepoImpl implements ISQLParserApiRepo {
       };
 
       const response = await axios.post(
-        `${appConfig.apiRoot.sqlParser}/sql`,
+        `${appConfig.baseUrl.sqlParser}/sql`,
         { sql: base64SQL },
         config
       );

@@ -96,12 +96,13 @@ export default class ColunRepo implements IColumnRepo {
     targetOrgId?: string,
   ): Promise<Column | null> => {
     try {
-      const queryText = `select * from cito.lineage.${this.#matName}
-          } where id = ?;`;
-
+      
       // using binds to tell snowflake to escape params to avoid sql injection attack
       const binds: (string | number)[] = [columnId];
-
+      
+      const queryText = `select * from cito.lineage.${this.#matName}
+    } where id = ?;`;
+    
       const result = await this.#querySnowflake.execute(
         { queryText, targetOrgId, binds },
         auth

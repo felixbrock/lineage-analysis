@@ -33,6 +33,13 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
     const toUtf8 = (content: string): string =>
       Buffer.from(content, 'base64').toString('utf8');
 
+    if (!req.dbtCatalog && !req.dbtManifest) return req;
+
+    if (!!req.dbtCatalog !== !!req.dbtManifest)
+      throw new Error(
+        'In case of dbt based lineage creation, both, the dbtCatalog and dbtManifest file need to be provided'
+      );
+
     // https://stackoverflow.com/questions/50966023/which-variant-of-base64-encoding-is-created-by-buffer-tostringbase64
     if (
       req.dbtCatalog &&

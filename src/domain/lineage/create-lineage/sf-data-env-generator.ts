@@ -19,13 +19,12 @@ import { QuerySnowflake } from '../../snowflake-api/query-snowflake';
 
 interface Auth {
   jwt: string;
-  callerOrgId?: string;
+  callerOrgId: string;
   isSystemInternal: boolean;
 }
 
-export interface DataEnvProps {
+export interface SfDataEnvProps {
   lineageId: string;
-  targetOrgId?: string;
 }
 
 interface ColumnRepresentation {
@@ -73,11 +72,7 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
 
   readonly #lineageId: string;
 
-  readonly #targetOrgId?: string;
-
   readonly #auth: Auth;
-
-  readonly #organizationId: string;
 
   #materializations: Materialization[] = [];
 
@@ -100,7 +95,7 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
   #catalog: ModelRepresentation[] = [];
 
   constructor(
-    props: DataEnvProps,
+    props: SfDataEnvProps,
     auth: Auth,
     dependencies: {
       createMaterialization: CreateMaterialization;
@@ -110,21 +105,6 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
       parseSQL: ParseSQL;
     }
   ) {
-    if (auth.isSystemInternal && !props.targetOrgId)
-      throw new Error('Target organization id missing');
-    if (!auth.isSystemInternal && !auth.callerOrgId)
-      throw new Error('Caller organization id missing');
-    if (!props.targetOrgId && !auth.callerOrgId)
-      throw new Error('No organization Id instance provided');
-    if (props.targetOrgId && auth.callerOrgId)
-      throw new Error('callerOrgId and targetOrgId provided. Not allowed');
-
-    if (auth.callerOrgId)
-      this.#organizationId = auth.callerOrgId;
-    else if (props.targetOrgId)
-      this.#organizationId = props.targetOrgId;
-    else throw new Error('Missing orgId');
-
     this.#createMaterialization = dependencies.createMaterialization;
     this.#createColumn = dependencies.createColumn;
     this.#createLogic = dependencies.createLogic;
@@ -134,15 +114,14 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
     this.#auth = auth;
 
     this.#lineageId = props.lineageId;
-    this.#targetOrgId = props.targetOrgId;
   }
 
   /* Get database representations from snowflake */
   #getDbRepresentations = async (): Promise<DatabaseRepresentation[]> => {
     const queryText =
-      'select database_name, database_owner, is_transient, comment from cito.information_schema.databases';
+      "select database_name, database_owner, is_transient, comment from cito.information_schema.databases where not array_contains(database_name::variant, ['SNOWFLAKE', 'SNOWFLAKE_SAMPLE_DATA'])";
     const queryResult = await this.#querySnowflake.execute(
-      { queryText, targetOrgId: this.#targetOrgId, binds: [] },
+      { queryText, binds: [] },
       this.#auth
     );
     if (!queryResult.success) {
@@ -160,21 +139,25 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
         COMMENT: comment,
       } = el;
 
+      const isComment = (val: unknown): val is string | undefined =>
+        !val || typeof val === 'string';
+
       if (
         typeof name !== 'string' ||
         typeof ownerId !== 'string' ||
-        typeof isTransient !== 'boolean' ||
-        typeof comment !== 'string'
+        typeof isTransient !== 'string' ||
+        !['yes', 'no'].includes(isTransient.toLowerCase()) ||
+        !isComment(comment)
       )
         throw new Error(
           'Received mat representation field value in unexpected format'
         );
 
       return {
-        name,
+        name: name.toLowerCase(),
         ownerId,
-        isTransient,
-        comment,
+        isTransient: isTransient.toLowerCase() !== 'no',
+        comment: comment || undefined,
       };
     });
 
@@ -185,11 +168,9 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
   #getMatRepresentations = async (
     targetDbName: string
   ): Promise<MaterializationRepresentation[]> => {
-    const binds = [targetDbName];
-    const queryText =
-      'select table_catalog, table_schema, table_name, table_owner, table_type, is_transient, comment  from ?.information_schema.tables';
+    const queryText = `select table_catalog, table_schema, table_name, table_owner, table_type, is_transient, comment  from ${targetDbName}.information_schema.tables where table;`;
     const queryResult = await this.#querySnowflake.execute(
-      { queryText, targetOrgId: this.#targetOrgId, binds },
+      { queryText, binds: [] },
       this.#auth
     );
     if (!queryResult.success) {
@@ -211,28 +192,43 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
           COMMENT: comment,
         } = el;
 
+        const isComment = (val: unknown): val is string | undefined =>
+          !val || typeof val === 'string';
+        const isOwnerId = (val: unknown): val is string | undefined =>
+          !val || typeof val === 'string';
+        const isIsTransientVal = (val: unknown): val is string | undefined =>
+          !val ||
+          (typeof val === 'string' &&
+            ['yes', 'no'].includes(val.toLowerCase()));
+
         if (
           typeof databaseName !== 'string' ||
           typeof schemaName !== 'string' ||
           typeof name !== 'string' ||
-          typeof ownerId !== 'string' ||
           typeof type !== 'string' ||
-          typeof isTransient !== 'boolean' ||
-          typeof comment !== 'string'
+          !isIsTransientVal(isTransient) ||
+          !isComment(comment) ||
+          !isOwnerId(ownerId)
         )
           throw new Error(
             'Received mat representation field value in unexpected format'
           );
 
+        const dbNameFormatted = databaseName.toLowerCase();
+        const schemaNameFormatted = schemaName.toLowerCase();
+        const nameFormatted = name.toLowerCase();
+
         return {
-          databaseName,
-          schemaName,
-          name,
-          relationName: `${el.databaseName}.${el.schemaName}.${el.name}`,
-          ownerId,
+          databaseName: dbNameFormatted,
+          schemaName: schemaNameFormatted,
+          name: nameFormatted,
+          relationName: `${dbNameFormatted}.${schemaNameFormatted}.${nameFormatted}`,
           type: parseMaterializationType(type.toLowerCase()),
-          isTransient,
-          comment,
+          ownerId: ownerId || undefined,
+          isTransient: isTransient
+            ? isTransient.toLowerCase() !== 'no'
+            : undefined,
+          comment: comment || undefined,
         };
       }
     );
@@ -243,12 +239,14 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
   /* Get logic representations from Snowflake */
   #getLogicRepresentation = async (
     ddlObjectType: 'table' | 'view',
-    relationName: string
+    matName: string,
+    schemaName: string,
+    dbName: string
   ): Promise<LogicRepresentation> => {
-    const binds = [ddlObjectType, relationName];
+    const binds = [ddlObjectType, `${dbName}.${schemaName}.${matName}`];
     const queryText = `select get_ddl(?, ?, true) as sql`;
     const queryResult = await this.#querySnowflake.execute(
-      { queryText, targetOrgId: this.#targetOrgId, binds },
+      { queryText, binds },
       this.#auth
     );
     if (!queryResult.success) {
@@ -275,11 +273,9 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
   #getColumnRepresentations = async (
     targetDbName: string
   ): Promise<ColumnRepresentation[]> => {
-    const binds = [targetDbName];
-    const queryText =
-      'select table_catalog, table_schema, table_name, column_name, ordinal_position, is_nullable, data_type, is_identity, comment from ?.information_schema.columns';
+    const queryText = `select table_catalog, table_schema, table_name, column_name, ordinal_position, is_nullable, data_type, is_identity, comment from ${targetDbName}.information_schema.columns`;
     const queryResult = await this.#querySnowflake.execute(
-      { queryText, targetOrgId: this.#targetOrgId, binds },
+      { queryText, binds: [] },
       this.#auth
     );
     if (!queryResult.success) {
@@ -302,29 +298,38 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
         COMMENT: comment,
       } = el;
 
+      const isIsIdentityVal = (val: unknown): val is string | undefined =>
+        !val ||
+        (typeof val === 'string' && ['yes', 'no'].includes(val.toLowerCase()));
+      const isIsNullableVal = (val: unknown): val is string | undefined =>
+        !val ||
+        (typeof val === 'string' && ['yes', 'no'].includes(val.toLowerCase()));
+      const isComment = (val: unknown): val is string | undefined =>
+        !val || typeof val === 'string';
+
       if (
         typeof databaseName !== 'string' ||
         typeof schemaName !== 'string' ||
         typeof matName !== 'string' ||
         typeof name !== 'string' ||
         typeof index !== 'number' ||
-        typeof isNullable !== 'boolean' ||
         typeof dataType !== 'string' ||
-        typeof isIdentity !== 'boolean' ||
-        typeof comment !== 'string'
+        !isIsNullableVal(isNullable) ||
+        !isIsIdentityVal(isIdentity) ||
+        !isComment(comment)
       )
         throw new Error(
           'Received column representation field value in unexpected format'
         );
 
       return {
-        relationName: `${databaseName}.${schemaName}.${matName}`,
-        name,
+        relationName: `${databaseName.toLowerCase()}.${schemaName.toLowerCase()}.${matName.toLowerCase()}`,
+        name: name.toLowerCase(),
         index: index.toString(),
         dataType: parseColumnDataType(dataType),
-        isIdentity,
-        isNullable,
-        comment,
+        isIdentity: isIdentity ? isIdentity.toLowerCase() !== 'no' : undefined,
+        isNullable: isNullable ? isNullable.toLowerCase() !== 'no' : undefined,
+        comment: comment || undefined,
       };
     });
 
@@ -360,7 +365,6 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
         isNullable: columnRepresentation.isNullable,
         comment: columnRepresentation.comment,
         lineageId: this.#lineageId,
-        targetOrgId: this.#targetOrgId,
         writeToPersistence: false,
       },
       this.#auth
@@ -377,7 +381,8 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
     logicRepresentation: LogicRepresentation,
     relationName: string
   ): Promise<Logic> => {
-    const parsedLogic = await this.#parseLogic(logicRepresentation.sql);
+
+    const parsedLogic = logicRepresentation.sql ? await this.#parseLogic(logicRepresentation.sql): '';
 
     const createLogicResult = await this.#createLogic.execute(
       {
@@ -387,7 +392,6 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
             sql: logicRepresentation.sql,
             lineageId: this.#lineageId,
             parsedLogic,
-            targetOrgId: this.#targetOrgId,
             catalog: this.#catalog,
           },
         },
@@ -435,7 +439,6 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
           writeToPersistence: options.writeToPersistence,
           logicId,
           lineageId: this.#lineageId,
-          targetOrgId: this.#targetOrgId,
         },
         this.#auth
       );
@@ -513,7 +516,9 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
 
         const logicRepresentation = await this.#getLogicRepresentation(
           el.type === 'view' ? 'view' : 'table',
-          el.relationName
+          el.name,
+          el.schemaName,
+          el.databaseName
         );
 
         await this.#generateDWResource(

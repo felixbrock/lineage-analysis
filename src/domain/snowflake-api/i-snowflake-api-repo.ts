@@ -8,5 +8,5 @@ export interface SnowflakeEntity {
 export type SnowflakeQueryResult = SnowflakeEntity[];
 
 export interface ISnowflakeApiRepo {
-  runQuery(queryText: string, binds: (string | number)[] | (string | number)[][], options: DbOptions): Promise<Result<SnowflakeQueryResult[]>>;
+  runQuery(queryText: string, binds: (string | number)[] | (string | number)[][], options: DbOptions): Promise<Result<SnowflakeQueryResult>>;
 }

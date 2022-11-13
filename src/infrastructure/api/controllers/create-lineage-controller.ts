@@ -20,11 +20,7 @@ export default class CreateLineageController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-
-  constructor(
-    createLineage: CreateLineage,
-    getAccounts: GetAccounts,
-  ) {
+  constructor(createLineage: CreateLineage, getAccounts: GetAccounts) {
     super();
     this.#createLineage = createLineage;
     this.#getAccounts = getAccounts;
@@ -37,6 +33,13 @@ export default class CreateLineageController extends BaseController {
       Buffer.from(content, 'base64').toString('base64') === content;
     const toUtf8 = (content: string): string =>
       Buffer.from(content, 'base64').toString('utf8');
+
+    if (!body.catalog && !body.manifest) return { ...body };
+
+    if (!!body.catalog !== !!body.manifest)
+      throw new Error(
+        'In case of dbt based lineage creation, both, the catalog and manifest file need to be provided'
+      );
 
     // https://stackoverflow.com/questions/50966023/which-variant-of-base64-encoding-is-created-by-buffer-tostringbase64
     if (!isBase64(body.catalog) || !isBase64(body.manifest))
@@ -57,7 +60,7 @@ export default class CreateLineageController extends BaseController {
   ): CreateLineageAuthDto => ({
     jwt,
     isSystemInternal: userAccountInfo.isSystemInternal,
-    callerOrgId: userAccountInfo.callerOrgId
+    callerOrgId: userAccountInfo.callerOrgId,
   });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
@@ -87,10 +90,7 @@ export default class CreateLineageController extends BaseController {
       const authDto = this.#buildAuthDto(jwt, getUserAccountInfoResult.value);
 
       const useCaseResult: CreateLineageResponseDto =
-        await this.#createLineage.execute(
-          requestDto,
-          authDto,
-        );
+        await this.#createLineage.execute(requestDto, authDto);
 
       if (!useCaseResult.success) {
         return CreateLineageController.badRequest(res);
@@ -121,7 +121,10 @@ export default class CreateLineageController extends BaseController {
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      return CreateLineageController.fail(res, 'Internal error occurred while creating lineage');
+      return CreateLineageController.fail(
+        res,
+        'Internal error occurred while creating lineage'
+      );
     }
   }
 }
