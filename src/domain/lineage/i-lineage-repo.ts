@@ -19,7 +19,7 @@ export interface ILineageRepo {
     targetOrgId?: string
   ): Promise<Lineage | null>;
   findLatest(
-    filter: { completed: boolean },
+    filter: { tolerateIncomplete: boolean, minuteTolerance?: number },
     profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string

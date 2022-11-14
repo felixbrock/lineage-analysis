@@ -10,6 +10,7 @@ export interface ReadLineageRequestDto {
   id?: string;
   targetOrgId?: string;
   profile?: SnowflakeProfileDto;
+  completed?: boolean;
 }
 
 export interface ReadLineageAuthDto {
@@ -76,7 +77,7 @@ export class ReadLineage
           )
         : await this.#lineageRepo.findLatest(
             {
-              completed: true,
+              completed: request.completed,
             },
             profile,
             auth,

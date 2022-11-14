@@ -79,18 +79,25 @@ export default class LineageRepo implements ILineageRepo {
   };
 
   findLatest = async (
-    filter: { completed: boolean },
+    filter: { tolerateIncomplete: boolean; minuteTolerance?: number },
     profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<Lineage | null> => {
+    const minuteTolerance: number = filter.minuteTolerance || 10;
+
+    const queryText = `select * from cito.lineage.${this.#matName} 
+    where completed = true 
+    ${
+      filter.tolerateIncomplete
+        ? `or (completed = false and timediff(minute, created_at, current_timestamp::timestamp_ntz) < ?)`
+        : ''
+    }
+    order by created_at desc limit 1;`;
+
+    const binds = filter.tolerateIncomplete ? [minuteTolerance] : [];
+
     try {
-      const queryText = `select * from cito.lineage.${
-        this.#matName
-      } where completed = ? order by created_at desc limit 1;`;
-
-      const binds = [filter.completed.toString()];
-
       const result = await this.#querySnowflake.execute(
         { queryText, targetOrgId, binds, profile },
         auth
