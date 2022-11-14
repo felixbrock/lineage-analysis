@@ -37,9 +37,9 @@ export const getUpdateQuery = (
         select ${colNames
           .map((el, index) => {
             const value = el.selectType
-              ? `${el.selectType}($${index + 1}) as ${el.name}`
-              : `$${index + 1} as ${el.name}`;
-            return el.nullable ? `nullif(${value}, 'null')` : value;
+              ? `${el.selectType}($${index + 1})`
+              : `$${index + 1}`;
+            return el.nullable ? `nullif(${value}, 'null') as ${el.name}` : `${value} as ${el.name}`;
           })
           .join(', ')}
         from values ${rows.join(', ')}) as source

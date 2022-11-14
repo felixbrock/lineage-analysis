@@ -96,7 +96,7 @@ export default class LogicRepo implements ILogicRepo {
   ): Promise<Logic | null> => {
     try {
       const queryText = `select * from cito.lineage.${this.#matName}
-        } where id = ?;`;
+      where id = ?;`;
 
       // using binds to tell snowflake to escape params to avoid sql injection attack
       const binds: (string | number)[] = [logicId];

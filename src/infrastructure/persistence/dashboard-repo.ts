@@ -88,7 +88,7 @@ export default class DashboardRepo implements IDashboardRepo {
   ): Promise<Dashboard | null> => {
     try {
       const queryText = `select * from cito.lineage.${this.#matName}
-                } where id = ?;`;
+                 where id = ?;`;
 
       // using binds to tell snowflake to escape params to avoid sql injection attack
       const binds: (string | number)[] = [dashboardId];

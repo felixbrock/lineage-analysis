@@ -103,7 +103,7 @@ export default class ColunRepo implements IColumnRepo {
       const binds: (string | number)[] = [columnId];
 
       const queryText = `select * from cito.lineage.${this.#matName}
-    } where id = ?;`;
+    where id = ?;`;
 
       const result = await this.#querySnowflake.execute(
         { queryText, targetOrgId, binds },
