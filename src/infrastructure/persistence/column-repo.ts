@@ -20,16 +20,16 @@ export default class ColunRepo implements IColumnRepo {
   readonly #matName = 'columns';
 
   readonly #colDefinitions: ColumnDefinition[] = [
-    { name: 'id' },
-    { name: 'name' },
-    { name: 'relation_name' },
-    { name: 'index' },
-    { name: 'data_type' },
-    { name: 'is_identity' },
-    { name: 'is_nullable' },
-    { name: 'materialization_id' },
-    { name: 'lineage_ids', selectType: 'parse_json' },
-    { name: 'comment' },
+    { name: 'id', nullable: false },
+    { name: 'name', nullable: false },
+    { name: 'relation_name', nullable: false },
+    { name: 'index', nullable: false },
+    { name: 'data_type', nullable: false },
+    { name: 'is_identity', nullable: true },
+    { name: 'is_nullable', nullable: true },
+    { name: 'materialization_id', nullable: false },
+    { name: 'lineage_ids', selectType: 'parse_json', nullable: false },
+    { name: 'comment', nullable: true },
   ];
 
   readonly #querySnowflake: QuerySnowflake;
@@ -57,12 +57,8 @@ export default class ColunRepo implements IColumnRepo {
       typeof name !== 'string' ||
       typeof relationName !== 'string' ||
       typeof index !== 'string' ||
-      typeof dataType !== 'string' ||
-      typeof isIdentity !== 'boolean' ||
-      typeof isNullable !== 'boolean' ||
-      typeof materializationId !== 'string' ||
-      typeof lineageIds !== 'object' ||
-      typeof comment !== 'string'
+      typeof dataType !== 'string' ||      
+      typeof materializationId !== 'string'
     )
       throw new Error(
         'Retrieved unexpected column field types from persistence'
@@ -70,8 +66,15 @@ export default class ColunRepo implements IColumnRepo {
 
     const isStringArray = (value: unknown): value is string[] =>
       Array.isArray(value) && value.every((el) => typeof el === 'string');
+    const isOptionalOfType = <T>(val: unknown, type: string): val is T =>
+      val === null || typeof val === type;
 
-    if (!isStringArray(lineageIds))
+    if (
+      !isStringArray(lineageIds) ||
+      !isOptionalOfType<boolean>(isIdentity, 'boolean') ||
+      !isOptionalOfType<boolean>(isNullable, 'boolean') ||
+      !isOptionalOfType<string>(comment, 'string')
+    )
       throw new Error(
         'Type mismatch detected when reading column from persistence'
       );
@@ -93,16 +96,15 @@ export default class ColunRepo implements IColumnRepo {
   findOne = async (
     columnId: string,
     auth: Auth,
-    targetOrgId?: string,
+    targetOrgId?: string
   ): Promise<Column | null> => {
     try {
-      
       // using binds to tell snowflake to escape params to avoid sql injection attack
       const binds: (string | number)[] = [columnId];
-      
+
       const queryText = `select * from cito.lineage.${this.#matName}
     } where id = ?;`;
-    
+
       const result = await this.#querySnowflake.execute(
         { queryText, targetOrgId, binds },
         auth
@@ -124,7 +126,7 @@ export default class ColunRepo implements IColumnRepo {
   findBy = async (
     columnQueryDto: ColumnQueryDto,
     auth: Auth,
-    targetOrgId?: string,
+    targetOrgId?: string
   ): Promise<Column[]> => {
     try {
       if (!Object.keys(columnQueryDto).length)
@@ -175,12 +177,12 @@ export default class ColunRepo implements IColumnRepo {
         whereClause = whereClause.concat(
           Array.isArray(columnQueryDto.materializationId)
             ? 'and array_contains(materializationId::variant, array_construct(?))'
-            : 'and materializationId = ? '
+            : 'and materialization_id = ? '
         );
       }
 
       const queryText = `select * from cito.lineage.${this.#matName}
-        } where  ${whereClause};`;
+        where  ${whereClause};`;
 
       const result = await this.#querySnowflake.execute(
         { queryText, targetOrgId, binds },
@@ -189,8 +191,6 @@ export default class ColunRepo implements IColumnRepo {
 
       if (!result.success) throw new Error(result.error);
       if (!result.value) throw new Error('Missing sf query value');
-      if (result.value.length !== 1)
-        throw new Error(`Multiple or no column entities with id found`);
 
       return result.value.map((el) => this.#buildColumn(el));
     } catch (error: unknown) {
@@ -228,8 +228,8 @@ export default class ColunRepo implements IColumnRepo {
     col.relationName,
     col.index,
     col.dataType,
-    col.isIdentity ? col.isIdentity.toString() : 'null',
-    col.isNullable ? col.isNullable.toString() : 'null',
+    col.isIdentity !== undefined ? col.isIdentity.toString() : 'null',
+    col.isNullable !== undefined ? col.isNullable.toString() : 'null',
     col.materializationId,
     JSON.stringify(col.lineageIds),
     col.comment || 'null',
@@ -238,7 +238,7 @@ export default class ColunRepo implements IColumnRepo {
   insertOne = async (
     column: Column,
     auth: Auth,
-    targetOrgId?: string,
+    targetOrgId?: string
   ): Promise<string> => {
     try {
       const binds = this.#getBinds(column);
@@ -268,18 +268,16 @@ export default class ColunRepo implements IColumnRepo {
   insertMany = async (
     columns: Column[],
     auth: Auth,
-    targetOrgId?: string,
+    targetOrgId?: string
   ): Promise<string[]> => {
     try {
       const binds = columns.map((column) => this.#getBinds(column));
 
-      const rows = binds.map((el) => `(${el.map(() => '?').join(', ')})`);
+      const row = `(${this.#colDefinitions.map(() => '?').join(', ')})`;
 
-      const queryText = getInsertQuery(
-        this.#matName,
-        this.#colDefinitions,
-        rows
-      );
+      const queryText = getInsertQuery(this.#matName, this.#colDefinitions, [
+        row,
+      ]);
 
       const result = await this.#querySnowflake.execute(
         { queryText, targetOrgId, binds },
@@ -300,18 +298,16 @@ export default class ColunRepo implements IColumnRepo {
   replaceMany = async (
     columns: Column[],
     auth: Auth,
-    targetOrgId?: string,
+    targetOrgId?: string
   ): Promise<number> => {
     try {
       const binds = columns.map((column) => this.#getBinds(column));
 
-      const rows = binds.map((el) => `(${el.map(() => '?').join(', ')})`);
+      const row = `(${this.#colDefinitions.map(() => '?').join(', ')})`;
 
-      const queryText = getUpdateQuery(
-        this.#matName,
-        this.#colDefinitions,
-        rows
-      );
+      const queryText = getUpdateQuery(this.#matName, this.#colDefinitions, [
+        row,
+      ]);
 
       const result = await this.#querySnowflake.execute(
         { queryText, targetOrgId, binds },

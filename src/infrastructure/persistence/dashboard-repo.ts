@@ -16,14 +16,14 @@ export default class DashboardRepo implements IDashboardRepo {
   readonly #matName = 'dashboards';
 
   readonly #colDefinitions: ColumnDefinition[] = [
-    { name: 'id' },
-    { name: 'name' },
-    { name: 'url' },
-    { name: 'materialization_name' },
-    { name: 'materialization_id' },
-    { name: 'column_name' },
-    { name: 'column_id' },
-    { name: 'lineageIds' },
+    { name: 'id', nullable: false },
+    { name: 'name', nullable: true },
+    { name: 'url', nullable: true },
+    { name: 'materialization_name', nullable: false },
+    { name: 'materialization_id', nullable: false },
+    { name: 'column_name', nullable: false },
+    { name: 'column_id', nullable: false },
+    { name: 'lineage_ids', selectType: 'parse_json', nullable: false },
   ];
 
   readonly #querySnowflake: QuerySnowflake;
@@ -46,13 +46,10 @@ export default class DashboardRepo implements IDashboardRepo {
 
     if (
       typeof id !== 'string' ||
-      typeof name !== 'string' ||
-      typeof url !== 'string' ||
       typeof materializationName !== 'string' ||
       typeof materializationId !== 'string' ||
       typeof columnName !== 'string' ||
-      typeof columnId !== 'string' ||
-      typeof lineageIds !== 'object'
+      typeof columnId !== 'string'
     )
       throw new Error(
         'Retrieved unexpected dashboard field types from persistence'
@@ -60,8 +57,14 @@ export default class DashboardRepo implements IDashboardRepo {
 
     const isStringArray = (value: unknown): value is string[] =>
       Array.isArray(value) && value.every((el) => typeof el === 'string');
+    const isOptionalOfType = <T>(val: unknown, targetType: string): val is T =>
+      val === null || typeof val === targetType;
 
-    if (!isStringArray(lineageIds))
+    if (
+      !isStringArray(lineageIds) ||
+      !isOptionalOfType<string>(name, 'string') ||
+      !isOptionalOfType<string>(url, 'string')
+    )
       throw new Error(
         'Type mismatch detected when reading dashboard from persistence'
       );
@@ -81,7 +84,7 @@ export default class DashboardRepo implements IDashboardRepo {
   findOne = async (
     dashboardId: string,
     auth: Auth,
-    targetOrgId?: string,
+    targetOrgId?: string
   ): Promise<Dashboard | null> => {
     try {
       const queryText = `select * from cito.lineage.${this.#matName}
@@ -113,7 +116,7 @@ export default class DashboardRepo implements IDashboardRepo {
   findBy = async (
     dashboardQueryDto: DashboardQueryDto,
     auth: Auth,
-    targetOrgId?: string,
+    targetOrgId?: string
   ): Promise<Dashboard[]> => {
     try {
       if (!Object.keys(dashboardQueryDto).length)
@@ -149,7 +152,7 @@ export default class DashboardRepo implements IDashboardRepo {
       }
 
       const queryText = `select * from cito.lineage.${this.#matName}
-              } where  ${whereClause};`;
+              where  ${whereClause};`;
 
       const result = await this.#querySnowflake.execute(
         { queryText, targetOrgId, binds },
@@ -158,8 +161,6 @@ export default class DashboardRepo implements IDashboardRepo {
 
       if (!result.success) throw new Error(result.error);
       if (!result.value) throw new Error('Missing sf query value');
-      if (result.value.length !== 1)
-        throw new Error(`Multiple or no dashboard entities with id found`);
 
       return result.value.map((el) => this.#buildDashboard(el));
     } catch (error: unknown) {
@@ -205,7 +206,7 @@ export default class DashboardRepo implements IDashboardRepo {
   insertOne = async (
     dashboard: Dashboard,
     auth: Auth,
-    targetOrgId?: string,
+    targetOrgId?: string
   ): Promise<string> => {
     try {
       const binds = this.#getBinds(dashboard);
@@ -235,18 +236,16 @@ export default class DashboardRepo implements IDashboardRepo {
   insertMany = async (
     dashboards: Dashboard[],
     auth: Auth,
-    targetOrgId?: string,
+    targetOrgId?: string
   ): Promise<string[]> => {
     try {
       const binds = dashboards.map((dashboard) => this.#getBinds(dashboard));
 
-      const rows = binds.map((el) => `(${el.map(() => '?').join(', ')})`);
+      const row = `(${this.#colDefinitions.map(() => '?').join(', ')})`;
 
-      const queryText = getInsertQuery(
-        this.#matName,
-        this.#colDefinitions,
-        rows
-      );
+      const queryText = getInsertQuery(this.#matName, this.#colDefinitions, [
+        row,
+      ]);
 
       const result = await this.#querySnowflake.execute(
         { queryText, targetOrgId, binds },
@@ -267,18 +266,16 @@ export default class DashboardRepo implements IDashboardRepo {
   replaceMany = async (
     dashboards: Dashboard[],
     auth: Auth,
-    targetOrgId?: string,
+    targetOrgId?: string
   ): Promise<number> => {
     try {
       const binds = dashboards.map((dashboard) => this.#getBinds(dashboard));
 
-      const rows = binds.map((el) => `(${el.map(() => '?').join(', ')})`);
+      const row = `(${this.#colDefinitions.map(() => '?').join(', ')})`;
 
-      const queryText = getUpdateQuery(
-        this.#matName,
-        this.#colDefinitions,
-        rows
-      );
+      const queryText = getUpdateQuery(this.#matName, this.#colDefinitions, [
+        row,
+      ]);
 
       const result = await this.#querySnowflake.execute(
         { queryText, targetOrgId, binds },

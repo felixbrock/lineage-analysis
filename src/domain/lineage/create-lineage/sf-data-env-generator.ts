@@ -168,7 +168,7 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
   #getMatRepresentations = async (
     targetDbName: string
   ): Promise<MaterializationRepresentation[]> => {
-    const queryText = `select table_catalog, table_schema, table_name, table_owner, table_type, is_transient, comment  from ${targetDbName}.information_schema.tables where table;`;
+    const queryText = `select table_catalog, table_schema, table_name, table_owner, table_type, is_transient, comment  from ${targetDbName}.information_schema.tables where table_schema != 'INFORMATION_SCHEMA';`;
     const queryResult = await this.#querySnowflake.execute(
       { queryText, binds: [] },
       this.#auth
@@ -273,7 +273,7 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
   #getColumnRepresentations = async (
     targetDbName: string
   ): Promise<ColumnRepresentation[]> => {
-    const queryText = `select table_catalog, table_schema, table_name, column_name, ordinal_position, is_nullable, data_type, is_identity, comment from ${targetDbName}.information_schema.columns`;
+    const queryText = `select table_catalog, table_schema, table_name, column_name, ordinal_position, is_nullable, data_type, is_identity, comment from ${targetDbName}.information_schema.columns where table_schema != 'INFORMATION_SCHEMA'`;
     const queryResult = await this.#querySnowflake.execute(
       { queryText, binds: [] },
       this.#auth

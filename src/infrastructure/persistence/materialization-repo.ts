@@ -20,17 +20,17 @@ export default class MaterializationRepo implements IMaterializationRepo {
   readonly #matName = 'materializations';
 
   readonly #colDefinitions: ColumnDefinition[] = [
-    { name: 'id' },
-    { name: 'name' },
-    { name: 'schema_name' },
-    { name: 'database_name' },
-    { name: 'relation_name' },
-    { name: 'type' },
-    { name: 'isTransient' },
-    { name: 'logicId' },
-    { name: 'ownerId' },
-    { name: 'lineageIds' },
-    { name: 'comment' },
+    { name: 'id', nullable: false },
+    { name: 'name', nullable: false },
+    { name: 'schema_name', nullable: false },
+    { name: 'database_name', nullable: false },
+    { name: 'relation_name', nullable: false },
+    { name: 'type', nullable: false },
+    { name: 'is_transient', nullable: true },
+    { name: 'logic_id', nullable: true },
+    { name: 'owner_id', nullable: true },
+    { name: 'lineage_ids', selectType: 'parse_json', nullable: false },
+    { name: 'comment', nullable: true },
   ];
 
   readonly #querySnowflake: QuerySnowflake;
@@ -60,12 +60,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
       typeof schemaName !== 'string' ||
       typeof databaseName !== 'string' ||
       typeof relationName !== 'string' ||
-      typeof type !== 'string' ||
-      typeof isTransient !== 'boolean' ||
-      typeof logicId !== 'string' ||
-      typeof ownerId !== 'string' ||
-      typeof lineageIds !== 'object' ||
-      typeof comment !== 'string'
+      typeof type !== 'string'
     )
       throw new Error(
         'Retrieved unexpected materialization field types from persistence'
@@ -73,8 +68,16 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
     const isStringArray = (value: unknown): value is string[] =>
       Array.isArray(value) && value.every((el) => typeof el === 'string');
+    const isOptionalOfType = <T>(val: unknown, targetType: string): val is T =>
+      val === null || typeof val === targetType;
 
-    if (!isStringArray(lineageIds))
+    if (
+      !isStringArray(lineageIds) ||
+      !isOptionalOfType<boolean>(isTransient, 'boolean') ||
+      !isOptionalOfType<string>(logicId, 'string') ||
+      !isOptionalOfType<string>(ownerId, 'string') ||
+      !isOptionalOfType<string>(comment, 'string')
+    )
       throw new Error(
         'Type mismatch detected when reading materialization from persistence'
       );
@@ -175,7 +178,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
       }
 
       const queryText = `select * from cito.lineage.${this.#matName}
-          } where  ${whereClause};`;
+          where  ${whereClause};`;
 
       const result = await this.#querySnowflake.execute(
         { queryText, targetOrgId, binds },
@@ -184,10 +187,6 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
       if (!result.success) throw new Error(result.error);
       if (!result.value) throw new Error('Missing sf query value');
-      if (result.value.length !== 1)
-        throw new Error(
-          `Multiple or no materialization entities with id found`
-        );
 
       return result.value.map((el) => this.#buildMaterialization(el));
     } catch (error: unknown) {
@@ -231,7 +230,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
     el.databaseName,
     el.relationName,
     el.type,
-    el.isTransient ? el.isTransient.toString() : 'null',
+    el.isTransient !== undefined ? el.isTransient.toString() : 'null',
     el.logicId || 'null',
     el.ownerId || 'null',
     JSON.stringify(el.lineageIds),
@@ -278,13 +277,11 @@ export default class MaterializationRepo implements IMaterializationRepo {
         this.#getBinds(materialization)
       );
 
-      const rows = binds.map((el) => `(${el.map(() => '?').join(', ')})`);
+      const row = `(${this.#colDefinitions.map(() => '?').join(', ')})`;
 
-      const queryText = getInsertQuery(
-        this.#matName,
-        this.#colDefinitions,
-        rows
-      );
+      const queryText = getInsertQuery(this.#matName, this.#colDefinitions, [
+        row,
+      ]);
 
       const result = await this.#querySnowflake.execute(
         { queryText, targetOrgId, binds },
@@ -312,13 +309,11 @@ export default class MaterializationRepo implements IMaterializationRepo {
         this.#getBinds(materialization)
       );
 
-      const rows = binds.map((el) => `(${el.map(() => '?').join(', ')})`);
+      const row = `(${this.#colDefinitions.map(() => '?').join(', ')})`;
 
-      const queryText = getUpdateQuery(
-        this.#matName,
-        this.#colDefinitions,
-        rows
-      );
+      const queryText = getUpdateQuery(this.#matName, this.#colDefinitions, [
+        row,
+      ]);
 
       const result = await this.#querySnowflake.execute(
         { queryText, targetOrgId, binds },

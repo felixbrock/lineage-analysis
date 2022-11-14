@@ -15,33 +15,37 @@ import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo
 export default class LineageRepo implements ILineageRepo {
   readonly #matName = 'lineage_snapshots';
 
+  readonly #colDefinition : ColumnDefinition[] = [
+    { name: 'id', nullable: false },
+    { name: 'created_at', nullable: false },
+    { name: 'completed', nullable: false },
+  ];
+
   readonly #querySnowflake: QuerySnowflake;
 
   constructor(querySnowflake: QuerySnowflake) {
     this.#querySnowflake = querySnowflake;
   }
 
-  #buildLineage = (sfEntity: SnowflakeEntity): Lineage => {const {
-    ID: id,
-    COMPLETED: completed,
-    CREATED_AT: createdAt,
-  } = sfEntity;
+  #buildLineage = (sfEntity: SnowflakeEntity): Lineage => {
+    const { ID: id, COMPLETED: completed, CREATED_AT: createdAt } = sfEntity;
 
-  if (
-    typeof id !== 'string' ||
-    typeof completed !== 'boolean' ||
-    typeof createdAt !== 'string'
-  )
-    throw new Error(
-      'Retrieved unexpected lineage field types from persistence'
-    );
+    if (
+      typeof id !== 'string' ||
+      typeof completed !== 'boolean' ||
+      typeof createdAt !== 'string'
+    )
+      throw new Error(
+        'Retrieved unexpected lineage field types from persistence'
+      );
 
-  return this.#toEntity({ id, completed, createdAt });};
+    return this.#toEntity({ id, completed, createdAt });
+  };
 
   findOne = async (
     lineageId: string,
     auth: Auth,
-    targetOrgId?: string,
+    targetOrgId?: string
   ): Promise<Lineage | null> => {
     try {
       const queryText = `select * from cito.lineage.${this.#matName}
@@ -71,12 +75,12 @@ export default class LineageRepo implements ILineageRepo {
   findLatest = async (
     filter: { completed: boolean },
     auth: Auth,
-    targetOrgId?: string,
+    targetOrgId?: string
   ): Promise<Lineage | null> => {
     try {
       const queryText = `select * from cito.lineage.${
         this.#matName
-      } where completed = ? order by executed_at desc limit 1;`;
+      } where completed = ? order by created_at desc limit 1;`;
 
       const binds = [filter.completed.toString()];
 
@@ -87,8 +91,10 @@ export default class LineageRepo implements ILineageRepo {
 
       if (!result.success) throw new Error(result.error);
       if (!result.value) throw new Error('Missing sf query value');
-      if (result.value.length !== 1)
-        throw new Error(`Multiple or no lineage entities with id found`);
+      if (result.value.length > 1)
+        throw new Error(`Multiple lineage entities with id found`);
+
+      if (!result.value.length) return null;
 
       const {
         ID: id,
@@ -113,10 +119,7 @@ export default class LineageRepo implements ILineageRepo {
     }
   };
 
-  all = async (
-    auth: Auth,
-    targetOrgId?: string, 
-    ): Promise<Lineage[]> => {
+  all = async (auth: Auth, targetOrgId?: string): Promise<Lineage[]> => {
     try {
       const queryText = `select * from cito.lineage.${this.#matName};`;
 
@@ -152,19 +155,15 @@ export default class LineageRepo implements ILineageRepo {
   insertOne = async (
     lineage: Lineage,
     auth: Auth,
-    targetOrgId?: string,
+    targetOrgId?: string
   ): Promise<string> => {
-    const colDefinitions: ColumnDefinition[] = [
-      { name: 'id' },
-      { name: 'created_at' },
-      { name: 'completed' },
-    ];
+
 
     const row = `(?, ?, ?)`;
     const binds = [lineage.id, lineage.createdAt, lineage.completed.toString()];
 
     try {
-      const queryText = getInsertQuery(this.#matName, colDefinitions, [row]);
+      const queryText = getInsertQuery(this.#matName, this.#colDefinition, [row]);
 
       const result = await this.#querySnowflake.execute(
         { queryText, targetOrgId, binds },
@@ -186,13 +185,18 @@ export default class LineageRepo implements ILineageRepo {
     lineageId: string,
     updateDto: LineageUpdateDto,
     auth: Auth,
-    targetOrgId?: string,
+    targetOrgId?: string
   ): Promise<string> => {
-    const colDefinitions: ColumnDefinition[] = [{ name: 'id' }];
+    const idDef = this.#colDefinition.find(el => el.name === 'id');
+    if(!idDef) throw new Error('Missing col definition');
+
+    const colDefinitions: ColumnDefinition[] = [idDef];
     const binds = [lineageId];
 
     if (updateDto.completed) {
-      colDefinitions.push({ name: 'completed' });
+      const completedDef = this.#colDefinition.find(el => el.name === 'completed');
+    if(!completedDef) throw new Error('Missing col definition');
+      colDefinitions.push(completedDef);
       binds.push(updateDto.completed.toString());
     }
 

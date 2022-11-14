@@ -91,11 +91,15 @@ export class QuerySnowflake
         }
       );
 
+      const stringifiedBinds = JSON.stringify(request.binds);
+
       const queryResultBaseMsg = `AcccountId: ${
         profile.accountId
       } \nOrganizationId: ${
         profile.organizationId
-      } \n Binds: ${JSON.stringify(request.binds)}
+      } \n Binds: ${stringifiedBinds.substring(0, 1000)}${
+        stringifiedBinds.length > 1000 ? '...' : ''
+      }
       \n${request.queryText.substring(0, 1000)}${
         request.queryText.length > 1000 ? '...' : ''
       }`;
