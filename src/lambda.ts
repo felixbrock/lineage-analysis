@@ -48,7 +48,6 @@ const internalInvoke = async (
   const createLineageController = new InternalInvokeCreateLineageController(
     iocRegister.resolve('createLineage'),
     iocRegister.resolve('getAccounts'),
-    iocRegister.resolve('dbo')
   );
 
   switch (internalInvokeType) {
@@ -56,16 +55,16 @@ const internalInvoke = async (
       if (
         !event.req.catalog ||
         !event.req.manifest ||
-        !event.req.targetOrganizationId
+        !event.req.targetOrgId
       )
         throw new Error(
           `Cannot invoke ${internalInvokeType}. Missing req params.`
         );
 
       const req: CreateLineageRequestDto = {
-        catalog: event.req.catalog,
-        manifest: event.req.manifest,
-        targetOrganizationId: event.req.targetOrganizationId,
+        dbtCatalog: event.req.catalog,
+        dbtManifest: event.req.manifest,
+        targetOrgId: event.req.targetOrgId,
         biType: event.req.biType,
       };
 

@@ -1,4 +1,4 @@
-export interface DashboardProperties {
+export interface DashboardProps {
   id: string;
   url?: string;
   name?: string;
@@ -7,7 +7,6 @@ export interface DashboardProperties {
   lineageIds: string[];
   columnId: string;
   materializationId: string;
-  organizationId: string;
 }
 
 export interface DashboardPrototype {
@@ -19,10 +18,9 @@ export interface DashboardPrototype {
   lineageId: string;
   columnId: string;
   materializationId: string;
-  organizationId: string;
 }
 
-type DashboardDto = DashboardProperties;
+type DashboardDto = DashboardProps;
 
 export class Dashboard {
   #url?: string;
@@ -41,7 +39,6 @@ export class Dashboard {
 
   #lineageIds: string[];
 
-  #organizationId: string;
 
   get url(): string | undefined {
     return this.#url;
@@ -75,11 +72,8 @@ export class Dashboard {
     return this.#materializationId;
   }
 
-  get organizationId(): string {
-    return this.#organizationId;
-  }
 
-  private constructor(properties: DashboardProperties) {
+  private constructor(properties: DashboardProps) {
     this.#url = properties.url;
     this.#name = properties.name;
     this.#materializationName = properties.materializationName;
@@ -88,7 +82,6 @@ export class Dashboard {
     this.#lineageIds = properties.lineageIds;
     this.#columnId = properties.columnId;
     this.#materializationId = properties.materializationId;
-    this.#organizationId = properties.organizationId;
   }
 
   static create = (prototype: DashboardPrototype): Dashboard => {
@@ -103,8 +96,6 @@ export class Dashboard {
       throw new TypeError('Dashboard must have columnId');
     if (!prototype.materializationId)
       throw new TypeError('Dashboard must have materializationId');
-    if (!prototype.organizationId)
-      throw new TypeError('Dashboard must have organizationId');
 
     const dashboard = new Dashboard({
       ...prototype,
@@ -114,7 +105,7 @@ export class Dashboard {
     return dashboard;
   };
 
-  static build = (props: DashboardProperties): Dashboard => {
+  static build = (props: DashboardProps): Dashboard => {
     if (!props.materializationName)
       throw new TypeError('Dashboard must have materialisation');
     if (!props.columnName) throw new TypeError('Dashboard must have column');
@@ -124,8 +115,6 @@ export class Dashboard {
     if (!props.columnId) throw new TypeError('Dashboard must have columnId');
     if (!props.materializationId)
       throw new TypeError('Dashboard must have materializationId');
-    if (!props.organizationId)
-      throw new TypeError('Dashboard must have organizationId');
 
     return new Dashboard(props);
   };
@@ -139,6 +128,5 @@ export class Dashboard {
     lineageIds: this.#lineageIds,
     columnId: this.#columnId,
     materializationId: this.#materializationId,
-    organizationId: this.#organizationId,
   });
 }

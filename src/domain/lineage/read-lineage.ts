@@ -2,30 +2,26 @@ import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { ILineageRepo } from './i-lineage-repo';
 import { Lineage } from '../entities/lineage';
-import { DbConnection } from '../services/i-db';
+import {} from '../services/i-db';
 
 export interface ReadLineageRequestDto {
   id?: string;
+  targetOrgId?: string;
 }
 
 export interface ReadLineageAuthDto {
-  callerOrganizationId: string;
+  callerOrgId?: string;
+  isSystemInternal: boolean;
+  jwt: string;
 }
 
 export type ReadLineageResponseDto = Result<Lineage>;
 
 export class ReadLineage
   implements
-    IUseCase<
-      ReadLineageRequestDto,
-      ReadLineageResponseDto,
-      ReadLineageAuthDto,
-      DbConnection
-    >
+    IUseCase<ReadLineageRequestDto, ReadLineageResponseDto, ReadLineageAuthDto>
 {
   readonly #lineageRepo: ILineageRepo;
-
-  #dbConnection: DbConnection;
 
   constructor(lineageRepo: ILineageRepo) {
     this.#lineageRepo = lineageRepo;
@@ -33,24 +29,22 @@ export class ReadLineage
 
   async execute(
     request: ReadLineageRequestDto,
-    auth: ReadLineageAuthDto,
-    dbConnection: DbConnection
+    auth: ReadLineageAuthDto
   ): Promise<ReadLineageResponseDto> {
     try {
-      this.#dbConnection = dbConnection;
-
       const lineage = request.id
-        ? await this.#lineageRepo.findOne(this.#dbConnection, request.id)
-        : await this.#lineageRepo.findLatest(this.#dbConnection, {
-            organizationId: auth.callerOrganizationId, completed: true
-          });
+        ? await this.#lineageRepo.findOne(request.id, auth, request.targetOrgId)
+        : await this.#lineageRepo.findLatest(
+            {
+              completed: true,
+            },
+            auth,
+            request.targetOrgId
+          );
       if (!lineage)
         throw new Error(
-          `No lineage found for organization ${auth.callerOrganizationId}`
+          `No lineage found for organization ${auth.callerOrgId}`
         );
-
-      if (lineage.organizationId !== auth.callerOrganizationId)
-        throw new Error('Not authorized to perform action');
 
       return Result.ok(lineage);
     } catch (error: unknown) {

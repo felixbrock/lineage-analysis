@@ -8,7 +8,6 @@ import {
   ReadColumnsResponseDto,
 } from '../../../domain/column/read-columns';
 import Result from '../../../domain/value-types/transient-types/result';
-import Dbo from '../../persistence/db/mongo-db';
 
 import {
   BaseController,
@@ -21,18 +20,22 @@ export default class ReadColumnsController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  readonly #dbo: Dbo;
-
-  constructor(readColumns: ReadColumns, getAccounts: GetAccounts, dbo: Dbo) {
+  constructor(readColumns: ReadColumns, getAccounts: GetAccounts) {
     super();
     this.#readColumns = readColumns;
     this.#getAccounts = getAccounts;
-    this.#dbo = dbo;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadColumnsRequestDto => {
-    const { relationName, name, index, type, materializationId, lineageId, targetOrganizationId } =
-      httpRequest.query;
+    const {
+      relationName,
+      name,
+      index,
+      type,
+      materializationId,
+      lineageId,
+      targetOrgId,
+    } = httpRequest.query;
 
     if (!lineageId)
       throw new TypeError(
@@ -51,14 +54,18 @@ export default class ReadColumnsController extends BaseController {
       materializationId:
         typeof materializationId === 'string' ? materializationId : undefined,
       lineageId,
-      targetOrganizationId: typeof targetOrganizationId === 'string' ? targetOrganizationId : undefined,
+      targetOrgId: typeof targetOrgId === 'string' ? targetOrgId : undefined,
     };
   };
 
-  #buildAuthDto = (userAccountInfo: UserAccountInfo): ReadColumnsAuthDto => ({
-      callerOrganizationId: userAccountInfo.callerOrganizationId,
-      isSystemInternal: userAccountInfo.isSystemInternal,
-    });
+  #buildAuthDto = (
+    userAccountInfo: UserAccountInfo,
+    jwt: string
+  ): ReadColumnsAuthDto => ({
+    callerOrgId: userAccountInfo.callerOrgId,
+    isSystemInternal: userAccountInfo.isSystemInternal,
+    jwt,
+  });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {
@@ -81,14 +88,10 @@ export default class ReadColumnsController extends BaseController {
         throw new ReferenceError('Authorization failed');
 
       const requestDto: ReadColumnsRequestDto = this.#buildRequestDto(req);
-      const authDto = this.#buildAuthDto(getUserAccountInfoResult.value);
+      const authDto = this.#buildAuthDto(getUserAccountInfoResult.value, jwt);
 
       const useCaseResult: ReadColumnsResponseDto =
-        await this.#readColumns.execute(
-          requestDto,
-          authDto,
-          this.#dbo.dbConnection
-        );
+        await this.#readColumns.execute(requestDto, authDto);
 
       if (!useCaseResult.success) {
         return ReadColumnsController.badRequest(res);
@@ -102,7 +105,10 @@ export default class ReadColumnsController extends BaseController {
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      return ReadColumnsController.fail(res, 'Internal error occurred while reading columns');
+      return ReadColumnsController.fail(
+        res,
+        'Internal error occurred while reading columns'
+      );
     }
   }
 }

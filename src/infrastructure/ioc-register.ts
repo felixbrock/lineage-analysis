@@ -21,13 +21,15 @@ import DependencyRepo from './persistence/dependency-repo';
 import { CreateDependency } from '../domain/dependency/create-dependency';
 import { ReadLineage } from '../domain/lineage/read-lineage';
 import { ReadLogic } from '../domain/logic/read-logic';
-import Dbo from './persistence/db/mongo-db';
-import { QuerySnowflakeHistory } from '../domain/query-snowflake-history-api/query-snowflake-history';
-import QuerySnowflakeHistoryApiRepo from './persistence/query-snowflake-history-repo';
+import { QuerySfQueryHistory } from '../domain/snowflake-api/query-snowflake-history';
 import { CreateExternalDependency } from '../domain/dependency/create-external-dependency';
 import DashboardRepo from './persistence/dashboard-repo';
 import { ReadDashboards } from '../domain/dashboard/read-dashboards';
 import { CreateDashboard } from '../domain/dashboard/create-dashboard';
+import SnowflakeApiRepo from './persistence/snowflake-api-repo';
+import IntegrationApiRepo from './persistence/integration-api-repo';
+import { QuerySnowflake } from '../domain/snowflake-api/query-snowflake';
+import { GetSnowflakeProfile } from '../domain/integration-api/get-snowflake-profile';
 
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
@@ -51,8 +53,10 @@ iocRegister.register({
   readDashboards: asClass(ReadDashboards),
 
   parseSQL: asClass(ParseSQL),
+  querySnowflake: asClass(QuerySnowflake),
+  getSnowflakeProfile: asClass(GetSnowflakeProfile),
   getAccounts: asClass(GetAccounts),
-  querySnowflakeHistory: asClass(QuerySnowflakeHistory),
+  querySfQueryHistory: asClass(QuerySfQueryHistory),
 
   logicRepo: asClass(LogicRepo),
   materializationRepo: asClass(MaterializationRepo),
@@ -63,9 +67,8 @@ iocRegister.register({
 
   accountApiRepo: asClass(AccountApiRepo),
   sqlParserApiRepo: asClass(SQLParserApiRepo),
-  queryHistoryApiRepo: asClass(QuerySnowflakeHistoryApiRepo),
-
-  dbo: asClass(Dbo).singleton()
+  integrationApiRepo: asClass(IntegrationApiRepo),
+  snowflakeApiRepo: asClass(SnowflakeApiRepo),
 });
 
 export default iocRegister;

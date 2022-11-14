@@ -1,131 +1,97 @@
 // todo clean architecture violation
-import { ObjectId } from 'mongodb';
+
+import { v4 as uuidv4 } from 'uuid';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import {
-  CatalogModelData,
+  ModelRepresentation,
   Logic,
   MaterializationDefinition,
 } from '../entities/logic';
 import { ILogicRepo } from './i-logic-repo';
 import { ReadLogics } from './read-logics';
-import { DbConnection } from '../services/i-db';
+import {} from '../services/i-db';
 
-export interface CreateLogicRequestDto {
-  relationName: string;
-  modelName: string;
-  sql: string;
+interface DbtRequestProps {
   dbtDependentOn: MaterializationDefinition[];
+}
+
+interface GeneralRequestProps {
+  relationName: string;
+  sql: string;
   parsedLogic: string;
   lineageId: string;
-  writeToPersistence: boolean;
-  targetOrganizationId?: string;
-  catalogFile: string;
+  catalog: ModelRepresentation[];
+  targetOrgId?: string;
+}
+
+export interface CreateLogicRequestDto {
+  props: {
+    generalProps: GeneralRequestProps;
+    dbtProps?: DbtRequestProps;
+  };
+  options: {
+    writeToPersistence: boolean;
+  };
 }
 
 export interface CreateLogicAuthDto {
   isSystemInternal: boolean;
-  callerOrganizationId?: string;
+  callerOrgId?: string;
+  jwt: string;
 }
 
 export type CreateLogicResponse = Result<Logic>;
 
 export class CreateLogic
   implements
-    IUseCase<
-      CreateLogicRequestDto,
-      CreateLogicResponse,
-      CreateLogicAuthDto,
-      DbConnection
-    >
+    IUseCase<CreateLogicRequestDto, CreateLogicResponse, CreateLogicAuthDto>
 {
   readonly #readLogics: ReadLogics;
 
   readonly #logicRepo: ILogicRepo;
-
-  #dbConnection: DbConnection;
 
   constructor(readLogics: ReadLogics, logicRepo: ILogicRepo) {
     this.#readLogics = readLogics;
     this.#logicRepo = logicRepo;
   }
 
-  #getTablesAndCols = (catalogFile: string): CatalogModelData[] => {
-    const data = catalogFile;
-
-    const catalog = JSON.parse(data);
-    const catalogNodes = catalog.nodes;
-
-    const result: CatalogModelData[] = [];
-
-    Object.entries(catalogNodes).forEach((entry) => {
-      const [modelName, body]: [string, any] = entry;
-      const { metadata, columns } = body;
-
-      const { name } = metadata;
-      const columnNames = Object.keys(columns);
-
-      const modelData: CatalogModelData = {
-        modelName,
-        materializationName: name,
-        columnNames,
-      };
-
-      result.push(modelData);
-    });
-
-    return result;
-  };
-
   async execute(
     request: CreateLogicRequestDto,
-    auth: CreateLogicAuthDto,
-    dbConnection: DbConnection
+    auth: CreateLogicAuthDto
   ): Promise<CreateLogicResponse> {
+    const { dbtProps, generalProps: commonProps } = request.props;
+
     try {
-      if (auth.isSystemInternal && !request.targetOrganizationId)
+      if (auth.isSystemInternal && !commonProps.targetOrgId)
         throw new Error('Target organization id missing');
-      if (!auth.isSystemInternal && !auth.callerOrganizationId)
+      if (!auth.isSystemInternal && !auth.callerOrgId)
         throw new Error('Caller organization id missing');
-      if (!request.targetOrganizationId && !auth.callerOrganizationId)
+      if (!commonProps.targetOrgId && !auth.callerOrgId)
         throw new Error('No organization Id instance provided');
-      if (request.targetOrganizationId && auth.callerOrganizationId)
+      if (commonProps.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
-      let organizationId: string;
-      if (auth.isSystemInternal && request.targetOrganizationId)
-        organizationId = request.targetOrganizationId;
-      else if (!auth.isSystemInternal && auth.callerOrganizationId)
-        organizationId = auth.callerOrganizationId;
-      else throw new Error('Unhandled organization id declaration');
-
-      this.#dbConnection = dbConnection;
-
-      const catalog = this.#getTablesAndCols(request.catalogFile);
-
       const logic = Logic.create({
-        id: new ObjectId().toHexString(),
-        relationName: request.relationName,
-        modelName: request.modelName,
-        sql: request.sql,
-        dbtDependentOn: request.dbtDependentOn,
-        parsedLogic: request.parsedLogic,
-        lineageId: request.lineageId,
-        organizationId,
-        catalog,
+        generalProps: {
+          id: uuidv4(),
+          relationName: commonProps.relationName,
+
+          sql: commonProps.sql,
+          parsedLogic: commonProps.parsedLogic,
+          lineageId: commonProps.lineageId,
+          catalog: commonProps.catalog,
+        },
+        dbtProps,
       });
 
       const readLogicsResult = await this.#readLogics.execute(
         {
-          relationName: request.relationName,
-          lineageId: request.lineageId,
-          targetOrganizationId: request.targetOrganizationId,
+          relationName: commonProps.relationName,
+          lineageId: commonProps.lineageId,
+          targetOrgId: commonProps.targetOrgId,
         },
-        {
-          isSystemInternal: auth.isSystemInternal,
-          callerOrganizationId: auth.callerOrganizationId,
-        },
-        this.#dbConnection
+        auth
       );
 
       if (!readLogicsResult.success) throw new Error(readLogicsResult.error);
@@ -133,8 +99,12 @@ export class CreateLogic
       if (readLogicsResult.value.length)
         throw new ReferenceError('Logic to be created already exists');
 
-      if (request.writeToPersistence)
-        await this.#logicRepo.insertOne(logic, dbConnection);
+      if (request.options.writeToPersistence)
+        await this.#logicRepo.insertOne(
+          logic,
+          auth,
+          request.props.generalProps.targetOrgId
+        );
 
       return Result.ok(logic);
     } catch (error: unknown) {

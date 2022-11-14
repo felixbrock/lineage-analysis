@@ -1,5 +1,5 @@
 // todo clean architecture violation
-import { ObjectId } from 'mongodb';
+import { v4 as uuidv4 } from 'uuid';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { Dependency } from '../entities/dependency';
@@ -8,8 +8,7 @@ import { ReadDependencies } from './read-dependencies';
 import { ColumnRef } from '../entities/logic';
 import { ReadColumns } from '../column/read-columns';
 import { Column } from '../entities/column';
-import { DbConnection } from '../services/i-db';
-
+import {} from '../services/i-db';
 
 export interface CreateDependencyRequestDto {
   dependencyRef: ColumnRef;
@@ -17,12 +16,13 @@ export interface CreateDependencyRequestDto {
   parentRelationNames: string[];
   lineageId: string;
   writeToPersistence: boolean;
-  targetOrganizationId?: string;
+  targetOrgId?: string;
 }
 
 export interface CreateDependencyAuthDto {
   isSystemInternal: boolean;
-  callerOrganizationId?: string;
+  callerOrgId?: string;
+  jwt: string;
 }
 
 export type CreateDependencyResponse = Result<Dependency>;
@@ -32,8 +32,7 @@ export class CreateDependency
     IUseCase<
       CreateDependencyRequestDto,
       CreateDependencyResponse,
-      CreateDependencyAuthDto,
-      DbConnection
+      CreateDependencyAuthDto
     >
 {
   readonly #readColumns: ReadColumns;
@@ -42,26 +41,26 @@ export class CreateDependency
 
   readonly #dependencyRepo: IDependencyRepo;
 
-  #dbConnection: DbConnection;
+  #auth?: CreateDependencyAuthDto;
+
+  #targetOrgId?: string;
 
   /* Returns the object id of the parent column which self column depends upon */
   #getParentId = async (
     dependencyRef: ColumnRef,
     parentRelationNames: string[],
-    lineageId: string,
-    isSystemInternal: boolean,
-    targetOrganizationId?: string,
-    callerOrganizationId?: string
+    lineageId: string
   ): Promise<string> => {
+    if (!this.#auth) throw new Error('auth missing');
+
     const readColumnsResult = await this.#readColumns.execute(
       {
         relationName: parentRelationNames,
         name: dependencyRef.name,
         lineageId,
-        targetOrganizationId,
+        targetOrgId: this.#targetOrgId,
       },
-      { callerOrganizationId, isSystemInternal },
-      this.#dbConnection
+      this.#auth
     );
 
     if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
@@ -88,23 +87,18 @@ export class CreateDependency
   #getSelfColumn = async (
     selfRelationName: string,
     dependencyRef: ColumnRef,
-    lineageId: string,
-    isSystemInternal: boolean,
-    targetOrganizationId?: string,
-    callerOrganizationId?: string
+    lineageId: string
   ): Promise<Column> => {
+    if (!this.#auth) throw new Error('auth missing');
+
     const readSelfColumnResult = await this.#readColumns.execute(
       {
         relationName: selfRelationName,
         lineageId,
         name: dependencyRef.alias || dependencyRef.name,
-        targetOrganizationId,
+        targetOrgId: this.#targetOrgId,
       },
-      {
-        callerOrganizationId,
-        isSystemInternal,
-      },
-      this.#dbConnection
+      this.#auth
     );
 
     if (!readSelfColumnResult.success)
@@ -146,28 +140,25 @@ export class CreateDependency
 
   async execute(
     request: CreateDependencyRequestDto,
-    auth: CreateDependencyAuthDto,
-    dbConnection: DbConnection
+    auth: CreateDependencyAuthDto
   ): Promise<CreateDependencyResponse> {
     try {
-      if (auth.isSystemInternal && !request.targetOrganizationId)
+      if (auth.isSystemInternal && !request.targetOrgId)
         throw new Error('Target organization id missing');
-      if (!auth.isSystemInternal && !auth.callerOrganizationId)
+      if (!auth.isSystemInternal && !auth.callerOrgId)
         throw new Error('Caller organization id missing');
-      if (!request.targetOrganizationId && !auth.callerOrganizationId)
+      if (!request.targetOrgId && !auth.callerOrgId)
         throw new Error('No organization Id instance provided');
-      if (request.targetOrganizationId && auth.callerOrganizationId)
+      if (request.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
-      this.#dbConnection = dbConnection;
+      this.#auth = auth;
+      this.#targetOrgId = request.targetOrgId;
 
       const headColumn = await this.#getSelfColumn(
         request.selfRelationName,
         request.dependencyRef,
-        request.lineageId,
-        auth.isSystemInternal,
-        request.targetOrganizationId,
-        auth.callerOrganizationId
+        request.lineageId
       );
 
       // const parentName =
@@ -178,26 +169,15 @@ export class CreateDependency
       const parentId = await this.#getParentId(
         request.dependencyRef,
         request.parentRelationNames,
-        request.lineageId,
-        auth.isSystemInternal,
-        request.targetOrganizationId,
-        auth.callerOrganizationId
+        request.lineageId
       );
 
-      let organizationId: string;
-      if (auth.isSystemInternal && request.targetOrganizationId)
-        organizationId = request.targetOrganizationId;
-      else if (!auth.isSystemInternal && auth.callerOrganizationId)
-        organizationId = auth.callerOrganizationId;
-      else throw new Error('Unhandled organization id declaration');
-      
       const dependency = Dependency.create({
-        id: new ObjectId().toHexString(),
+        id: uuidv4(),
         type: request.dependencyRef.dependencyType,
         headId: headColumn.id,
         tailId: parentId,
         lineageId: request.lineageId,
-        organizationId,
       });
 
       const readDependencyResult = await this.#readDependencies.execute(
@@ -206,13 +186,9 @@ export class CreateDependency
           headId: headColumn.id,
           tailId: parentId,
           lineageId: request.lineageId,
-          targetOrganizationId: request.targetOrganizationId,
+          targetOrgId: request.targetOrgId,
         },
-        {
-          isSystemInternal: auth.isSystemInternal,
-          callerOrganizationId: auth.callerOrganizationId,
-        },
-        dbConnection
+        auth
       );
 
       if (!readDependencyResult.success)
@@ -225,13 +201,19 @@ export class CreateDependency
         );
 
       if (request.writeToPersistence)
-        await this.#dependencyRepo.insertOne(dependency, this.#dbConnection);
+        await this.#dependencyRepo.insertOne(
+          dependency,
+          auth,
+          request.targetOrgId
+        );
 
       return Result.ok(dependency);
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      console.warn('todo - fix. Creating dependency failed. Empty Result returned instead');
+      console.warn(
+        'todo - fix. Creating dependency failed. Empty Result returned instead'
+      );
       // return Result.fail('');
       return Result.ok();
     }

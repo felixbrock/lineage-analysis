@@ -1,4 +1,4 @@
-import { ObjectId } from 'mongodb';
+import { v4 as uuidv4 } from 'uuid';
 import { ReadColumns } from '../../column/read-columns';
 import { CreateDashboard } from '../../dashboard/create-dashboard';
 import {
@@ -13,22 +13,22 @@ import {
   ColumnRef,
   DashboardRef,
   Logic,
-  MaterializationDefinition,
+  ModelRepresentation,
   Refs,
 } from '../../entities/logic';
 import { Materialization } from '../../entities/materialization';
-import { QueryHistoryDto } from '../../query-snowflake-history-api/query-history-dto';
 import {
-  QueryHistoryResponseDto,
-  QuerySnowflakeHistory,
-} from '../../query-snowflake-history-api/query-snowflake-history';
-import { DbConnection } from '../../services/i-db';
+  QuerySfQueryHistory,
+  QuerySfQueryHistoryResponseDto,
+} from '../../snowflake-api/query-snowflake-history';
+import {  } from '../../services/i-db';
 import { BiType } from '../../value-types/bilayer';
 import SQLElement from '../../value-types/sql-element';
+import { SnowflakeQueryResult } from '../../snowflake-api/i-snowflake-api-repo';
 
 interface Auth {
   jwt: string;
-  callerOrganizationId?: string;
+  callerOrgId?: string;
   isSystemInternal: boolean;
 }
 
@@ -46,17 +46,13 @@ export default class DependenciesBuilder {
 
   readonly #readColumns: ReadColumns;
 
-  readonly #querySnowflakeHistory: QuerySnowflakeHistory;
+  readonly #querySfQueryHistory: QuerySfQueryHistory;
 
   readonly #auth: Auth;
 
-  readonly #dbConnection: DbConnection;
-
   readonly #lineageId: string;
 
-  readonly #targetOrganizationId?: string;
-
-  readonly #organizationId: string;
+  readonly #targetOrgId?: string;
 
   readonly #logics: Logic[];
 
@@ -64,7 +60,7 @@ export default class DependenciesBuilder {
 
   readonly #columns: Column[];
 
-  readonly #matDefinitions: MaterializationDefinition[];
+  readonly #catalog: ModelRepresentation[];
 
   #dependencies: Dependency[] = [];
 
@@ -81,82 +77,84 @@ export default class DependenciesBuilder {
   constructor(
     props: {
       lineageId: string;
-      targetOrganizationId?: string;
+      targetOrgId?: string;
       organizationId: string;
       logics: Logic[];
       mats: Materialization[];
       columns: Column[];
-      matDefinitions: MaterializationDefinition[];
+      catalog: ModelRepresentation[];
     },
     auth: Auth,
-    dbConnection: DbConnection,
     dependencies: {
       createDashboard: CreateDashboard;
       createDependency: CreateDependency;
       createExternalDependency: CreateExternalDependency;
       readColumns: ReadColumns;
-      querySnowflakeHistory: QuerySnowflakeHistory;
+      querySfQueryHistory: QuerySfQueryHistory;
     }
   ) {
     this.#createDashboard = dependencies.createDashboard;
     this.#createDependency = dependencies.createDependency;
     this.#createExternalDependency = dependencies.createExternalDependency;
     this.#readColumns = dependencies.readColumns;
-    this.#querySnowflakeHistory = dependencies.querySnowflakeHistory;
+    this.#querySfQueryHistory = dependencies.querySfQueryHistory;
 
     this.#auth = auth;
-    this.#dbConnection = dbConnection;
 
     this.#lineageId = props.lineageId;
-    this.#targetOrganizationId = props.targetOrganizationId;
-    this.#organizationId = props.organizationId;
+    this.#targetOrgId = props.targetOrgId;
     this.#logics = props.logics;
     this.#mats = props.mats;
     this.#columns = props.columns;
-    this.#matDefinitions = props.matDefinitions;
+    this.#catalog = props.catalog;
   }
 
-  #retrieveQueryHistory = async (biLayer: BiType): Promise<QueryHistoryDto> => {
-    const queryHistoryResult: QueryHistoryResponseDto =
-      await this.#querySnowflakeHistory.execute(
+  #retrieveQuerySfQueryHistory = async (
+    biType: BiType
+  ): Promise<SnowflakeQueryResult> => {
+    const querySfQueryHistoryResult: QuerySfQueryHistoryResponseDto =
+      await this.#querySfQueryHistory.execute(
         {
-          biLayer,
+          biType,
           limit: 10,
-          targetOrganizationId: this.#targetOrganizationId,
+          targetOrgId: this.#targetOrgId,
         },
         this.#auth
       );
 
-    if (!queryHistoryResult.success) throw new Error(queryHistoryResult.error);
-    if (!queryHistoryResult.value)
+    if (!querySfQueryHistoryResult.success)
+      throw new Error(querySfQueryHistoryResult.error);
+    if (!querySfQueryHistoryResult.value)
       throw new SyntaxError(`Retrival of query history failed`);
 
-    return queryHistoryResult.value;
+    return querySfQueryHistoryResult.value;
   };
 
   /* Get all relevant dashboards that are data dependency to self materialization */
   static #getDashboardDataDependencyRefs = async (
     statementRefs: Refs,
-    queryHistory: QueryHistoryDto,
+    querySfQueryHistoryResult: SnowflakeQueryResult,
     biLayer: BiType
   ): Promise<DashboardRef[]> => {
     const dependentDashboards: DashboardRef[] = [];
 
     statementRefs.columns.forEach((column) => {
-      queryHistory[Object.keys(queryHistory)[0]].forEach((entry) => {
-        const sqlText: string = entry.QUERY_TEXT;
+      querySfQueryHistoryResult.forEach((entry) => {
+        const queryText = entry.QUERY_TEXT;
+        if (typeof queryText !== 'string')
+          throw new Error('Retrieved bi layer query text not in string format');
 
-        const testUrl = sqlText.match(/"(https?:[^\s]+),/);
+        const testUrl = queryText.match(/"(https?:[^\s]+),/);
         const dashboardUrl = testUrl
           ? testUrl[1]
-          : `${biLayer} dashboard: ${new ObjectId().toHexString()}`;
+          : `${biLayer} dashboard: ${uuidv4()}`;
 
         const matName = column.materializationName.toUpperCase();
         const colName = column.alias
           ? column.alias.toUpperCase()
           : column.name.toUpperCase();
 
-        if (sqlText.includes(matName) && sqlText.includes(colName)) {
+        if (queryText.includes(matName) && queryText.includes(colName)) {
           dependentDashboards.push({
             url: dashboardUrl,
             materializationName: matName,
@@ -234,8 +232,7 @@ export default class DependenciesBuilder {
       (el) =>
         el.name === dashboardRef.materializationName &&
         el.relationName === parentRelationNames[0] &&
-        el.lineageIds.includes(this.#lineageId) &&
-        el.organizationId === this.#organizationId
+        el.lineageIds.includes(this.#lineageId)
     );
 
     if (!materialization)
@@ -247,8 +244,7 @@ export default class DependenciesBuilder {
       (el) =>
         el.name === dashboardRef.columnName &&
         el.materializationId === materialization.id &&
-        el.lineageIds.includes(this.#lineageId) &&
-        el.organizationId === this.#organizationId
+        el.lineageIds.includes(this.#lineageId)
     );
 
     if (!column)
@@ -264,14 +260,10 @@ export default class DependenciesBuilder {
         materializationId: materialization.id,
         materializationName: dashboardRef.materializationName,
         url: dashboardRef.url,
-        targetOrganizationId: this.#targetOrganizationId,
+        targetOrgId: this.#targetOrgId,
         writeToPersistence: false,
       },
-      {
-        isSystemInternal: this.#auth.isSystemInternal,
-        callerOrganizationId: this.#auth.callerOrganizationId,
-      },
-      this.#dbConnection
+      this.#auth,
     );
 
     if (!createDashboardResult.success)
@@ -288,14 +280,10 @@ export default class DependenciesBuilder {
         {
           dashboard,
           lineageId: this.#lineageId,
-          targetOrganizationId: this.#targetOrganizationId,
+          targetOrgId: this.#targetOrgId,
           writeToPersistence: false,
         },
-        {
-          isSystemInternal: this.#auth.isSystemInternal,
-          callerOrganizationId: this.#auth.callerOrganizationId,
-        },
-        this.#dbConnection
+        this.#auth,
       );
 
     if (!createExternalDependencyResult.success)
@@ -344,14 +332,10 @@ export default class DependenciesBuilder {
               selfRelationName: relationName,
               parentRelationNames,
               lineageId: this.#lineageId,
-              targetOrganizationId: this.#targetOrganizationId,
+              targetOrgId: this.#targetOrgId,
               writeToPersistence: false,
             },
-            {
-              isSystemInternal: this.#auth.isSystemInternal,
-              callerOrganizationId: this.#auth.callerOrganizationId,
-            },
-            this.#dbConnection
+            this.#auth,
           );
 
           return createDependencyResult;
@@ -400,14 +384,10 @@ export default class DependenciesBuilder {
         selfRelationName: relationName,
         parentRelationNames,
         lineageId: this.#lineageId,
-        targetOrganizationId: this.#targetOrganizationId,
+        targetOrgId: this.#targetOrgId,
         writeToPersistence: false,
       },
-      {
-        isSystemInternal: this.#auth.isSystemInternal,
-        callerOrganizationId: this.#auth.callerOrganizationId,
-      },
-      this.#dbConnection
+      this.#auth
     );
 
     if (!createDependencyResult.success)
@@ -426,31 +406,31 @@ export default class DependenciesBuilder {
   #getDependenciesForWildcard = async (
     dependencyRef: ColumnRef
   ): Promise<ColumnRef[]> => {
-    const catalogMatches = this.#matDefinitions.filter((dependency) => {
+    const catalogMatches = this.#catalog.filter((catalogEl) => {
       const nameIsEqual = DependenciesBuilder.#insensitiveEquality(
         dependencyRef.materializationName,
-        dependency.materializationName
+        catalogEl.materializationName
       );
 
       const schemaNameIsEqual =
         !dependencyRef.schemaName ||
         (typeof dependencyRef.schemaName === 'string' &&
-        typeof dependency.schemaName === 'string'
+        typeof catalogEl.schemaName === 'string'
           ? DependenciesBuilder.#insensitiveEquality(
               dependencyRef.schemaName,
-              dependency.schemaName
+              catalogEl.schemaName
             )
-          : dependencyRef.schemaName === dependency.schemaName);
+          : dependencyRef.schemaName === catalogEl.schemaName);
 
       const databaseNameIsEqual =
         !dependencyRef.databaseName ||
         (typeof dependencyRef.databaseName === 'string' &&
-        typeof dependency.databaseName === 'string'
+        typeof catalogEl.databaseName === 'string'
           ? DependenciesBuilder.#insensitiveEquality(
               dependencyRef.databaseName,
-              dependency.databaseName
+              catalogEl.databaseName
             )
-          : dependencyRef.databaseName === dependency.databaseName);
+          : dependencyRef.databaseName === catalogEl.databaseName);
 
       return nameIsEqual && schemaNameIsEqual && databaseNameIsEqual;
     });
@@ -471,13 +451,9 @@ export default class DependenciesBuilder {
       {
         relationName,
         lineageId: this.#lineageId,
-        targetOrganizationId: this.#targetOrganizationId,
+        targetOrgId: this.#targetOrgId,
       },
-      {
-        isSystemInternal: this.#auth.isSystemInternal,
-        callerOrganizationId: this.#auth.callerOrganizationId,
-      },
-      this.#dbConnection
+      this.#auth
     );
 
     if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
@@ -498,8 +474,9 @@ export default class DependenciesBuilder {
   build = async (biType?: BiType): Promise<BuildResult> => {
     // todo - should method be completely sync? Probably resolves once transformed into batch job.
 
-    let queryHistory: QueryHistoryDto;
-    if (biType) queryHistory = await this.#retrieveQueryHistory(biType);
+    const querySfQueryHistory: SnowflakeQueryResult | undefined = biType
+      ? await this.#retrieveQuerySfQueryHistory(biType)
+      : undefined;
 
     await Promise.all(
       this.#logics.map(async (logic) => {
@@ -534,11 +511,11 @@ export default class DependenciesBuilder {
           )
         );
 
-        if (biType && queryHistory) {
+        if (biType && querySfQueryHistory) {
           const dashboardDataDependencyRefs =
             await DependenciesBuilder.#getDashboardDataDependencyRefs(
               logic.statementRefs,
-              queryHistory,
+              querySfQueryHistory,
               biType
             );
 

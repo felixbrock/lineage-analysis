@@ -1,23 +1,49 @@
-import { MaterializationType, Materialization } from '../entities/materialization';
-import { DbConnection } from '../services/i-db';
+import {
+  MaterializationType,
+  Materialization,
+} from '../entities/materialization';
 
 export interface MaterializationQueryDto {
   relationName?: string;
-  materializationType?: MaterializationType;
+  type?: MaterializationType;
   name?: string | string[];
   schemaName?: string;
   databaseName?: string;
   logicId?: string;
   lineageId: string;
-  organizationId: string;
+}
+
+export interface Auth {
+  jwt: string;
+  callerOrgId?: string;
+  isSystemInternal: boolean;
 }
 
 export interface IMaterializationRepo {
-  findOne(id: string, dbConnection: DbConnection): Promise<Materialization | null>;
-  findBy(materializationQueryDto: MaterializationQueryDto, dbConnection: DbConnection): Promise<Materialization[]>;
-  all(dbConnection: DbConnection): Promise<Materialization[]>;
-  insertOne(materialization: Materialization, dbConnection: DbConnection): Promise<string>;
-  insertMany(materializations: Materialization[], dbConnection: DbConnection): Promise<string[]>;
-  replaceMany(materializations: Materialization[], dbConnection: DbConnection): Promise<number>;
-  deleteOne(id: string, dbConnection: DbConnection): Promise<string>;
+  findOne(
+    materializationId: string,
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<Materialization | null>;
+  findBy(
+    materializationQueryDto: MaterializationQueryDto,
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<Materialization[]>;
+  all(auth: Auth, targetOrgId?: string): Promise<Materialization[]>;
+  insertOne(
+    materialization: Materialization,
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<string>;
+  insertMany(
+    materializations: Materialization[],
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<string[]>;
+  replaceMany(
+    materializations: Materialization[],
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<number>;
 }

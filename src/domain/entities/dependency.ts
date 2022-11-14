@@ -14,13 +14,12 @@ export const parseDependencyType = (dependencyType: string): DependencyType => {
   throw new Error('Provision of invalid type');
 };
 
-export interface DependencyProperties {
+export interface DependencyProps {
   id: string;
   type: DependencyType;
   headId: string;
   tailId: string;
   lineageIds: string[];
-  organizationId: string;
 }
 
 export interface DependencyPrototype {
@@ -29,10 +28,9 @@ export interface DependencyPrototype {
   headId: string;
   tailId: string;
   lineageId: string;
-  organizationId: string;
 }
 
-type DependencyDto = DependencyProperties;
+type DependencyDto = DependencyProps;
 
 export class Dependency {
   #id: string;
@@ -45,7 +43,6 @@ export class Dependency {
 
   #lineageIds: string[];
 
-  #organizationId: string;
 
   get id(): string {
     return this.#id;
@@ -67,17 +64,13 @@ export class Dependency {
     return this.#lineageIds;
   }
 
-  get organizationId(): string {
-    return this.#organizationId;
-  }
 
-  private constructor(properties: DependencyProperties) {
+  private constructor(properties: DependencyProps) {
     this.#id = properties.id;
     this.#type = properties.type;
     this.#headId = properties.headId;
     this.#tailId = properties.tailId;
     this.#lineageIds = properties.lineageIds;
-    this.#organizationId = properties.organizationId;
   }
 
   static create = (prototype: DependencyPrototype): Dependency => {
@@ -90,8 +83,6 @@ export class Dependency {
       throw new TypeError('Dependency object must have tailId');
     if (!prototype.lineageId)
       throw new TypeError('Dependency object must have lineageId');
-    if (!prototype.organizationId)
-      throw new TypeError('Dependency object must have oragnizationId');
 
     const dependency = new Dependency({
       ...prototype,
@@ -101,7 +92,7 @@ export class Dependency {
     return dependency;
   };
 
-  static build = (props: DependencyProperties): Dependency => {
+  static build = (props: DependencyProps): Dependency => {
     if (!props.id) throw new TypeError('Dependency object must have id');
     if (!props.type) throw new TypeError('Dependency object must have type');
     if (!props.headId)
@@ -110,8 +101,6 @@ export class Dependency {
       throw new TypeError('Dependency object must have tailId');
     if (!props.lineageIds.length)
       throw new TypeError('Dependency object must have lineageIds');
-    if (!props.organizationId)
-      throw new TypeError('Dependency object must have oragnizationId');
 
     return new Dependency(props);
   };
@@ -122,6 +111,5 @@ export class Dependency {
     headId: this.#headId,
     tailId: this.#tailId,
     lineageIds: this.#lineageIds,
-    organizationId: this.#organizationId,
   });
 }

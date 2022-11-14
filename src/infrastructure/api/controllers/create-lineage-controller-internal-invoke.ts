@@ -7,7 +7,6 @@ import {
   CreateLineageResponseDto,
 } from '../../../domain/lineage/create-lineage/create-lineage';
 import Result from '../../../domain/value-types/transient-types/result';
-import Dbo from '../../persistence/db/mongo-db';
 
 import {
   CodeHttp,
@@ -22,17 +21,10 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
 
   readonly #getAccounts: GetAccounts;
 
-  readonly #dbo: Dbo;
-
-  constructor(
-    createLineage: CreateLineage,
-    getAccounts: GetAccounts,
-    dbo: Dbo
-  ) {
+  constructor(createLineage: CreateLineage, getAccounts: GetAccounts) {
     super();
     this.#createLineage = createLineage;
     this.#getAccounts = getAccounts;
-    this.#dbo = dbo;
   }
 
   #transformReq = (req: CreateLineageRequestDto): CreateLineageRequestDto => {
@@ -41,16 +33,27 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
     const toUtf8 = (content: string): string =>
       Buffer.from(content, 'base64').toString('utf8');
 
+    if (!req.dbtCatalog && !req.dbtManifest) return req;
+
+    if (!!req.dbtCatalog !== !!req.dbtManifest)
+      throw new Error(
+        'In case of dbt based lineage creation, both, the dbtCatalog and dbtManifest file need to be provided'
+      );
+
     // https://stackoverflow.com/questions/50966023/which-variant-of-base64-encoding-is-created-by-buffer-tostringbase64
-    if (!isBase64(req.catalog) || !isBase64(req.manifest))
+    if (
+      req.dbtCatalog &&
+      req.dbtManifest &&
+      (!isBase64(req.dbtCatalog) || !isBase64(req.dbtManifest))
+    )
       throw new Error(
         'Catalog of manifest not in base64 format or in wrong base64 variant (required variant: RFC 4648 §4)'
       );
 
     return {
       ...req,
-      catalog: toUtf8(req.catalog),
-      manifest: toUtf8(req.manifest),
+      dbtCatalog: req.dbtCatalog ? toUtf8(req.dbtCatalog) : undefined,
+      dbtManifest: req.dbtManifest ? toUtf8(req.dbtManifest) : undefined,
     };
   };
 
@@ -82,16 +85,14 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
         throw new ReferenceError('Authorization failed');
 
       if (!getUserAccountInfoResult.value.isSystemInternal)
-        return InternalInvokeCreateLineageController.unauthorized('Unauthorized');
+        return InternalInvokeCreateLineageController.unauthorized(
+          'Unauthorized'
+        );
 
       const authDto = this.#buildAuthDto(jwt, getUserAccountInfoResult.value);
 
       const useCaseResult: CreateLineageResponseDto =
-        await this.#createLineage.execute(
-          this.#transformReq(req.req),
-          authDto,
-          this.#dbo.dbConnection
-        );
+        await this.#createLineage.execute(this.#transformReq(req.req), authDto);
 
       if (!useCaseResult.success) {
         return InternalInvokeCreateLineageController.badRequest();
@@ -101,10 +102,13 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
         ? useCaseResult.value.toDto()
         : useCaseResult.value;
 
-      return InternalInvokeCreateLineageController.ok(resultValue, CodeHttp.CREATED);
+      return InternalInvokeCreateLineageController.ok(
+        resultValue,
+        CodeHttp.CREATED
+      );
 
       // this.#createLineage
-      //   .execute(requestDto, authDto, this.#dbo.dbConnection)
+      //   .execute(requestDto, authDto, this.#dbo.)
       //   .then((result) => {
       //     if (!result.success) console.error(result.error);
       //   })
@@ -122,7 +126,9 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      return InternalInvokeCreateLineageController.fail('Internal error occurred while invoking create lineage operation');
+      return InternalInvokeCreateLineageController.fail(
+        'Internal error occurred while invoking create lineage operation'
+      );
     }
   }
 }

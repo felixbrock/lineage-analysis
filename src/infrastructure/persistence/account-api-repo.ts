@@ -17,13 +17,13 @@ export default class AccountApiRepo implements IAccountApiRepo {
         params,
       };
 
-      const response = await axios.get(`${appConfig.apiRoot.accountService}/api/v1/accounts`, config);
+      const response = await axios.get(`${appConfig.baseUrl.accountService}/api/v1/accounts`, config);
       const jsonResponse = response.data;
       if (response.status === 200) return jsonResponse;
       throw new Error(jsonResponse.message);
     } catch (error: unknown) {
       if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      return Promise.reject(new Error());
     }
   };
 }

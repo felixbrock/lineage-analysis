@@ -1,1 +1,1 @@
-export type DbConnection = any;
+export type DbOptions = {account: string, username: string, password: string, warehouse: string};

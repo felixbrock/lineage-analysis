@@ -1,188 +1,117 @@
 import {
-  AnyBulkWriteOperation,
-  BulkWriteResult,
-  Db,
-  DeleteResult,
-  Document,
-  FindCursor,
-  InsertManyResult,
-  InsertOneResult,
-  ObjectId,
-} from 'mongodb';
-import sanitize from 'mongo-sanitize';
-
-import { ILogicRepo, LogicQueryDto } from '../../domain/logic/i-logic-repo';
+  Auth,
+  ILogicRepo,
+  LogicQueryDto,
+} from '../../domain/logic/i-logic-repo';
 import {
-  ColumnRef,
+  DependentOn,
   Logic,
-  LogicProperties,
+  LogicProps,
   Refs,
-  MaterializationRef,
-  MaterializationDefinition,
 } from '../../domain/entities/logic';
-
-type PersistenceStatementRefs = {
-  [key: string]: { [key: string]: any }[];
-};
-
-type PersistenceMaterializationDefinition = { [key: string]: string };
-
-interface LogicPersistence {
-  _id: ObjectId;
-  relationName: string;
-  sql: string;
-  dependentOn: {
-    dbtDependencyDefinitions: PersistenceMaterializationDefinition[];
-    dwDependencyDefinitions: PersistenceMaterializationDefinition[];
-  };
-  parsedLogic: string;
-  statementRefs: PersistenceStatementRefs;
-  lineageIds: string[];
-  organizationId: string;
-}
-
-interface LogicQueryFilter {
-  relationName?: RegExp;
-  lineageIds: string;
-  organizationId: string;
-}
-
-const collectionName = 'logic';
+import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
+import {
+  ColumnDefinition,
+  getInsertQuery,
+  getUpdateQuery,
+} from './shared/query';
+import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 
 export default class LogicRepo implements ILogicRepo {
-  findOne = async (id: string, dbConnection: Db): Promise<Logic | null> => {
-    try {
-      const result: any = await dbConnection
-        .collection(collectionName)
-        .findOne({ _id: new ObjectId(sanitize(id)) });
+  readonly #matName = 'logics';
 
-      if (!result) return null;
+  readonly #colDefinitions: ColumnDefinition[] = [
+    { name: 'id', nullable: false },
+    { name: 'relation_name', nullable: false },
+    { name: 'sql', nullable: false },
+    { name: 'dependent_on', selectType: 'parse_json', nullable: false },
+    { name: 'parsed_logic', nullable: false },
+    { name: 'statement_refs', selectType: 'parse_json', nullable: false },
+    { name: 'lineage_ids', selectType: 'parse_json', nullable: false },
+  ];
 
-      return this.#toEntity(this.#buildProperties(result));
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
-    }
-  };
+  readonly #querySnowflake: QuerySnowflake;
 
-  findBy = async (
-    logicQueryDto: LogicQueryDto,
-    dbConnection: Db
-  ): Promise<Logic[]> => {
-    try {
-      if (!Object.keys(logicQueryDto).length)
-        return await this.all(dbConnection);
+  constructor(querySnowflake: QuerySnowflake) {
+    this.#querySnowflake = querySnowflake;
+  }
 
-      const result: FindCursor = await dbConnection
-        .collection(collectionName)
-        .find(this.#buildFilter(sanitize(logicQueryDto)));
-      const results = await result.toArray();
+  #buildLogic = (sfEntity: SnowflakeEntity): Logic => {
+    const {
+      ID: id,
+      RELATION_NAME: relationName,
+      SQL: sql,
+      DEPENDENT_ON: dependentOn,
+      PARSED_LOGIC: parsedLogic,
+      STATEMENT_REFS: statementRefs,
+      LINEAGE_IDS: lineageIds,
+    } = sfEntity;
 
-      if (!results || !results.length) return [];
-
-      return results.map((element: any) =>
-        this.#toEntity(this.#buildProperties(element))
+    if (
+      typeof id !== 'string' ||
+      typeof relationName !== 'string' ||
+      typeof sql !== 'string' ||
+      typeof dependentOn !== 'object' ||
+      typeof parsedLogic !== 'string' ||
+      typeof statementRefs !== 'object' ||
+      typeof lineageIds !== 'object'
+    )
+      throw new Error(
+        'Retrieved unexpected logic field types from persistence'
       );
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
-    }
-  };
 
-  #buildFilter = (logicQueryDto: LogicQueryDto): LogicQueryFilter => {
-    const filter: LogicQueryFilter = {
-      lineageIds: logicQueryDto.lineageId,
-      organizationId: logicQueryDto.organizationId,
-    };
+    const isDependentOnObj = (el: unknown): el is DependentOn =>
+      !!el &&
+      'dbtDependencyDefinitions' in (el as DependentOn) &&
+      'dwDependencyDefinitions' in (el as DependentOn);
+    const isRefsObj = (el: unknown): el is Refs =>
+      !!el && 'materializations' in (el as Refs) && 'columns' in (el as Refs) && 'wildcards' in (el as Refs);
+    const isStringArray = (value: unknown): value is string[] =>
+      Array.isArray(value) && value.every((el) => typeof el === 'string');
 
-    if (logicQueryDto.relationName)
-      filter.relationName = new RegExp(`^${logicQueryDto.relationName}$`, 'i');
-
-    return filter;
-  };
-
-  all = async (dbConnection: Db): Promise<Logic[]> => {
-    try {
-      const result: FindCursor = await dbConnection
-        .collection(collectionName)
-        .find();
-      const results = await result.toArray();
-
-      if (!results || !results.length) return [];
-
-      return results.map((element: any) =>
-        this.#toEntity(this.#buildProperties(element))
+    if (
+      !isDependentOnObj(dependentOn) ||
+      !isRefsObj(statementRefs) ||
+      !isStringArray(lineageIds)
+    )
+      throw new Error(
+        'Type mismatch detected when reading logic from persistence'
       );
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
-    }
+
+    return this.#toEntity({
+      id,
+      sql,
+      relationName,
+      dependentOn,
+      lineageIds,
+      parsedLogic,
+      statementRefs,
+    });
   };
 
-  insertOne = async (logic: Logic, dbConnection: Db): Promise<string> => {
+  findOne = async (
+    logicId: string,
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<Logic | null> => {
     try {
-      const result: InsertOneResult<Document> = await dbConnection
-        .collection(collectionName)
-        .insertOne(this.#toPersistence(sanitize(logic)));
+      const queryText = `select * from cito.lineage.${this.#matName}
+      where id = ?;`;
 
-      if (!result.acknowledged)
-        throw new Error('Logic creation failed. Insert not acknowledged');
+      // using binds to tell snowflake to escape params to avoid sql injection attack
+      const binds: (string | number)[] = [logicId];
 
-      return result.insertedId.toHexString();
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
-    }
-  };
-
-  insertMany = async (logics: Logic[], dbConnection: Db): Promise<string[]> => {
-    try {
-      const result: InsertManyResult<Document> = await dbConnection
-        .collection(collectionName)
-        .insertMany(
-          logics.map((element) => this.#toPersistence(sanitize(element)))
-        );
-
-      if (!result.acknowledged)
-        throw new Error('Logic creations failed. Inserts not acknowledged');
-
-      return Object.keys(result.insertedIds).map((key) =>
-        result.insertedIds[parseInt(key, 10)].toHexString()
+      const result = await this.#querySnowflake.execute(
+        { queryText, targetOrgId, binds },
+        auth
       );
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
-    }
-  };
 
-  replaceMany = async (
-    logics: Logic[],
-    dbConnection: Db
-  ): Promise<number> => {
-    try {
-      const operations: AnyBulkWriteOperation<Document>[] =
-        logics.map((el) => ({
-          replaceOne: {
-            filter: { _id: new ObjectId(sanitize(el.id)) },
-            replacement: this.#toPersistence(el),
-          },
-        }));
+      if (!result.success) throw new Error(result.error);
+      if (!result.value) throw new Error('Missing sf query value');
+      if (result.value.length > 1)
+        throw new Error(`Multiple logic entities with id found`);
 
-      const result: BulkWriteResult = await dbConnection
-        .collection(collectionName)
-        .bulkWrite(operations);
-
-      if (!result.isOk())
-        throw new Error(
-          `Bulk mat update failed. Update not ok. Error count: ${result.getWriteErrorCount()}`
-        );
-
-      return result.nMatched;
+      return !result.value.length ? null : this.#buildLogic(result.value[0]);
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
@@ -190,103 +119,180 @@ export default class LogicRepo implements ILogicRepo {
     }
   };
 
-  deleteOne = async (id: string, dbConnection: Db): Promise<string> => {
+  findBy = async (
+    logicQueryDto: LogicQueryDto,
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<Logic[]> => {
     try {
-      const result: DeleteResult = await dbConnection
-        .collection(collectionName)
-        .deleteOne({ _id: new ObjectId(sanitize(id)) });
+      if (!Object.keys(logicQueryDto).length)
+        return await this.all(auth, targetOrgId);
 
-      if (!result.acknowledged)
-        throw new Error('Logic delete failed. Delete not acknowledged');
+      // using binds to tell snowflake to escape params to avoid sql injection attack
+      const binds: (string | number)[] = [logicQueryDto.lineageId];
+      if (logicQueryDto.relationName) binds.push(logicQueryDto.relationName);
 
-      return result.deletedCount.toString();
+      const queryText = `select * from cito.lineage.${this.#matName}
+      where array_contains(?::variant, lineage_ids) ${
+        logicQueryDto.relationName ? 'and relation_name = ?' : ''
+      };`;
+
+      const result = await this.#querySnowflake.execute(
+        { queryText, targetOrgId, binds },
+        auth
+      );
+
+      if (!result.success) throw new Error(result.error);
+      if (!result.value) throw new Error('Missing sf query value');
+
+      return result.value.map((el) => this.#buildLogic(el));
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      return Promise.reject(new Error());
     }
   };
 
-  #toEntity = (logicProperties: LogicProperties): Logic =>
-    Logic.build(logicProperties);
+  all = async (auth: Auth, targetOrgId?: string): Promise<Logic[]> => {
+    try {
+      const queryText = `select * from cito.lineage.${this.#matName};`;
 
-  #buildStatementRefs = (statementRefs: PersistenceStatementRefs): Refs => {
-    const materializations: MaterializationRef[] =
-      statementRefs.materializations.map((materialization) => ({
-        name: materialization.name,
-        alias: materialization.alias,
-        schemaName: materialization.schemaName,
-        databaseName: materialization.databaseName,
-        warehouseName: materialization.warehouseName,
-        type: materialization.type,
-        contexts: materialization.contexts,
-      }));
+      const result = await this.#querySnowflake.execute(
+        { queryText, targetOrgId, binds: [] },
+        auth
+      );
 
-    const columns: ColumnRef[] = statementRefs.columns.map((column) => ({
-      name: column.name,
-      alias: column.alias,
-      schemaName: column.schemaName,
-      databaseName: column.databaseName,
-      warehouseName: column.warehouseName,
-      dependencyType: column.dependencyType,
-      isWildcardRef: column.isWildcardRef,
-      isCompoundValueRef: column.isCompoundValueRef,
-      materializationName: column.materializationName,
-      context: column.context,
-    }));
+      if (!result.success) throw new Error(result.error);
+      if (!result.value) throw new Error('Missing sf query value');
+      if (result.value.length !== 1)
+        throw new Error(`Multiple or no logic entities with id found`);
 
-    const wildcards: ColumnRef[] = statementRefs.wildcards.map((wildcard) => ({
-      name: wildcard.name,
-      alias: wildcard.alias,
-      schemaName: wildcard.schemaName,
-      databaseName: wildcard.databaseName,
-      warehouseName: wildcard.warehouseName,
-      dependencyType: wildcard.dependencyType,
-      isWildcardRef: wildcard.isWildcardRef,
-      isCompoundValueRef: wildcard.isCompoundValueRef,
-      materializationName: wildcard.materializationName,
-      context: wildcard.context,
-    }));
-
-    return { materializations, columns, wildcards };
+      return result.value.map((el) => this.#buildLogic(el));
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error());
+    }
   };
 
-  #buildMaterializationDefinition = (
-    matCatalogElement: PersistenceMaterializationDefinition
-  ): MaterializationDefinition => ({
-    relationName: matCatalogElement.relationName,
-    materializationName: matCatalogElement.materializationName,
-    schemaName: matCatalogElement.schemaName,
-    databaseName: matCatalogElement.databaseName,
-  });
+  insertOne = async (
+    logic: Logic,
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<string> => {
+    try {
+      const binds = [
+        logic.id,
+        logic.relationName,
+        logic.sql,
+        JSON.stringify(logic.dependentOn),
+        logic.parsedLogic,
+        JSON.stringify(logic.statementRefs),
+        JSON.stringify(logic.lineageIds),
+      ];
+      const row = `(${binds.map(() => '?').join(', ')})`;
 
-  #buildProperties = (logic: LogicPersistence): LogicProperties => ({
-    // eslint-disable-next-line no-underscore-dangle
-    id: logic._id.toHexString(),
-    relationName: logic.relationName,
-    sql: logic.sql,
-    dependentOn: {
-      dbtDependencyDefinitions: logic.dependentOn.dbtDependencyDefinitions.map(
-        (element) => this.#buildMaterializationDefinition(element)
-      ),
-      dwDependencyDefinitions: logic.dependentOn.dwDependencyDefinitions.map(
-        (element) => this.#buildMaterializationDefinition(element)
-      ),
-    },
-    parsedLogic: logic.parsedLogic,
-    statementRefs: this.#buildStatementRefs(logic.statementRefs),
-    lineageIds: logic.lineageIds,
-    organizationId: logic.organizationId,
-  });
+      const queryText = getInsertQuery(this.#matName, this.#colDefinitions, [
+        row,
+      ]);
 
-  #toPersistence = (logic: Logic): Document => ({
-    _id: ObjectId.createFromHexString(logic.id),
-    relationName: logic.relationName,
-    sql: logic.sql,
-    dependentOn: logic.dependentOn,
-    parsedLogic: logic.parsedLogic,
-    statementRefs: logic.statementRefs,
-    lineageIds: logic.lineageIds,
-    organizationId: logic.organizationId,
-  });
+      const result = await this.#querySnowflake.execute(
+        { queryText, targetOrgId, binds },
+        auth
+      );
+
+      if (!result.success) throw new Error(result.error);
+      if (!result.value) throw new Error('Missing sf query value');
+
+      return logic.id;
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error());
+    }
+  };
+
+  insertMany = async (
+    logics: Logic[],
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<string[]> => {
+    try {
+      const binds = logics.map((el) => [
+        el.id,
+        el.relationName,
+        el.sql,
+        JSON.stringify(el.dependentOn),
+        el.parsedLogic,
+        JSON.stringify(el.statementRefs),
+        JSON.stringify(el.lineageIds),
+      ]);
+
+      const row = `(${this.#colDefinitions.map(() =>'?').join(', ')})`;
+
+      const queryText = getInsertQuery(
+        this.#matName,
+        this.#colDefinitions,
+        [row]
+      );
+
+      const result = await this.#querySnowflake.execute(
+        { queryText, targetOrgId, binds },
+        auth
+      );
+
+      if (!result.success) throw new Error(result.error);
+      if (!result.value) throw new Error('Missing sf query value');
+
+      return logics.map((el) => el.id);
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error());
+    }
+  };
+
+  replaceMany = async (
+    logics: Logic[],
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<number> => {
+    try {
+      const binds = logics.map((el) => [
+        el.id,
+        el.relationName,
+        el.sql,
+        JSON.stringify(el.dependentOn),
+        el.parsedLogic,
+        JSON.stringify(el.statementRefs),
+        JSON.stringify(el.lineageIds),
+      ]);
+
+      const row = `(${this.#colDefinitions.map(() =>'?').join(', ')})`;
+
+
+      const queryText = getUpdateQuery(
+        this.#matName,
+        this.#colDefinitions,
+        [row]
+      );
+
+      const result = await this.#querySnowflake.execute(
+        { queryText, targetOrgId, binds },
+        auth
+      );
+
+      if (!result.success) throw new Error(result.error);
+      if (!result.value) throw new Error('Missing sf query value');
+
+      return logics.length;
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error());
+    }
+  };
+
+  #toEntity = (logicProperties: LogicProps): Logic =>
+    Logic.build(logicProperties);
 }

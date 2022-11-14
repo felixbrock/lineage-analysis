@@ -1,11 +1,10 @@
 export interface LineagePrototype {
   id: string;
   createdAt?: string;
-  organizationId: string;
 }
 
 export interface LineageProperties
-  extends Omit<LineagePrototype, 'createdAt' | 'completed'> {
+  extends Omit<LineagePrototype, 'createdAt'> {
   createdAt: string;
   completed: boolean;
 }
@@ -17,7 +16,6 @@ export class Lineage {
 
   #createdAt: string;
 
-  #organizationId: string;
 
   #completed: boolean;
 
@@ -29,10 +27,6 @@ export class Lineage {
     return this.#createdAt;
   }
 
-  get organizationId(): string {
-    return this.#organizationId;
-  }
-
   get completed(): boolean {
     return this.#completed;
   }
@@ -40,14 +34,11 @@ export class Lineage {
   private constructor(props: LineageProperties) {
     this.#id = props.id;
     this.#createdAt = props.createdAt;
-    this.#organizationId = props.organizationId;
     this.#completed = props.completed;
   }
 
   static create = (prototype: LineagePrototype): Lineage => {
     if (!prototype.id) throw new TypeError('Lineage must have id');
-    if (!prototype.organizationId)
-      throw new TypeError('Lineage must have organization id');
 
     const lineage = Lineage.build({
       ...prototype,
@@ -61,7 +52,6 @@ export class Lineage {
   static build = (props: LineageProperties): Lineage =>
     new Lineage({
       id: props.id,
-      organizationId: props.organizationId,
       createdAt: props.createdAt,
       completed: props.completed,
     });
@@ -69,7 +59,6 @@ export class Lineage {
   toDto = (): LineageDto => ({
     id: this.#id,
     createdAt: this.#createdAt,
-    organizationId: this.#organizationId,
     completed: this.#completed,
   });
 }

@@ -13,29 +13,6 @@ const defaultPort = 8081;
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : defaultPort;
 const apiRoot = process.env.API_ROOT || 'api';
 
-// const getServiceDiscoveryNamespace = (): string | null => {
-//   switch (nodeEnv) {
-//     case 'development':
-//       return null;
-//     case 'test':
-//       return 'lineage-staging';
-//     case 'production':
-//       return 'lineage';
-//     default:
-//       throw new Error('No valid nodenv value provided');
-//   }
-// };
-
-export interface MongoDbConfig {
-  url: string;
-  dbName: string;
-}
-
-const getMongodbConfig = (): MongoDbConfig => ({
-  url: process.env.DATABASE_URL || '',
-  dbName: process.env.DATABASE_NAME || '',
-});
-
 const getCognitoUserPoolId = (): string => {
   switch (nodeEnv) {
     case 'development':
@@ -49,6 +26,23 @@ const getCognitoUserPoolId = (): string => {
   }
 };
 
+export interface BaseUrlConfig {
+  sqlParser: string;
+  integrationService: string;
+  accountService: string;
+}
+
+const getBaseUrlConfig = (): BaseUrlConfig => {
+  const sqlParser = process.env.BASE_URL_SQL_PARSER;
+  const integrationService = process.env.BASE_URL_INTEGRATION_SERVICE;
+  const accountService = process.env.BASE_URL_ACCOUNT_SERVICE;
+
+  if (!sqlParser || !integrationService || !accountService)
+    throw new Error('Missing Base url env values');
+
+  return { sqlParser, integrationService, accountService };
+};
+
 export const appConfig = {
   express: {
     port,
@@ -60,10 +54,9 @@ export const appConfig = {
     userPoolId: getCognitoUserPoolId(),
     region: 'eu-central-1',
   },
-  apiRoot: {
-    sqlParser: process.env.API_ROOT_SQL_PARSER,
-    integrationService: process.env.API_ROOT_INTEGRATION_SERVICE,
-    accountService: process.env.API_ROOT_ACCOUNT_SERVICE
+  snowflake: {
+    applicationName:
+      process.env.SNOWFLAKE_APPLICATION_NAME || 'snowflake-connector',
   },
-  mongodb: getMongodbConfig(),
+  baseUrl: getBaseUrlConfig(),
 };

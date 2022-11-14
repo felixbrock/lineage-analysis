@@ -8,7 +8,6 @@ import {
   CreateLineageResponseDto,
 } from '../../../domain/lineage/create-lineage/create-lineage';
 import Result from '../../../domain/value-types/transient-types/result';
-import Dbo from '../../persistence/db/mongo-db';
 
 import {
   BaseController,
@@ -21,17 +20,10 @@ export default class CreateLineageController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  readonly #dbo: Dbo;
-
-  constructor(
-    createLineage: CreateLineage,
-    getAccounts: GetAccounts,
-    dbo: Dbo
-  ) {
+  constructor(createLineage: CreateLineage, getAccounts: GetAccounts) {
     super();
     this.#createLineage = createLineage;
     this.#getAccounts = getAccounts;
-    this.#dbo = dbo;
   }
 
   #buildRequestDto = (req: Request): CreateLineageRequestDto => {
@@ -42,6 +34,13 @@ export default class CreateLineageController extends BaseController {
     const toUtf8 = (content: string): string =>
       Buffer.from(content, 'base64').toString('utf8');
 
+    if (!body.catalog && !body.manifest) return { ...body };
+
+    if (!!body.catalog !== !!body.manifest)
+      throw new Error(
+        'In case of dbt based lineage creation, both, the catalog and manifest file need to be provided'
+      );
+
     // https://stackoverflow.com/questions/50966023/which-variant-of-base64-encoding-is-created-by-buffer-tostringbase64
     if (!isBase64(body.catalog) || !isBase64(body.manifest))
       throw new Error(
@@ -50,8 +49,8 @@ export default class CreateLineageController extends BaseController {
 
     return {
       ...body,
-      catalog: toUtf8(body.catalog),
-      manifest: toUtf8(body.manifest),
+      dbtCatalog: toUtf8(body.catalog),
+      dbtManifest: toUtf8(body.manifest),
     };
   };
 
@@ -61,7 +60,7 @@ export default class CreateLineageController extends BaseController {
   ): CreateLineageAuthDto => ({
     jwt,
     isSystemInternal: userAccountInfo.isSystemInternal,
-    callerOrganizationId: userAccountInfo.callerOrganizationId
+    callerOrgId: userAccountInfo.callerOrgId,
   });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
@@ -91,11 +90,7 @@ export default class CreateLineageController extends BaseController {
       const authDto = this.#buildAuthDto(jwt, getUserAccountInfoResult.value);
 
       const useCaseResult: CreateLineageResponseDto =
-        await this.#createLineage.execute(
-          requestDto,
-          authDto,
-          this.#dbo.dbConnection
-        );
+        await this.#createLineage.execute(requestDto, authDto);
 
       if (!useCaseResult.success) {
         return CreateLineageController.badRequest(res);
@@ -108,7 +103,7 @@ export default class CreateLineageController extends BaseController {
       return CreateLineageController.ok(res, resultValue, CodeHttp.CREATED);
 
       // this.#createLineage
-      //   .execute(requestDto, authDto, this.#dbo.dbConnection)
+      //   .execute(requestDto, authDto, this.#dbo.)
       //   .then((result) => {
       //     if (!result.success) console.error(result.error);
       //   })
@@ -126,7 +121,10 @@ export default class CreateLineageController extends BaseController {
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      return CreateLineageController.fail(res, 'Internal error occurred while creating lineage');
+      return CreateLineageController.fail(
+        res,
+        'Internal error occurred while creating lineage'
+      );
     }
   }
 }

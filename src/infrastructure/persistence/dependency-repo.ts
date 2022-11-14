@@ -1,202 +1,237 @@
 import {
-  Db,
-  DeleteResult,
-  Document,
-  FindCursor,
-  InsertManyResult,
-  InsertOneResult,
-  ObjectId,
-} from 'mongodb';
-import sanitize from 'mongo-sanitize';
-
-import {
+  Auth,
   DependencyQueryDto,
   IDependencyRepo,
 } from '../../domain/dependency/i-dependency-repo';
 import {
   Dependency,
-  DependencyProperties,
-  DependencyType,
+  DependencyProps,
+  parseDependencyType,
 } from '../../domain/entities/dependency';
-
-interface DependencyPersistence {
-  _id: ObjectId;
-  type: DependencyType;
-  headId: string;
-  tailId: string;
-  lineageIds: string[];
-  organizationId: string;
-}
-
-interface DependencyQueryFilter {
-  type?: DependencyType;
-  headId?: string;
-  tailId?: string;
-  lineageIds: string;
-  organizationId: string;
-}
-
-const collectionName = 'dependency';
+import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
+import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
+import { ColumnDefinition, getInsertQuery } from './shared/query';
 
 export default class DependencyRepo implements IDependencyRepo {
+  readonly #matName = 'dependencies';
+
+  readonly #colDefinitions: ColumnDefinition[] = [
+    { name: 'id', nullable: false },
+    { name: 'type', nullable: false },
+    { name: 'head_id', nullable: false },
+    { name: 'tail_id', nullable: false },
+    { name: 'lineage_ids', selectType: 'parse_json', nullable: false },
+  ];
+
+  readonly #querySnowflake: QuerySnowflake;
+
+  constructor(querySnowflake: QuerySnowflake) {
+    this.#querySnowflake = querySnowflake;
+  }
+
+  #buildDependency = (sfEntity: SnowflakeEntity): Dependency => {
+    const {
+      ID: id,
+      TYPE: type,
+      HEAD_ID: headId,
+      TAIL_ID: tailId,
+      LINEAGE_IDS: lineageIds,
+    } = sfEntity;
+
+    if (
+      typeof id !== 'string' ||
+      typeof type !== 'string' ||
+      typeof headId !== 'string' ||
+      typeof tailId !== 'string' ||
+      typeof lineageIds !== 'string'
+    )
+      throw new Error(
+        'Retrieved unexpected dependency field types from persistence'
+      );
+
+    const isStringArray = (value: unknown): value is string[] =>
+      Array.isArray(value) && value.every((el) => typeof el === 'string');
+
+    if (!isStringArray(lineageIds))
+      throw new Error(
+        'Type mismatch detected when reading materialization from persistence'
+      );
+
+    return this.#toEntity({
+      id,
+      headId,
+      tailId,
+      lineageIds,
+      type: parseDependencyType(type),
+    });
+  };
+
   findOne = async (
-    id: string,
-    dbConnection: Db
+    dependencyId: string,
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<Dependency | null> => {
     try {
-      const result: any = await dbConnection
-        .collection(collectionName)
-        .findOne({ _id: new ObjectId(sanitize(id)) });
+      const queryText = `select * from cito.lineage.${this.#matName}
+             where id = ?;`;
 
-      if (!result) return null;
+      // using binds to tell snowflake to escape params to avoid sql injection attack
+      const binds: (string | number)[] = [dependencyId];
 
-      return this.#toEntity(this.#buildProperties(result));
+      const result = await this.#querySnowflake.execute(
+        { queryText, targetOrgId, binds },
+        auth
+      );
+
+      if (!result.success) throw new Error(result.error);
+      if (!result.value) throw new Error('Missing sf query value');
+      if (result.value.length !== 1)
+        throw new Error(`Multiple or no dependency entities with id found`);
+
+      return !result.value.length
+        ? null
+        : this.#buildDependency(result.value[0]);
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error());
     }
   };
 
   findBy = async (
     dependencyQueryDto: DependencyQueryDto,
-    dbConnection: Db
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<Dependency[]> => {
     try {
       if (!Object.keys(dependencyQueryDto).length)
-        return await this.all(dbConnection);
+        return await this.all(auth, targetOrgId);
 
-      const result: FindCursor = await dbConnection
-        .collection(collectionName)
-        .find(this.#buildFilter(sanitize(dependencyQueryDto)));
-      const results = await result.toArray();
+      // using binds to tell snowflake to escape params to avoid sql injection attack
+      const binds: (string | number)[] = [dependencyQueryDto.lineageId];
+      let whereClause = 'array_contains(?::variant, lineage_ids) ';
 
-      if (!results || !results.length) return [];
+      if (dependencyQueryDto.tailId) {
+        binds.push(dependencyQueryDto.tailId);
+        whereClause = whereClause.concat('and tail_id = ? ');
+      }
+      if (dependencyQueryDto.headId) {
+        binds.push(dependencyQueryDto.headId);
+        whereClause = whereClause.concat('and head_id = ? ');
+      }
+      if (dependencyQueryDto.type) {
+        binds.push(dependencyQueryDto.type);
+        whereClause = whereClause.concat('and type = ? ');
+      }
 
-      return results.map((element: any) =>
-        this.#toEntity(this.#buildProperties(element))
+      const queryText = `select * from cito.lineage.${this.#matName}
+          where  ${whereClause};`;
+
+      const result = await this.#querySnowflake.execute(
+        { queryText, targetOrgId, binds },
+        auth
       );
+
+      if (!result.success) throw new Error(result.error);
+      if (!result.value) throw new Error('Missing sf query value');
+
+      return result.value.map((el) => this.#buildDependency(el));
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error());
     }
   };
 
-  #buildFilter = (
-    dependencyQueryDto: DependencyQueryDto
-  ): DependencyQueryFilter => {
-    const filter: DependencyQueryFilter = {
-      lineageIds: dependencyQueryDto.lineageId,
-      organizationId: dependencyQueryDto.organizationId
-    };
-
-    if (dependencyQueryDto.type) filter.type = dependencyQueryDto.type;
-    if (dependencyQueryDto.headId) filter.headId = dependencyQueryDto.headId;
-    if (dependencyQueryDto.tailId) filter.tailId = dependencyQueryDto.tailId;
-
-    return filter;
-  };
-
-  all = async (dbConnection: Db): Promise<Dependency[]> => {
+  all = async (auth: Auth, targetOrgId?: string): Promise<Dependency[]> => {
     try {
-      const result: FindCursor = await dbConnection
-        .collection(collectionName)
-        .find();
-      const results = await result.toArray();
+      const queryText = `select * from cito.lineage.${this.#matName};`;
 
-      if (!results || !results.length) return [];
-
-      return results.map((element: any) =>
-        this.#toEntity(this.#buildProperties(element))
+      const result = await this.#querySnowflake.execute(
+        { queryText, targetOrgId, binds: [] },
+        auth
       );
+
+      if (!result.success) throw new Error(result.error);
+      if (!result.value) throw new Error('Missing sf query value');
+      if (result.value.length !== 1)
+        throw new Error(`Multiple or no dependency entities with id found`);
+
+      return result.value.map((el) => this.#buildDependency(el));
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error());
     }
   };
+
+  #getBinds = (el: Dependency): (string | number)[] => [
+    el.id,
+    el.type,
+    el.headId,
+    el.tailId,
+    JSON.stringify(el.lineageIds),
+  ];
 
   insertOne = async (
     dependency: Dependency,
-    dbConnection: Db
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<string> => {
     try {
-      const result: InsertOneResult<Document> = await dbConnection
-        .collection(collectionName)
-        .insertOne(this.#toPersistence(sanitize(dependency)));
+      const binds = this.#getBinds(dependency);
 
-      if (!result.acknowledged)
-        throw new Error('Dependency creation failed. Insert not acknowledged');
+      const row = `(${binds.map(() => '?').join(', ')})`;
 
+      const queryText = getInsertQuery(this.#matName, this.#colDefinitions, [
+        row,
+      ]);
 
-      return result.insertedId.toHexString();
+      const result = await this.#querySnowflake.execute(
+        { queryText, targetOrgId, binds },
+        auth
+      );
+
+      if (!result.success) throw new Error(result.error);
+      if (!result.value) throw new Error('Missing sf query value');
+
+      return dependency.id;
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error());
     }
   };
 
   insertMany = async (
-    dependencies: Dependency[],
-    dbConnection: Db
+    dependencys: Dependency[],
+    auth: Auth,
+    targetOrgId?: string
   ): Promise<string[]> => {
-
     try {
-      const result: InsertManyResult<Document> = await dbConnection
-        .collection(collectionName)
-        .insertMany(
-          dependencies.map((element) => this.#toPersistence(sanitize(element)))
-        );
+      const binds = dependencys.map((dependency) => this.#getBinds(dependency));
 
-      if (!result.acknowledged)
-        throw new Error(
-          'Dependency creations failed. Inserts not acknowledged'
-        );
+      const row = `(${this.#colDefinitions.map(() => '?').join(', ')})`;
 
-      return Object.keys(result.insertedIds).map((key) =>
-        result.insertedIds[parseInt(key, 10)].toHexString()
+      const queryText = getInsertQuery(this.#matName, this.#colDefinitions, [
+        row,
+      ]);
+
+      const result = await this.#querySnowflake.execute(
+        { queryText, targetOrgId, binds },
+        auth
       );
+
+      if (!result.success) throw new Error(result.error);
+      if (!result.value) throw new Error('Missing sf query value');
+
+      return dependencys.map((el) => el.id);
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error());
     }
   };
 
-  deleteOne = async (id: string, dbConnection: Db): Promise<string> => {
-    try {
-      const result: DeleteResult = await dbConnection
-        .collection(collectionName)
-        .deleteOne({ _id: new ObjectId(sanitize(id)) });
-
-      if (!result.acknowledged)
-        throw new Error('Dependency delete failed. Delete not acknowledged');
-
-      return result.deletedCount.toString();
-    } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error(''));
-    }
-  };
-
-  #toEntity = (properties: DependencyProperties): Dependency =>
-    Dependency.build(properties);
-
-  #buildProperties = (
-    dependency: DependencyPersistence
-  ): DependencyProperties => ({
-    // eslint-disable-next-line no-underscore-dangle
-    id: dependency._id.toHexString(),
-    type: dependency.type,
-    headId: dependency.headId,
-    tailId: dependency.tailId,
-    lineageIds: dependency.lineageIds,
-    organizationId: dependency.organizationId
-  });
-
-  #toPersistence = (dependency: Dependency): Document => ({
-    _id: ObjectId.createFromHexString(dependency.id),
-    type: dependency.type,
-    headId: dependency.headId,
-    tailId: dependency.tailId,
-    lineageIds: dependency.lineageIds,
-    organizationId: dependency.organizationId
-  });
+  #toEntity = (props: DependencyProps): Dependency => Dependency.build(props);
 }

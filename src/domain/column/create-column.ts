@@ -1,25 +1,28 @@
-import { ObjectId } from 'mongodb';
+import { v4 as uuidv4 } from 'uuid';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { Column } from '../entities/column';
+import { Column, ColumnDataType } from '../entities/column';
 import { ReadColumns } from './read-columns';
 import { IColumnRepo } from './i-column-repo';
-import { DbConnection } from '../services/i-db';
 
 export interface CreateColumnRequestDto {
   relationName: string;
   name: string;
   index: string;
-  type: string;
+  dataType: ColumnDataType;
   materializationId: string;
   lineageId: string;
   writeToPersistence: boolean;
-  targetOrganizationId?: string;
+  targetOrgId?: string;
+  isIdentity?: boolean;
+  isNullable?: boolean;
+  comment?: string;
 }
 
 export interface CreateColumnAuthDto {
   isSystemInternal: boolean;
-  callerOrganizationId?: string;
+  callerOrgId?: string;
+  jwt:string;
 }
 
 export type CreateColumnResponseDto = Result<Column>;
@@ -29,15 +32,12 @@ export class CreateColumn
     IUseCase<
       CreateColumnRequestDto,
       CreateColumnResponseDto,
-      CreateColumnAuthDto,
-      DbConnection
+      CreateColumnAuthDto
     >
 {
   readonly #columnRepo: IColumnRepo;
 
   readonly #readColumns: ReadColumns;
-
-  #dbConnection: DbConnection;
 
   constructor(readColumns: ReadColumns, columnRepo: IColumnRepo) {
     this.#readColumns = readColumns;
@@ -46,37 +46,29 @@ export class CreateColumn
 
   async execute(
     request: CreateColumnRequestDto,
-    auth: CreateColumnAuthDto,
-    dbConnection: DbConnection
+    auth: CreateColumnAuthDto
   ): Promise<CreateColumnResponseDto> {
     try {
-      if (auth.isSystemInternal && !request.targetOrganizationId)
+      if (auth.isSystemInternal && !request.targetOrgId)
         throw new Error('Target organization id missing');
-      if (!auth.isSystemInternal && !auth.callerOrganizationId)
+      if (!auth.isSystemInternal && !auth.callerOrgId)
         throw new Error('Caller organization id missing');
-      if (!request.targetOrganizationId && !auth.callerOrganizationId)
+      if (!request.targetOrgId && !auth.callerOrgId)
         throw new Error('No organization Id instance provided');
-      if (request.targetOrganizationId && auth.callerOrganizationId)
+      if (request.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
-      let organizationId: string;
-      if (auth.isSystemInternal && request.targetOrganizationId)
-        organizationId = request.targetOrganizationId;
-      else if (!auth.isSystemInternal && auth.callerOrganizationId)
-        organizationId = auth.callerOrganizationId;
-      else throw new Error('Unhandled organization id declaration');
-
-      this.#dbConnection = dbConnection;
-
       const column = Column.create({
-        id: new ObjectId().toHexString(),
+        id: uuidv4(),
         relationName: request.relationName,
         name: request.name,
         index: request.index,
-        type: request.type,
+        dataType: request.dataType,
         materializationId: request.materializationId,
         lineageId: request.lineageId,
-        organizationId,
+        isIdentity: request.isIdentity,
+        isNullable: request.isNullable,
+        comment: request.comment,
       });
 
       const readColumnsResult = await this.#readColumns.execute(
@@ -84,13 +76,9 @@ export class CreateColumn
           name: request.name,
           materializationId: request.materializationId,
           lineageId: request.lineageId,
-          targetOrganizationId: request.targetOrganizationId,
+          targetOrgId: request.targetOrgId,
         },
-        {
-          isSystemInternal: auth.isSystemInternal,
-          callerOrganizationId: auth.callerOrganizationId,
-        },
-        this.#dbConnection
+        auth
       );
 
       if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
@@ -99,7 +87,11 @@ export class CreateColumn
         throw new Error(`Column for materialization already exists`);
 
       if (request.writeToPersistence)
-        await this.#columnRepo.insertOne(column, this.#dbConnection);
+        await this.#columnRepo.insertOne(
+          column,
+          auth,
+          request.targetOrgId
+        );
 
       return Result.ok(column);
     } catch (error: unknown) {

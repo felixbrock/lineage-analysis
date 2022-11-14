@@ -1,22 +1,38 @@
 import { Lineage } from '../entities/lineage';
-import { DbConnection } from '../services/i-db';
 
 export interface LineageUpdateDto {
   completed?: boolean;
 }
 
+export interface Auth {
+  jwt: string;
+  callerOrgId?: string;
+  isSystemInternal: boolean;
+}
+
 export interface ILineageRepo {
-  findOne(dbConnection: DbConnection, id: string): Promise<Lineage | null>;
-  findLatest(
-    dbConnection: DbConnection,
-    filter: {organizationId: string, completed?: boolean},
+  findOne(
+    lineageId: string,
+    auth: Auth,
+    targetOrgId?: string,
   ): Promise<Lineage | null>;
-  all(dbConnection: DbConnection): Promise<Lineage[]>;
-  insertOne(lineage: Lineage, dbConnection: DbConnection): Promise<string>;
+  findLatest(
+    filter: { completed: boolean },
+    auth: Auth,
+    targetOrgId?: string,
+  ): Promise<Lineage | null>;
+  all(
+    auth: Auth,
+    targetOrgId?: string, 
+    ): Promise<Lineage[]>;
+  insertOne(lineage: Lineage,
+    auth: Auth,
+     targetOrgId?: string, 
+     ): Promise<string>;
   updateOne(
-    id: string,
+    lineageId: string,
     updateDto: LineageUpdateDto,
-    dbConnection: DbConnection
+    auth: Auth,
+    targetOrgId?: string,
   ): Promise<string>;
-  deleteOne(id: string, dbConnection: DbConnection): Promise<string>;
 }
