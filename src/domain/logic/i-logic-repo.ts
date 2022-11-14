@@ -1,4 +1,5 @@
 import { Logic } from '../entities/logic';
+import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
 
 export interface LogicQueryDto {
   relationName?: string;
@@ -14,23 +15,36 @@ export interface Auth {
 export interface ILogicRepo {
   findOne(
     logicId: string,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<Logic | null>;
   findBy(
     logicQueryDto: LogicQueryDto,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<Logic[]>;
-  all(auth: Auth, targetOrgId?: string): Promise<Logic[]>;
-  insertOne(logic: Logic, auth: Auth, targetOrgId?: string): Promise<string>;
+  all(
+    profile: SnowflakeProfileDto,
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<Logic[]>;
+  insertOne(
+    logic: Logic,
+    profile: SnowflakeProfileDto,
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<string>;
   insertMany(
     logics: Logic[],
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<string[]>;
   replaceMany(
     logics: Logic[],
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<number>;

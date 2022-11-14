@@ -8,6 +8,7 @@ import {
   ColumnProps,
   parseColumnDataType,
 } from '../../domain/entities/column';
+import { SnowflakeProfileDto } from '../../domain/integration-api/i-integration-api-repo';
 import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import {
@@ -57,7 +58,7 @@ export default class ColunRepo implements IColumnRepo {
       typeof name !== 'string' ||
       typeof relationName !== 'string' ||
       typeof index !== 'string' ||
-      typeof dataType !== 'string' ||      
+      typeof dataType !== 'string' ||
       typeof materializationId !== 'string'
     )
       throw new Error(
@@ -95,6 +96,7 @@ export default class ColunRepo implements IColumnRepo {
 
   findOne = async (
     columnId: string,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<Column | null> => {
@@ -106,7 +108,7 @@ export default class ColunRepo implements IColumnRepo {
     where id = ?;`;
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -125,12 +127,13 @@ export default class ColunRepo implements IColumnRepo {
 
   findBy = async (
     columnQueryDto: ColumnQueryDto,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<Column[]> => {
     try {
       if (!Object.keys(columnQueryDto).length)
-        return await this.all(auth, targetOrgId);
+        return await this.all(profile, auth, targetOrgId);
 
       // using binds to tell snowflake to escape params to avoid sql injection attack
       const binds: (string | number)[] = [columnQueryDto.lineageId];
@@ -185,7 +188,7 @@ export default class ColunRepo implements IColumnRepo {
         where  ${whereClause};`;
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -200,12 +203,16 @@ export default class ColunRepo implements IColumnRepo {
     }
   };
 
-  all = async (auth: Auth, targetOrgId?: string): Promise<Column[]> => {
+  all = async (
+    profile: SnowflakeProfileDto,
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<Column[]> => {
     try {
       const queryText = `select * from cito.lineage.${this.#matName};`;
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds: [] },
+        { queryText, targetOrgId, binds: [], profile },
         auth
       );
 
@@ -237,6 +244,7 @@ export default class ColunRepo implements IColumnRepo {
 
   insertOne = async (
     column: Column,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<string> => {
@@ -250,7 +258,7 @@ export default class ColunRepo implements IColumnRepo {
       ]);
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -267,6 +275,7 @@ export default class ColunRepo implements IColumnRepo {
 
   insertMany = async (
     columns: Column[],
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<string[]> => {
@@ -280,7 +289,7 @@ export default class ColunRepo implements IColumnRepo {
       ]);
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -297,6 +306,7 @@ export default class ColunRepo implements IColumnRepo {
 
   replaceMany = async (
     columns: Column[],
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<number> => {
@@ -310,7 +320,7 @@ export default class ColunRepo implements IColumnRepo {
       ]);
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 

@@ -1,4 +1,6 @@
 import { Logic } from '../entities/logic';
+import { GetSnowflakeProfile } from '../integration-api/get-snowflake-profile';
+import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
 import {} from '../services/i-db';
 import IUseCase from '../services/use-case';
 import Result from '../value-types/transient-types/result';
@@ -8,6 +10,7 @@ export interface ReadLogicsRequestDto {
   relationName?: string;
   lineageId: string;
   targetOrgId?: string;
+  profile?: SnowflakeProfileDto;
 }
 
 export interface ReadLogicsAuthDto {
@@ -24,9 +27,31 @@ export class ReadLogics
 {
   readonly #logicRepo: ILogicRepo;
 
-  constructor(logicRepo: ILogicRepo) {
+  readonly #getSnowflakeProfile: GetSnowflakeProfile;
+
+  constructor(logicRepo: ILogicRepo, getSnowflakeProfile: GetSnowflakeProfile) {
     this.#logicRepo = logicRepo;
+    this.#getSnowflakeProfile = getSnowflakeProfile;
   }
+
+  #getProfile = async (
+    jwt: string,
+    targetOrgId?: string
+  ): Promise<SnowflakeProfileDto> => {
+    const readSnowflakeProfileResult = await this.#getSnowflakeProfile.execute(
+      { targetOrgId },
+      {
+        jwt,
+      }
+    );
+
+    if (!readSnowflakeProfileResult.success)
+      throw new Error(readSnowflakeProfileResult.error);
+    if (!readSnowflakeProfileResult.value)
+      throw new Error('SnowflakeProfile does not exist');
+
+    return readSnowflakeProfileResult.value;
+  };
 
   async execute(
     request: ReadLogicsRequestDto,
@@ -42,8 +67,16 @@ export class ReadLogics
       if (request.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
+      const profile =
+        request.profile ||
+        (await this.#getProfile(
+          auth.jwt,
+          auth.isSystemInternal ? request.targetOrgId : undefined
+        ));
+
       const logics: Logic[] = await this.#logicRepo.findBy(
         this.#buildLogicQueryDto(request),
+        profile,
         auth,
         request.targetOrgId
       );

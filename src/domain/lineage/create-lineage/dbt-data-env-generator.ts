@@ -12,6 +12,7 @@ import {
   materializationTypes,
   parseMaterializationType,
 } from '../../entities/materialization';
+import { SnowflakeProfileDto } from '../../integration-api/i-integration-api-repo';
 import { CreateLogic } from '../../logic/create-logic';
 import {
   CreateMaterialization,
@@ -32,6 +33,7 @@ export interface DbtDataEnvProps {
   dbtCatalog: string;
   dbtManifest: string;
   targetOrgId?: string;
+  profile: SnowflakeProfileDto;
 }
 
 interface DbtNodeMetadata {
@@ -111,6 +113,8 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
 
   readonly #auth: Auth;
 
+  readonly #profile: SnowflakeProfileDto;
+
   #materializations: Materialization[] = [];
 
   get materializations(): Materialization[] {
@@ -145,6 +149,8 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
     this.#createColumn = dependencies.createColumn;
     this.#parseSQL = dependencies.parseSQL;
     this.#createLogic = dependencies.createLogic;
+
+    this.#profile = props.profile;
 
     this.#auth = auth;
 
@@ -183,6 +189,7 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
         lineageId: this.#lineageId,
         writeToPersistence: false,
         targetOrgId: this.#targetOrgId,
+        profile: this.#profile,
       },
       this.#auth
     );
@@ -219,6 +226,7 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
           writeToPersistence: options.writeToPersistence,
           lineageId: this.#lineageId,
           targetOrgId: this.#targetOrgId,
+          profile: this.#profile,
         },
         this.#auth
       );
@@ -314,6 +322,7 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
                 lineageId: this.#lineageId,
                 targetOrgId: this.#targetOrgId,
                 writeToPersistence: false,
+                profile: this.#profile,
               },
               this.#auth
             );
@@ -412,6 +421,7 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
             parsedLogic,
             targetOrgId: this.#targetOrgId,
             catalog: this.#catalog,
+            profile: this.#profile,
           },
           dbtProps: {
             dbtDependentOn: props.dbtDependentOn,
@@ -447,6 +457,7 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
       lineageId: this.#lineageId,
       targetOrgId: this.#targetOrgId,
       writeToPersistence: false,
+      profile: this.#profile,
     });
 
     const columns = await Promise.all(
@@ -477,6 +488,7 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
       lineageId: this.#lineageId,
       targetOrgId: this.#targetOrgId,
       writeToPersistence: false,
+      profile: this.#profile,
     });
 
     const columns = await Promise.all(

@@ -1,4 +1,5 @@
 import { Dashboard } from '../entities/dashboard';
+import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
 
 export interface DashboardQueryDto {
   url?: string;
@@ -20,22 +21,30 @@ export interface Auth {
 export interface IDashboardRepo {
   findOne(
     dashboardId: string,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<Dashboard | null>;
   findBy(
     dashboardQueryDto: DashboardQueryDto,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<Dashboard[]>;
-  all(auth: Auth, targetOrgId?: string): Promise<Dashboard[]>;
+  all(
+    profile: SnowflakeProfileDto,
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<Dashboard[]>;
   insertOne(
     dashboard: Dashboard,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<string>;
   insertMany(
     dashboards: Dashboard[],
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<string[]>;

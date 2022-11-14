@@ -8,12 +8,14 @@ import { IDependencyRepo } from './i-dependency-repo';
 import {} from '../services/i-db';
 import { Dashboard } from '../entities/dashboard';
 import { ReadDependencies } from './read-dependencies';
+import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
 
 export interface CreateExternalDependencyRequestDto {
   dashboard: Dashboard;
   lineageId: string;
   writeToPersistence: boolean;
   targetOrgId?: string;
+  profile: SnowflakeProfileDto;
 }
 
 export interface CreateExternalDependencyAuthDto {
@@ -74,6 +76,7 @@ export class CreateExternalDependency
             tailId: request.dashboard.columnId,
             lineageId: request.lineageId,
             targetOrgId: request.targetOrgId,
+            profile: request.profile,
           },
           auth
         );
@@ -90,6 +93,7 @@ export class CreateExternalDependency
       if (request.writeToPersistence)
         await this.#dependencyRepo.insertOne(
           dependency,
+          request.profile,
           auth,
           request.targetOrgId
         );

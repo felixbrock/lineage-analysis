@@ -6,12 +6,12 @@ import {
   SnowflakeQueryResult,
 } from './i-snowflake-api-repo';
 import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
-import { GetSnowflakeProfile } from '../integration-api/get-snowflake-profile';
 
 export interface QuerySnowflakeRequestDto {
   queryText: string;
   binds: (string | number)[] | (string | number)[][];
   targetOrgId?: string;
+  profile: SnowflakeProfileDto;
 }
 
 export interface QuerySnowflakeAuthDto {
@@ -32,34 +32,9 @@ export class QuerySnowflake
 {
   readonly #snowflakeApiRepo: ISnowflakeApiRepo;
 
-  readonly #getSnowflakeProfile: GetSnowflakeProfile;
-
-  constructor(
-    snowflakeApiRepo: ISnowflakeApiRepo,
-    getSnowflakeProfile: GetSnowflakeProfile
-  ) {
+  constructor(snowflakeApiRepo: ISnowflakeApiRepo) {
     this.#snowflakeApiRepo = snowflakeApiRepo;
-    this.#getSnowflakeProfile = getSnowflakeProfile;
   }
-
-  #getProfile = async (
-    jwt: string,
-    targetOrgId?: string,
-  ): Promise<SnowflakeProfileDto> => {
-    const readSnowflakeProfileResult = await this.#getSnowflakeProfile.execute(
-      {targetOrgId},
-      {
-        jwt,
-      }
-    );
-
-    if (!readSnowflakeProfileResult.success)
-      throw new Error(readSnowflakeProfileResult.error);
-    if (!readSnowflakeProfileResult.value)
-      throw new Error('SnowflakeProfile does not exist');
-
-    return readSnowflakeProfileResult.value;
-  };
 
   async execute(
     request: QuerySnowflakeRequestDto,
@@ -75,28 +50,23 @@ export class QuerySnowflake
       throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
     try {
-      const profile: SnowflakeProfileDto = await this.#getProfile(
-        auth.jwt,
-        auth.isSystemInternal ? request.targetOrgId: undefined,
-      );
-
       const queryResult = await this.#snowflakeApiRepo.runQuery(
         request.queryText,
         request.binds,
         {
-          account: profile.accountId,
-          username: profile.username,
-          password: profile.password,
-          warehouse: profile.warehouseName,
+          account: request.profile.accountId,
+          username: request.profile.username,
+          password: request.profile.password,
+          warehouse: request.profile.warehouseName,
         }
       );
 
       const stringifiedBinds = JSON.stringify(request.binds);
 
       const queryResultBaseMsg = `AcccountId: ${
-        profile.accountId
+        request.profile.accountId
       } \nOrganizationId: ${
-        profile.organizationId
+        request.profile.organizationId
       } \n Binds: ${stringifiedBinds.substring(0, 1000)}${
         stringifiedBinds.length > 1000 ? '...' : ''
       }
@@ -109,16 +79,6 @@ export class QuerySnowflake
           `Sf query failed \n${queryResultBaseMsg} \nError msg: ${queryResult.error}`
         );
       else console.log(`Sf query succeeded \n${queryResultBaseMsg}`);
-
-      // const value =
-      //   queryResult.success && queryResult.value
-      //     ? JSON.parse(
-      //         JSON.stringify(queryResult.value).replace(
-      //           /[", ']null[", ']/g,
-      //           'null'
-      //         )
-      //       )
-      //     : [];
 
       return Result.ok(queryResult.value);
     } catch (error: unknown) {

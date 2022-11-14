@@ -15,6 +15,7 @@ import {
 } from './shared/query';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
+import { SnowflakeProfileDto } from '../../domain/integration-api/i-integration-api-repo';
 
 export default class MaterializationRepo implements IMaterializationRepo {
   readonly #matName = 'materializations';
@@ -99,6 +100,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
   findOne = async (
     materializationId: string,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<Materialization | null> => {
@@ -110,7 +112,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
       const binds: (string | number)[] = [materializationId];
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -133,12 +135,13 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
   findBy = async (
     materializationQueryDto: MaterializationQueryDto,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<Materialization[]> => {
     try {
       if (!Object.keys(materializationQueryDto).length)
-        return await this.all(auth, targetOrgId);
+        return await this.all(profile, auth, targetOrgId);
 
       // using binds to tell snowflake to escape params to avoid sql injection attack
       const binds: (string | number)[] = [materializationQueryDto.lineageId];
@@ -181,7 +184,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
           where  ${whereClause};`;
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -197,6 +200,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
   };
 
   all = async (
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<Materialization[]> => {
@@ -204,7 +208,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
       const queryText = `select * from cito.lineage.${this.#matName};`;
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds: [] },
+        { queryText, targetOrgId, binds: [], profile },
         auth
       );
 
@@ -239,6 +243,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
   insertOne = async (
     materialization: Materialization,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<string> => {
@@ -252,7 +257,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
       ]);
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -269,6 +274,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
   insertMany = async (
     materializations: Materialization[],
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<string[]> => {
@@ -284,7 +290,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
       ]);
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -301,6 +307,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
   replaceMany = async (
     materializations: Materialization[],
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<number> => {
@@ -316,7 +323,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
       ]);
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 

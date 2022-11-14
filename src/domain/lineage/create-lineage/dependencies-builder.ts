@@ -25,6 +25,7 @@ import {  } from '../../services/i-db';
 import { BiType } from '../../value-types/bilayer';
 import SQLElement from '../../value-types/sql-element';
 import { SnowflakeQueryResult } from '../../snowflake-api/i-snowflake-api-repo';
+import { SnowflakeProfileDto } from '../../integration-api/i-integration-api-repo';
 
 interface Auth {
   jwt: string;
@@ -62,6 +63,8 @@ export default class DependenciesBuilder {
 
   readonly #catalog: ModelRepresentation[];
 
+  readonly #profile: SnowflakeProfileDto;
+
   #dependencies: Dependency[] = [];
 
   get dependencies(): Dependency[] {
@@ -83,6 +86,7 @@ export default class DependenciesBuilder {
       mats: Materialization[];
       columns: Column[];
       catalog: ModelRepresentation[];
+      profile: SnowflakeProfileDto;
     },
     auth: Auth,
     dependencies: {
@@ -107,6 +111,7 @@ export default class DependenciesBuilder {
     this.#mats = props.mats;
     this.#columns = props.columns;
     this.#catalog = props.catalog;
+    this.#profile = props.profile;
   }
 
   #retrieveQuerySfQueryHistory = async (
@@ -118,6 +123,7 @@ export default class DependenciesBuilder {
           biType,
           limit: 10,
           targetOrgId: this.#targetOrgId,
+          profile: this.#profile
         },
         this.#auth
       );
@@ -262,6 +268,7 @@ export default class DependenciesBuilder {
         url: dashboardRef.url,
         targetOrgId: this.#targetOrgId,
         writeToPersistence: false,
+        profile: this.#profile,
       },
       this.#auth,
     );
@@ -282,6 +289,7 @@ export default class DependenciesBuilder {
           lineageId: this.#lineageId,
           targetOrgId: this.#targetOrgId,
           writeToPersistence: false,
+          profile: this.#profile
         },
         this.#auth,
       );
@@ -334,6 +342,7 @@ export default class DependenciesBuilder {
               lineageId: this.#lineageId,
               targetOrgId: this.#targetOrgId,
               writeToPersistence: false,
+              profile: this.#profile
             },
             this.#auth,
           );
@@ -386,6 +395,7 @@ export default class DependenciesBuilder {
         lineageId: this.#lineageId,
         targetOrgId: this.#targetOrgId,
         writeToPersistence: false,
+        profile: this.#profile
       },
       this.#auth
     );
@@ -452,6 +462,7 @@ export default class DependenciesBuilder {
         relationName,
         lineageId: this.#lineageId,
         targetOrgId: this.#targetOrgId,
+        profile: this.#profile
       },
       this.#auth
     );

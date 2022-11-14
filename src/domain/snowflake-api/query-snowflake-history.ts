@@ -3,10 +3,12 @@ import IUseCase from '../services/use-case';
 import { BiType } from '../value-types/bilayer';
 import { SnowflakeQueryResult } from './i-snowflake-api-repo';
 import { QuerySnowflake } from './query-snowflake';
+import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
 
 export interface QuerySfQueryHistoryRequestDto {
   biType: BiType;
   limit: number;
+  profile: SnowflakeProfileDto;
   targetOrgId?: string;
 }
 
@@ -89,6 +91,7 @@ export class QuerySfQueryHistory
           queryText,
           binds,
           targetOrgId: request.targetOrgId,
+          profile: request.profile
         },
         auth
       );

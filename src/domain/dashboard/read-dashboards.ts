@@ -1,4 +1,6 @@
 import { Dashboard } from '../entities/dashboard';
+import { GetSnowflakeProfile } from '../integration-api/get-snowflake-profile';
+import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
 import {} from '../services/i-db';
 import IUseCase from '../services/use-case';
 import Result from '../value-types/transient-types/result';
@@ -14,12 +16,13 @@ export interface ReadDashboardsRequestDto {
   materializationId?: string;
   lineageId: string;
   targetOrgId?: string;
+  profile?: SnowflakeProfileDto;
 }
 
 export interface ReadDashboardsAuthDto {
   isSystemInternal: boolean;
   callerOrgId?: string;
-  jwt:string;
+  jwt: string;
 }
 
 export type ReadDashboardsResponseDto = Result<Dashboard[]>;
@@ -34,9 +37,34 @@ export class ReadDashboards
 {
   readonly #dashboardRepo: IDashboardRepo;
 
-  constructor(dashboardRepo: IDashboardRepo) {
+  readonly #getSnowflakeProfile: GetSnowflakeProfile;
+
+  constructor(
+    dashboardRepo: IDashboardRepo,
+    getSnowflakeProfile: GetSnowflakeProfile
+  ) {
     this.#dashboardRepo = dashboardRepo;
+    this.#getSnowflakeProfile = getSnowflakeProfile;
   }
+
+  #getProfile = async (
+    jwt: string,
+    targetOrgId?: string
+  ): Promise<SnowflakeProfileDto> => {
+    const readSnowflakeProfileResult = await this.#getSnowflakeProfile.execute(
+      { targetOrgId },
+      {
+        jwt,
+      }
+    );
+
+    if (!readSnowflakeProfileResult.success)
+      throw new Error(readSnowflakeProfileResult.error);
+    if (!readSnowflakeProfileResult.value)
+      throw new Error('SnowflakeProfile does not exist');
+
+    return readSnowflakeProfileResult.value;
+  };
 
   async execute(
     request: ReadDashboardsRequestDto,
@@ -52,8 +80,16 @@ export class ReadDashboards
       if (request.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
+      const profile =
+        request.profile ||
+        (await this.#getProfile(
+          auth.jwt,
+          auth.isSystemInternal ? request.targetOrgId : undefined
+        ));
+
       const dashboards: Dashboard[] = await this.#dashboardRepo.findBy(
         this.#buildDashboardQueryDto(request),
+        profile,
         auth,
         request.targetOrgId
       );
@@ -69,7 +105,7 @@ export class ReadDashboards
   }
 
   #buildDashboardQueryDto = (
-    request: ReadDashboardsRequestDto,
+    request: ReadDashboardsRequestDto
   ): DashboardQueryDto => {
     const queryDto: DashboardQueryDto = {
       lineageId: request.lineageId,

@@ -2,6 +2,8 @@ import {
   MaterializationType,
   Materialization,
 } from '../entities/materialization';
+import { GetSnowflakeProfile } from '../integration-api/get-snowflake-profile';
+import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
 import {} from '../services/i-db';
 import IUseCase from '../services/use-case';
 import Result from '../value-types/transient-types/result';
@@ -19,6 +21,7 @@ export interface ReadMaterializationsRequestDto {
   logicId?: string;
   lineageId: string;
   targetOrgId?: string;
+  profile?: SnowflakeProfileDto;
 }
 
 export interface ReadMaterializationsAuthDto {
@@ -39,9 +42,34 @@ export class ReadMaterializations
 {
   readonly #materializationRepo: IMaterializationRepo;
 
-  constructor(materializationRepo: IMaterializationRepo) {
+  readonly #getSnowflakeProfile: GetSnowflakeProfile;
+
+  constructor(
+    materializationRepo: IMaterializationRepo,
+    getSnowflakeProfile: GetSnowflakeProfile
+  ) {
     this.#materializationRepo = materializationRepo;
+    this.#getSnowflakeProfile = getSnowflakeProfile;
   }
+
+  #getProfile = async (
+    jwt: string,
+    targetOrgId?: string
+  ): Promise<SnowflakeProfileDto> => {
+    const readSnowflakeProfileResult = await this.#getSnowflakeProfile.execute(
+      { targetOrgId },
+      {
+        jwt,
+      }
+    );
+
+    if (!readSnowflakeProfileResult.success)
+      throw new Error(readSnowflakeProfileResult.error);
+    if (!readSnowflakeProfileResult.value)
+      throw new Error('SnowflakeProfile does not exist');
+
+    return readSnowflakeProfileResult.value;
+  };
 
   async execute(
     request: ReadMaterializationsRequestDto,
@@ -57,9 +85,17 @@ export class ReadMaterializations
       if (request.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
+      const profile =
+        request.profile ||
+        (await this.#getProfile(
+          auth.jwt,
+          auth.isSystemInternal ? request.targetOrgId : undefined
+        ));
+
       const materializations: Materialization[] =
         await this.#materializationRepo.findBy(
           this.#buildMaterializationQueryDto(request),
+          profile,
           auth,
           request.targetOrgId
         );

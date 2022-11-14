@@ -30,6 +30,8 @@ import { IColumnRepo } from '../../column/i-column-repo';
 import { QuerySnowflake } from '../../snowflake-api/query-snowflake';
 import DataEnvMerger from './data-env-merger';
 import DependenciesBuilder from './dependencies-builder';
+import { GetSnowflakeProfile } from '../../integration-api/get-snowflake-profile';
+import { SnowflakeProfileDto } from '../../integration-api/i-integration-api-repo';
 
 export interface CreateLineageRequestDto {
   targetOrgId?: string;
@@ -86,9 +88,13 @@ export class CreateLineage
 
   readonly #readColumns: ReadColumns;
 
+  readonly #getSnowflakeProfile: GetSnowflakeProfile;
+
   #targetOrgId?: string;
 
   #auth?: CreateLineageAuthDto;
+
+  #profile?: SnowflakeProfileDto;
 
   constructor(
     createLogic: CreateLogic,
@@ -106,7 +112,8 @@ export class CreateLineage
     readColumns: ReadColumns,
     createDashboard: CreateDashboard,
     querySnowflake: QuerySnowflake,
-    querySfQueryHistory: QuerySfQueryHistory
+    querySfQueryHistory: QuerySfQueryHistory,
+    getSnowflakeProfile: GetSnowflakeProfile
   ) {
     this.#createLogic = createLogic;
     this.#createMaterialization = createMaterialization;
@@ -124,6 +131,7 @@ export class CreateLineage
     this.#readColumns = readColumns;
     this.#querySnowflake = querySnowflake;
     this.#querySfQueryHistory = querySfQueryHistory;
+    this.#getSnowflakeProfile = getSnowflakeProfile;
   }
 
   #writeWhResourcesToPersistence = async (props: {
@@ -135,10 +143,12 @@ export class CreateLineage
     logicsToCreate: Logic[];
     logicsToReplace: Logic[];
   }): Promise<void> => {
-    if (!this.#auth) throw new Error('auth obj not avaible');
+    if (!this.#auth || !this.#profile)
+      throw new Error('profile or auth  not avaible');
 
     await this.#lineageRepo.insertOne(
       props.lineage,
+      this.#profile,
       this.#auth,
       this.#targetOrgId
     );
@@ -146,18 +156,21 @@ export class CreateLineage
     if (props.logicsToReplace.length)
       await this.#logicRepo.replaceMany(
         props.logicsToReplace,
+        this.#profile,
         this.#auth,
         this.#targetOrgId
       );
     if (props.matsToReplace.length)
       await this.#materializationRepo.replaceMany(
         props.matsToReplace,
+        this.#profile,
         this.#auth,
         this.#targetOrgId
       );
     if (props.columnsToReplace.length)
       await this.#columnRepo.replaceMany(
         props.columnsToReplace,
+        this.#profile,
         this.#auth,
         this.#targetOrgId
       );
@@ -165,6 +178,7 @@ export class CreateLineage
     if (props.logicsToCreate.length)
       await this.#logicRepo.insertMany(
         props.logicsToCreate,
+        this.#profile,
         this.#auth,
         this.#targetOrgId
       );
@@ -172,6 +186,7 @@ export class CreateLineage
     if (props.matsToCreate.length)
       await this.#materializationRepo.insertMany(
         props.matsToCreate,
+        this.#profile,
         this.#auth,
         this.#targetOrgId
       );
@@ -179,6 +194,7 @@ export class CreateLineage
     if (props.columnsToCreate.length)
       await this.#columnRepo.insertMany(
         props.columnsToCreate,
+        this.#profile,
         this.#auth,
         this.#targetOrgId
       );
@@ -187,11 +203,13 @@ export class CreateLineage
   #writeDashboardsToPersistence = async (
     dashboards: Dashboard[]
   ): Promise<void> => {
-    if (!this.#auth) throw new Error('auth obj not avaible');
+    if (!this.#auth || !this.#profile)
+      throw new Error('profile or auth  not avaible');
 
     if (dashboards.length)
       await this.#dashboardRepo.insertMany(
         dashboards,
+        this.#profile,
         this.#auth,
         this.#targetOrgId
       );
@@ -200,11 +218,13 @@ export class CreateLineage
   #writeDependenciesToPersistence = async (
     dependencies: Dependency[]
   ): Promise<void> => {
-    if (!this.#auth) throw new Error('auth obj not avaible');
+    if (!this.#auth || !this.#profile)
+      throw new Error('profile or auth  not avaible');
 
     if (dependencies.length)
       await this.#dependencyRepo.insertMany(
         dependencies,
+        this.#profile,
         this.#auth,
         this.#targetOrgId
       );
@@ -214,14 +234,35 @@ export class CreateLineage
     id: string,
     updateDto: LineageUpdateDto
   ): Promise<void> => {
-    if (!this.#auth) throw new Error('auth obj not avaible');
+    if (!this.#auth || !this.#profile)
+      throw new Error('profile or auth  not avaible');
 
     await this.#lineageRepo.updateOne(
       id,
       updateDto,
+      this.#profile,
       this.#auth,
       this.#targetOrgId
     );
+  };
+
+  #getProfile = async (
+    jwt: string,
+    targetOrgId?: string
+  ): Promise<SnowflakeProfileDto> => {
+    const readSnowflakeProfileResult = await this.#getSnowflakeProfile.execute(
+      { targetOrgId },
+      {
+        jwt,
+      }
+    );
+
+    if (!readSnowflakeProfileResult.success)
+      throw new Error(readSnowflakeProfileResult.error);
+    if (!readSnowflakeProfileResult.value)
+      throw new Error('SnowflakeProfile does not exist');
+
+    return readSnowflakeProfileResult.value;
   };
 
   async execute(
@@ -246,6 +287,13 @@ export class CreateLineage
       this.#auth = auth;
       this.#targetOrgId = request.targetOrgId;
 
+      const profile = await this.#getProfile(
+        auth.jwt,
+        auth.isSystemInternal ? request.targetOrgId : undefined
+      );
+
+      this.#profile = profile;
+
       console.log('starting lineage creation...');
 
       console.log('...building lineage object');
@@ -264,6 +312,7 @@ export class CreateLineage
             dbtManifest,
             lineageId: lineage.id,
             targetOrgId: request.targetOrgId,
+            profile,
           },
           auth,
           {
@@ -274,7 +323,7 @@ export class CreateLineage
           }
         );
       else {
-        const {callerOrgId} = auth;
+        const { callerOrgId } = auth;
         if (!callerOrgId)
           throw new Error(
             'Sf based lineage creation has to be invoked by user'
@@ -283,8 +332,9 @@ export class CreateLineage
         dataEnvGenerator = new SfDataEnvGenerator(
           {
             lineageId: lineage.id,
+            profile,
           },
-          {...auth, callerOrgId},
+          { ...auth, callerOrgId },
           {
             createColumn: this.#createColumn,
             createMaterialization: this.#createMaterialization,
@@ -299,7 +349,7 @@ export class CreateLineage
 
       console.log('...merging new lineage snapshot with last one');
       const dataEnvMerger = new DataEnvMerger(
-        { columns, materializations, logics },
+        { columns, materializations, logics, profile },
         auth,
         {
           lineageRepo: this.#lineageRepo,
@@ -328,6 +378,7 @@ export class CreateLineage
           catalog,
           organizationId: orgId,
           targetOrgId: request.targetOrgId,
+          profile,
         },
         auth,
         {

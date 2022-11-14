@@ -9,6 +9,7 @@ import { ColumnRef } from '../entities/logic';
 import { ReadColumns } from '../column/read-columns';
 import { Column } from '../entities/column';
 import {} from '../services/i-db';
+import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
 
 export interface CreateDependencyRequestDto {
   dependencyRef: ColumnRef;
@@ -17,6 +18,7 @@ export interface CreateDependencyRequestDto {
   lineageId: string;
   writeToPersistence: boolean;
   targetOrgId?: string;
+  profile: SnowflakeProfileDto;
 }
 
 export interface CreateDependencyAuthDto {
@@ -49,7 +51,8 @@ export class CreateDependency
   #getParentId = async (
     dependencyRef: ColumnRef,
     parentRelationNames: string[],
-    lineageId: string
+    lineageId: string,
+    profile: SnowflakeProfileDto
   ): Promise<string> => {
     if (!this.#auth) throw new Error('auth missing');
 
@@ -59,6 +62,7 @@ export class CreateDependency
         name: dependencyRef.name,
         lineageId,
         targetOrgId: this.#targetOrgId,
+        profile
       },
       this.#auth
     );
@@ -87,7 +91,8 @@ export class CreateDependency
   #getSelfColumn = async (
     selfRelationName: string,
     dependencyRef: ColumnRef,
-    lineageId: string
+    lineageId: string,
+    profile: SnowflakeProfileDto
   ): Promise<Column> => {
     if (!this.#auth) throw new Error('auth missing');
 
@@ -97,6 +102,7 @@ export class CreateDependency
         lineageId,
         name: dependencyRef.alias || dependencyRef.name,
         targetOrgId: this.#targetOrgId,
+        profile
       },
       this.#auth
     );
@@ -158,7 +164,8 @@ export class CreateDependency
       const headColumn = await this.#getSelfColumn(
         request.selfRelationName,
         request.dependencyRef,
-        request.lineageId
+        request.lineageId,
+        request.profile
       );
 
       // const parentName =
@@ -169,7 +176,7 @@ export class CreateDependency
       const parentId = await this.#getParentId(
         request.dependencyRef,
         request.parentRelationNames,
-        request.lineageId
+        request.lineageId, request.profile
       );
 
       const dependency = Dependency.create({
@@ -187,6 +194,7 @@ export class CreateDependency
           tailId: parentId,
           lineageId: request.lineageId,
           targetOrgId: request.targetOrgId,
+          profile: request.profile
         },
         auth
       );
@@ -203,6 +211,7 @@ export class CreateDependency
       if (request.writeToPersistence)
         await this.#dependencyRepo.insertOne(
           dependency,
+          request.profile,
           auth,
           request.targetOrgId
         );

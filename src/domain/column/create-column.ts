@@ -4,6 +4,7 @@ import IUseCase from '../services/use-case';
 import { Column, ColumnDataType } from '../entities/column';
 import { ReadColumns } from './read-columns';
 import { IColumnRepo } from './i-column-repo';
+import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
 
 export interface CreateColumnRequestDto {
   relationName: string;
@@ -17,12 +18,13 @@ export interface CreateColumnRequestDto {
   isIdentity?: boolean;
   isNullable?: boolean;
   comment?: string;
+  profile: SnowflakeProfileDto;
 }
 
 export interface CreateColumnAuthDto {
   isSystemInternal: boolean;
   callerOrgId?: string;
-  jwt:string;
+  jwt: string;
 }
 
 export type CreateColumnResponseDto = Result<Column>;
@@ -77,6 +79,7 @@ export class CreateColumn
           materializationId: request.materializationId,
           lineageId: request.lineageId,
           targetOrgId: request.targetOrgId,
+          profile: request.profile,
         },
         auth
       );
@@ -89,6 +92,7 @@ export class CreateColumn
       if (request.writeToPersistence)
         await this.#columnRepo.insertOne(
           column,
+          request.profile,
           auth,
           request.targetOrgId
         );

@@ -4,6 +4,7 @@ import {
   IDashboardRepo,
 } from '../../domain/dashboard/i-dashboard-repo';
 import { Dashboard, DashboardProps } from '../../domain/entities/dashboard';
+import { SnowflakeProfileDto } from '../../domain/integration-api/i-integration-api-repo';
 import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import {
@@ -83,6 +84,7 @@ export default class DashboardRepo implements IDashboardRepo {
 
   findOne = async (
     dashboardId: string,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<Dashboard | null> => {
@@ -94,7 +96,7 @@ export default class DashboardRepo implements IDashboardRepo {
       const binds: (string | number)[] = [dashboardId];
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -115,12 +117,13 @@ export default class DashboardRepo implements IDashboardRepo {
 
   findBy = async (
     dashboardQueryDto: DashboardQueryDto,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<Dashboard[]> => {
     try {
       if (!Object.keys(dashboardQueryDto).length)
-        return await this.all(auth, targetOrgId);
+        return await this.all(profile ,auth, targetOrgId);
 
       // using binds to tell snowflake to escape params to avoid sql injection attack
       const binds: (string | number)[] = [dashboardQueryDto.lineageId];
@@ -155,7 +158,7 @@ export default class DashboardRepo implements IDashboardRepo {
               where  ${whereClause};`;
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -170,12 +173,15 @@ export default class DashboardRepo implements IDashboardRepo {
     }
   };
 
-  all = async (auth: Auth, targetOrgId?: string): Promise<Dashboard[]> => {
+  all = async (
+    profile: SnowflakeProfileDto,
+    auth: Auth,
+      targetOrgId?: string): Promise<Dashboard[]> => {
     try {
       const queryText = `select * from cito.lineage.${this.#matName};`;
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds: [] },
+        { queryText, targetOrgId, binds: [], profile },
         auth
       );
 
@@ -205,6 +211,7 @@ export default class DashboardRepo implements IDashboardRepo {
 
   insertOne = async (
     dashboard: Dashboard,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<string> => {
@@ -218,7 +225,7 @@ export default class DashboardRepo implements IDashboardRepo {
       ]);
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -235,6 +242,7 @@ export default class DashboardRepo implements IDashboardRepo {
 
   insertMany = async (
     dashboards: Dashboard[],
+    profile: SnowflakeProfileDto, 
     auth: Auth,
     targetOrgId?: string
   ): Promise<string[]> => {
@@ -248,7 +256,7 @@ export default class DashboardRepo implements IDashboardRepo {
       ]);
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -265,6 +273,7 @@ export default class DashboardRepo implements IDashboardRepo {
 
   replaceMany = async (
     dashboards: Dashboard[],
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<number> => {
@@ -278,7 +287,7 @@ export default class DashboardRepo implements IDashboardRepo {
       ]);
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 

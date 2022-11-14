@@ -3,10 +3,12 @@ import IUseCase from '../services/use-case';
 import { IMaterializationRepo } from './i-materialization-repo';
 import {} from '../services/i-db';
 import { Materialization } from '../entities/materialization';
+import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
 
 export interface ReadMaterializationRequestDto {
   id: string;
   targetOrgId?: string;
+  profile: SnowflakeProfileDto;
 }
 
 export interface ReadMaterializationAuthDto {
@@ -38,6 +40,7 @@ export class ReadMaterialization
     try {
       const materialization = await this.#materializationRepo.findOne(
         request.id,
+        request.profile,
         auth,
         request.targetOrgId
       );

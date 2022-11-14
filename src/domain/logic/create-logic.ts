@@ -11,6 +11,7 @@ import {
 import { ILogicRepo } from './i-logic-repo';
 import { ReadLogics } from './read-logics';
 import {} from '../services/i-db';
+import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
 
 interface DbtRequestProps {
   dbtDependentOn: MaterializationDefinition[];
@@ -23,6 +24,7 @@ interface GeneralRequestProps {
   lineageId: string;
   catalog: ModelRepresentation[];
   targetOrgId?: string;
+  profile: SnowflakeProfileDto;
 }
 
 export interface CreateLogicRequestDto {
@@ -90,6 +92,7 @@ export class CreateLogic
           relationName: commonProps.relationName,
           lineageId: commonProps.lineageId,
           targetOrgId: commonProps.targetOrgId,
+          profile: request.props.generalProps.profile
         },
         auth
       );
@@ -102,6 +105,7 @@ export class CreateLogic
       if (request.options.writeToPersistence)
         await this.#logicRepo.insertOne(
           logic,
+          request.props.generalProps.profile,
           auth,
           request.props.generalProps.targetOrgId
         );

@@ -16,6 +16,7 @@ import {} from '../../services/i-db';
 import { ParseSQL, ParseSQLResponseDto } from '../../sql-parser-api/parse-sql';
 import { GenerateResult, IDataEnvGenerator } from './i-data-env-generator';
 import { QuerySnowflake } from '../../snowflake-api/query-snowflake';
+import { SnowflakeProfileDto } from '../../integration-api/i-integration-api-repo';
 
 interface Auth {
   jwt: string;
@@ -25,6 +26,7 @@ interface Auth {
 
 export interface SfDataEnvProps {
   lineageId: string;
+  profile: SnowflakeProfileDto;
 }
 
 interface ColumnRepresentation {
@@ -72,6 +74,8 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
 
   readonly #lineageId: string;
 
+  readonly #profile: SnowflakeProfileDto;
+
   readonly #auth: Auth;
 
   #materializations: Materialization[] = [];
@@ -114,6 +118,7 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
     this.#auth = auth;
 
     this.#lineageId = props.lineageId;
+    this.#profile = props.profile;
   }
 
   /* Get database representations from snowflake */
@@ -121,7 +126,7 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
     const queryText =
       "select database_name, database_owner, is_transient, comment from cito.information_schema.databases where not array_contains(database_name::variant, ['SNOWFLAKE', 'SNOWFLAKE_SAMPLE_DATA'])";
     const queryResult = await this.#querySnowflake.execute(
-      { queryText, binds: [] },
+      { queryText, binds: [], profile: this.#profile },
       this.#auth
     );
     if (!queryResult.success) {
@@ -170,7 +175,7 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
   ): Promise<MaterializationRepresentation[]> => {
     const queryText = `select table_catalog, table_schema, table_name, table_owner, table_type, is_transient, comment  from ${targetDbName}.information_schema.tables where table_schema != 'INFORMATION_SCHEMA';`;
     const queryResult = await this.#querySnowflake.execute(
-      { queryText, binds: [] },
+      { queryText, binds: [], profile: this.#profile },
       this.#auth
     );
     if (!queryResult.success) {
@@ -246,7 +251,7 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
     const binds = [ddlObjectType, `${dbName}.${schemaName}.${matName}`];
     const queryText = `select get_ddl(?, ?, true) as sql`;
     const queryResult = await this.#querySnowflake.execute(
-      { queryText, binds },
+      { queryText, binds, profile: this.#profile },
       this.#auth
     );
     if (!queryResult.success) {
@@ -275,7 +280,7 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
   ): Promise<ColumnRepresentation[]> => {
     const queryText = `select table_catalog, table_schema, table_name, column_name, ordinal_position, is_nullable, data_type, is_identity, comment from ${targetDbName}.information_schema.columns where table_schema != 'INFORMATION_SCHEMA'`;
     const queryResult = await this.#querySnowflake.execute(
-      { queryText, binds: [] },
+      { queryText, binds: [], profile: this.#profile },
       this.#auth
     );
     if (!queryResult.success) {
@@ -366,6 +371,7 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
         comment: columnRepresentation.comment,
         lineageId: this.#lineageId,
         writeToPersistence: false,
+        profile: this.#profile,
       },
       this.#auth
     );
@@ -381,8 +387,9 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
     logicRepresentation: LogicRepresentation,
     relationName: string
   ): Promise<Logic> => {
-
-    const parsedLogic = logicRepresentation.sql ? await this.#parseLogic(logicRepresentation.sql): '';
+    const parsedLogic = logicRepresentation.sql
+      ? await this.#parseLogic(logicRepresentation.sql)
+      : '';
 
     const createLogicResult = await this.#createLogic.execute(
       {
@@ -393,6 +400,7 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
             lineageId: this.#lineageId,
             parsedLogic,
             catalog: this.#catalog,
+            profile: this.#profile,
           },
         },
         options: {
@@ -439,6 +447,7 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
           writeToPersistence: options.writeToPersistence,
           logicId,
           lineageId: this.#lineageId,
+          profile: this.#profile,
         },
         this.#auth
       );

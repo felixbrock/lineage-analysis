@@ -1,4 +1,6 @@
 import { Column } from '../entities/column';
+import { GetSnowflakeProfile } from '../integration-api/get-snowflake-profile';
+import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
 import {} from '../services/i-db';
 import IUseCase from '../services/use-case';
 import Result from '../value-types/transient-types/result';
@@ -12,12 +14,13 @@ export interface ReadColumnsRequestDto {
   materializationId?: string | string[];
   lineageId: string;
   targetOrgId?: string;
+  profile?: SnowflakeProfileDto;
 }
 
 export interface ReadColumnsAuthDto {
   callerOrgId?: string;
   isSystemInternal: boolean;
-  jwt:string
+  jwt: string;
 }
 
 export type ReadColumnsResponseDto = Result<Column[]>;
@@ -28,9 +31,34 @@ export class ReadColumns
 {
   readonly #columnRepo: IColumnRepo;
 
-  constructor(columnRepo: IColumnRepo) {
+  readonly #getSnowflakeProfile: GetSnowflakeProfile;
+
+  constructor(
+    columnRepo: IColumnRepo,
+    getSnowflakeProfile: GetSnowflakeProfile
+  ) {
     this.#columnRepo = columnRepo;
+    this.#getSnowflakeProfile = getSnowflakeProfile;
   }
+
+  #getProfile = async (
+    jwt: string,
+    targetOrgId?: string
+  ): Promise<SnowflakeProfileDto> => {
+    const readSnowflakeProfileResult = await this.#getSnowflakeProfile.execute(
+      { targetOrgId },
+      {
+        jwt,
+      }
+    );
+
+    if (!readSnowflakeProfileResult.success)
+      throw new Error(readSnowflakeProfileResult.error);
+    if (!readSnowflakeProfileResult.value)
+      throw new Error('SnowflakeProfile does not exist');
+
+    return readSnowflakeProfileResult.value;
+  };
 
   async execute(
     request: ReadColumnsRequestDto,
@@ -46,8 +74,16 @@ export class ReadColumns
       if (request.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
+      const profile =
+        request.profile ||
+        (await this.#getProfile(
+          auth.jwt,
+          auth.isSystemInternal ? request.targetOrgId : undefined
+        ));
+
       const columns: Column[] = await this.#columnRepo.findBy(
         this.#buildColumnQueryDto(request),
+        profile,
         auth,
         request.targetOrgId
       );

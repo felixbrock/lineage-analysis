@@ -10,6 +10,7 @@ import {
 import { ReadMaterializations } from './read-materializations';
 import { IMaterializationRepo } from './i-materialization-repo';
 import {} from '../services/i-db';
+import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
 
 export interface CreateMaterializationRequestDto {
   id?: string;
@@ -25,6 +26,7 @@ export interface CreateMaterializationRequestDto {
   isTransient?: boolean;
   comment?: string;
   targetOrgId?: string;
+  profile: SnowflakeProfileDto;
 }
 
 export interface CreateMaterializationAuthDto {
@@ -89,6 +91,7 @@ export class CreateMaterialization
             relationName: request.relationName,
             lineageId: request.lineageId,
             targetOrgId: request.targetOrgId,
+            profile: request.profile
           },
           auth
         );
@@ -103,6 +106,7 @@ export class CreateMaterialization
       if (request.writeToPersistence)
         await this.#materializationRepo.insertOne(
           materialization,
+          request.profile,
           auth,
           request.targetOrgId
         );

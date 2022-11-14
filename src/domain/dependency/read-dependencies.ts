@@ -1,4 +1,6 @@
 import { Dependency, DependencyType } from '../entities/dependency';
+import { GetSnowflakeProfile } from '../integration-api/get-snowflake-profile';
+import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
 import {} from '../services/i-db';
 import IUseCase from '../services/use-case';
 import Result from '../value-types/transient-types/result';
@@ -10,12 +12,13 @@ export interface ReadDependenciesRequestDto {
   tailId?: string;
   lineageId: string;
   targetOrgId?: string;
+  profile?: SnowflakeProfileDto;
 }
 
 export interface ReadDependenciesAuthDto {
   callerOrgId?: string;
   isSystemInternal: boolean;
-  jwt:string;
+  jwt: string;
 }
 
 export type ReadDependenciesResponseDto = Result<Dependency[]>;
@@ -30,9 +33,34 @@ export class ReadDependencies
 {
   readonly #dependencyRepo: IDependencyRepo;
 
-  constructor(dependencyRepo: IDependencyRepo) {
+  readonly #getSnowflakeProfile: GetSnowflakeProfile;
+
+  constructor(
+    dependencyRepo: IDependencyRepo,
+    getSnowflakeProfile: GetSnowflakeProfile
+  ) {
     this.#dependencyRepo = dependencyRepo;
+    this.#getSnowflakeProfile = getSnowflakeProfile;
   }
+
+  #getProfile = async (
+    jwt: string,
+    targetOrgId?: string
+  ): Promise<SnowflakeProfileDto> => {
+    const readSnowflakeProfileResult = await this.#getSnowflakeProfile.execute(
+      { targetOrgId },
+      {
+        jwt,
+      }
+    );
+
+    if (!readSnowflakeProfileResult.success)
+      throw new Error(readSnowflakeProfileResult.error);
+    if (!readSnowflakeProfileResult.value)
+      throw new Error('SnowflakeProfile does not exist');
+
+    return readSnowflakeProfileResult.value;
+  };
 
   async execute(
     request: ReadDependenciesRequestDto,
@@ -48,8 +76,16 @@ export class ReadDependencies
       if (request.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
+      const profile =
+        request.profile ||
+        (await this.#getProfile(
+          auth.jwt,
+          auth.isSystemInternal ? request.targetOrgId : undefined
+        ));
+
       const dependencies: Dependency[] = await this.#dependencyRepo.findBy(
         this.#buildDependencyQueryDto(request),
+        profile,
         auth,
         request.targetOrgId
       );
@@ -65,7 +101,7 @@ export class ReadDependencies
   }
 
   #buildDependencyQueryDto = (
-    request: ReadDependenciesRequestDto,
+    request: ReadDependenciesRequestDto
   ): DependencyQueryDto => {
     const queryDto: DependencyQueryDto = { lineageId: request.lineageId };
 

@@ -16,6 +16,7 @@ import {
   getUpdateQuery,
 } from './shared/query';
 import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
+import { SnowflakeProfileDto } from '../../domain/integration-api/i-integration-api-repo';
 
 export default class LogicRepo implements ILogicRepo {
   readonly #matName = 'logics';
@@ -65,7 +66,10 @@ export default class LogicRepo implements ILogicRepo {
       'dbtDependencyDefinitions' in (el as DependentOn) &&
       'dwDependencyDefinitions' in (el as DependentOn);
     const isRefsObj = (el: unknown): el is Refs =>
-      !!el && 'materializations' in (el as Refs) && 'columns' in (el as Refs) && 'wildcards' in (el as Refs);
+      !!el &&
+      'materializations' in (el as Refs) &&
+      'columns' in (el as Refs) &&
+      'wildcards' in (el as Refs);
     const isStringArray = (value: unknown): value is string[] =>
       Array.isArray(value) && value.every((el) => typeof el === 'string');
 
@@ -91,6 +95,7 @@ export default class LogicRepo implements ILogicRepo {
 
   findOne = async (
     logicId: string,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<Logic | null> => {
@@ -102,7 +107,7 @@ export default class LogicRepo implements ILogicRepo {
       const binds: (string | number)[] = [logicId];
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -121,12 +126,13 @@ export default class LogicRepo implements ILogicRepo {
 
   findBy = async (
     logicQueryDto: LogicQueryDto,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<Logic[]> => {
     try {
       if (!Object.keys(logicQueryDto).length)
-        return await this.all(auth, targetOrgId);
+        return await this.all(profile, auth, targetOrgId);
 
       // using binds to tell snowflake to escape params to avoid sql injection attack
       const binds: (string | number)[] = [logicQueryDto.lineageId];
@@ -138,7 +144,7 @@ export default class LogicRepo implements ILogicRepo {
       };`;
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -153,12 +159,16 @@ export default class LogicRepo implements ILogicRepo {
     }
   };
 
-  all = async (auth: Auth, targetOrgId?: string): Promise<Logic[]> => {
+  all = async (
+    profile: SnowflakeProfileDto,
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<Logic[]> => {
     try {
       const queryText = `select * from cito.lineage.${this.#matName};`;
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds: [] },
+        { queryText, targetOrgId, binds: [], profile },
         auth
       );
 
@@ -177,6 +187,7 @@ export default class LogicRepo implements ILogicRepo {
 
   insertOne = async (
     logic: Logic,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<string> => {
@@ -197,7 +208,7 @@ export default class LogicRepo implements ILogicRepo {
       ]);
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -214,6 +225,7 @@ export default class LogicRepo implements ILogicRepo {
 
   insertMany = async (
     logics: Logic[],
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<string[]> => {
@@ -228,16 +240,14 @@ export default class LogicRepo implements ILogicRepo {
         JSON.stringify(el.lineageIds),
       ]);
 
-      const row = `(${this.#colDefinitions.map(() =>'?').join(', ')})`;
+      const row = `(${this.#colDefinitions.map(() => '?').join(', ')})`;
 
-      const queryText = getInsertQuery(
-        this.#matName,
-        this.#colDefinitions,
-        [row]
-      );
+      const queryText = getInsertQuery(this.#matName, this.#colDefinitions, [
+        row,
+      ]);
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -254,6 +264,7 @@ export default class LogicRepo implements ILogicRepo {
 
   replaceMany = async (
     logics: Logic[],
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<number> => {
@@ -268,17 +279,14 @@ export default class LogicRepo implements ILogicRepo {
         JSON.stringify(el.lineageIds),
       ]);
 
-      const row = `(${this.#colDefinitions.map(() =>'?').join(', ')})`;
+      const row = `(${this.#colDefinitions.map(() => '?').join(', ')})`;
 
-
-      const queryText = getUpdateQuery(
-        this.#matName,
-        this.#colDefinitions,
-        [row]
-      );
+      const queryText = getUpdateQuery(this.#matName, this.#colDefinitions, [
+        row,
+      ]);
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 

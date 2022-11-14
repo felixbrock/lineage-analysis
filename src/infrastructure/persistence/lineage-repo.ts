@@ -11,6 +11,7 @@ import {
 } from './shared/query';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
+import { SnowflakeProfileDto } from '../../domain/integration-api/i-integration-api-repo';
 
 export default class LineageRepo implements ILineageRepo {
   readonly #matName = 'lineage_snapshots';
@@ -39,11 +40,16 @@ export default class LineageRepo implements ILineageRepo {
         'Retrieved unexpected lineage field types from persistence'
       );
 
-    return this.#toEntity({ id, completed, createdAt: createdAt.toISOString() });
+    return this.#toEntity({
+      id,
+      completed,
+      createdAt: createdAt.toISOString(),
+    });
   };
 
   findOne = async (
     lineageId: string,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<Lineage | null> => {
@@ -55,7 +61,7 @@ export default class LineageRepo implements ILineageRepo {
       const binds: (string | number)[] = [lineageId];
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -74,6 +80,7 @@ export default class LineageRepo implements ILineageRepo {
 
   findLatest = async (
     filter: { completed: boolean },
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<Lineage | null> => {
@@ -85,7 +92,7 @@ export default class LineageRepo implements ILineageRepo {
       const binds = [filter.completed.toString()];
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -102,12 +109,16 @@ export default class LineageRepo implements ILineageRepo {
     }
   };
 
-  all = async (auth: Auth, targetOrgId?: string): Promise<Lineage[]> => {
+  all = async (
+    profile: SnowflakeProfileDto,
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<Lineage[]> => {
     try {
       const queryText = `select * from cito.lineage.${this.#matName};`;
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds: [] },
+        { queryText, targetOrgId, binds: [], profile },
         auth
       );
 
@@ -137,6 +148,7 @@ export default class LineageRepo implements ILineageRepo {
 
   insertOne = async (
     lineage: Lineage,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<string> => {
@@ -149,7 +161,7 @@ export default class LineageRepo implements ILineageRepo {
       ]);
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -167,6 +179,7 @@ export default class LineageRepo implements ILineageRepo {
   updateOne = async (
     lineageId: string,
     updateDto: LineageUpdateDto,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<string> => {
@@ -191,7 +204,7 @@ export default class LineageRepo implements ILineageRepo {
       ]);
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 

@@ -4,6 +4,7 @@ import IUseCase from '../services/use-case';
 import { Dashboard } from '../entities/dashboard';
 import { ReadDashboards } from './read-dashboards';
 import { IDashboardRepo } from './i-dashboard-repo';
+import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
 
 export interface CreateDashboardRequestDto {
   url?: string;
@@ -14,6 +15,7 @@ export interface CreateDashboardRequestDto {
   lineageId: string;
   targetOrgId?: string;
   writeToPersistence: boolean;
+  profile: SnowflakeProfileDto;
 }
 
 export interface CreateDashboardAuthDto {
@@ -74,6 +76,7 @@ export class CreateDashboard
           url: request.url,
           lineageId: request.lineageId,
           targetOrgId: request.targetOrgId,
+          profile: request.profile
         },
         auth,
       );
@@ -86,7 +89,7 @@ export class CreateDashboard
         throw new Error(`Dashboard already exists`);
 
       if (request.writeToPersistence)
-        await this.#dashboardRepo.insertOne(dashboard, auth, request.targetOrgId);
+        await this.#dashboardRepo.insertOne(dashboard, request.profile, auth, request.targetOrgId);
 
       return Result.ok(dashboard);
     } catch (error: unknown) {

@@ -2,6 +2,7 @@ import {
   MaterializationType,
   Materialization,
 } from '../entities/materialization';
+import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
 
 export interface MaterializationQueryDto {
   relationName?: string;
@@ -22,27 +23,36 @@ export interface Auth {
 export interface IMaterializationRepo {
   findOne(
     materializationId: string,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<Materialization | null>;
   findBy(
     materializationQueryDto: MaterializationQueryDto,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<Materialization[]>;
-  all(auth: Auth, targetOrgId?: string): Promise<Materialization[]>;
+  all(
+    profile: SnowflakeProfileDto,
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<Materialization[]>;
   insertOne(
     materialization: Materialization,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<string>;
   insertMany(
     materializations: Materialization[],
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<string[]>;
   replaceMany(
     materializations: Materialization[],
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<number>;

@@ -8,6 +8,7 @@ import {
   DependencyProps,
   parseDependencyType,
 } from '../../domain/entities/dependency';
+import { SnowflakeProfileDto } from '../../domain/integration-api/i-integration-api-repo';
 import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import { ColumnDefinition, getInsertQuery } from './shared/query';
@@ -68,6 +69,7 @@ export default class DependencyRepo implements IDependencyRepo {
 
   findOne = async (
     dependencyId: string,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<Dependency | null> => {
@@ -79,7 +81,7 @@ export default class DependencyRepo implements IDependencyRepo {
       const binds: (string | number)[] = [dependencyId];
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -100,12 +102,13 @@ export default class DependencyRepo implements IDependencyRepo {
 
   findBy = async (
     dependencyQueryDto: DependencyQueryDto,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<Dependency[]> => {
     try {
       if (!Object.keys(dependencyQueryDto).length)
-        return await this.all(auth, targetOrgId);
+        return await this.all(profile, auth, targetOrgId);
 
       // using binds to tell snowflake to escape params to avoid sql injection attack
       const binds: (string | number)[] = [dependencyQueryDto.lineageId];
@@ -128,7 +131,7 @@ export default class DependencyRepo implements IDependencyRepo {
           where  ${whereClause};`;
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -143,12 +146,16 @@ export default class DependencyRepo implements IDependencyRepo {
     }
   };
 
-  all = async (auth: Auth, targetOrgId?: string): Promise<Dependency[]> => {
+  all = async (
+    profile: SnowflakeProfileDto,
+    auth: Auth,
+    targetOrgId?: string
+  ): Promise<Dependency[]> => {
     try {
       const queryText = `select * from cito.lineage.${this.#matName};`;
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds: [] },
+        { queryText, targetOrgId, binds: [], profile },
         auth
       );
 
@@ -175,6 +182,7 @@ export default class DependencyRepo implements IDependencyRepo {
 
   insertOne = async (
     dependency: Dependency,
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<string> => {
@@ -188,7 +196,7 @@ export default class DependencyRepo implements IDependencyRepo {
       ]);
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
@@ -205,6 +213,7 @@ export default class DependencyRepo implements IDependencyRepo {
 
   insertMany = async (
     dependencys: Dependency[],
+    profile: SnowflakeProfileDto,
     auth: Auth,
     targetOrgId?: string
   ): Promise<string[]> => {
@@ -218,7 +227,7 @@ export default class DependencyRepo implements IDependencyRepo {
       ]);
 
       const result = await this.#querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, targetOrgId, binds, profile },
         auth
       );
 
