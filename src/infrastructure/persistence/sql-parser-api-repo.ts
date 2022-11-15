@@ -35,7 +35,7 @@ export default class SQLParserApiRepoImpl implements ISQLParserApiRepo {
       /* error code 500 is returned when we encounter a parse
            error. Returning empty fle allows us to continue and 
            create as much lineage as possible instead of failing */
-      if (error instanceof Error && error.message.includes('500'))
+      if (error instanceof Error && (error.message.includes('500') || error.message.includes('502')))
         return { file: [{}, {}] };
       return Promise.reject(new Error());
     }

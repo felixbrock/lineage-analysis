@@ -24,10 +24,17 @@ export default class SnowflakeApiRepo implements ISnowflakeApiRepo {
           if (destroyError)
             console.error(`Unable to disconnect: ${destroyError.message}`);
           else {
-            console.log(
-              `Disconnected connection with id: ${connectionToDestroy.getId()}`
-            );
-            if (error) resolve(Result.fail(error.message));
+            // console.log(
+            //   `Disconnected connection with id: ${connectionToDestroy.getId()}`
+            // );
+            if (error)
+              resolve(
+                Result.fail(
+                  `Disconnecting sf connection ${connectionToDestroy.getId()} failed: ${
+                    error.message
+                  }`
+                )
+              );
             resolve(Result.ok(results));
           }
         });
@@ -47,8 +54,8 @@ export default class SnowflakeApiRepo implements ISnowflakeApiRepo {
           }
 
           // Optional: store the connection ID.
-          const connectionId = conn.getId();
-          console.log(`Executing sf query \nConnectionId: ${connectionId}`);
+          // const connectionId = conn.getId();
+          // console.log(`Executing sf query \nConnectionId: ${connectionId}`);
 
           const complete = (error: any, stmt: Statement): void => {
             if (error) {

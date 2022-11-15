@@ -7,7 +7,7 @@ provider:
   stage: production
   region: eu-central-1
   timeout: 600
-  memorySize: 256
+  memorySize: 512
 functions:
   app:
     handler: dist/lambda.handler

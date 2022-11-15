@@ -90,7 +90,7 @@ export default class LineageRepo implements ILineageRepo {
     where completed = true 
     ${
       filter.tolerateIncomplete
-        ? `or (completed = false and timediff(minute, created_at, current_timestamp::timestamp_ntz) < ?)`
+        ? `or (completed = false and timediff(minute, created_at, sysdate()) < ?)`
         : ''
     }
     order by created_at desc limit 1;`;
