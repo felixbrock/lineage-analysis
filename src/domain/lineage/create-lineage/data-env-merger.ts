@@ -239,7 +239,7 @@ export default class DataEnvMerger {
     logicsToReplace: Logic[];
   }> => {
     const latestLineage = await this.#lineageRepo.findLatest(
-      { completed: true },
+      { tolerateIncomplete: false },
       this.#profile,
       this.#auth,
       this.#targetOrgId

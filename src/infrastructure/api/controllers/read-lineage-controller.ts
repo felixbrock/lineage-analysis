@@ -20,21 +20,43 @@ export default class ReadLineageController extends BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-
   constructor(readLineage: ReadLineage, getAccounts: GetAccounts) {
     super();
     this.#readLineage = readLineage;
     this.#getAccounts = getAccounts;
   }
 
-  #buildRequestDto = (httpRequest: Request): ReadLineageRequestDto => ({
-    id: httpRequest.params.id,
-  });
+  #buildRequestDto = (httpRequest: Request): ReadLineageRequestDto => {
+    const { tolerateIncomplete, minuteTolerance } = httpRequest.query;
 
-  #buildAuthDto = (userAccountInfo: UserAccountInfo, jwt: string): ReadLineageAuthDto => ({
+    if (
+      tolerateIncomplete === undefined ||
+      typeof tolerateIncomplete !== 'string' ||
+      !['true', 'false'].includes(tolerateIncomplete)
+    )
+      throw new Error('TolerateIncomplete param missing or in wrong format');
+
+      if (
+        minuteTolerance &&
+        (typeof minuteTolerance !== 'string' ||
+        Number.isNaN(minuteTolerance))
+      )
+        throw new Error('MinuteTolerance param in wrong format');
+
+    return {
+      id: httpRequest.params.id,
+      tolerateIncomplete: tolerateIncomplete === 'true',
+      minuteTolerance: Number(minuteTolerance)
+    };
+  };
+
+  #buildAuthDto = (
+    userAccountInfo: UserAccountInfo,
+    jwt: string
+  ): ReadLineageAuthDto => ({
     callerOrgId: userAccountInfo.callerOrgId,
     isSystemInternal: userAccountInfo.isSystemInternal,
-    jwt
+    jwt,
   });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
@@ -61,10 +83,7 @@ export default class ReadLineageController extends BaseController {
       const authDto = this.#buildAuthDto(getUserAccountInfoResult.value, jwt);
 
       const useCaseResult: ReadLineageResponseDto =
-        await this.#readLineage.execute(
-          requestDto,
-          authDto,
-        );
+        await this.#readLineage.execute(requestDto, authDto);
 
       if (!useCaseResult.success) {
         return ReadLineageController.badRequest(res);
@@ -78,7 +97,10 @@ export default class ReadLineageController extends BaseController {
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      return ReadLineageController.fail(res, 'Internal error occurred while reading lineage');
+      return ReadLineageController.fail(
+        res,
+        'Internal error occurred while reading lineage'
+      );
     }
   }
 }

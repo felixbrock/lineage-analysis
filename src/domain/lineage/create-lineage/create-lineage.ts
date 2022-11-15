@@ -134,8 +134,19 @@ export class CreateLineage
     this.#getSnowflakeProfile = getSnowflakeProfile;
   }
 
+  #writeLineageToPersistence = async (lineage: Lineage): Promise<void> => {
+    if (!this.#auth || !this.#profile)
+      throw new Error('profile or auth  not avaible');
+
+    await this.#lineageRepo.insertOne(
+      lineage,
+      this.#profile,
+      this.#auth,
+      this.#targetOrgId
+    );
+  };
+
   #writeWhResourcesToPersistence = async (props: {
-    lineage: Lineage;
     matsToCreate: Materialization[];
     matsToReplace: Materialization[];
     columnsToCreate: Column[];
@@ -145,13 +156,6 @@ export class CreateLineage
   }): Promise<void> => {
     if (!this.#auth || !this.#profile)
       throw new Error('profile or auth  not avaible');
-
-    await this.#lineageRepo.insertOne(
-      props.lineage,
-      this.#profile,
-      this.#auth,
-      this.#targetOrgId
-    );
 
     if (props.logicsToReplace.length)
       await this.#logicRepo.replaceMany(
@@ -299,6 +303,9 @@ export class CreateLineage
       console.log('...building lineage object');
       const lineage = buildLineage();
 
+      console.log('...writing lineage to persistence');
+      await this.#writeLineageToPersistence(lineage);
+
       const { dbtCatalog, dbtManifest } = request;
 
       const dbtBased = dbtCatalog && dbtManifest;
@@ -362,7 +369,7 @@ export class CreateLineage
       const mergedDataEnv = await dataEnvMerger.merge();
 
       console.log('...writing dw resources to persistence');
-      await this.#writeWhResourcesToPersistence({ lineage, ...mergedDataEnv });
+      await this.#writeWhResourcesToPersistence({...mergedDataEnv });
 
       console.log('...building dependencies');
       const dependenciesBuilder = await new DependenciesBuilder(
