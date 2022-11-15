@@ -63,22 +63,22 @@ export class QuerySnowflake
 
       const stringifiedBinds = JSON.stringify(request.binds);
 
-      const queryResultBaseMsg = `AcccountId: ${
-        request.profile.accountId
-      } \nOrganizationId: ${
-        request.profile.organizationId
-      } \n Binds: ${stringifiedBinds.substring(0, 1000)}${
-        stringifiedBinds.length > 1000 ? '...' : ''
-      }
-      \n${request.queryText.substring(0, 1000)}${
-        request.queryText.length > 1000 ? '...' : ''
-      }`;
-
       if (!queryResult.success)
-        throw new Error(
+        {
+          const queryResultBaseMsg = `AcccountId: ${
+            request.profile.accountId
+          } \nOrganizationId: ${
+            request.profile.organizationId
+          } \n Binds: ${stringifiedBinds.substring(0, 1000)}${
+            stringifiedBinds.length > 1000 ? '...' : ''
+          }
+          \n${request.queryText.substring(0, 1000)}${
+            request.queryText.length > 1000 ? '...' : ''
+          }`;
+          
+          throw new Error(
           `Sf query failed \n${queryResultBaseMsg} \nError msg: ${queryResult.error}`
-        );
-      else console.log(`Sf query succeeded \n${queryResultBaseMsg}`);
+        );}
 
       return Result.ok(queryResult.value);
     } catch (error: unknown) {

@@ -20,7 +20,7 @@ export interface ReadLineageAuthDto {
   jwt: string;
 }
 
-export type ReadLineageResponseDto = Result<Lineage>;
+export type ReadLineageResponseDto = Result<Lineage | null>;
 
 export class ReadLineage
   implements
@@ -84,7 +84,7 @@ export class ReadLineage
             auth,
             request.targetOrgId
           );
-      if (!lineage)
+      if (request.id && !lineage)
         throw new Error(
           `No lineage found for organization ${auth.callerOrgId}`
         );
