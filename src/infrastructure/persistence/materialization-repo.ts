@@ -13,14 +13,18 @@ import {
   getInsertQuery,
   getUpdateQuery,
 } from './shared/query';
-import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { SnowflakeProfileDto } from '../../domain/integration-api/i-integration-api-repo';
+import BaseSfRepo from './shared/base-sf-repo';
+import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 
-export default class MaterializationRepo implements IMaterializationRepo {
-  readonly #matName = 'materializations';
+export default class MaterializationRepo
+  extends BaseSfRepo<Materialization, MaterializationProps>
+  implements IMaterializationRepo
+{
+  readonly matName = 'materializations';
 
-  readonly #colDefinitions: ColumnDefinition[] = [
+  readonly colDefinitions: ColumnDefinition[] = [
     { name: 'id', nullable: false },
     { name: 'name', nullable: false },
     { name: 'schema_name', nullable: false },
@@ -34,13 +38,12 @@ export default class MaterializationRepo implements IMaterializationRepo {
     { name: 'comment', nullable: true },
   ];
 
-  readonly #querySnowflake: QuerySnowflake;
-
+  // eslint-disable-next-line @typescript-eslint/no-useless-constructor
   constructor(querySnowflake: QuerySnowflake) {
-    this.#querySnowflake = querySnowflake;
+    super(querySnowflake);
   }
 
-  #buildMaterialization = (sfEntity: SnowflakeEntity): Materialization => {
+  buildEntityProps = (sfEntity: SnowflakeEntity): MaterializationProps => {
     const {
       ID: id,
       NAME: name,
@@ -67,23 +70,18 @@ export default class MaterializationRepo implements IMaterializationRepo {
         'Retrieved unexpected materialization field types from persistence'
       );
 
-    const isStringArray = (value: unknown): value is string[] =>
-      Array.isArray(value) && value.every((el) => typeof el === 'string');
-    const isOptionalOfType = <T>(val: unknown, targetType: string): val is T =>
-      val === null || typeof val === targetType;
-
     if (
-      !isStringArray(lineageIds) ||
-      !isOptionalOfType<boolean>(isTransient, 'boolean') ||
-      !isOptionalOfType<string>(logicId, 'string') ||
-      !isOptionalOfType<string>(ownerId, 'string') ||
-      !isOptionalOfType<string>(comment, 'string')
+      !MaterializationRepo.isStringArray(lineageIds) ||
+      !MaterializationRepo.isOptionalOfType<boolean>(isTransient, 'boolean') ||
+      !MaterializationRepo.isOptionalOfType<string>(logicId, 'string') ||
+      !MaterializationRepo.isOptionalOfType<string>(ownerId, 'string') ||
+      !MaterializationRepo.isOptionalOfType<string>(comment, 'string')
     )
       throw new Error(
         'Type mismatch detected when reading materialization from persistence'
       );
 
-    return this.#toEntity({
+    return {
       id,
       name,
       schemaName,
@@ -95,7 +93,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
       ownerId,
       lineageIds,
       comment,
-    });
+    };
   };
 
   findOne = async (
@@ -105,13 +103,13 @@ export default class MaterializationRepo implements IMaterializationRepo {
     targetOrgId?: string
   ): Promise<Materialization | null> => {
     try {
-      const queryText = `select * from cito.lineage.${this.#matName}
+      const queryText = `select * from cito.lineage.${this.matName}
       where id = ?;`;
 
       // using binds to tell snowflake to escape params to avoid sql injection attack
       const binds: (string | number)[] = [materializationId];
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds, profile },
         auth
       );
@@ -125,7 +123,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
 
       return !result.value.length
         ? null
-        : this.#buildMaterialization(result.value[0]);
+        : this.toEntity(this.buildEntityProps(result.value[0]));
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
@@ -180,10 +178,10 @@ export default class MaterializationRepo implements IMaterializationRepo {
         whereClause = whereClause.concat('and logic_id = ? ');
       }
 
-      const queryText = `select * from cito.lineage.${this.#matName}
+      const queryText = `select * from cito.lineage.${this.matName}
           where  ${whereClause};`;
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds, profile },
         auth
       );
@@ -191,7 +189,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
       if (!result.success) throw new Error(result.error);
       if (!result.value) throw new Error('Missing sf query value');
 
-      return result.value.map((el) => this.#buildMaterialization(el));
+      return result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
@@ -205,9 +203,9 @@ export default class MaterializationRepo implements IMaterializationRepo {
     targetOrgId?: string
   ): Promise<Materialization[]> => {
     try {
-      const queryText = `select * from cito.lineage.${this.#matName};`;
+      const queryText = `select * from cito.lineage.${this.matName};`;
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds: [], profile },
         auth
       );
@@ -219,7 +217,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
           `Multiple or no materialization entities with id found`
         );
 
-      return result.value.map((el) => this.#buildMaterialization(el));
+      return result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
@@ -227,7 +225,7 @@ export default class MaterializationRepo implements IMaterializationRepo {
     }
   };
 
-  #getBinds = (el: Materialization): (string | number)[] => [
+getBinds = (el: Materialization): (string | number)[] => [
     el.id,
     el.name,
     el.schemaName,
@@ -248,15 +246,15 @@ export default class MaterializationRepo implements IMaterializationRepo {
     targetOrgId?: string
   ): Promise<string> => {
     try {
-      const binds = this.#getBinds(materialization);
+      const binds = this.getBinds(materialization);
 
       const row = `(${binds.map(() => '?').join(', ')})`;
 
-      const queryText = getInsertQuery(this.#matName, this.#colDefinitions, [
+      const queryText = getInsertQuery(this.matName, this.colDefinitions, [
         row,
       ]);
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds, profile },
         auth
       );
@@ -280,16 +278,16 @@ export default class MaterializationRepo implements IMaterializationRepo {
   ): Promise<string[]> => {
     try {
       const binds = materializations.map((materialization) =>
-        this.#getBinds(materialization)
+        this.getBinds(materialization)
       );
 
-      const row = `(${this.#colDefinitions.map(() => '?').join(', ')})`;
+      const row = `(${this.colDefinitions.map(() => '?').join(', ')})`;
 
-      const queryText = getInsertQuery(this.#matName, this.#colDefinitions, [
+      const queryText = getInsertQuery(this.matName, this.colDefinitions, [
         row,
       ]);
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds, profile },
         auth
       );
@@ -313,16 +311,16 @@ export default class MaterializationRepo implements IMaterializationRepo {
   ): Promise<number> => {
     try {
       const binds = materializations.map((materialization) =>
-        this.#getBinds(materialization)
+        this.getBinds(materialization)
       );
 
-      const row = `(${this.#colDefinitions.map(() => '?').join(', ')})`;
+      const row = `(${this.colDefinitions.map(() => '?').join(', ')})`;
 
-      const queryText = getUpdateQuery(this.#matName, this.#colDefinitions, [
+      const queryText = getUpdateQuery(this.matName, this.colDefinitions, [
         row,
       ]);
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds, profile },
         auth
       );
@@ -338,6 +336,6 @@ export default class MaterializationRepo implements IMaterializationRepo {
     }
   };
 
-  #toEntity = (materializationProps: MaterializationProps): Materialization =>
+  toEntity = (materializationProps: MaterializationProps): Materialization =>
     Materialization.build(materializationProps);
 }

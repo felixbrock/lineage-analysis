@@ -3,13 +3,13 @@ export interface LineagePrototype {
   createdAt?: string;
 }
 
-export interface LineageProperties
+export interface LineageProps
   extends Omit<LineagePrototype, 'createdAt'> {
   createdAt: string;
   completed: boolean;
 }
 
-type LineageDto = LineageProperties;
+type LineageDto = LineageProps;
 
 export class Lineage {
   #id: string;
@@ -31,7 +31,7 @@ export class Lineage {
     return this.#completed;
   }
 
-  private constructor(props: LineageProperties) {
+  private constructor(props: LineageProps) {
     this.#id = props.id;
     this.#createdAt = props.createdAt;
     this.#completed = props.completed;
@@ -49,7 +49,7 @@ export class Lineage {
     return lineage;
   };
 
-  static build = (props: LineageProperties): Lineage =>
+  static build = (props: LineageProps): Lineage =>
     new Lineage({
       id: props.id,
       createdAt: props.createdAt,

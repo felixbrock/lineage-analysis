@@ -11,12 +11,16 @@ import {
 import { SnowflakeProfileDto } from '../../domain/integration-api/i-integration-api-repo';
 import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
+import BaseSfRepo from './shared/base-sf-repo';
 import { ColumnDefinition, getInsertQuery } from './shared/query';
 
-export default class DependencyRepo implements IDependencyRepo {
-  readonly #matName = 'dependencies';
+export default class DependencyRepo
+  extends BaseSfRepo<Dependency, DependencyProps>
+  implements IDependencyRepo
+{
+  readonly matName = 'dependencies';
 
-  readonly #colDefinitions: ColumnDefinition[] = [
+  readonly colDefinitions: ColumnDefinition[] = [
     { name: 'id', nullable: false },
     { name: 'type', nullable: false },
     { name: 'head_id', nullable: false },
@@ -24,13 +28,12 @@ export default class DependencyRepo implements IDependencyRepo {
     { name: 'lineage_ids', selectType: 'parse_json', nullable: false },
   ];
 
-  readonly #querySnowflake: QuerySnowflake;
+// eslint-disable-next-line @typescript-eslint/no-useless-constructor
+constructor(querySnowflake: QuerySnowflake) {
+  super(querySnowflake);
+}
 
-  constructor(querySnowflake: QuerySnowflake) {
-    this.#querySnowflake = querySnowflake;
-  }
-
-  #buildDependency = (sfEntity: SnowflakeEntity): Dependency => {
+  buildEntityProps = (sfEntity: SnowflakeEntity): DependencyProps => {
     const {
       ID: id,
       TYPE: type,
@@ -50,21 +53,18 @@ export default class DependencyRepo implements IDependencyRepo {
         'Retrieved unexpected dependency field types from persistence'
       );
 
-    const isStringArray = (value: unknown): value is string[] =>
-      Array.isArray(value) && value.every((el) => typeof el === 'string');
-
-    if (!isStringArray(lineageIds))
+    if (!DependencyRepo.isStringArray(lineageIds))
       throw new Error(
         'Type mismatch detected when reading materialization from persistence'
       );
 
-    return this.#toEntity({
+    return {
       id,
       headId,
       tailId,
       lineageIds,
       type: parseDependencyType(type),
-    });
+    };
   };
 
   findOne = async (
@@ -74,13 +74,13 @@ export default class DependencyRepo implements IDependencyRepo {
     targetOrgId?: string
   ): Promise<Dependency | null> => {
     try {
-      const queryText = `select * from cito.lineage.${this.#matName}
+      const queryText = `select * from cito.lineage.${this.matName}
              where id = ?;`;
 
       // using binds to tell snowflake to escape params to avoid sql injection attack
       const binds: (string | number)[] = [dependencyId];
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds, profile },
         auth
       );
@@ -92,7 +92,7 @@ export default class DependencyRepo implements IDependencyRepo {
 
       return !result.value.length
         ? null
-        : this.#buildDependency(result.value[0]);
+        : this.toEntity(this.buildEntityProps(result.value[0]));
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
@@ -127,10 +127,10 @@ export default class DependencyRepo implements IDependencyRepo {
         whereClause = whereClause.concat('and type = ? ');
       }
 
-      const queryText = `select * from cito.lineage.${this.#matName}
+      const queryText = `select * from cito.lineage.${this.matName}
           where  ${whereClause};`;
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds, profile },
         auth
       );
@@ -138,7 +138,7 @@ export default class DependencyRepo implements IDependencyRepo {
       if (!result.success) throw new Error(result.error);
       if (!result.value) throw new Error('Missing sf query value');
 
-      return result.value.map((el) => this.#buildDependency(el));
+      return result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
@@ -152,9 +152,9 @@ export default class DependencyRepo implements IDependencyRepo {
     targetOrgId?: string
   ): Promise<Dependency[]> => {
     try {
-      const queryText = `select * from cito.lineage.${this.#matName};`;
+      const queryText = `select * from cito.lineage.${this.matName};`;
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds: [], profile },
         auth
       );
@@ -164,7 +164,7 @@ export default class DependencyRepo implements IDependencyRepo {
       if (result.value.length !== 1)
         throw new Error(`Multiple or no dependency entities with id found`);
 
-      return result.value.map((el) => this.#buildDependency(el));
+      return result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
@@ -172,12 +172,12 @@ export default class DependencyRepo implements IDependencyRepo {
     }
   };
 
-  #getBinds = (el: Dependency): (string | number)[] => [
-    el.id,
-    el.type,
-    el.headId,
-    el.tailId,
-    JSON.stringify(el.lineageIds),
+  getBinds = (entity: Dependency): (string | number)[] => [
+    entity.id,
+    entity.type,
+    entity.headId,
+    entity.tailId,
+    JSON.stringify(entity.lineageIds),
   ];
 
   insertOne = async (
@@ -187,15 +187,15 @@ export default class DependencyRepo implements IDependencyRepo {
     targetOrgId?: string
   ): Promise<string> => {
     try {
-      const binds = this.#getBinds(dependency);
+      const binds = this.getBinds(dependency);
 
       const row = `(${binds.map(() => '?').join(', ')})`;
 
-      const queryText = getInsertQuery(this.#matName, this.#colDefinitions, [
+      const queryText = getInsertQuery(this.matName, this.colDefinitions, [
         row,
       ]);
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds, profile },
         auth
       );
@@ -218,15 +218,15 @@ export default class DependencyRepo implements IDependencyRepo {
     targetOrgId?: string
   ): Promise<string[]> => {
     try {
-      const binds = dependencys.map((dependency) => this.#getBinds(dependency));
+      const binds = dependencys.map((dependency) => this.getBinds(dependency));
 
-      const row = `(${this.#colDefinitions.map(() => '?').join(', ')})`;
+      const row = `(${this.colDefinitions.map(() => '?').join(', ')})`;
 
-      const queryText = getInsertQuery(this.#matName, this.#colDefinitions, [
+      const queryText = getInsertQuery(this.matName, this.colDefinitions, [
         row,
       ]);
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds, profile },
         auth
       );
@@ -242,5 +242,5 @@ export default class DependencyRepo implements IDependencyRepo {
     }
   };
 
-  #toEntity = (props: DependencyProps): Dependency => Dependency.build(props);
+  toEntity = (props: DependencyProps): Dependency => Dependency.build(props);
 }

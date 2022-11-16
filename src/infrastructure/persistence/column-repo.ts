@@ -11,16 +11,19 @@ import {
 import { SnowflakeProfileDto } from '../../domain/integration-api/i-integration-api-repo';
 import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
+import BaseSfRepo from './shared/base-sf-repo';
 import {
   ColumnDefinition,
   getInsertQuery,
   getUpdateQuery,
 } from './shared/query';
 
-export default class ColunRepo implements IColumnRepo {
-  readonly #matName = 'columns';
+export default class ColumnRepo
+extends BaseSfRepo<Column, ColumnProps>
+implements IColumnRepo {
+  readonly matName = 'columns';
 
-  readonly #colDefinitions: ColumnDefinition[] = [
+  readonly colDefinitions: ColumnDefinition[] = [
     { name: 'id', nullable: false },
     { name: 'name', nullable: false },
     { name: 'relation_name', nullable: false },
@@ -33,13 +36,12 @@ export default class ColunRepo implements IColumnRepo {
     { name: 'comment', nullable: true },
   ];
 
-  readonly #querySnowflake: QuerySnowflake;
-
+  // eslint-disable-next-line @typescript-eslint/no-useless-constructor
   constructor(querySnowflake: QuerySnowflake) {
-    this.#querySnowflake = querySnowflake;
+    super(querySnowflake);
   }
 
-  #buildColumn = (sfEntity: SnowflakeEntity): Column => {
+  buildEntityProps = (sfEntity: SnowflakeEntity): ColumnProps => {
     const {
       ID: id,
       NAME: name,
@@ -65,22 +67,17 @@ export default class ColunRepo implements IColumnRepo {
         'Retrieved unexpected column field types from persistence'
       );
 
-    const isStringArray = (value: unknown): value is string[] =>
-      Array.isArray(value) && value.every((el) => typeof el === 'string');
-    const isOptionalOfType = <T>(val: unknown, type: string): val is T =>
-      val === null || typeof val === type;
-
     if (
-      !isStringArray(lineageIds) ||
-      !isOptionalOfType<boolean>(isIdentity, 'boolean') ||
-      !isOptionalOfType<boolean>(isNullable, 'boolean') ||
-      !isOptionalOfType<string>(comment, 'string')
+      !ColumnRepo.isStringArray(lineageIds) ||
+      !ColumnRepo.isOptionalOfType<boolean>(isIdentity, 'boolean') ||
+      !ColumnRepo.isOptionalOfType<boolean>(isNullable, 'boolean') ||
+      !ColumnRepo.isOptionalOfType<string>(comment, 'string')
     )
       throw new Error(
         'Type mismatch detected when reading column from persistence'
       );
 
-    return this.#toEntity({
+    return {
       id,
       name,
       relationName,
@@ -91,7 +88,7 @@ export default class ColunRepo implements IColumnRepo {
       materializationId,
       lineageIds,
       comment,
-    });
+    };
   };
 
   findOne = async (
@@ -104,10 +101,10 @@ export default class ColunRepo implements IColumnRepo {
       // using binds to tell snowflake to escape params to avoid sql injection attack
       const binds: (string | number)[] = [columnId];
 
-      const queryText = `select * from cito.lineage.${this.#matName}
+      const queryText = `select * from cito.lineage.${this.matName}
     where id = ?;`;
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds, profile },
         auth
       );
@@ -117,7 +114,7 @@ export default class ColunRepo implements IColumnRepo {
       if (result.value.length !== 1)
         throw new Error(`Multiple or no column entities with id found`);
 
-      return !result.value.length ? null : this.#buildColumn(result.value[0]);
+      return !result.value.length ? null : this.toEntity(this.buildEntityProps(result.value[0]));
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
@@ -184,10 +181,10 @@ export default class ColunRepo implements IColumnRepo {
         );
       }
 
-      const queryText = `select * from cito.lineage.${this.#matName}
+      const queryText = `select * from cito.lineage.${this.matName}
         where  ${whereClause};`;
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds, profile },
         auth
       );
@@ -195,7 +192,7 @@ export default class ColunRepo implements IColumnRepo {
       if (!result.success) throw new Error(result.error);
       if (!result.value) throw new Error('Missing sf query value');
 
-      return result.value.map((el) => this.#buildColumn(el));
+      return result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
@@ -209,9 +206,9 @@ export default class ColunRepo implements IColumnRepo {
     targetOrgId?: string
   ): Promise<Column[]> => {
     try {
-      const queryText = `select * from cito.lineage.${this.#matName};`;
+      const queryText = `select * from cito.lineage.${this.matName};`;
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds: [], profile },
         auth
       );
@@ -221,7 +218,7 @@ export default class ColunRepo implements IColumnRepo {
       if (result.value.length !== 1)
         throw new Error(`Multiple or no column entities with id found`);
 
-      return result.value.map((el) => this.#buildColumn(el));
+      return result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
@@ -229,17 +226,17 @@ export default class ColunRepo implements IColumnRepo {
     }
   };
 
-  #getBinds = (col: Column): (string | number)[] => [
-    col.id,
-    col.name,
-    col.relationName,
-    col.index,
-    col.dataType,
-    col.isIdentity !== undefined ? col.isIdentity.toString() : 'null',
-    col.isNullable !== undefined ? col.isNullable.toString() : 'null',
-    col.materializationId,
-    JSON.stringify(col.lineageIds),
-    col.comment || 'null',
+  getBinds = (entity: Column): (string | number)[] => [
+    entity.id,
+    entity.name,
+    entity.relationName,
+    entity.index,
+    entity.dataType,
+    entity.isIdentity !== undefined ? entity.isIdentity.toString() : 'null',
+    entity.isNullable !== undefined ? entity.isNullable.toString() : 'null',
+    entity.materializationId,
+    JSON.stringify(entity.lineageIds),
+    entity.comment || 'null',
   ];
 
   insertOne = async (
@@ -249,15 +246,15 @@ export default class ColunRepo implements IColumnRepo {
     targetOrgId?: string
   ): Promise<string> => {
     try {
-      const binds = this.#getBinds(column);
+      const binds = this.getBinds(column);
 
       const row = `(${binds.map(() => '?').join(', ')})`;
 
-      const queryText = getInsertQuery(this.#matName, this.#colDefinitions, [
+      const queryText = getInsertQuery(this.matName, this.colDefinitions, [
         row,
       ]);
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds, profile },
         auth
       );
@@ -280,15 +277,15 @@ export default class ColunRepo implements IColumnRepo {
     targetOrgId?: string
   ): Promise<string[]> => {
     try {
-      const binds = columns.map((column) => this.#getBinds(column));
+      const binds = columns.map((column) => this.getBinds(column));
 
-      const row = `(${this.#colDefinitions.map(() => '?').join(', ')})`;
+      const row = `(${this.colDefinitions.map(() => '?').join(', ')})`;
 
-      const queryText = getInsertQuery(this.#matName, this.#colDefinitions, [
+      const queryText = getInsertQuery(this.matName, this.colDefinitions, [
         row,
       ]);
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds, profile },
         auth
       );
@@ -311,15 +308,15 @@ export default class ColunRepo implements IColumnRepo {
     targetOrgId?: string
   ): Promise<number> => {
     try {
-      const binds = columns.map((column) => this.#getBinds(column));
+      const binds = columns.map((column) => this.getBinds(column));
 
-      const row = `(${this.#colDefinitions.map(() => '?').join(', ')})`;
+      const row = `(${this.colDefinitions.map(() => '?').join(', ')})`;
 
-      const queryText = getUpdateQuery(this.#matName, this.#colDefinitions, [
+      const queryText = getUpdateQuery(this.matName, this.colDefinitions, [
         row,
       ]);
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds, profile },
         auth
       );
@@ -335,6 +332,6 @@ export default class ColunRepo implements IColumnRepo {
     }
   };
 
-  #toEntity = (columnProperties: ColumnProps): Column =>
+  toEntity = (columnProperties: ColumnProps): Column =>
     Column.build(columnProperties);
 }

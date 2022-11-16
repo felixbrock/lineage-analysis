@@ -39,7 +39,7 @@ export default class ReadLineageController extends BaseController {
       if (
         minuteTolerance &&
         (typeof minuteTolerance !== 'string' ||
-        Number.isNaN(minuteTolerance))
+        Number.isNaN(Number(minuteTolerance)))
       )
         throw new Error('MinuteTolerance param in wrong format');
 

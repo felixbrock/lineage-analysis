@@ -9,7 +9,6 @@ import {
   LogicProps,
   Refs,
 } from '../../domain/entities/logic';
-import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import {
   ColumnDefinition,
   getInsertQuery,
@@ -17,11 +16,16 @@ import {
 } from './shared/query';
 import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { SnowflakeProfileDto } from '../../domain/integration-api/i-integration-api-repo';
+import BaseSfRepo from './shared/base-sf-repo';
+import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 
-export default class LogicRepo implements ILogicRepo {
-  readonly #matName = 'logics';
+export default class LogicRepo
+  extends BaseSfRepo<Logic, LogicProps>
+  implements ILogicRepo
+{
+  readonly matName = 'logics';
 
-  readonly #colDefinitions: ColumnDefinition[] = [
+  readonly colDefinitions: ColumnDefinition[] = [
     { name: 'id', nullable: false },
     { name: 'relation_name', nullable: false },
     { name: 'sql', nullable: false },
@@ -31,13 +35,12 @@ export default class LogicRepo implements ILogicRepo {
     { name: 'lineage_ids', selectType: 'parse_json', nullable: false },
   ];
 
-  readonly #querySnowflake: QuerySnowflake;
-
+  // eslint-disable-next-line @typescript-eslint/no-useless-constructor
   constructor(querySnowflake: QuerySnowflake) {
-    this.#querySnowflake = querySnowflake;
+    super(querySnowflake);
   }
 
-  #buildLogic = (sfEntity: SnowflakeEntity): Logic => {
+  buildEntityProps = (sfEntity: SnowflakeEntity): LogicProps => {
     const {
       ID: id,
       RELATION_NAME: relationName,
@@ -70,19 +73,17 @@ export default class LogicRepo implements ILogicRepo {
       'materializations' in (el as Refs) &&
       'columns' in (el as Refs) &&
       'wildcards' in (el as Refs);
-    const isStringArray = (value: unknown): value is string[] =>
-      Array.isArray(value) && value.every((el) => typeof el === 'string');
 
     if (
       !isDependentOnObj(dependentOn) ||
       !isRefsObj(statementRefs) ||
-      !isStringArray(lineageIds)
+      !LogicRepo.isStringArray(lineageIds)
     )
       throw new Error(
         'Type mismatch detected when reading logic from persistence'
       );
 
-    return this.#toEntity({
+    return {
       id,
       sql,
       relationName,
@@ -90,7 +91,7 @@ export default class LogicRepo implements ILogicRepo {
       lineageIds,
       parsedLogic,
       statementRefs,
-    });
+    };
   };
 
   findOne = async (
@@ -100,13 +101,13 @@ export default class LogicRepo implements ILogicRepo {
     targetOrgId?: string
   ): Promise<Logic | null> => {
     try {
-      const queryText = `select * from cito.lineage.${this.#matName}
+      const queryText = `select * from cito.lineage.${this.matName}
       where id = ?;`;
 
       // using binds to tell snowflake to escape params to avoid sql injection attack
       const binds: (string | number)[] = [logicId];
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds, profile },
         auth
       );
@@ -116,7 +117,9 @@ export default class LogicRepo implements ILogicRepo {
       if (result.value.length > 1)
         throw new Error(`Multiple logic entities with id found`);
 
-      return !result.value.length ? null : this.#buildLogic(result.value[0]);
+      return !result.value.length
+        ? null
+        : this.toEntity(this.buildEntityProps(result.value[0]));
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
@@ -138,12 +141,12 @@ export default class LogicRepo implements ILogicRepo {
       const binds: (string | number)[] = [logicQueryDto.lineageId];
       if (logicQueryDto.relationName) binds.push(logicQueryDto.relationName);
 
-      const queryText = `select * from cito.lineage.${this.#matName}
+      const queryText = `select * from cito.lineage.${this.matName}
       where array_contains(?::variant, lineage_ids) ${
         logicQueryDto.relationName ? 'and relation_name = ?' : ''
       };`;
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds, profile },
         auth
       );
@@ -151,7 +154,7 @@ export default class LogicRepo implements ILogicRepo {
       if (!result.success) throw new Error(result.error);
       if (!result.value) throw new Error('Missing sf query value');
 
-      return result.value.map((el) => this.#buildLogic(el));
+      return result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
@@ -165,9 +168,9 @@ export default class LogicRepo implements ILogicRepo {
     targetOrgId?: string
   ): Promise<Logic[]> => {
     try {
-      const queryText = `select * from cito.lineage.${this.#matName};`;
+      const queryText = `select * from cito.lineage.${this.matName};`;
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds: [], profile },
         auth
       );
@@ -177,13 +180,23 @@ export default class LogicRepo implements ILogicRepo {
       if (result.value.length !== 1)
         throw new Error(`Multiple or no logic entities with id found`);
 
-      return result.value.map((el) => this.#buildLogic(el));
+      return result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error());
     }
   };
+
+  getBinds = (entity: Logic): (string | number)[] => [
+    entity.id,
+    entity.relationName,
+    entity.sql,
+    JSON.stringify(entity.dependentOn),
+    entity.parsedLogic,
+    JSON.stringify(entity.statementRefs),
+    JSON.stringify(entity.lineageIds),
+  ];
 
   insertOne = async (
     logic: Logic,
@@ -192,22 +205,14 @@ export default class LogicRepo implements ILogicRepo {
     targetOrgId?: string
   ): Promise<string> => {
     try {
-      const binds = [
-        logic.id,
-        logic.relationName,
-        logic.sql,
-        JSON.stringify(logic.dependentOn),
-        logic.parsedLogic,
-        JSON.stringify(logic.statementRefs),
-        JSON.stringify(logic.lineageIds),
-      ];
+      const binds = this.getBinds(logic);
       const row = `(${binds.map(() => '?').join(', ')})`;
 
-      const queryText = getInsertQuery(this.#matName, this.#colDefinitions, [
+      const queryText = getInsertQuery(this.matName, this.colDefinitions, [
         row,
       ]);
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds, profile },
         auth
       );
@@ -230,23 +235,15 @@ export default class LogicRepo implements ILogicRepo {
     targetOrgId?: string
   ): Promise<string[]> => {
     try {
-      const binds = logics.map((el) => [
-        el.id,
-        el.relationName,
-        el.sql,
-        JSON.stringify(el.dependentOn),
-        el.parsedLogic,
-        JSON.stringify(el.statementRefs),
-        JSON.stringify(el.lineageIds),
-      ]);
+      const binds = logics.map((el) => this.getBinds(el));
 
-      const row = `(${this.#colDefinitions.map(() => '?').join(', ')})`;
+      const row = `(${this.colDefinitions.map(() => '?').join(', ')})`;
 
-      const queryText = getInsertQuery(this.#matName, this.#colDefinitions, [
+      const queryText = getInsertQuery(this.matName, this.colDefinitions, [
         row,
       ]);
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds, profile },
         auth
       );
@@ -269,23 +266,15 @@ export default class LogicRepo implements ILogicRepo {
     targetOrgId?: string
   ): Promise<number> => {
     try {
-      const binds = logics.map((el) => [
-        el.id,
-        el.relationName,
-        el.sql,
-        JSON.stringify(el.dependentOn),
-        el.parsedLogic,
-        JSON.stringify(el.statementRefs),
-        JSON.stringify(el.lineageIds),
-      ]);
+      const binds = logics.map((el) => this.getBinds(el));
 
-      const row = `(${this.#colDefinitions.map(() => '?').join(', ')})`;
+      const row = `(${this.colDefinitions.map(() => '?').join(', ')})`;
 
-      const queryText = getUpdateQuery(this.#matName, this.#colDefinitions, [
+      const queryText = getUpdateQuery(this.matName, this.colDefinitions, [
         row,
       ]);
 
-      const result = await this.#querySnowflake.execute(
+      const result = await this.querySnowflake.execute(
         { queryText, targetOrgId, binds, profile },
         auth
       );
@@ -301,6 +290,6 @@ export default class LogicRepo implements ILogicRepo {
     }
   };
 
-  #toEntity = (logicProperties: LogicProps): Logic =>
+  toEntity = (logicProperties: LogicProps): Logic =>
     Logic.build(logicProperties);
 }
