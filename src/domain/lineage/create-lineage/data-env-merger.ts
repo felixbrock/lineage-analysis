@@ -107,17 +107,17 @@ export default class DataEnvMerger {
     this.#logicsToHandle = props.logics;
   }
 
-  #buildLogicToReplace = async (
+  #buildLogicToReplace =  (
     oldLogicProps: { id: string; lineageIds: string[] },
     logicToHandle: Logic
-  ): Promise<Logic> =>
+  ): Logic =>
     Logic.build({
       ...logicToHandle.toDto(),
       id: oldLogicProps.id,
       lineageIds: oldLogicProps.lineageIds.concat(logicToHandle.lineageIds),
     });
 
-  #buildColumnToReplace = async (
+  #buildColumnToReplace = (
     oldColumnProps: {
       id: string;
       name: string;
@@ -125,7 +125,7 @@ export default class DataEnvMerger {
       lineageIds: string[];
     },
     columnToHandle: Column
-  ): Promise<Column> => {
+  ): Column => {
     const column = Column.build({
       ...columnToHandle.toDto(),
       id: oldColumnProps.id,
@@ -137,7 +137,7 @@ export default class DataEnvMerger {
     return column;
   };
 
-  #buildMatToReplace = async (
+  #buildMatToReplace = (
     oldMatProps: {
       id: string;
       relationName: string;
@@ -145,7 +145,7 @@ export default class DataEnvMerger {
       lineageIds: string[];
     },
     matToHandle: Materialization
-  ): Promise<Materialization> => {
+  ): Materialization => {
     const mat = Materialization.build({
       ...matToHandle.toDto(),
       id: oldMatProps.id,
@@ -219,7 +219,7 @@ export default class DataEnvMerger {
         'While merging logics an error occured. Error: Logic(s) not found'
       );
 
-    const updatedLogic = await this.#buildLogicToReplace(
+    const updatedLogic = this.#buildLogicToReplace(
       {
         id: oldLogic.id,
         lineageIds: oldLogic.lineageIds,

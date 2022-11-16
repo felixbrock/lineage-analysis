@@ -22,7 +22,7 @@ export default class SnowflakeApiRepo implements ISnowflakeApiRepo {
 
         conn.destroy((destroyError: any, connectionToDestroy: Connection) => {
           if (destroyError)
-            console.error(`Unable to disconnect: ${destroyError.message}`);
+            console.error(`Unable to disconnect: ${destroyError.message}, however, continuing the execution...`);
           else {
             // console.log(
             //   `Disconnected connection with id: ${connectionToDestroy.getId()}`

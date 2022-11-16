@@ -248,30 +248,33 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
     schemaName: string,
     dbName: string
   ): Promise<LogicRepresentation> => {
-    const binds = [ddlObjectType, `${dbName}.${schemaName}.${matName}`];
-    const queryText = `select get_ddl(?, ?, true) as sql`;
-    const queryResult = await this.#querySnowflake.execute(
-      { queryText, binds, profile: this.#profile },
-      this.#auth
-    );
-    if (!queryResult.success) {
-      throw new Error(queryResult.error);
-    }
-    if (!queryResult.value) throw new Error('Query did not return a value');
+    const foo = 'Lineage';
+    return {sql: `${foo} SQL model placeholder for ${ddlObjectType} ${dbName}.${schemaName}.${matName}`};
 
-    const results = queryResult.value;
+    // const binds = [ddlObjectType, `${dbName}.${schemaName}.${matName}`];
+    // const queryText = `select get_ddl(?, ?, true) as sql`;
+    // const queryResult = await this.#querySnowflake.execute(
+    //   { queryText, binds, profile: this.#profile },
+    //   this.#auth
+    // );
+    // if (!queryResult.success) {
+    //   throw new Error(queryResult.error);
+    // }
+    // if (!queryResult.value) throw new Error('Query did not return a value');
 
-    if (results.length !== 1)
-      throw new Error('No or multiple sql logic instances returned for mat');
+    // const results = queryResult.value;
 
-    const { SQL: sql } = results[0];
+    // if (results.length !== 1)
+    //   throw new Error('No or multiple sql logic instances returned for mat');
 
-    if (typeof sql !== 'string')
-      throw new Error(
-        'Received mat representation field value in unexpected format'
-      );
+    // const { SQL: sql } = results[0];
 
-    return { sql };
+    // if (typeof sql !== 'string')
+    //   throw new Error(
+    //     'Received mat representation field value in unexpected format'
+    //   );
+
+    // return { sql };
   };
 
   /* Get column representations from snowflake */
