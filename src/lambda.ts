@@ -61,9 +61,9 @@ const internalInvoke = async (
 
   switch (internalInvokeType) {
     case 'create-lineage': {
-      if (!event.req.catalog || !event.req.manifest || !event.req.targetOrgId)
+      if (!event.req.targetOrgId)
         throw new Error(
-          `Cannot invoke ${internalInvokeType}. Missing req params.`
+          `Cannot invoke ${internalInvokeType}. Missing targetOrgId.`
         );
 
         const createLineageController = new InternalInvokeCreateLineageController(
