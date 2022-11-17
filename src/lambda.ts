@@ -14,10 +14,10 @@ import { parseBiTool } from './domain/value-types/bi-tool';
 
 interface InvokeEvent {
   req: {
-    catalog: string;
-    manifest: string;
+    catalog?: string;
+    manifest?: string;
     targetOrgId: string;
-    biType: string;
+    biType?: string;
   };
   auth: { jwt: string };
   internalInvokeType: string;
@@ -66,16 +66,16 @@ const internalInvoke = async (
           `Cannot invoke ${internalInvokeType}. Missing targetOrgId.`
         );
 
-        const createLineageController = new InternalInvokeCreateLineageController(
-          iocRegister.resolve('createLineage'),
-          iocRegister.resolve('getAccounts')
-        );
+      const createLineageController = new InternalInvokeCreateLineageController(
+        iocRegister.resolve('createLineage'),
+        iocRegister.resolve('getAccounts')
+      );
 
       const req: CreateLineageRequestDto = {
         dbtCatalog: event.req.catalog,
         dbtManifest: event.req.manifest,
         targetOrgId: event.req.targetOrgId,
-        biTool: parseBiTool(event.req.biType),
+        biTool: event.req.biType ? parseBiTool(event.req.biType) : undefined,
       };
 
       const auth = { jwt: event.auth.jwt };

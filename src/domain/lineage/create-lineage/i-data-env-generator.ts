@@ -1,6 +1,7 @@
 import { Column } from "../../entities/column";
 import { Logic, ModelRepresentation } from "../../entities/logic";
 import { Materialization } from "../../entities/materialization";
+import { ConnectionPool } from "../../snowflake-api/i-snowflake-api-repo";
 
 export interface GenerateResult {
   catalog: ModelRepresentation[];
@@ -10,5 +11,5 @@ export interface GenerateResult {
 }
 
 export interface IDataEnvGenerator {
-    generate(): Promise<GenerateResult>;
+    generate(connPool: ConnectionPool): Promise<GenerateResult>;
   }

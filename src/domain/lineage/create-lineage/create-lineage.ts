@@ -1,6 +1,5 @@
 // todo - Clean Architecture dependency violation. Fix
 import Result from '../../value-types/transient-types/result';
-import IUseCase from '../../services/use-case';
 import { CreateColumn } from '../../column/create-column';
 import { CreateMaterialization } from '../../materialization/create-materialization';
 import { CreateLogic } from '../../logic/create-logic';
@@ -32,6 +31,7 @@ import DataEnvMerger from './data-env-merger';
 import DependenciesBuilder from './dependencies-builder';
 import { GetSnowflakeProfile } from '../../integration-api/get-snowflake-profile';
 import { SnowflakeProfileDto } from '../../integration-api/i-integration-api-repo';
+import BaseSfQueryUseCase from '../../services/base-sf-query-use-case';
 
 export interface CreateLineageRequestDto {
   targetOrgId?: string;
@@ -49,8 +49,7 @@ export interface CreateLineageAuthDto {
 export type CreateLineageResponseDto = Result<Lineage>;
 
 export class CreateLineage
-  implements
-    IUseCase<
+  extends BaseSfQueryUseCase<
       CreateLineageRequestDto,
       CreateLineageResponseDto,
       CreateLineageAuthDto
@@ -88,8 +87,6 @@ export class CreateLineage
 
   readonly #readColumns: ReadColumns;
 
-  readonly #getSnowflakeProfile: GetSnowflakeProfile;
-
   #targetOrgId?: string;
 
   #auth?: CreateLineageAuthDto;
@@ -115,6 +112,8 @@ export class CreateLineage
     querySfQueryHistory: QuerySfQueryHistory,
     getSnowflakeProfile: GetSnowflakeProfile
   ) {
+    super(getSnowflakeProfile);
+
     this.#createLogic = createLogic;
     this.#createMaterialization = createMaterialization;
     this.#createColumn = createColumn;
@@ -131,7 +130,6 @@ export class CreateLineage
     this.#readColumns = readColumns;
     this.#querySnowflake = querySnowflake;
     this.#querySfQueryHistory = querySfQueryHistory;
-    this.#getSnowflakeProfile = getSnowflakeProfile;
   }
 
   #writeLineageToPersistence = async (lineage: Lineage): Promise<void> => {
@@ -250,25 +248,6 @@ export class CreateLineage
     );
   };
 
-  #getProfile = async (
-    jwt: string,
-    targetOrgId?: string
-  ): Promise<SnowflakeProfileDto> => {
-    const readSnowflakeProfileResult = await this.#getSnowflakeProfile.execute(
-      { targetOrgId },
-      {
-        jwt,
-      }
-    );
-
-    if (!readSnowflakeProfileResult.success)
-      throw new Error(readSnowflakeProfileResult.error);
-    if (!readSnowflakeProfileResult.value)
-      throw new Error('SnowflakeProfile does not exist');
-
-    return readSnowflakeProfileResult.value;
-  };
-
   async execute(
     request: CreateLineageRequestDto,
     auth: CreateLineageAuthDto
@@ -291,7 +270,7 @@ export class CreateLineage
       this.#auth = auth;
       this.#targetOrgId = request.targetOrgId;
 
-      const profile = await this.#getProfile(
+      const profile = await this.createConnectionPool(
         auth.jwt,
         auth.isSystemInternal ? request.targetOrgId : undefined
       );

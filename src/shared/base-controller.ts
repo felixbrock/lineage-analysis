@@ -6,6 +6,7 @@ import {
   GetAccounts,
   GetAccountsResponseDto,
 } from '../domain/account-api/get-accounts';
+import { ConnectionPool } from '../domain/snowflake-api/i-snowflake-api-repo';
 import Result from '../domain/value-types/transient-types/result';
 
 export enum CodeHttp {
@@ -38,6 +39,44 @@ export abstract class BaseController {
       BaseController.fail(res, 'An unexpected error occurred');
     }
   }
+
+  #getProfile = async (
+    jwt: string,
+    targetOrgId?: string
+  ): Promise<SnowflakeProfileDto> => {
+    const readSnowflakeProfileResult = await this.#getSnowflakeProfile.execute(
+      { targetOrgId },
+      {
+        jwt,
+      }
+    );
+
+    if (!readSnowflakeProfileResult.success)
+      throw new Error(readSnowflakeProfileResult.error);
+    if (!readSnowflakeProfileResult.value)
+      throw new Error('SnowflakeProfile does not exist');
+
+    return readSnowflakeProfileResult.value;
+  };
+
+  protected createConnectionPool = async (
+    jwt: string,
+    targetOrgId?: string
+  ): Promise<ConnectionPool> => {
+    const profile = await this.#getProfile(jwt, targetOrgId);
+
+    const options: DbOptions = {
+      account: profile.accountId,
+      password: profile.password,
+      username: profile.username,
+      warehouse: profile.warehouseName,
+    };
+
+    return createPool(options, {
+      max: 10,
+      min: 0,
+    });
+  };
 
   static async getUserAccountInfo(
     jwt: string,
