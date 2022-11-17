@@ -22,7 +22,7 @@ import { IDashboardRepo } from '../../dashboard/i-dashboard-repo';
 import { CreateDashboard } from '../../dashboard/create-dashboard';
 import { buildLineage } from './build-lineage';
 import { DbtDataEnvGenerator } from './dbt-data-env-generator';
-import { BiType } from '../../value-types/bilayer';
+import { BiTool } from '../../value-types/bi-tool';
 import { SfDataEnvGenerator } from './sf-data-env-generator';
 import { ILogicRepo } from '../../logic/i-logic-repo';
 import { IMaterializationRepo } from '../../materialization/i-materialization-repo';
@@ -37,7 +37,7 @@ export interface CreateLineageRequestDto {
   targetOrgId?: string;
   dbtCatalog?: string;
   dbtManifest?: string;
-  biType?: BiType;
+  biTool?: BiTool;
 }
 
 export interface CreateLineageAuthDto {
@@ -397,7 +397,7 @@ export class CreateLineage
         }
       );
       const { dashboards, dependencies } = await dependenciesBuilder.build(
-        request.biType
+        request.biTool
       );
 
       console.log('...writing dashboards to persistence');

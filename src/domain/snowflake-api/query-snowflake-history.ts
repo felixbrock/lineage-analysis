@@ -1,12 +1,12 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
-import { BiType } from '../value-types/bilayer';
+import { BiTool } from '../value-types/bi-tool';
 import { SnowflakeQueryResult } from './i-snowflake-api-repo';
 import { QuerySnowflake } from './query-snowflake';
 import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
 
 export interface QuerySfQueryHistoryRequestDto {
-  biType: BiType;
+  biType: BiTool;
   limit: number;
   profile: SnowflakeProfileDto;
   targetOrgId?: string;
@@ -34,7 +34,7 @@ export class QuerySfQueryHistory
     this.#querySnowflake = querySnowflake;
   }
 
-  static #buildQuery = (biType: BiType): string => {
+  static #buildQuery = (biType: BiTool): string => {
     let condition = '';
     let regex = '';
     switch (biType) {

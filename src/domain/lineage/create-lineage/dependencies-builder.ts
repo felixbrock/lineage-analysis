@@ -22,7 +22,7 @@ import {
   QuerySfQueryHistoryResponseDto,
 } from '../../snowflake-api/query-snowflake-history';
 import {  } from '../../services/i-db';
-import { BiType } from '../../value-types/bilayer';
+import { BiTool } from '../../value-types/bi-tool';
 import SQLElement from '../../value-types/sql-element';
 import { SnowflakeQueryResult } from '../../snowflake-api/i-snowflake-api-repo';
 import { SnowflakeProfileDto } from '../../integration-api/i-integration-api-repo';
@@ -115,7 +115,7 @@ export default class DependenciesBuilder {
   }
 
   #retrieveQuerySfQueryHistory = async (
-    biType: BiType
+    biType: BiTool
   ): Promise<SnowflakeQueryResult> => {
     const querySfQueryHistoryResult: QuerySfQueryHistoryResponseDto =
       await this.#querySfQueryHistory.execute(
@@ -140,7 +140,7 @@ export default class DependenciesBuilder {
   static #getDashboardDataDependencyRefs = async (
     statementRefs: Refs,
     querySfQueryHistoryResult: SnowflakeQueryResult,
-    biLayer: BiType
+    biTool: BiTool
   ): Promise<DashboardRef[]> => {
     const dependentDashboards: DashboardRef[] = [];
 
@@ -153,7 +153,7 @@ export default class DependenciesBuilder {
         const testUrl = queryText.match(/"(https?:[^\s]+),/);
         const dashboardUrl = testUrl
           ? testUrl[1]
-          : `${biLayer} dashboard: ${uuidv4()}`;
+          : `${biTool} dashboard: ${uuidv4()}`;
 
         const matName = column.materializationName.toUpperCase();
         const colName = column.alias
@@ -482,7 +482,7 @@ export default class DependenciesBuilder {
   };
 
   /* Creates all dependencies that exist between DWH resources */
-  build = async (biType?: BiType): Promise<BuildResult> => {
+  build = async (biType?: BiTool): Promise<BuildResult> => {
     // todo - should method be completely sync? Probably resolves once transformed into batch job.
 
     const querySfQueryHistory: SnowflakeQueryResult | undefined = biType

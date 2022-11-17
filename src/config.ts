@@ -18,7 +18,7 @@ const getCognitoUserPoolId = (): string => {
     case 'development':
       return 'eu-central-1_0Z8JhFj8z';
     case 'test':
-      return '';
+      return 'eu-central-1_0muGtKMk3';
     case 'production':
       return 'eu-central-1_0muGtKMk3';
     default:

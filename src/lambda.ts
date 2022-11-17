@@ -7,8 +7,22 @@ import iocRegister from './infrastructure/ioc-register';
 import {
   InternalInvokeType,
   parseInternalInvokeType,
+  Response,
 } from './shared/internal-invoke-controller';
 import { CreateLineageRequestDto } from './domain/lineage/create-lineage/create-lineage';
+import { parseBiTool } from './domain/value-types/bi-tool';
+
+interface InvokeEvent {
+  req: {
+    catalog: string;
+    manifest: string;
+    targetOrgId: string;
+    biType: string;
+  };
+  auth: { jwt: string };
+  internalInvokeType: string;
+  [key: string]: unknown;
+}
 
 let serverlessExpressInstance: any;
 
@@ -18,7 +32,7 @@ const asyncTask = (): Promise<Application> => {
   return expressApp.start(false);
 };
 
-const setup = async (event: any, context: any): Promise<any> => {
+const setup = async (event: InvokeEvent, context: unknown): Promise<any> => {
   const app = await asyncTask();
   serverlessExpressInstance = serverlessExpress({
     app,
@@ -27,8 +41,8 @@ const setup = async (event: any, context: any): Promise<any> => {
 };
 
 const getServerlessExpressInstance = async (
-  event: any,
-  context: any
+  event: InvokeEvent,
+  context: unknown
 ): Promise<any> => {
   if (serverlessExpressInstance)
     return Promise.resolve(serverlessExpressInstance(event, context));
@@ -37,35 +51,31 @@ const getServerlessExpressInstance = async (
 };
 
 const internalInvoke = async (
-  event: any,
+  event: InvokeEvent,
   internalInvokeType: InternalInvokeType
-): Promise<any> => {
+): Promise<void | Response> => {
   if (!event.auth.jwt)
     throw new Error(
       `Cannot invoke ${internalInvokeType}. Missing auth params.`
     );
 
-  const createLineageController = new InternalInvokeCreateLineageController(
-    iocRegister.resolve('createLineage'),
-    iocRegister.resolve('getAccounts'),
-  );
-
   switch (internalInvokeType) {
     case 'create-lineage': {
-      if (
-        !event.req.catalog ||
-        !event.req.manifest ||
-        !event.req.targetOrgId
-      )
+      if (!event.req.catalog || !event.req.manifest || !event.req.targetOrgId)
         throw new Error(
           `Cannot invoke ${internalInvokeType}. Missing req params.`
+        );
+
+        const createLineageController = new InternalInvokeCreateLineageController(
+          iocRegister.resolve('createLineage'),
+          iocRegister.resolve('getAccounts')
         );
 
       const req: CreateLineageRequestDto = {
         dbtCatalog: event.req.catalog,
         dbtManifest: event.req.manifest,
         targetOrgId: event.req.targetOrgId,
-        biType: event.req.biType,
+        biTool: parseBiTool(event.req.biType),
       };
 
       const auth = { jwt: event.auth.jwt };
@@ -83,7 +93,9 @@ const internalInvoke = async (
   }
 };
 
-const internalInvokeHandler = async (event: any): Promise<void> => {
+const internalInvokeHandler = async (
+  event: InvokeEvent
+): Promise<void | Response> => {
   try {
     const internalInvokeType = parseInternalInvokeType(
       event.internalInvokeType
@@ -103,7 +115,10 @@ const internalInvokeHandler = async (event: any): Promise<void> => {
 };
 
 // eslint-disable-next-line import/prefer-default-export
-export const handler = async (event: any, context: any): Promise<any> => {
+export const handler = async (
+  event: InvokeEvent,
+  context: unknown
+): Promise<any> => {
   switch (event.internalInvokeType) {
     case 'create-lineage': {
       const invokeResult = await internalInvokeHandler(event);
