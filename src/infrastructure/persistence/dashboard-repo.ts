@@ -5,7 +5,7 @@ import {
 } from '../../domain/dashboard/i-dashboard-repo';
 import { Dashboard, DashboardProps } from '../../domain/entities/dashboard';
 
-import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
+import { Bind, SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import BaseSfRepo, { Query } from './shared/base-sf-repo';
 import {
@@ -79,7 +79,7 @@ buildEntityProps = (sfEntity: SnowflakeEntity): DashboardProps => {
     };
   };
   
-  getBinds = (entity: Dashboard): (string | number)[] => [
+  getBinds = (entity: Dashboard): Bind[] => [
     entity.id,
     entity.name || 'null',
     entity.url || 'null',
@@ -91,7 +91,7 @@ buildEntityProps = (sfEntity: SnowflakeEntity): DashboardProps => {
   ];
 
   buildFindByQuery(dto: DashboardQueryDto): Query {
-    const binds: (string | number)[] = [dto.lineageId];
+    const binds: Bind[] = [dto.lineageId];
       let whereClause = 'array_contains(?::variant, lineage_ids) ';
 
       if (dto.url) {
