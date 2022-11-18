@@ -1,6 +1,8 @@
 // TODO: Violation of control flow. DI for express instead
 import { Request, Response } from 'express';
+import { createPool } from 'snowflake-sdk';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
+import { GetSnowflakeProfile } from '../../../domain/integration-api/get-snowflake-profile';
 import {
   ReadLineage,
   ReadLineageAuthDto,
@@ -18,12 +20,9 @@ import {
 export default class ReadLineageController extends BaseController {
   readonly #readLineage: ReadLineage;
 
-  readonly #getAccounts: GetAccounts;
-
-  constructor(readLineage: ReadLineage, getAccounts: GetAccounts) {
-    super();
+  constructor(readLineage: ReadLineage, getAccounts: GetAccounts, getSnowflakeProfile: GetSnowflakeProfile) {
+    super(getAccounts, getSnowflakeProfile);
     this.#readLineage = readLineage;
-    this.#getAccounts = getAccounts;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadLineageRequestDto => {
@@ -69,7 +68,7 @@ export default class ReadLineageController extends BaseController {
       const jwt = authHeader.split(' ')[1];
 
       const getUserAccountInfoResult: Result<UserAccountInfo> =
-        await ReadLineageController.getUserAccountInfo(jwt, this.#getAccounts);
+        await this.getUserAccountInfo(jwt);
 
       if (!getUserAccountInfoResult.success)
         return ReadLineageController.unauthorized(
@@ -82,8 +81,10 @@ export default class ReadLineageController extends BaseController {
       const requestDto: ReadLineageRequestDto = this.#buildRequestDto(req);
       const authDto = this.#buildAuthDto(getUserAccountInfoResult.value, jwt);
 
+      const connPool = await this.createConnectionPool(jwt, createPool);
+
       const useCaseResult: ReadLineageResponseDto =
-        await this.#readLineage.execute(requestDto, authDto);
+        await this.#readLineage.execute(requestDto, authDto, connPool);
 
       if (!useCaseResult.success) {
         return ReadLineageController.badRequest(res);
@@ -92,6 +93,9 @@ export default class ReadLineageController extends BaseController {
       const resultValue = useCaseResult.value
         ? useCaseResult.value.toDto()
         : useCaseResult.value;
+
+        await connPool.drain();
+
 
       return ReadLineageController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {

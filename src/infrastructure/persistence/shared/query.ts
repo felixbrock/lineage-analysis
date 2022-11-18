@@ -1,3 +1,5 @@
+import { appConfig } from "../../../config";
+
 type SelectType = 'parse_json';
 
 export interface ColumnDefinition {
@@ -6,9 +8,9 @@ export interface ColumnDefinition {
   nullable: boolean;
 }
 
-const relationPath = 'cito.lineage';
+export const relationPath = `${appConfig.snowflake.databaseName}.${appConfig.snowflake.schemaName}`;
 
-export const getInsertQuery = (
+export const getInsertQueryText = (
   matName: string,
   columnDefinitions: ColumnDefinition[],
   rows: unknown[]
@@ -27,7 +29,7 @@ export const getInsertQuery = (
       from values ${rows.join(', ')};
       `;
 
-export const getUpdateQuery = (
+export const getUpdateQueryText = (
   matName: string,
   colNames: ColumnDefinition[],
   rows: string[]

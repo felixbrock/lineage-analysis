@@ -5,6 +5,10 @@ import {
   GetAccounts,
   GetAccountsResponseDto,
 } from '../domain/account-api/get-accounts';
+import { GetSnowflakeProfile } from '../domain/integration-api/get-snowflake-profile';
+import { SnowflakeProfileDto } from '../domain/integration-api/i-integration-api-repo';
+import { DbOptions } from '../domain/services/i-db';
+import { IConnectionPool } from '../domain/snowflake-api/i-snowflake-api-repo';
 import Result from '../domain/value-types/transient-types/result';
 
 export enum CodeHttp {
@@ -50,6 +54,15 @@ export interface Request<R> {
 }
 
 export abstract class InternalInvokeController<R> {
+  #getSnowflakeProfile: GetSnowflakeProfile;
+
+  #getAccounts: GetAccounts;
+
+  constructor(getAccounts: GetAccounts, getSnowflakeProfile: GetSnowflakeProfile) {
+    this.#getAccounts = getAccounts;
+    this.#getSnowflakeProfile = getSnowflakeProfile;
+  }
+
   static jsonResponse(code: number, payload: { [key: string]: any }): Response {
     return { status: code, payload };
   }
@@ -63,9 +76,50 @@ export abstract class InternalInvokeController<R> {
     }
   }
 
-  static async getUserAccountInfo(
+  #getProfile = async (
     jwt: string,
-    getAccounts: GetAccounts
+    targetOrgId?: string
+  ): Promise<SnowflakeProfileDto> => {
+    const readSnowflakeProfileResult = await this.#getSnowflakeProfile.execute(
+      { targetOrgId },
+      {
+        jwt,
+      }
+    );
+
+    if (!readSnowflakeProfileResult.success)
+      throw new Error(readSnowflakeProfileResult.error);
+    if (!readSnowflakeProfileResult.value)
+      throw new Error('SnowflakeProfile does not exist');
+
+    return readSnowflakeProfileResult.value;
+  };
+
+  protected createConnectionPool = async (
+    jwt: string,
+    createPool: (
+      options: DbOptions,
+      poolOptions: { min: number; max: number }
+    ) => IConnectionPool,
+    targetOrgId?: string
+  ): Promise<IConnectionPool> => {
+    const profile = await this.#getProfile(jwt, targetOrgId);
+
+    const options: DbOptions = {
+      account: profile.accountId,
+      password: profile.password,
+      username: profile.username,
+      warehouse: profile.warehouseName,
+    };
+
+    return createPool(options, {
+      max: 10,
+      min: 0,
+    });
+  };
+
+  protected async getUserAccountInfo(
+    jwt: string,
   ): Promise<Result<UserAccountInfo>> {
     if (!jwt) return Result.fail('Unauthorized');
 
@@ -108,7 +162,7 @@ export abstract class InternalInvokeController<R> {
         });
 
       const getAccountsResult: GetAccountsResponseDto =
-        await getAccounts.execute(
+        await this.#getAccounts.execute(
           {
             userId: authPayload.username,
           },

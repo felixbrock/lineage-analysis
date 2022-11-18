@@ -1,22 +1,18 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { BiTool } from '../value-types/bi-tool';
-import { SnowflakeQueryResult } from './i-snowflake-api-repo';
+import { IConnectionPool, SnowflakeQueryResult } from './i-snowflake-api-repo';
 import { QuerySnowflake } from './query-snowflake';
-import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
+import BaseAuth from '../services/base-auth';
 
 export interface QuerySfQueryHistoryRequestDto {
   biType: BiTool;
   limit: number;
-  profile: SnowflakeProfileDto;
+
   targetOrgId?: string;
 }
 
-export interface QuerySfQueryHistoryAuthDto {
-  jwt: string;
-  callerOrgId?: string;
-  isSystemInternal: boolean;
-}
+export type QuerySfQueryHistoryAuthDto = BaseAuth;
 
 export type QuerySfQueryHistoryResponseDto = Result<SnowflakeQueryResult>;
 
@@ -75,7 +71,8 @@ export class QuerySfQueryHistory
 
   async execute(
     request: QuerySfQueryHistoryRequestDto,
-    auth: QuerySfQueryHistoryAuthDto
+    auth: QuerySfQueryHistoryAuthDto,
+    connPool: IConnectionPool
   ): Promise<QuerySfQueryHistoryResponseDto> {
     if (!request.targetOrgId && !auth.callerOrgId)
       throw new Error('No organization Id instance provided');
@@ -91,9 +88,9 @@ export class QuerySfQueryHistory
           queryText,
           binds,
           targetOrgId: request.targetOrgId,
-          profile: request.profile
         },
-        auth
+        auth,
+        connPool
       );
 
       if (!queryResult.success) throw new Error(queryResult.error);

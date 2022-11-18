@@ -4,7 +4,7 @@ import IUseCase from '../services/use-case';
 import { Dashboard } from '../entities/dashboard';
 import { ReadDashboards } from './read-dashboards';
 import { IDashboardRepo } from './i-dashboard-repo';
-import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
+import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 
 export interface CreateDashboardRequestDto {
   url?: string;
@@ -15,7 +15,7 @@ export interface CreateDashboardRequestDto {
   lineageId: string;
   targetOrgId?: string;
   writeToPersistence: boolean;
-  profile: SnowflakeProfileDto;
+  
 }
 
 export interface CreateDashboardAuthDto {
@@ -46,39 +46,40 @@ export class CreateDashboard
   }
 
   async execute(
-    request: CreateDashboardRequestDto,
+    req: CreateDashboardRequestDto,
     auth: CreateDashboardAuthDto,
+    connPool: IConnectionPool
   ): Promise<CreateDashboardResponseDto> {
     try {
-      if (auth.isSystemInternal && !request.targetOrgId)
+      if (auth.isSystemInternal && !req.targetOrgId)
         throw new Error('Target organization id missing');
       if (!auth.isSystemInternal && !auth.callerOrgId)
         throw new Error('Caller organization id missing');
-      if (!request.targetOrgId && !auth.callerOrgId)
+      if (!req.targetOrgId && !auth.callerOrgId)
         throw new Error('No organization Id instance provided');
-        if (request.targetOrgId && auth.callerOrgId)
+        if (req.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
       const dashboard = Dashboard.create({
         id: uuidv4(),
-        lineageId: request.lineageId,
-        url: request.url,
-        materializationName: request.materializationName,
-        columnName: request.columnName,
-        columnId: request.columnId,
-        materializationId: request.materializationId,
+        lineageId: req.lineageId,
+        url: req.url,
+        materializationName: req.materializationName,
+        columnName: req.columnName,
+        columnId: req.columnId,
+        materializationId: req.materializationId,
       });
 
-      if (!request.url) return Result.ok(dashboard);
+      if (!req.url) return Result.ok(dashboard);
 
       const readDashboardsResult = await this.#readDashboards.execute(
         {
-          url: request.url,
-          lineageId: request.lineageId,
-          targetOrgId: request.targetOrgId,
-          profile: request.profile
+          url: req.url,
+          lineageId: req.lineageId,
+          targetOrgId: req.targetOrgId,
         },
         auth,
+        connPool
       );
 
       if (!readDashboardsResult.success)
@@ -88,8 +89,8 @@ export class CreateDashboard
       if (readDashboardsResult.value.length)
         throw new Error(`Dashboard already exists`);
 
-      if (request.writeToPersistence)
-        await this.#dashboardRepo.insertOne(dashboard, request.profile, auth, request.targetOrgId);
+      if (req.writeToPersistence)
+        await this.#dashboardRepo.insertOne(dashboard, auth, connPool, req.targetOrgId);
 
       return Result.ok(dashboard);
     } catch (error: unknown) {

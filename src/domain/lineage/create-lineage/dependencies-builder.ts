@@ -21,17 +21,15 @@ import {
   QuerySfQueryHistory,
   QuerySfQueryHistoryResponseDto,
 } from '../../snowflake-api/query-snowflake-history';
-import {  } from '../../services/i-db';
 import { BiTool } from '../../value-types/bi-tool';
 import SQLElement from '../../value-types/sql-element';
-import { SnowflakeQueryResult } from '../../snowflake-api/i-snowflake-api-repo';
-import { SnowflakeProfileDto } from '../../integration-api/i-integration-api-repo';
+import {
+  IConnectionPool,
+  SnowflakeQueryResult,
+} from '../../snowflake-api/i-snowflake-api-repo';
+import BaseAuth from '../../services/base-auth';
 
-interface Auth {
-  jwt: string;
-  callerOrgId?: string;
-  isSystemInternal: boolean;
-}
+export type Auth = BaseAuth;
 
 export interface BuildResult {
   dashboards: Dashboard[];
@@ -63,8 +61,6 @@ export default class DependenciesBuilder {
 
   readonly #catalog: ModelRepresentation[];
 
-  readonly #profile: SnowflakeProfileDto;
-
   #dependencies: Dependency[] = [];
 
   get dependencies(): Dependency[] {
@@ -77,6 +73,8 @@ export default class DependenciesBuilder {
     return this.#dashboards;
   }
 
+  #connPool?: IConnectionPool;
+
   constructor(
     props: {
       lineageId: string;
@@ -86,7 +84,6 @@ export default class DependenciesBuilder {
       mats: Materialization[];
       columns: Column[];
       catalog: ModelRepresentation[];
-      profile: SnowflakeProfileDto;
     },
     auth: Auth,
     dependencies: {
@@ -111,21 +108,22 @@ export default class DependenciesBuilder {
     this.#mats = props.mats;
     this.#columns = props.columns;
     this.#catalog = props.catalog;
-    this.#profile = props.profile;
   }
 
   #retrieveQuerySfQueryHistory = async (
     biType: BiTool
   ): Promise<SnowflakeQueryResult> => {
+    if (!this.#connPool) throw new Error('connection pool missing');
+
     const querySfQueryHistoryResult: QuerySfQueryHistoryResponseDto =
       await this.#querySfQueryHistory.execute(
         {
           biType,
           limit: 10,
           targetOrgId: this.#targetOrgId,
-          profile: this.#profile
         },
-        this.#auth
+        this.#auth,
+        this.#connPool
       );
 
     if (!querySfQueryHistoryResult.success)
@@ -230,6 +228,8 @@ export default class DependenciesBuilder {
     relationName: string,
     parentRelationNames: string[]
   ): Promise<void> => {
+    if (!this.#connPool) throw new Error('Connection pool missing');
+
     const relationNameElements = relationName.split('.');
     if (relationNameElements.length !== 3)
       throw new RangeError('Unexpected number of dbt model id elements');
@@ -268,9 +268,9 @@ export default class DependenciesBuilder {
         url: dashboardRef.url,
         targetOrgId: this.#targetOrgId,
         writeToPersistence: false,
-        profile: this.#profile,
       },
       this.#auth,
+      this.#connPool
     );
 
     if (!createDashboardResult.success)
@@ -289,9 +289,9 @@ export default class DependenciesBuilder {
           lineageId: this.#lineageId,
           targetOrgId: this.#targetOrgId,
           writeToPersistence: false,
-          profile: this.#profile
         },
         this.#auth,
+        this.#connPool
       );
 
     if (!createExternalDependencyResult.success)
@@ -309,9 +309,12 @@ export default class DependenciesBuilder {
     relationName: string,
     parentRelationNames: string[]
   ): Promise<void> => {
+    
     const lineage = this.#lineageId;
-
+    const connPool = this.#connPool;
+    
     if (!lineage) throw new ReferenceError('Lineage property is undefined');
+    if(!connPool) throw new Error('Connection pool missing');
 
     const relationNameElements = relationName.split('.');
     if (relationNameElements.length !== 3)
@@ -342,9 +345,9 @@ export default class DependenciesBuilder {
               lineageId: this.#lineageId,
               targetOrgId: this.#targetOrgId,
               writeToPersistence: false,
-              profile: this.#profile
             },
             this.#auth,
+            connPool
           );
 
           return createDependencyResult;
@@ -383,6 +386,8 @@ export default class DependenciesBuilder {
     relationName: string,
     parentRelationNames: string[]
   ): Promise<void> => {
+    if(!this.#connPool) throw new Error('Connection pool missing');
+
     const relationNameElements = relationName.split('.');
     if (relationNameElements.length !== 3)
       throw new RangeError('Unexpected number of dbt model id elements');
@@ -395,9 +400,8 @@ export default class DependenciesBuilder {
         lineageId: this.#lineageId,
         targetOrgId: this.#targetOrgId,
         writeToPersistence: false,
-        profile: this.#profile
       },
-      this.#auth
+      this.#auth, this.#connPool
     );
 
     if (!createDependencyResult.success)
@@ -416,6 +420,8 @@ export default class DependenciesBuilder {
   #getDependenciesForWildcard = async (
     dependencyRef: ColumnRef
   ): Promise<ColumnRef[]> => {
+    if(!this.#connPool) throw new Error('Connection pool missing');
+
     const catalogMatches = this.#catalog.filter((catalogEl) => {
       const nameIsEqual = DependenciesBuilder.#insensitiveEquality(
         dependencyRef.materializationName,
@@ -462,9 +468,8 @@ export default class DependenciesBuilder {
         relationName,
         lineageId: this.#lineageId,
         targetOrgId: this.#targetOrgId,
-        profile: this.#profile
       },
-      this.#auth
+      this.#auth, this.#connPool
     );
 
     if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
@@ -482,8 +487,10 @@ export default class DependenciesBuilder {
   };
 
   /* Creates all dependencies that exist between DWH resources */
-  build = async (biType?: BiTool): Promise<BuildResult> => {
+  build = async (connPool: IConnectionPool, biType?: BiTool): Promise<BuildResult> => {
     // todo - should method be completely sync? Probably resolves once transformed into batch job.
+
+    this.#connPool = connPool;
 
     const querySfQueryHistory: SnowflakeQueryResult | undefined = biType
       ? await this.#retrieveQuerySfQueryHistory(biType)

@@ -1,12 +1,12 @@
 import Result from '../value-types/transient-types/result';
-import {} from '../services/i-db';
+ 
 import {
-  ConnectionPool,
+  IConnectionPool,
   ISnowflakeApiRepo,
   SnowflakeQueryResult,
 } from './i-snowflake-api-repo';
-import BaseSfQueryUseCase from '../services/base-sf-query-use-case';
-import { GetSnowflakeProfile } from '../integration-api/get-snowflake-profile';
+import BaseAuth from '../services/base-auth';
+import IUseCase from '../services/use-case';
 
 export interface QuerySnowflakeRequestDto {
   queryText: string;
@@ -14,30 +14,26 @@ export interface QuerySnowflakeRequestDto {
   targetOrgId?: string;
 }
 
-export interface QuerySnowflakeAuthDto {
-  callerOrgId?: string;
-  isSystemInternal: boolean;
-  jwt: string;
-}
+export type QuerySnowflakeAuthDto = BaseAuth
+
 
 export type QuerySnowflakeResponseDto = Result<SnowflakeQueryResult>;
 
-export class QuerySnowflake extends BaseSfQueryUseCase<
+export class QuerySnowflake implements IUseCase<
   QuerySnowflakeRequestDto,
   QuerySnowflakeResponseDto,
   QuerySnowflakeAuthDto
 > {
-  readonly #repo: ISnowflakeApiRepo;
+  readonly #snowflakeApiRepo: ISnowflakeApiRepo;
 
-  constructor(repo: ISnowflakeApiRepo, getProfile: GetSnowflakeProfile) {
-    super(getProfile);
-    this.#repo = repo;
+  constructor(snowflakeApiRepo: ISnowflakeApiRepo) {
+    this.#snowflakeApiRepo = snowflakeApiRepo;
   }
 
   async execute(
     request: QuerySnowflakeRequestDto,
     auth: QuerySnowflakeAuthDto,
-    connPool: ConnectionPool
+    connPool: IConnectionPool
   ): Promise<QuerySnowflakeResponseDto> {
     if (auth.isSystemInternal && !request.targetOrgId)
       throw new Error('Target organization id missing');
@@ -49,7 +45,7 @@ export class QuerySnowflake extends BaseSfQueryUseCase<
       throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
     try {
-      const queryResult = await this.#repo.runQuery(
+      const queryResult = await this.#snowflakeApiRepo.runQuery(
         request.queryText,
         request.binds,
         connPool

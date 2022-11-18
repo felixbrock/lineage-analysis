@@ -7,6 +7,7 @@ const dashboardsRoutes = Router();
 const readDashboardsController = new ReadDashbordController(
   app.resolve('readDashboards'),
   app.resolve('getAccounts'),
+  app.resolve('getSnowflakeProfile')
 );
 
 dashboardsRoutes.get('/', (req, res) => {

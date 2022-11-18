@@ -1,14 +1,13 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { IMaterializationRepo } from './i-materialization-repo';
-import {} from '../services/i-db';
+
 import { Materialization } from '../entities/materialization';
-import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
+import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 
 export interface ReadMaterializationRequestDto {
   id: string;
   targetOrgId?: string;
-  profile: SnowflakeProfileDto;
 }
 
 export interface ReadMaterializationAuthDto {
@@ -35,13 +34,14 @@ export class ReadMaterialization
 
   async execute(
     request: ReadMaterializationRequestDto,
-    auth: ReadMaterializationAuthDto
+    auth: ReadMaterializationAuthDto,
+    connPool: IConnectionPool
   ): Promise<ReadMaterializationResponseDto> {
     try {
       const materialization = await this.#materializationRepo.findOne(
         request.id,
-        request.profile,
         auth,
+        connPool,
         request.targetOrgId
       );
       if (!materialization)

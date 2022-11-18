@@ -1,5 +1,7 @@
 // TODO: Violation of control flow. DI for express instead
+import { createPool } from 'snowflake-sdk';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
+import { GetSnowflakeProfile } from '../../../domain/integration-api/get-snowflake-profile';
 import {
   CreateLineage,
   CreateLineageAuthDto,
@@ -19,12 +21,9 @@ import {
 export default class InternalInvokeCreateLineageController extends InternalInvokeController<CreateLineageRequestDto> {
   readonly #createLineage: CreateLineage;
 
-  readonly #getAccounts: GetAccounts;
-
-  constructor(createLineage: CreateLineage, getAccounts: GetAccounts) {
-    super();
+  constructor(createLineage: CreateLineage, getAccounts: GetAccounts, getSnowflakeProfile: GetSnowflakeProfile) {
+    super(getAccounts, getSnowflakeProfile);
     this.#createLineage = createLineage;
-    this.#getAccounts = getAccounts;
   }
 
   #transformReq = (req: CreateLineageRequestDto): CreateLineageRequestDto => {
@@ -72,9 +71,8 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
       const { jwt } = req.auth;
 
       const getUserAccountInfoResult: Result<UserAccountInfo> =
-        await InternalInvokeCreateLineageController.getUserAccountInfo(
+        await this.getUserAccountInfo(
           jwt,
-          this.#getAccounts
         );
 
       if (!getUserAccountInfoResult.success)
@@ -91,8 +89,10 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
 
       const authDto = this.#buildAuthDto(jwt, getUserAccountInfoResult.value);
 
+      const connPool = await this.createConnectionPool(jwt, createPool);
+
       const useCaseResult: CreateLineageResponseDto =
-        await this.#createLineage.execute(this.#transformReq(req.req), authDto);
+        await this.#createLineage.execute(this.#transformReq(req.req), authDto, connPool);
 
       if (!useCaseResult.success) {
         return InternalInvokeCreateLineageController.badRequest();
@@ -101,6 +101,8 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
       const resultValue = useCaseResult.value
         ? useCaseResult.value.toDto()
         : useCaseResult.value;
+
+      await connPool.drain();
 
       return InternalInvokeCreateLineageController.ok(
         resultValue,

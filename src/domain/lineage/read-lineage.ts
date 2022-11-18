@@ -2,23 +2,18 @@ import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { ILineageRepo } from './i-lineage-repo';
 import { Lineage } from '../entities/lineage';
-import {} from '../services/i-db';
-import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
-import { GetSnowflakeProfile } from '../integration-api/get-snowflake-profile';
+import BaseAuth from '../services/base-auth';
+import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 
 export interface ReadLineageRequestDto {
   id?: string;
   targetOrgId?: string;
-  profile?: SnowflakeProfileDto;
+  
   tolerateIncomplete: boolean;
   minuteTolerance?: number;
 }
 
-export interface ReadLineageAuthDto {
-  callerOrgId?: string;
-  isSystemInternal: boolean;
-  jwt: string;
-}
+export type ReadLineageAuthDto = BaseAuth;
 
 export type ReadLineageResponseDto = Result<Lineage | null>;
 
@@ -28,63 +23,35 @@ export class ReadLineage
 {
   readonly #lineageRepo: ILineageRepo;
 
-  readonly #getSnowflakeProfile: GetSnowflakeProfile;
-
   constructor(
     lineageRepo: ILineageRepo,
-    getSnowflakeProfile: GetSnowflakeProfile
   ) {
     this.#lineageRepo = lineageRepo;
-    this.#getSnowflakeProfile = getSnowflakeProfile;
   }
 
-  #getProfile = async (
-    jwt: string,
-    targetOrgId?: string
-  ): Promise<SnowflakeProfileDto> => {
-    const readSnowflakeProfileResult = await this.#getSnowflakeProfile.execute(
-      { targetOrgId },
-      {
-        jwt,
-      }
-    );
-
-    if (!readSnowflakeProfileResult.success)
-      throw new Error(readSnowflakeProfileResult.error);
-    if (!readSnowflakeProfileResult.value)
-      throw new Error('SnowflakeProfile does not exist');
-
-    return readSnowflakeProfileResult.value;
-  };
-
   async execute(
-    request: ReadLineageRequestDto,
-    auth: ReadLineageAuthDto
+    req: ReadLineageRequestDto,
+    auth: ReadLineageAuthDto,
+    connPool: IConnectionPool
   ): Promise<ReadLineageResponseDto> {
     try {
-      const profile =
-        request.profile ||
-        (await this.#getProfile(
-          auth.jwt,
-          auth.isSystemInternal ? request.targetOrgId : undefined
-        ));
-
-      const lineage = request.id
+      const lineage = req.id
         ? await this.#lineageRepo.findOne(
-            request.id,
-            profile,
+            req.id,
             auth,
-            request.targetOrgId
+            connPool,
+            req.targetOrgId
           )
         : await this.#lineageRepo.findLatest(
             {
-             tolerateIncomplete: request.tolerateIncomplete, minuteTolerance: request.minuteTolerance
+              tolerateIncomplete: req.tolerateIncomplete,
+              minuteTolerance: req.minuteTolerance,
             },
-            profile,
             auth,
-            request.targetOrgId
+            connPool,
+            req.targetOrgId
           );
-      if (request.id && !lineage)
+      if (req.id && !lineage)
         throw new Error(
           `No lineage found for organization ${auth.callerOrgId}`
         );

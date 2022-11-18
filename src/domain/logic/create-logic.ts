@@ -10,8 +10,9 @@ import {
 } from '../entities/logic';
 import { ILogicRepo } from './i-logic-repo';
 import { ReadLogics } from './read-logics';
-import {} from '../services/i-db';
-import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
+ 
+import BaseAuth from '../services/base-auth';
+import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 
 interface DbtRequestProps {
   dbtDependentOn: MaterializationDefinition[];
@@ -24,7 +25,6 @@ interface GeneralRequestProps {
   lineageId: string;
   catalog: ModelRepresentation[];
   targetOrgId?: string;
-  profile: SnowflakeProfileDto;
 }
 
 export interface CreateLogicRequestDto {
@@ -37,11 +37,7 @@ export interface CreateLogicRequestDto {
   };
 }
 
-export interface CreateLogicAuthDto {
-  isSystemInternal: boolean;
-  callerOrgId?: string;
-  jwt: string;
-}
+export type CreateLogicAuthDto = BaseAuth;
 
 export type CreateLogicResponse = Result<Logic>;
 
@@ -59,10 +55,11 @@ export class CreateLogic
   }
 
   async execute(
-    request: CreateLogicRequestDto,
-    auth: CreateLogicAuthDto
+    req: CreateLogicRequestDto,
+    auth: CreateLogicAuthDto,
+    connPool: IConnectionPool
   ): Promise<CreateLogicResponse> {
-    const { dbtProps, generalProps: commonProps } = request.props;
+    const { dbtProps, generalProps: commonProps } = req.props;
 
     try {
       if (auth.isSystemInternal && !commonProps.targetOrgId)
@@ -92,9 +89,9 @@ export class CreateLogic
           relationName: commonProps.relationName,
           lineageId: commonProps.lineageId,
           targetOrgId: commonProps.targetOrgId,
-          profile: request.props.generalProps.profile
         },
-        auth
+        auth,
+        connPool
       );
 
       if (!readLogicsResult.success) throw new Error(readLogicsResult.error);
@@ -102,12 +99,12 @@ export class CreateLogic
       if (readLogicsResult.value.length)
         throw new ReferenceError('Logic to be created already exists');
 
-      if (request.options.writeToPersistence)
+      if (req.options.writeToPersistence)
         await this.#logicRepo.insertOne(
           logic,
-          request.props.generalProps.profile,
           auth,
-          request.props.generalProps.targetOrgId
+          connPool,
+          req.props.generalProps.targetOrgId
         );
 
       return Result.ok(logic);

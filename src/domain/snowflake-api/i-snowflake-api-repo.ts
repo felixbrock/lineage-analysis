@@ -6,15 +6,15 @@ export interface SnowflakeEntity {
 
 export type SnowflakeQueryResult = SnowflakeEntity[];
 
-export interface ConnectionPool {
-  use: unknown;
-  destroy: unknown;
+export interface IConnectionPool {
+  use<U>(cb: (resource: unknown) => U | Promise<U>): Promise<U>;
+  drain(): Promise<void>;
 }
 
 export interface ISnowflakeApiRepo {
   runQuery(
     queryText: string,
     binds: (string | number)[] | (string | number)[][],
-    connectionPool: ConnectionPool
+    connectionPool: IConnectionPool
   ): Promise<Result<SnowflakeQueryResult>>;
 }

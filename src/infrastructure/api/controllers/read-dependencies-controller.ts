@@ -1,5 +1,6 @@
 // TODO: Violation of control flow. DI for express instead
 import { Request, Response } from 'express';
+import { createPool } from 'snowflake-sdk';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
 import {
   ReadDependencies,
@@ -7,9 +8,12 @@ import {
   ReadDependenciesRequestDto,
   ReadDependenciesResponseDto,
 } from '../../../domain/dependency/read-dependencies';
-import { DependencyType, dependencyTypes } from '../../../domain/entities/dependency';
+import {
+  DependencyType,
+  dependencyTypes,
+} from '../../../domain/entities/dependency';
+import { GetSnowflakeProfile } from '../../../domain/integration-api/get-snowflake-profile';
 import Result from '../../../domain/value-types/transient-types/result';
-
 
 import {
   BaseController,
@@ -20,15 +24,13 @@ import {
 export default class ReadDependenciesController extends BaseController {
   readonly #readDependencies: ReadDependencies;
 
-  readonly #getAccounts: GetAccounts;
-
   constructor(
     readDependencies: ReadDependencies,
     getAccounts: GetAccounts,
+    getSnowflakeProfile: GetSnowflakeProfile
   ) {
-    super();
+    super(getAccounts, getSnowflakeProfile);
     this.#readDependencies = readDependencies;
-    this.#getAccounts = getAccounts;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadDependenciesRequestDto => {
@@ -68,10 +70,13 @@ export default class ReadDependenciesController extends BaseController {
     };
   };
 
-  #buildAuthDto = (userAccountInfo: UserAccountInfo, jwt: string): ReadDependenciesAuthDto => ({
+  #buildAuthDto = (
+    userAccountInfo: UserAccountInfo,
+    jwt: string
+  ): ReadDependenciesAuthDto => ({
     callerOrgId: userAccountInfo.callerOrgId,
     isSystemInternal: userAccountInfo.isSystemInternal,
-    jwt
+    jwt,
   });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
@@ -84,10 +89,7 @@ export default class ReadDependenciesController extends BaseController {
       const jwt = authHeader.split(' ')[1];
 
       const getUserAccountInfoResult: Result<UserAccountInfo> =
-        await ReadDependenciesController.getUserAccountInfo(
-          jwt,
-          this.#getAccounts
-        );
+        await this.getUserAccountInfo(jwt);
 
       if (!getUserAccountInfoResult.success)
         return ReadDependenciesController.unauthorized(
@@ -100,11 +102,13 @@ export default class ReadDependenciesController extends BaseController {
       const requestDto: ReadDependenciesRequestDto = this.#buildRequestDto(req);
       const authDto = this.#buildAuthDto(getUserAccountInfoResult.value, jwt);
 
+      const connPool = await this.createConnectionPool(
+        jwt,
+        createPool
+      );
+
       const useCaseResult: ReadDependenciesResponseDto =
-        await this.#readDependencies.execute(
-          requestDto,
-          authDto,
-        );
+        await this.#readDependencies.execute(requestDto, authDto, connPool);
 
       if (!useCaseResult.success) {
         return ReadDependenciesController.badRequest(res);
@@ -114,12 +118,16 @@ export default class ReadDependenciesController extends BaseController {
         ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
 
+      await connPool.drain();
+
       return ReadDependenciesController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      return ReadDependenciesController.fail(res, 'Internal error occurred while reading dependencies');
-      
+      return ReadDependenciesController.fail(
+        res,
+        'Internal error occurred while reading dependencies'
+      );
     }
   }
 }

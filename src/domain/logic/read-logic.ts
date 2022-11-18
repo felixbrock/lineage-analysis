@@ -2,21 +2,17 @@ import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { ILogicRepo } from './i-logic-repo';
 import { Logic } from '../entities/logic';
-import {} from '../services/i-db';
-import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
-import { GetSnowflakeProfile } from '../integration-api/get-snowflake-profile';
+ 
+import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
+import BaseAuth from '../services/base-auth';
 
 export interface ReadLogicRequestDto {
   id: string;
   targetOrgId?: string;
-  profile?: SnowflakeProfileDto;
+  
 }
 
-export interface ReadLogicAuthDto {
-  callerOrgId?: string;
-  isSystemInternal: boolean;
-  jwt: string;
-}
+export type ReadLogicAuthDto = BaseAuth;
 
 export type ReadLogicResponseDto = Result<Logic>;
 
@@ -26,51 +22,23 @@ export class ReadLogic
 {
   readonly #logicRepo: ILogicRepo;
 
-  readonly #getSnowflakeProfile: GetSnowflakeProfile;
-
-  constructor(logicRepo: ILogicRepo, getSnowflakeProfile: GetSnowflakeProfile) {
+  constructor(logicRepo: ILogicRepo) {
     this.#logicRepo = logicRepo;
-    this.#getSnowflakeProfile = getSnowflakeProfile;
   }
 
-  #getProfile = async (
-    jwt: string,
-    targetOrgId?: string
-  ): Promise<SnowflakeProfileDto> => {
-    const readSnowflakeProfileResult = await this.#getSnowflakeProfile.execute(
-      { targetOrgId },
-      {
-        jwt,
-      }
-    );
-
-    if (!readSnowflakeProfileResult.success)
-      throw new Error(readSnowflakeProfileResult.error);
-    if (!readSnowflakeProfileResult.value)
-      throw new Error('SnowflakeProfile does not exist');
-
-    return readSnowflakeProfileResult.value;
-  };
-
   async execute(
-    request: ReadLogicRequestDto,
-    auth: ReadLogicAuthDto
+    req: ReadLogicRequestDto,
+    auth: ReadLogicAuthDto,
+    connPool: IConnectionPool
   ): Promise<ReadLogicResponseDto> {
     try {
-      const profile =
-        request.profile ||
-        (await this.#getProfile(
-          auth.jwt,
-          auth.isSystemInternal ? request.targetOrgId : undefined
-        ));
-
       const logic = await this.#logicRepo.findOne(
-        request.id,
-        profile,
+        req.id,
         auth,
-        request.targetOrgId
+        connPool,
+        req.targetOrgId
       );
-      if (!logic) throw new Error(`Logic with id ${request.id} does not exist`);
+      if (!logic) throw new Error(`Logic with id ${req.id} does not exist`);
 
       return Result.ok(logic);
     } catch (error: unknown) {

@@ -6,7 +6,10 @@ import {
   GetAccounts,
   GetAccountsResponseDto,
 } from '../domain/account-api/get-accounts';
-import { ConnectionPool } from '../domain/snowflake-api/i-snowflake-api-repo';
+import { GetSnowflakeProfile } from '../domain/integration-api/get-snowflake-profile';
+import { SnowflakeProfileDto } from '../domain/integration-api/i-integration-api-repo';
+import { DbOptions } from '../domain/services/i-db';
+import { IConnectionPool } from '../domain/snowflake-api/i-snowflake-api-repo';
 import Result from '../domain/value-types/transient-types/result';
 
 export enum CodeHttp {
@@ -28,6 +31,15 @@ export interface UserAccountInfo {
 }
 
 export abstract class BaseController {
+  #getSnowflakeProfile: GetSnowflakeProfile;
+
+  #getAccounts: GetAccounts;
+
+  constructor(getAccounts: GetAccounts, getSnowflakeProfile: GetSnowflakeProfile) {
+    this.#getAccounts = getAccounts;
+    this.#getSnowflakeProfile = getSnowflakeProfile;
+  }
+
   static jsonResponse(res: Response, code: number, message: string): Response {
     return res.status(code).json({ message });
   }
@@ -61,8 +73,12 @@ export abstract class BaseController {
 
   protected createConnectionPool = async (
     jwt: string,
+    createPool: (
+      options: DbOptions,
+      poolOptions: { min: number; max: number }
+    ) => IConnectionPool,
     targetOrgId?: string
-  ): Promise<ConnectionPool> => {
+  ): Promise<IConnectionPool> => {
     const profile = await this.#getProfile(jwt, targetOrgId);
 
     const options: DbOptions = {
@@ -78,9 +94,8 @@ export abstract class BaseController {
     });
   };
 
-  static async getUserAccountInfo(
+  protected async getUserAccountInfo(
     jwt: string,
-    getAccounts: GetAccounts
   ): Promise<Result<UserAccountInfo>> {
     if (!jwt) return Result.fail('Unauthorized');
 
@@ -123,7 +138,7 @@ export abstract class BaseController {
         });
 
       const getAccountsResult: GetAccountsResponseDto =
-        await getAccounts.execute(
+        await this.#getAccounts.execute(
           {
             userId: authPayload.username,
           },

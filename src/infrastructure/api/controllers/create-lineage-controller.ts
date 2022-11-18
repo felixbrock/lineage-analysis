@@ -1,6 +1,8 @@
 // TODO: Violation of control flow. DI for express instead
 import { Request, Response } from 'express';
+import { createPool } from 'snowflake-sdk';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
+import { GetSnowflakeProfile } from '../../../domain/integration-api/get-snowflake-profile';
 import {
   CreateLineage,
   CreateLineageAuthDto,
@@ -18,12 +20,9 @@ import {
 export default class CreateLineageController extends BaseController {
   readonly #createLineage: CreateLineage;
 
-  readonly #getAccounts: GetAccounts;
-
-  constructor(createLineage: CreateLineage, getAccounts: GetAccounts) {
-    super();
+  constructor(createLineage: CreateLineage, getAccounts: GetAccounts, getSnowflakeProfile: GetSnowflakeProfile) {
+    super(getAccounts, getSnowflakeProfile);
     this.#createLineage = createLineage;
-    this.#getAccounts = getAccounts;
   }
 
   #buildRequestDto = (req: Request): CreateLineageRequestDto => {
@@ -73,9 +72,8 @@ export default class CreateLineageController extends BaseController {
       const jwt = authHeader.split(' ')[1];
 
       const getUserAccountInfoResult: Result<UserAccountInfo> =
-        await CreateLineageController.getUserAccountInfo(
+        await this.getUserAccountInfo(
           jwt,
-          this.#getAccounts
         );
 
       if (!getUserAccountInfoResult.success)
@@ -89,8 +87,10 @@ export default class CreateLineageController extends BaseController {
       const requestDto: CreateLineageRequestDto = this.#buildRequestDto(req);
       const authDto = this.#buildAuthDto(jwt, getUserAccountInfoResult.value);
 
+      const connPool = await this.createConnectionPool(jwt, createPool);
+
       const useCaseResult: CreateLineageResponseDto =
-        await this.#createLineage.execute(requestDto, authDto);
+        await this.#createLineage.execute(requestDto, authDto, connPool);
 
       if (!useCaseResult.success) {
         return CreateLineageController.badRequest(res);
@@ -99,6 +99,8 @@ export default class CreateLineageController extends BaseController {
       const resultValue = useCaseResult.value
         ? useCaseResult.value.toDto()
         : useCaseResult.value;
+
+      await connPool.drain();
 
       return CreateLineageController.ok(res, resultValue, CodeHttp.CREATED);
 

@@ -1,10 +1,12 @@
 // TODO: Violation of control flow. DI for express instead
 import { Request, Response } from 'express';
+import { createPool } from 'snowflake-sdk';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
 import {
   MaterializationType,
   materializationTypes,
 } from '../../../domain/entities/materialization';
+import { GetSnowflakeProfile } from '../../../domain/integration-api/get-snowflake-profile';
 import {
   ReadMaterializations,
   ReadMaterializationsAuthDto,
@@ -22,15 +24,13 @@ import {
 export default class ReadMaterializationsController extends BaseController {
   readonly #readMaterializations: ReadMaterializations;
 
-  readonly #getAccounts: GetAccounts;
-
   constructor(
     readMaterializations: ReadMaterializations,
-    getAccounts: GetAccounts
+    getAccounts: GetAccounts,
+    getSnowflakeProfile: GetSnowflakeProfile
   ) {
-    super();
+    super(getAccounts, getSnowflakeProfile);
     this.#readMaterializations = readMaterializations;
-    this.#getAccounts = getAccounts;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadMaterializationsRequestDto => {
@@ -104,10 +104,7 @@ export default class ReadMaterializationsController extends BaseController {
       const jwt = authHeader.split(' ')[1];
 
       const getUserAccountInfoResult: Result<UserAccountInfo> =
-        await ReadMaterializationsController.getUserAccountInfo(
-          jwt,
-          this.#getAccounts
-        );
+        await this.getUserAccountInfo(jwt);
 
       if (!getUserAccountInfoResult.success)
         return ReadMaterializationsController.unauthorized(
@@ -121,8 +118,10 @@ export default class ReadMaterializationsController extends BaseController {
         this.#buildRequestDto(req);
       const authDto = this.#buildAuthDto(getUserAccountInfoResult.value, jwt);
 
+      const connPool = await this.createConnectionPool(jwt, createPool);
+
       const useCaseResult: ReadMaterializationsResponseDto =
-        await this.#readMaterializations.execute(requestDto, authDto);
+        await this.#readMaterializations.execute(requestDto, authDto, connPool);
 
       if (!useCaseResult.success) {
         return ReadMaterializationsController.badRequest(res);
@@ -131,6 +130,8 @@ export default class ReadMaterializationsController extends BaseController {
       const resultValue = useCaseResult.value
         ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
+
+      await connPool.drain();
 
       return ReadMaterializationsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {

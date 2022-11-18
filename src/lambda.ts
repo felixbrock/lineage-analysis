@@ -68,7 +68,8 @@ const internalInvoke = async (
 
       const createLineageController = new InternalInvokeCreateLineageController(
         iocRegister.resolve('createLineage'),
-        iocRegister.resolve('getAccounts')
+        iocRegister.resolve('getAccounts'),
+        iocRegister.resolve('getSnowflakeProfile')
       );
 
       const req: CreateLineageRequestDto = {

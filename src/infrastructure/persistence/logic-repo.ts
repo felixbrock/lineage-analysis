@@ -1,26 +1,21 @@
 import {
-  Auth,
-  ILogicRepo,
-  LogicQueryDto,
-} from '../../domain/logic/i-logic-repo';
-import {
   DependentOn,
   Logic,
   LogicProps,
   Refs,
 } from '../../domain/entities/logic';
-import {
-  ColumnDefinition,
-  getInsertQuery,
-  getUpdateQuery,
-} from './shared/query';
+import { ColumnDefinition } from './shared/query';
 import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
-import { SnowflakeProfileDto } from '../../domain/integration-api/i-integration-api-repo';
-import BaseSfRepo from './shared/base-sf-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
+import BaseSfRepo, { Query } from './shared/base-sf-repo';
+import {
+  ILogicRepo,
+  LogicQueryDto,
+  LogicUpdateDto,
+} from '../../domain/logic/i-logic-repo';
 
 export default class LogicRepo
-  extends BaseSfRepo<Logic, LogicProps>
+  extends BaseSfRepo<Logic, LogicProps, LogicQueryDto, LogicUpdateDto>
   implements ILogicRepo
 {
   readonly matName = 'logics';
@@ -94,100 +89,6 @@ export default class LogicRepo
     };
   };
 
-  findOne = async (
-    logicId: string,
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<Logic | null> => {
-    try {
-      const queryText = `select * from cito.lineage.${this.matName}
-      where id = ?;`;
-
-      // using binds to tell snowflake to escape params to avoid sql injection attack
-      const binds: (string | number)[] = [logicId];
-
-      const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds, profile },
-        auth
-      );
-
-      if (!result.success) throw new Error(result.error);
-      if (!result.value) throw new Error('Missing sf query value');
-      if (result.value.length > 1)
-        throw new Error(`Multiple logic entities with id found`);
-
-      return !result.value.length
-        ? null
-        : this.toEntity(this.buildEntityProps(result.value[0]));
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error());
-    }
-  };
-
-  findBy = async (
-    logicQueryDto: LogicQueryDto,
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<Logic[]> => {
-    try {
-      if (!Object.keys(logicQueryDto).length)
-        return await this.all(profile, auth, targetOrgId);
-
-      // using binds to tell snowflake to escape params to avoid sql injection attack
-      const binds: (string | number)[] = [logicQueryDto.lineageId];
-      if (logicQueryDto.relationName) binds.push(logicQueryDto.relationName);
-
-      const queryText = `select * from cito.lineage.${this.matName}
-      where array_contains(?::variant, lineage_ids) ${
-        logicQueryDto.relationName ? 'and relation_name = ?' : ''
-      };`;
-
-      const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds, profile },
-        auth
-      );
-
-      if (!result.success) throw new Error(result.error);
-      if (!result.value) throw new Error('Missing sf query value');
-
-      return result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error());
-    }
-  };
-
-  all = async (
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<Logic[]> => {
-    try {
-      const queryText = `select * from cito.lineage.${this.matName};`;
-
-      const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds: [], profile },
-        auth
-      );
-
-      if (!result.success) throw new Error(result.error);
-      if (!result.value) throw new Error('Missing sf query value');
-      if (result.value.length !== 1)
-        throw new Error(`Multiple or no logic entities with id found`);
-
-      return result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error());
-    }
-  };
-
   getBinds = (entity: Logic): (string | number)[] => [
     entity.id,
     entity.relationName,
@@ -198,97 +99,24 @@ export default class LogicRepo
     JSON.stringify(entity.lineageIds),
   ];
 
-  insertOne = async (
-    logic: Logic,
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<string> => {
-    try {
-      const binds = this.getBinds(logic);
-      const row = `(${binds.map(() => '?').join(', ')})`;
+  buildFindByQuery(dto: LogicQueryDto): Query {
+    const binds: (string | number)[] = [dto.lineageId];
+    if (dto.relationName) binds.push(dto.relationName);
 
-      const queryText = getInsertQuery(this.matName, this.colDefinitions, [
-        row,
-      ]);
+    const text = `select * from cito.lineage.${this.matName}
+  where array_contains(?::variant, lineage_ids) ${
+    dto.relationName ? 'and relation_name = ?' : ''
+  };`;
+    return { text, binds };
+  }
 
-      const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds, profile },
-        auth
-      );
-
-      if (!result.success) throw new Error(result.error);
-      if (!result.value) throw new Error('Missing sf query value');
-
-      return logic.id;
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error());
-    }
-  };
-
-  insertMany = async (
-    logics: Logic[],
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<string[]> => {
-    try {
-      const binds = logics.map((el) => this.getBinds(el));
-
-      const row = `(${this.colDefinitions.map(() => '?').join(', ')})`;
-
-      const queryText = getInsertQuery(this.matName, this.colDefinitions, [
-        row,
-      ]);
-
-      const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds, profile },
-        auth
-      );
-
-      if (!result.success) throw new Error(result.error);
-      if (!result.value) throw new Error('Missing sf query value');
-
-      return logics.map((el) => el.id);
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error());
-    }
-  };
-
-  replaceMany = async (
-    logics: Logic[],
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<number> => {
-    try {
-      const binds = logics.map((el) => this.getBinds(el));
-
-      const row = `(${this.colDefinitions.map(() => '?').join(', ')})`;
-
-      const queryText = getUpdateQuery(this.matName, this.colDefinitions, [
-        row,
-      ]);
-
-      const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds, profile },
-        auth
-      );
-
-      if (!result.success) throw new Error(result.error);
-      if (!result.value) throw new Error('Missing sf query value');
-
-      return logics.length;
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error());
-    }
-  };
+  buildUpdateQuery(id: string, dto: undefined): Query {
+    throw new Error(
+      `Update Method not implemented. Provided Input [${id}, ${JSON.stringify(
+        dto
+      )}]`
+    );
+  }
 
   toEntity = (logicProperties: LogicProps): Logic =>
     Logic.build(logicProperties);

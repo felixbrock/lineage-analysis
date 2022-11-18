@@ -8,8 +8,8 @@ import { ReadDependencies } from './read-dependencies';
 import { ColumnRef } from '../entities/logic';
 import { ReadColumns } from '../column/read-columns';
 import { Column } from '../entities/column';
-import {} from '../services/i-db';
-import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
+ 
+import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 
 export interface CreateDependencyRequestDto {
   dependencyRef: ColumnRef;
@@ -18,7 +18,6 @@ export interface CreateDependencyRequestDto {
   lineageId: string;
   writeToPersistence: boolean;
   targetOrgId?: string;
-  profile: SnowflakeProfileDto;
 }
 
 export interface CreateDependencyAuthDto {
@@ -47,14 +46,16 @@ export class CreateDependency
 
   #targetOrgId?: string;
 
+  #connPool?: IConnectionPool;
+
   /* Returns the object id of the parent column which self column depends upon */
   #getParentId = async (
     dependencyRef: ColumnRef,
     parentRelationNames: string[],
-    lineageId: string,
-    profile: SnowflakeProfileDto
+    lineageId: string
   ): Promise<string> => {
-    if (!this.#auth) throw new Error('auth missing');
+    if (!this.#auth || !this.#connPool)
+      throw new Error('auth or connection pool missing');
 
     const readColumnsResult = await this.#readColumns.execute(
       {
@@ -62,9 +63,9 @@ export class CreateDependency
         name: dependencyRef.name,
         lineageId,
         targetOrgId: this.#targetOrgId,
-        profile
       },
-      this.#auth
+      this.#auth,
+      this.#connPool
     );
 
     if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
@@ -91,10 +92,10 @@ export class CreateDependency
   #getSelfColumn = async (
     selfRelationName: string,
     dependencyRef: ColumnRef,
-    lineageId: string,
-    profile: SnowflakeProfileDto
+    lineageId: string
   ): Promise<Column> => {
-    if (!this.#auth) throw new Error('auth missing');
+    if (!this.#auth || !this.#connPool)
+      throw new Error('auth or connection pool missing');
 
     const readSelfColumnResult = await this.#readColumns.execute(
       {
@@ -102,9 +103,9 @@ export class CreateDependency
         lineageId,
         name: dependencyRef.alias || dependencyRef.name,
         targetOrgId: this.#targetOrgId,
-        profile
       },
-      this.#auth
+      this.#auth,
+      this.#connPool
     );
 
     if (!readSelfColumnResult.success)
@@ -145,27 +146,28 @@ export class CreateDependency
   }
 
   async execute(
-    request: CreateDependencyRequestDto,
-    auth: CreateDependencyAuthDto
+    req: CreateDependencyRequestDto,
+    auth: CreateDependencyAuthDto,
+    connPool: IConnectionPool
   ): Promise<CreateDependencyResponse> {
     try {
-      if (auth.isSystemInternal && !request.targetOrgId)
+      if (auth.isSystemInternal && !req.targetOrgId)
         throw new Error('Target organization id missing');
       if (!auth.isSystemInternal && !auth.callerOrgId)
         throw new Error('Caller organization id missing');
-      if (!request.targetOrgId && !auth.callerOrgId)
+      if (!req.targetOrgId && !auth.callerOrgId)
         throw new Error('No organization Id instance provided');
-      if (request.targetOrgId && auth.callerOrgId)
+      if (req.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
+      this.#connPool = connPool;
       this.#auth = auth;
-      this.#targetOrgId = request.targetOrgId;
+      this.#targetOrgId = req.targetOrgId;
 
       const headColumn = await this.#getSelfColumn(
-        request.selfRelationName,
-        request.dependencyRef,
-        request.lineageId,
-        request.profile
+        req.selfRelationName,
+        req.dependencyRef,
+        req.lineageId
       );
 
       // const parentName =
@@ -174,29 +176,29 @@ export class CreateDependency
       //     : request.parentRef.name;
 
       const parentId = await this.#getParentId(
-        request.dependencyRef,
-        request.parentRelationNames,
-        request.lineageId, request.profile
+        req.dependencyRef,
+        req.parentRelationNames,
+        req.lineageId
       );
 
       const dependency = Dependency.create({
         id: uuidv4(),
-        type: request.dependencyRef.dependencyType,
+        type: req.dependencyRef.dependencyType,
         headId: headColumn.id,
         tailId: parentId,
-        lineageId: request.lineageId,
+        lineageId: req.lineageId,
       });
 
       const readDependencyResult = await this.#readDependencies.execute(
         {
-          type: request.dependencyRef.dependencyType,
+          type: req.dependencyRef.dependencyType,
           headId: headColumn.id,
           tailId: parentId,
-          lineageId: request.lineageId,
-          targetOrgId: request.targetOrgId,
-          profile: request.profile
+          lineageId: req.lineageId,
+          targetOrgId: req.targetOrgId,
         },
-        auth
+        auth,
+        connPool
       );
 
       if (!readDependencyResult.success)
@@ -208,12 +210,12 @@ export class CreateDependency
           `Attempting to create a dependency that already exists`
         );
 
-      if (request.writeToPersistence)
+      if (req.writeToPersistence)
         await this.#dependencyRepo.insertOne(
           dependency,
-          request.profile,
           auth,
-          request.targetOrgId
+          connPool,
+          req.targetOrgId
         );
 
       return Result.ok(dependency);

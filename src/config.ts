@@ -57,6 +57,8 @@ export const appConfig = {
   snowflake: {
     applicationName:
       process.env.SNOWFLAKE_APPLICATION_NAME || 'snowflake-connector',
+    schemaName: 'lineage',
+    databaseName: 'cito'
   },
   baseUrl: getBaseUrlConfig(),
 };

@@ -1,5 +1,6 @@
 // TODO: Violation of control flow. DI for express instead
 import { Request, Response } from 'express';
+import { createPool } from 'snowflake-sdk';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
 import {
   ReadColumns,
@@ -7,6 +8,7 @@ import {
   ReadColumnsRequestDto,
   ReadColumnsResponseDto,
 } from '../../../domain/column/read-columns';
+import { GetSnowflakeProfile } from '../../../domain/integration-api/get-snowflake-profile';
 import Result from '../../../domain/value-types/transient-types/result';
 
 import {
@@ -18,12 +20,13 @@ import {
 export default class ReadColumnsController extends BaseController {
   readonly #readColumns: ReadColumns;
 
-  readonly #getAccounts: GetAccounts;
-
-  constructor(readColumns: ReadColumns, getAccounts: GetAccounts) {
-    super();
+  constructor(
+    readColumns: ReadColumns,
+    getAccounts: GetAccounts,
+    getSnowflakeProfile: GetSnowflakeProfile
+  ) {
+    super(getAccounts, getSnowflakeProfile);
     this.#readColumns = readColumns;
-    this.#getAccounts = getAccounts;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadColumnsRequestDto => {
@@ -77,7 +80,7 @@ export default class ReadColumnsController extends BaseController {
       const jwt = authHeader.split(' ')[1];
 
       const getUserAccountInfoResult: Result<UserAccountInfo> =
-        await ReadColumnsController.getUserAccountInfo(jwt, this.#getAccounts);
+        await this.getUserAccountInfo(jwt);
 
       if (!getUserAccountInfoResult.success)
         return ReadColumnsController.unauthorized(
@@ -90,8 +93,10 @@ export default class ReadColumnsController extends BaseController {
       const requestDto: ReadColumnsRequestDto = this.#buildRequestDto(req);
       const authDto = this.#buildAuthDto(getUserAccountInfoResult.value, jwt);
 
+      const connPool = await this.createConnectionPool(jwt, createPool);
+
       const useCaseResult: ReadColumnsResponseDto =
-        await this.#readColumns.execute(requestDto, authDto);
+        await this.#readColumns.execute(requestDto, authDto, connPool);
 
       if (!useCaseResult.success) {
         return ReadColumnsController.badRequest(res);
@@ -100,6 +105,8 @@ export default class ReadColumnsController extends BaseController {
       const resultValue = useCaseResult.value
         ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
+
+      await connPool.drain();
 
       return ReadColumnsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {

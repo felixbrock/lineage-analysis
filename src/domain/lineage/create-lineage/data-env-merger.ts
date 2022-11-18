@@ -2,16 +2,13 @@ import { IColumnRepo } from '../../column/i-column-repo';
 import { Column } from '../../entities/column';
 import { Logic } from '../../entities/logic';
 import { Materialization } from '../../entities/materialization';
-import { SnowflakeProfileDto } from '../../integration-api/i-integration-api-repo';
 import { ILogicRepo } from '../../logic/i-logic-repo';
 import { IMaterializationRepo } from '../../materialization/i-materialization-repo';
+import BaseAuth from '../../services/base-auth';
+import { IConnectionPool } from '../../snowflake-api/i-snowflake-api-repo';
 import { ILineageRepo } from '../i-lineage-repo';
 
-interface Auth {
-  callerOrgId?: string;
-  isSystemInternal: boolean;
-  jwt: string;
-}
+export type Auth = BaseAuth;
 
 export default class DataEnvMerger {
   readonly #lineageRepo: ILineageRepo;
@@ -26,19 +23,17 @@ export default class DataEnvMerger {
 
   readonly #targetOrgId?: string;
 
-  readonly #profile: SnowflakeProfileDto;
-
   #logicsToHandle: Logic[];
 
   #oldLogics: Logic[] = [];
 
-  #logicsToReplace: Logic[] = [];
+  readonly #logicsToReplace: Logic[] = [];
 
   get logicsToReplace(): Logic[] {
     return this.#logicsToReplace;
   }
 
-  #logicsToCreate: Logic[] = [];
+  readonly #logicsToCreate: Logic[] = [];
 
   get logicsToCreate(): Logic[] {
     return this.#logicsToCreate;
@@ -46,13 +41,13 @@ export default class DataEnvMerger {
 
   #matsToHandle: Materialization[];
 
-  #matsToReplace: Materialization[] = [];
+  readonly #matsToReplace: Materialization[] = [];
 
   get matsToReplace(): Materialization[] {
     return this.#matsToReplace;
   }
 
-  #matsToCreate: Materialization[] = [];
+  readonly #matsToCreate: Materialization[] = [];
 
   get matsToCreate(): Materialization[] {
     return this.#matsToCreate;
@@ -62,13 +57,13 @@ export default class DataEnvMerger {
 
   #oldColumnsByMatId: { [key: string]: Column[] } = {};
 
-  #columnsToReplace: Column[] = [];
+  readonly #columnsToReplace: Column[] = [];
 
   get columnsToReplace(): Column[] {
     return this.#columnsToReplace;
   }
 
-  #columnsToCreate: Column[] = [];
+  readonly #columnsToCreate: Column[] = [];
 
   get columnsToCreate(): Column[] {
     return this.#columnsToCreate;
@@ -80,7 +75,6 @@ export default class DataEnvMerger {
       columns: Column[];
       logics: Logic[];
       targetOrgId?: string;
-      profile: SnowflakeProfileDto;
     },
     auth: Auth,
     dependencies: {
@@ -97,7 +91,6 @@ export default class DataEnvMerger {
 
     this.#auth = auth;
     this.#targetOrgId = props.targetOrgId;
-    this.#profile = props.profile;
 
     this.#matsToHandle = props.materializations;
     this.#columnsToHandleByMatId = props.columns.reduce(
@@ -107,7 +100,7 @@ export default class DataEnvMerger {
     this.#logicsToHandle = props.logics;
   }
 
-  #buildLogicToReplace =  (
+  #buildLogicToReplace = (
     oldLogicProps: { id: string; lineageIds: string[] },
     logicToHandle: Logic
   ): Logic =>
@@ -230,7 +223,9 @@ export default class DataEnvMerger {
     return updatedLogic;
   };
 
-  merge = async (): Promise<{
+  merge = async (
+    connPool: IConnectionPool
+  ): Promise<{
     matsToCreate: Materialization[];
     matsToReplace: Materialization[];
     columnsToCreate: Column[];
@@ -240,8 +235,8 @@ export default class DataEnvMerger {
   }> => {
     const latestLineage = await this.#lineageRepo.findLatest(
       { tolerateIncomplete: false },
-      this.#profile,
       this.#auth,
+      connPool,
       this.#targetOrgId
     );
 
@@ -260,8 +255,8 @@ export default class DataEnvMerger {
 
     const oldMats = await this.#materializationRepo.findBy(
       { lineageId: latestLineage.id },
-      this.#profile,
       this.#auth,
+      connPool,
       this.#targetOrgId
     );
 
@@ -310,8 +305,8 @@ export default class DataEnvMerger {
               {
                 lineageId: latestLineage.id,
               },
-              this.#profile,
               this.#auth,
+              connPool,
               this.#targetOrgId
             )
           ).reduce(DataEnvMerger.#groupByMatId, {});
@@ -327,8 +322,8 @@ export default class DataEnvMerger {
             {
               lineageId: latestLineage.id,
             },
-            this.#profile,
             this.#auth,
+            connPool,
             this.#targetOrgId
           );
 

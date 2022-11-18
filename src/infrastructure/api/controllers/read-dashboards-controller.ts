@@ -1,5 +1,6 @@
 // TODO: Violation of control flow. DI for express instead
 import { Request, Response } from 'express';
+import { createPool } from 'snowflake-sdk';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
 import {
   ReadDashboards,
@@ -7,6 +8,7 @@ import {
   ReadDashboardsRequestDto,
   ReadDashboardsResponseDto,
 } from '../../../domain/dashboard/read-dashboards';
+import { GetSnowflakeProfile } from '../../../domain/integration-api/get-snowflake-profile';
 import Result from '../../../domain/value-types/transient-types/result';
 
 import {
@@ -18,12 +20,13 @@ import {
 export default class ReadDashboardsController extends BaseController {
   readonly #readDashboards: ReadDashboards;
 
-  readonly #getAccounts: GetAccounts;
-
-  constructor(readDashboards: ReadDashboards, getAccounts: GetAccounts) {
-    super();
+  constructor(
+    readDashboards: ReadDashboards,
+    getAccounts: GetAccounts,
+    getSnowflakeProfile: GetSnowflakeProfile
+  ) {
+    super(getAccounts, getSnowflakeProfile);
     this.#readDashboards = readDashboards;
-    this.#getAccounts = getAccounts;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadDashboardsRequestDto => {
@@ -84,10 +87,7 @@ export default class ReadDashboardsController extends BaseController {
       const jwt = authHeader.split(' ')[1];
 
       const getUserAccountInfoResult: Result<UserAccountInfo> =
-        await ReadDashboardsController.getUserAccountInfo(
-          jwt,
-          this.#getAccounts
-        );
+        await this.getUserAccountInfo(jwt);
 
       if (!getUserAccountInfoResult.success)
         return ReadDashboardsController.unauthorized(
@@ -100,8 +100,10 @@ export default class ReadDashboardsController extends BaseController {
       const requestDto: ReadDashboardsRequestDto = this.#buildRequestDto(req);
       const authDto = this.#buildAuthDto(getUserAccountInfoResult.value, jwt);
 
+      const connPool = await this.createConnectionPool(jwt, createPool);
+
       const useCaseResult: ReadDashboardsResponseDto =
-        await this.#readDashboards.execute(requestDto, authDto);
+        await this.#readDashboards.execute(requestDto, authDto, connPool);
 
       if (!useCaseResult.success) {
         return ReadDashboardsController.badRequest(res);
@@ -110,6 +112,8 @@ export default class ReadDashboardsController extends BaseController {
       const resultValue = useCaseResult.value
         ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
+
+      await connPool.drain();
 
       return ReadDashboardsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {

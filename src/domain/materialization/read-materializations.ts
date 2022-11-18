@@ -2,10 +2,9 @@ import {
   MaterializationType,
   Materialization,
 } from '../entities/materialization';
-import { GetSnowflakeProfile } from '../integration-api/get-snowflake-profile';
-import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
-import {} from '../services/i-db';
+import BaseAuth from '../services/base-auth';
 import IUseCase from '../services/use-case';
+import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 import Result from '../value-types/transient-types/result';
 import {
   IMaterializationRepo,
@@ -21,14 +20,11 @@ export interface ReadMaterializationsRequestDto {
   logicId?: string;
   lineageId: string;
   targetOrgId?: string;
-  profile?: SnowflakeProfileDto;
+  
 }
 
-export interface ReadMaterializationsAuthDto {
-  callerOrgId?: string;
-  isSystemInternal: boolean;
-  jwt: string;
-}
+export type ReadMaterializationsAuthDto = BaseAuth
+
 
 export type ReadMaterializationsResponseDto = Result<Materialization[]>;
 
@@ -42,62 +38,33 @@ export class ReadMaterializations
 {
   readonly #materializationRepo: IMaterializationRepo;
 
-  readonly #getSnowflakeProfile: GetSnowflakeProfile;
-
   constructor(
     materializationRepo: IMaterializationRepo,
-    getSnowflakeProfile: GetSnowflakeProfile
   ) {
     this.#materializationRepo = materializationRepo;
-    this.#getSnowflakeProfile = getSnowflakeProfile;
   }
 
-  #getProfile = async (
-    jwt: string,
-    targetOrgId?: string
-  ): Promise<SnowflakeProfileDto> => {
-    const readSnowflakeProfileResult = await this.#getSnowflakeProfile.execute(
-      { targetOrgId },
-      {
-        jwt,
-      }
-    );
-
-    if (!readSnowflakeProfileResult.success)
-      throw new Error(readSnowflakeProfileResult.error);
-    if (!readSnowflakeProfileResult.value)
-      throw new Error('SnowflakeProfile does not exist');
-
-    return readSnowflakeProfileResult.value;
-  };
-
   async execute(
-    request: ReadMaterializationsRequestDto,
-    auth: ReadMaterializationsAuthDto
+    req: ReadMaterializationsRequestDto,
+    auth: ReadMaterializationsAuthDto,
+    connPool: IConnectionPool
   ): Promise<ReadMaterializationsResponseDto> {
     try {
-      if (auth.isSystemInternal && !request.targetOrgId)
+      if (auth.isSystemInternal && !req.targetOrgId)
         throw new Error('Target organization id missing');
       if (!auth.isSystemInternal && !auth.callerOrgId)
         throw new Error('Caller organization id missing');
-      if (!request.targetOrgId && !auth.callerOrgId)
+      if (!req.targetOrgId && !auth.callerOrgId)
         throw new Error('No organization Id instance provided');
-      if (request.targetOrgId && auth.callerOrgId)
+      if (req.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
-
-      const profile =
-        request.profile ||
-        (await this.#getProfile(
-          auth.jwt,
-          auth.isSystemInternal ? request.targetOrgId : undefined
-        ));
 
       const materializations: Materialization[] =
         await this.#materializationRepo.findBy(
-          this.#buildMaterializationQueryDto(request),
-          profile,
+          this.#buildMaterializationQueryDto(req),
           auth,
-          request.targetOrgId
+          connPool,
+          req.targetOrgId
         );
       if (!materializations)
         throw new Error(`Queried materializations do not exist`);

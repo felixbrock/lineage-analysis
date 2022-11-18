@@ -1,6 +1,8 @@
 // TODO: Violation of control flow. DI for express instead
 import { Request, Response } from 'express';
+import { createPool } from 'snowflake-sdk';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
+import { GetSnowflakeProfile } from '../../../domain/integration-api/get-snowflake-profile';
 import {
   ReadLogics,
   ReadLogicsAuthDto,
@@ -18,13 +20,13 @@ import {
 export default class ReadLogicsController extends BaseController {
   readonly #readLogics: ReadLogics;
 
-  readonly #getAccounts: GetAccounts;
-
-
-  constructor(readLogics: ReadLogics, getAccounts: GetAccounts) {
-    super();
+  constructor(
+    readLogics: ReadLogics,
+    getAccounts: GetAccounts,
+    getSnowflakeProfile: GetSnowflakeProfile
+  ) {
+    super(getAccounts, getSnowflakeProfile);
     this.#readLogics = readLogics;
-    this.#getAccounts = getAccounts;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadLogicsRequestDto => {
@@ -46,10 +48,13 @@ export default class ReadLogicsController extends BaseController {
     };
   };
 
-  #buildAuthDto = (userAccountInfo: UserAccountInfo, jwt: string): ReadLogicsAuthDto => ({
+  #buildAuthDto = (
+    userAccountInfo: UserAccountInfo,
+    jwt: string
+  ): ReadLogicsAuthDto => ({
     callerOrgId: userAccountInfo.callerOrgId,
     isSystemInternal: userAccountInfo.isSystemInternal,
-    jwt
+    jwt,
   });
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
@@ -62,7 +67,7 @@ export default class ReadLogicsController extends BaseController {
       const jwt = authHeader.split(' ')[1];
 
       const getUserAccountInfoResult: Result<UserAccountInfo> =
-        await ReadLogicsController.getUserAccountInfo(jwt, this.#getAccounts);
+        await this.getUserAccountInfo(jwt);
 
       if (!getUserAccountInfoResult.success)
         return ReadLogicsController.unauthorized(
@@ -75,11 +80,10 @@ export default class ReadLogicsController extends BaseController {
       const requestDto: ReadLogicsRequestDto = this.#buildRequestDto(req);
       const authDto = this.#buildAuthDto(getUserAccountInfoResult.value, jwt);
 
+      const connPool = await this.createConnectionPool(jwt, createPool);
+
       const useCaseResult: ReadLogicsResponseDto =
-        await this.#readLogics.execute(
-          requestDto,
-          authDto,
-        );
+        await this.#readLogics.execute(requestDto, authDto, connPool);
 
       if (!useCaseResult.success) {
         return ReadLogicsController.badRequest(res);
@@ -89,11 +93,16 @@ export default class ReadLogicsController extends BaseController {
         ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
 
+      await connPool.drain();
+
       return ReadLogicsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
       else if (!(error instanceof Error) && error) console.trace(error);
-      return ReadLogicsController.fail(res, 'Internal error occurred while reading logics');
+      return ReadLogicsController.fail(
+        res,
+        'Internal error occurred while reading logics'
+      );
     }
   }
 }

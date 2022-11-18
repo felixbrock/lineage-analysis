@@ -1,25 +1,25 @@
 import {
-  Auth,
-  IMaterializationRepo,
-  MaterializationQueryDto,
-} from '../../domain/materialization/i-materialization-repo';
-import {
   Materialization,
   MaterializationProps,
   parseMaterializationType,
 } from '../../domain/entities/materialization';
-import {
-  ColumnDefinition,
-  getInsertQuery,
-  getUpdateQuery,
-} from './shared/query';
+import { ColumnDefinition } from './shared/query';
 import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
-import { SnowflakeProfileDto } from '../../domain/integration-api/i-integration-api-repo';
-import BaseSfRepo from './shared/base-sf-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
+import BaseSfRepo, { Query } from './shared/base-sf-repo';
+import {
+  IMaterializationRepo,
+  MaterializationQueryDto,
+  MaterializationUpdateDto,
+} from '../../domain/materialization/i-materialization-repo';
 
 export default class MaterializationRepo
-  extends BaseSfRepo<Materialization, MaterializationProps>
+  extends BaseSfRepo<
+    Materialization,
+    MaterializationProps,
+    MaterializationQueryDto,
+    MaterializationUpdateDto
+  >
   implements IMaterializationRepo
 {
   readonly matName = 'materializations';
@@ -96,136 +96,7 @@ export default class MaterializationRepo
     };
   };
 
-  findOne = async (
-    materializationId: string,
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<Materialization | null> => {
-    try {
-      const queryText = `select * from cito.lineage.${this.matName}
-      where id = ?;`;
-
-      // using binds to tell snowflake to escape params to avoid sql injection attack
-      const binds: (string | number)[] = [materializationId];
-
-      const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds, profile },
-        auth
-      );
-
-      if (!result.success) throw new Error(result.error);
-      if (!result.value) throw new Error('Missing sf query value');
-      if (result.value.length !== 1)
-        throw new Error(
-          `Multiple or no materialization entities with id found`
-        );
-
-      return !result.value.length
-        ? null
-        : this.toEntity(this.buildEntityProps(result.value[0]));
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error());
-    }
-  };
-
-  findBy = async (
-    materializationQueryDto: MaterializationQueryDto,
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<Materialization[]> => {
-    try {
-      if (!Object.keys(materializationQueryDto).length)
-        return await this.all(profile, auth, targetOrgId);
-
-      // using binds to tell snowflake to escape params to avoid sql injection attack
-      const binds: (string | number)[] = [materializationQueryDto.lineageId];
-      let whereClause = 'array_contains(?::variant, lineage_ids) ';
-
-      if (materializationQueryDto.relationName) {
-        binds.push(materializationQueryDto.relationName);
-        whereClause = whereClause.concat('and relation_name = ? ');
-      }
-      if (materializationQueryDto.type) {
-        binds.push(materializationQueryDto.type);
-        whereClause = whereClause.concat('and type = ? ');
-      }
-      if (materializationQueryDto.name) {
-        binds.push(
-          Array.isArray(materializationQueryDto.name)
-            ? materializationQueryDto.name.map((el) => `'${el}'`).join(', ')
-            : materializationQueryDto.name
-        );
-        whereClause = whereClause.concat(
-          Array.isArray(materializationQueryDto.name)
-            ? 'and array_contains(name::variant, array_construct(?))'
-            : 'and name = ? '
-        );
-      }
-      if (materializationQueryDto.schemaName) {
-        binds.push(materializationQueryDto.schemaName);
-        whereClause = whereClause.concat('and schema_name = ? ');
-      }
-      if (materializationQueryDto.databaseName) {
-        binds.push(materializationQueryDto.databaseName);
-        whereClause = whereClause.concat('and database_name = ? ');
-      }
-      if (materializationQueryDto.logicId) {
-        binds.push(materializationQueryDto.logicId);
-        whereClause = whereClause.concat('and logic_id = ? ');
-      }
-
-      const queryText = `select * from cito.lineage.${this.matName}
-          where  ${whereClause};`;
-
-      const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds, profile },
-        auth
-      );
-
-      if (!result.success) throw new Error(result.error);
-      if (!result.value) throw new Error('Missing sf query value');
-
-      return result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error());
-    }
-  };
-
-  all = async (
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<Materialization[]> => {
-    try {
-      const queryText = `select * from cito.lineage.${this.matName};`;
-
-      const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds: [], profile },
-        auth
-      );
-
-      if (!result.success) throw new Error(result.error);
-      if (!result.value) throw new Error('Missing sf query value');
-      if (result.value.length !== 1)
-        throw new Error(
-          `Multiple or no materialization entities with id found`
-        );
-
-      return result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error());
-    }
-  };
-
-getBinds = (el: Materialization): (string | number)[] => [
+  getBinds = (el: Materialization): (string | number)[] => [
     el.id,
     el.name,
     el.schemaName,
@@ -239,102 +110,56 @@ getBinds = (el: Materialization): (string | number)[] => [
     el.comment || 'null',
   ];
 
-  insertOne = async (
-    materialization: Materialization,
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<string> => {
-    try {
-      const binds = this.getBinds(materialization);
+  buildFindByQuery(dto: MaterializationQueryDto): Query {
+    const binds: (string | number)[] = [dto.lineageId];
+    let whereClause = 'array_contains(?::variant, lineage_ids) ';
 
-      const row = `(${binds.map(() => '?').join(', ')})`;
-
-      const queryText = getInsertQuery(this.matName, this.colDefinitions, [
-        row,
-      ]);
-
-      const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds, profile },
-        auth
-      );
-
-      if (!result.success) throw new Error(result.error);
-      if (!result.value) throw new Error('Missing sf query value');
-
-      return materialization.id;
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error());
+    if (dto.relationName) {
+      binds.push(dto.relationName);
+      whereClause = whereClause.concat('and relation_name = ? ');
     }
-  };
-
-  insertMany = async (
-    materializations: Materialization[],
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<string[]> => {
-    try {
-      const binds = materializations.map((materialization) =>
-        this.getBinds(materialization)
-      );
-
-      const row = `(${this.colDefinitions.map(() => '?').join(', ')})`;
-
-      const queryText = getInsertQuery(this.matName, this.colDefinitions, [
-        row,
-      ]);
-
-      const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds, profile },
-        auth
-      );
-
-      if (!result.success) throw new Error(result.error);
-      if (!result.value) throw new Error('Missing sf query value');
-
-      return materializations.map((el) => el.id);
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error());
+    if (dto.type) {
+      binds.push(dto.type);
+      whereClause = whereClause.concat('and type = ? ');
     }
-  };
-
-  replaceMany = async (
-    materializations: Materialization[],
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<number> => {
-    try {
-      const binds = materializations.map((materialization) =>
-        this.getBinds(materialization)
+    if (dto.name) {
+      binds.push(
+        Array.isArray(dto.name)
+          ? dto.name.map((el) => `'${el}'`).join(', ')
+          : dto.name
       );
-
-      const row = `(${this.colDefinitions.map(() => '?').join(', ')})`;
-
-      const queryText = getUpdateQuery(this.matName, this.colDefinitions, [
-        row,
-      ]);
-
-      const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds, profile },
-        auth
+      whereClause = whereClause.concat(
+        Array.isArray(dto.name)
+          ? 'and array_contains(name::variant, array_construct(?))'
+          : 'and name = ? '
       );
-
-      if (!result.success) throw new Error(result.error);
-      if (!result.value) throw new Error('Missing sf query value');
-
-      return materializations.length;
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error());
     }
-  };
+    if (dto.schemaName) {
+      binds.push(dto.schemaName);
+      whereClause = whereClause.concat('and schema_name = ? ');
+    }
+    if (dto.databaseName) {
+      binds.push(dto.databaseName);
+      whereClause = whereClause.concat('and database_name = ? ');
+    }
+    if (dto.logicId) {
+      binds.push(dto.logicId);
+      whereClause = whereClause.concat('and logic_id = ? ');
+    }
+
+    const text = `select * from cito.lineage.${this.matName}
+    where  ${whereClause};`;
+
+    return { text, binds };
+  }
+
+  buildUpdateQuery(id: string, dto: undefined): Query {
+    throw new Error(
+      `Update Method not implemented. Provided Input [${id}, ${JSON.stringify(
+        dto
+      )}]`
+    );
+  }
 
   toEntity = (materializationProps: MaterializationProps): Materialization =>
     Materialization.build(materializationProps);

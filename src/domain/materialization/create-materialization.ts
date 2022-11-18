@@ -9,8 +9,8 @@ import {
 } from '../entities/materialization';
 import { ReadMaterializations } from './read-materializations';
 import { IMaterializationRepo } from './i-materialization-repo';
-import {} from '../services/i-db';
-import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
+import BaseAuth from '../services/base-auth';
+import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 
 export interface CreateMaterializationRequestDto {
   id?: string;
@@ -26,14 +26,9 @@ export interface CreateMaterializationRequestDto {
   isTransient?: boolean;
   comment?: string;
   targetOrgId?: string;
-  profile: SnowflakeProfileDto;
 }
 
-export interface CreateMaterializationAuthDto {
-  isSystemInternal: boolean;
-  callerOrgId?: string;
-  jwt: string;
-}
+export type CreateMaterializationAuthDto = BaseAuth;
 
 export type CreateMaterializationResponseDto = Result<Materialization>;
 
@@ -58,42 +53,43 @@ export class CreateMaterialization
   }
 
   async execute(
-    request: CreateMaterializationRequestDto,
-    auth: CreateMaterializationAuthDto
+    req: CreateMaterializationRequestDto,
+    auth: CreateMaterializationAuthDto,
+    connPool: IConnectionPool
   ): Promise<CreateMaterializationResponseDto> {
     try {
-      if (auth.isSystemInternal && !request.targetOrgId)
+      if (auth.isSystemInternal && !req.targetOrgId)
         throw new Error('Target organization id missing');
       if (!auth.isSystemInternal && !auth.callerOrgId)
         throw new Error('Caller organization id missing');
-      if (!request.targetOrgId && !auth.callerOrgId)
+      if (!req.targetOrgId && !auth.callerOrgId)
         throw new Error('No organization Id instance provided');
-      if (request.targetOrgId && auth.callerOrgId)
+      if (req.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
       const materialization = Materialization.create({
-        id: request.id || uuidv4(),
-        relationName: request.relationName,
-        type: request.type,
-        name: request.name,
-        schemaName: request.schemaName,
-        databaseName: request.databaseName,
-        lineageId: request.lineageId,
-        logicId: request.logicId,
-        ownerId: request.ownerId,
-        isTransient: request.isTransient,
-        comment: request.comment,
+        id: req.id || uuidv4(),
+        relationName: req.relationName,
+        type: req.type,
+        name: req.name,
+        schemaName: req.schemaName,
+        databaseName: req.databaseName,
+        lineageId: req.lineageId,
+        logicId: req.logicId,
+        ownerId: req.ownerId,
+        isTransient: req.isTransient,
+        comment: req.comment,
       });
 
       const readMaterializationsResult =
         await this.#readMaterializations.execute(
           {
-            relationName: request.relationName,
-            lineageId: request.lineageId,
-            targetOrgId: request.targetOrgId,
-            profile: request.profile
+            relationName: req.relationName,
+            lineageId: req.lineageId,
+            targetOrgId: req.targetOrgId,
           },
-          auth
+          auth,
+          connPool
         );
 
       if (!readMaterializationsResult.success)
@@ -103,12 +99,12 @@ export class CreateMaterialization
       if (readMaterializationsResult.value.length)
         throw new Error(`Materialization already exists`);
 
-      if (request.writeToPersistence)
+      if (req.writeToPersistence)
         await this.#materializationRepo.insertOne(
           materialization,
-          request.profile,
           auth,
-          request.targetOrgId
+          connPool,
+          req.targetOrgId
         );
 
       return Result.ok(materialization);

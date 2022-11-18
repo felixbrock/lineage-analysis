@@ -7,6 +7,7 @@ const materializationsRoutes = Router();
 const readMaterializationsController = new ReadMaterializationsController(
   app.resolve('readMaterializations'),
   app.resolve('getAccounts'),
+  app.resolve('getSnowflakeProfile')
 );
 
 materializationsRoutes.get('/', (req, res) => {

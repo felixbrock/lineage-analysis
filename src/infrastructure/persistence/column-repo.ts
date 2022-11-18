@@ -1,6 +1,6 @@
 import {
-  Auth,
   ColumnQueryDto,
+  ColumnUpdateDto,
   IColumnRepo,
 } from '../../domain/column/i-column-repo';
 import {
@@ -8,19 +8,16 @@ import {
   ColumnProps,
   parseColumnDataType,
 } from '../../domain/entities/column';
-import { SnowflakeProfileDto } from '../../domain/integration-api/i-integration-api-repo';
+
 import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
-import BaseSfRepo from './shared/base-sf-repo';
-import {
-  ColumnDefinition,
-  getInsertQuery,
-  getUpdateQuery,
-} from './shared/query';
+import BaseSfRepo, { Query } from './shared/base-sf-repo';
+import { ColumnDefinition } from './shared/query';
 
 export default class ColumnRepo
-extends BaseSfRepo<Column, ColumnProps>
-implements IColumnRepo {
+  extends BaseSfRepo<Column, ColumnProps, ColumnQueryDto, ColumnUpdateDto>
+  implements IColumnRepo
+{
   readonly matName = 'columns';
 
   readonly colDefinitions: ColumnDefinition[] = [
@@ -91,141 +88,6 @@ implements IColumnRepo {
     };
   };
 
-  findOne = async (
-    columnId: string,
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<Column | null> => {
-    try {
-      // using binds to tell snowflake to escape params to avoid sql injection attack
-      const binds: (string | number)[] = [columnId];
-
-      const queryText = `select * from cito.lineage.${this.matName}
-    where id = ?;`;
-
-      const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds, profile },
-        auth
-      );
-
-      if (!result.success) throw new Error(result.error);
-      if (!result.value) throw new Error('Missing sf query value');
-      if (result.value.length !== 1)
-        throw new Error(`Multiple or no column entities with id found`);
-
-      return !result.value.length ? null : this.toEntity(this.buildEntityProps(result.value[0]));
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error());
-    }
-  };
-
-  findBy = async (
-    columnQueryDto: ColumnQueryDto,
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<Column[]> => {
-    try {
-      if (!Object.keys(columnQueryDto).length)
-        return await this.all(profile, auth, targetOrgId);
-
-      // using binds to tell snowflake to escape params to avoid sql injection attack
-      const binds: (string | number)[] = [columnQueryDto.lineageId];
-      let whereClause = 'array_contains(?::variant, lineage_ids) ';
-
-      if (columnQueryDto.relationName) {
-        binds.push(
-          Array.isArray(columnQueryDto.relationName)
-            ? columnQueryDto.relationName.map((el) => `'${el}'`).join(', ')
-            : columnQueryDto.relationName
-        );
-        whereClause = whereClause.concat(
-          Array.isArray(columnQueryDto.relationName)
-            ? 'and array_contains(relation_name::variant, array_construct(?))'
-            : 'and relation_name = ? '
-        );
-      }
-      if (columnQueryDto.name) {
-        binds.push(
-          Array.isArray(columnQueryDto.name)
-            ? columnQueryDto.name.map((el) => `'${el}'`).join(', ')
-            : columnQueryDto.name
-        );
-        whereClause = whereClause.concat(
-          Array.isArray(columnQueryDto.name)
-            ? 'and array_contains(name::variant, array_construct(?))'
-            : 'and name = ? '
-        );
-      }
-      if (columnQueryDto.index) {
-        binds.push(columnQueryDto.index);
-        whereClause = whereClause.concat('and index = ? ');
-      }
-      if (columnQueryDto.type) {
-        binds.push(columnQueryDto.type);
-        whereClause = whereClause.concat('and type = ? ');
-      }
-      if (columnQueryDto.materializationId) {
-        binds.push(
-          Array.isArray(columnQueryDto.materializationId)
-            ? columnQueryDto.materializationId.map((el) => `'${el}'`).join(', ')
-            : columnQueryDto.materializationId
-        );
-        whereClause = whereClause.concat(
-          Array.isArray(columnQueryDto.materializationId)
-            ? 'and array_contains(materializationId::variant, array_construct(?))'
-            : 'and materialization_id = ? '
-        );
-      }
-
-      const queryText = `select * from cito.lineage.${this.matName}
-        where  ${whereClause};`;
-
-      const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds, profile },
-        auth
-      );
-
-      if (!result.success) throw new Error(result.error);
-      if (!result.value) throw new Error('Missing sf query value');
-
-      return result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error());
-    }
-  };
-
-  all = async (
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<Column[]> => {
-    try {
-      const queryText = `select * from cito.lineage.${this.matName};`;
-
-      const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds: [], profile },
-        auth
-      );
-
-      if (!result.success) throw new Error(result.error);
-      if (!result.value) throw new Error('Missing sf query value');
-      if (result.value.length !== 1)
-        throw new Error(`Multiple or no column entities with id found`);
-
-      return result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error());
-    }
-  };
-
   getBinds = (entity: Column): (string | number)[] => [
     entity.id,
     entity.name,
@@ -239,98 +101,66 @@ implements IColumnRepo {
     entity.comment || 'null',
   ];
 
-  insertOne = async (
-    column: Column,
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<string> => {
-    try {
-      const binds = this.getBinds(column);
+  buildFindByQuery(dto: ColumnQueryDto): Query {
+    const binds: (string | number)[] = [dto.lineageId];
+    let whereClause = 'array_contains(?::variant, lineage_ids) ';
 
-      const row = `(${binds.map(() => '?').join(', ')})`;
-
-      const queryText = getInsertQuery(this.matName, this.colDefinitions, [
-        row,
-      ]);
-
-      const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds, profile },
-        auth
+    if (dto.relationName) {
+      binds.push(
+        Array.isArray(dto.relationName)
+          ? dto.relationName.map((el) => `'${el}'`).join(', ')
+          : dto.relationName
       );
-
-      if (!result.success) throw new Error(result.error);
-      if (!result.value) throw new Error('Missing sf query value');
-
-      return column.id;
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error());
-    }
-  };
-
-  insertMany = async (
-    columns: Column[],
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<string[]> => {
-    try {
-      const binds = columns.map((column) => this.getBinds(column));
-
-      const row = `(${this.colDefinitions.map(() => '?').join(', ')})`;
-
-      const queryText = getInsertQuery(this.matName, this.colDefinitions, [
-        row,
-      ]);
-
-      const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds, profile },
-        auth
+      whereClause = whereClause.concat(
+        Array.isArray(dto.relationName)
+          ? 'and array_contains(relation_name::variant, array_construct(?))'
+          : 'and relation_name = ? '
       );
-
-      if (!result.success) throw new Error(result.error);
-      if (!result.value) throw new Error('Missing sf query value');
-
-      return columns.map((el) => el.id);
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error());
     }
-  };
-
-  replaceMany = async (
-    columns: Column[],
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<number> => {
-    try {
-      const binds = columns.map((column) => this.getBinds(column));
-
-      const row = `(${this.colDefinitions.map(() => '?').join(', ')})`;
-
-      const queryText = getUpdateQuery(this.matName, this.colDefinitions, [
-        row,
-      ]);
-
-      const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds, profile },
-        auth
+    if (dto.name) {
+      binds.push(
+        Array.isArray(dto.name)
+          ? dto.name.map((el) => `'${el}'`).join(', ')
+          : dto.name
       );
-
-      if (!result.success) throw new Error(result.error);
-      if (!result.value) throw new Error('Missing sf query value');
-
-      return columns.length;
-    } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
-      return Promise.reject(new Error());
+      whereClause = whereClause.concat(
+        Array.isArray(dto.name)
+          ? 'and array_contains(name::variant, array_construct(?))'
+          : 'and name = ? '
+      );
     }
-  };
+    if (dto.index) {
+      binds.push(dto.index);
+      whereClause = whereClause.concat('and index = ? ');
+    }
+    if (dto.type) {
+      binds.push(dto.type);
+      whereClause = whereClause.concat('and type = ? ');
+    }
+    if (dto.materializationId) {
+      binds.push(
+        Array.isArray(dto.materializationId)
+          ? dto.materializationId.map((el) => `'${el}'`).join(', ')
+          : dto.materializationId
+      );
+      whereClause = whereClause.concat(
+        Array.isArray(dto.materializationId)
+          ? 'and array_contains(materializationId::variant, array_construct(?))'
+          : 'and materialization_id = ? '
+      );
+    }
+
+    const text = `select * from cito.lineage.${this.matName}
+        where  ${whereClause};`;
+
+    return { binds, text };
+  }
+
+  buildUpdateQuery(id: string, dto: undefined): Query {
+    throw new Error(
+      `Update Method not implemented. Provided Input [${id}, ${JSON.stringify(dto)}]`
+    );
+  }
 
   toEntity = (columnProperties: ColumnProps): Column =>
     Column.build(columnProperties);

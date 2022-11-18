@@ -1,5 +1,7 @@
 import { Dashboard } from '../entities/dashboard';
-import { SnowflakeProfileDto } from '../integration-api/i-integration-api-repo';
+import { IBaseServiceRepo } from '../services/i-base-service-repo';
+
+export type DashboardUpdateDto = undefined
 
 export interface DashboardQueryDto {
   url?: string;
@@ -12,40 +14,4 @@ export interface DashboardQueryDto {
   lineageId: string;
 }
 
-export interface Auth {
-  jwt: string;
-  callerOrgId?: string;
-  isSystemInternal: boolean;
-}
-
-export interface IDashboardRepo {
-  findOne(
-    dashboardId: string,
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<Dashboard | null>;
-  findBy(
-    dashboardQueryDto: DashboardQueryDto,
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<Dashboard[]>;
-  all(
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<Dashboard[]>;
-  insertOne(
-    dashboard: Dashboard,
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<string>;
-  insertMany(
-    dashboards: Dashboard[],
-    profile: SnowflakeProfileDto,
-    auth: Auth,
-    targetOrgId?: string
-  ): Promise<string[]>;
-}
+export type IDashboardRepo =  IBaseServiceRepo<Dashboard, DashboardQueryDto, DashboardUpdateDto>;

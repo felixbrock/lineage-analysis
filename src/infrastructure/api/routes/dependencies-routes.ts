@@ -7,6 +7,7 @@ const dependenciesRoutes = Router();
 const readDependenciesController = new ReadDependenciesController(
   app.resolve('readDependencies'),
   app.resolve('getAccounts'),
+  app.resolve('getSnowflakeProfile')
 );
 
 dependenciesRoutes.get('/', (req, res) => {

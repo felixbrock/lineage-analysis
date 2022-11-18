@@ -12,28 +12,24 @@ import {
   materializationTypes,
   parseMaterializationType,
 } from '../../entities/materialization';
-import { SnowflakeProfileDto } from '../../integration-api/i-integration-api-repo';
 import { CreateLogic } from '../../logic/create-logic';
 import {
   CreateMaterialization,
   CreateMaterializationRequestDto,
 } from '../../materialization/create-materialization';
-import {} from '../../services/i-db';
+import BaseAuth from '../../services/base-auth';
+
+import { IConnectionPool } from '../../snowflake-api/i-snowflake-api-repo';
 import { ParseSQL, ParseSQLResponseDto } from '../../sql-parser-api/parse-sql';
 import { GenerateResult, IDataEnvGenerator } from './i-data-env-generator';
 
-interface Auth {
-  callerOrgId?: string;
-  isSystemInternal: boolean;
-  jwt: string;
-}
+export type Auth = BaseAuth;
 
 export interface DbtDataEnvProps {
   lineageId: string;
   dbtCatalog: string;
   dbtManifest: string;
   targetOrgId?: string;
-  profile: SnowflakeProfileDto;
 }
 
 interface DbtNodeMetadata {
@@ -113,9 +109,9 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
 
   readonly #auth: Auth;
 
-  readonly #profile: SnowflakeProfileDto;
+  readonly #materializations: Materialization[] = [];
 
-  #materializations: Materialization[] = [];
+  #connPool?: IConnectionPool;
 
   get materializations(): Materialization[] {
     return this.#materializations;
@@ -150,8 +146,6 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
     this.#parseSQL = dependencies.parseSQL;
     this.#createLogic = dependencies.createLogic;
 
-    this.#profile = props.profile;
-
     this.#auth = auth;
 
     this.#lineageId = props.lineageId;
@@ -179,6 +173,8 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
     sourceRelationName: string,
     sourceId: string
   ): Promise<Column> => {
+    if (!this.#connPool) throw new Error('Connection pool missing');
+
     const createColumnResult = await this.#createColumn.execute(
       {
         relationName: sourceRelationName,
@@ -189,9 +185,9 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
         lineageId: this.#lineageId,
         writeToPersistence: false,
         targetOrgId: this.#targetOrgId,
-        profile: this.#profile,
       },
-      this.#auth
+      this.#auth,
+      this.#connPool
     );
 
     if (!createColumnResult.success) throw new Error(createColumnResult.error);
@@ -216,6 +212,8 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
     },
     options: { writeToPersistence: boolean }
   ): Promise<void> => {
+    if (!this.#connPool) throw new Error('Connection pool missing');
+
     const { columns, ...createMaterializationProps } = sourceProps;
 
     const createMaterializationResult =
@@ -226,9 +224,9 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
           writeToPersistence: options.writeToPersistence,
           lineageId: this.#lineageId,
           targetOrgId: this.#targetOrgId,
-          profile: this.#profile,
         },
-        this.#auth
+        this.#auth,
+        this.#connPool
       );
 
     if (!createMaterializationResult.success)
@@ -271,6 +269,9 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
     statementRefs: Refs,
     dwMatDefinitions: MaterializationDefinition[]
   ): Promise<void> => {
+    const connPool = this.#connPool;
+    if (!connPool) throw new Error('Connection pool missing');
+
     await Promise.all(
       dwMatDefinitions.map(async (def) => {
         const matchingMaterializations = statementRefs.materializations.filter(
@@ -322,9 +323,9 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
                 lineageId: this.#lineageId,
                 targetOrgId: this.#targetOrgId,
                 writeToPersistence: false,
-                profile: this.#profile,
               },
-              this.#auth
+              this.#auth,
+              connPool
             );
 
           if (!createMaterializationResult.success)
@@ -386,8 +387,14 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
   #generateNodeMaterialization = async (
     req: CreateMaterializationRequestDto
   ): Promise<Materialization> => {
+    if (!this.#connPool) throw new Error('Connection pool missing');
+
     const createMaterializationResult =
-      await this.#createMaterialization.execute(req, this.#auth);
+      await this.#createMaterialization.execute(
+        req,
+        this.#auth,
+        this.#connPool
+      );
 
     if (!createMaterializationResult.success)
       throw new Error(createMaterializationResult.error);
@@ -407,6 +414,8 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
     modelManifest: DbtManifestNode;
     dbtDependentOn: MaterializationDefinition[];
   }): Promise<void> => {
+    if (!this.#connPool) throw new Error('Connection pool missing');
+
     const sql = props.modelManifest.compiled_sql;
 
     const parsedLogic = await this.#parseLogic(sql);
@@ -421,7 +430,6 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
             parsedLogic,
             targetOrgId: this.#targetOrgId,
             catalog: this.#catalog,
-            profile: this.#profile,
           },
           dbtProps: {
             dbtDependentOn: props.dbtDependentOn,
@@ -431,7 +439,8 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
           writeToPersistence: false,
         },
       },
-      this.#auth
+      this.#auth,
+      this.#connPool
     );
 
     if (!createLogicResult.success) throw new Error(createLogicResult.error);
@@ -457,7 +466,6 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
       lineageId: this.#lineageId,
       targetOrgId: this.#targetOrgId,
       writeToPersistence: false,
-      profile: this.#profile,
     });
 
     const columns = await Promise.all(
@@ -488,7 +496,6 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
       lineageId: this.#lineageId,
       targetOrgId: this.#targetOrgId,
       writeToPersistence: false,
-      profile: this.#profile,
     });
 
     const columns = await Promise.all(
@@ -528,7 +535,9 @@ export class DbtDataEnvGenerator implements IDataEnvGenerator {
   };
 
   /* Runs through dbt nodes and creates objects like logic, materializations and columns */
-  generate = async (): Promise<GenerateResult> => {
+  generate = async (connPool: IConnectionPool): Promise<GenerateResult> => {
+    this.#connPool = connPool;
+
     const uniqueIdRelationNameMapping: {
       [key: string]: { relationName: string };
     } = {};

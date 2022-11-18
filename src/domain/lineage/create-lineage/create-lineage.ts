@@ -13,7 +13,6 @@ import { Materialization } from '../../entities/materialization';
 import { Column } from '../../entities/column';
 import { ILineageRepo, LineageUpdateDto } from '../i-lineage-repo';
 import { IDependencyRepo } from '../../dependency/i-dependency-repo';
-import {} from '../../services/i-db';
 import { QuerySfQueryHistory } from '../../snowflake-api/query-snowflake-history';
 import { Dashboard } from '../../entities/dashboard';
 import { CreateExternalDependency } from '../../dependency/create-external-dependency';
@@ -27,11 +26,11 @@ import { ILogicRepo } from '../../logic/i-logic-repo';
 import { IMaterializationRepo } from '../../materialization/i-materialization-repo';
 import { IColumnRepo } from '../../column/i-column-repo';
 import { QuerySnowflake } from '../../snowflake-api/query-snowflake';
+import IUseCase from '../../services/use-case';
+import { IConnectionPool } from '../../snowflake-api/i-snowflake-api-repo';
+import BaseAuth from '../../services/base-auth';
 import DataEnvMerger from './data-env-merger';
 import DependenciesBuilder from './dependencies-builder';
-import { GetSnowflakeProfile } from '../../integration-api/get-snowflake-profile';
-import { SnowflakeProfileDto } from '../../integration-api/i-integration-api-repo';
-import BaseSfQueryUseCase from '../../services/base-sf-query-use-case';
 
 export interface CreateLineageRequestDto {
   targetOrgId?: string;
@@ -40,16 +39,13 @@ export interface CreateLineageRequestDto {
   biTool?: BiTool;
 }
 
-export interface CreateLineageAuthDto {
-  jwt: string;
-  isSystemInternal: boolean;
-  callerOrgId?: string;
-}
+export type CreateLineageAuthDto = BaseAuth;
 
 export type CreateLineageResponseDto = Result<Lineage>;
 
 export class CreateLineage
-  extends BaseSfQueryUseCase<
+  implements
+    IUseCase<
       CreateLineageRequestDto,
       CreateLineageResponseDto,
       CreateLineageAuthDto
@@ -91,7 +87,7 @@ export class CreateLineage
 
   #auth?: CreateLineageAuthDto;
 
-  #profile?: SnowflakeProfileDto;
+  #connPool?: IConnectionPool;
 
   constructor(
     createLogic: CreateLogic,
@@ -109,11 +105,8 @@ export class CreateLineage
     readColumns: ReadColumns,
     createDashboard: CreateDashboard,
     querySnowflake: QuerySnowflake,
-    querySfQueryHistory: QuerySfQueryHistory,
-    getSnowflakeProfile: GetSnowflakeProfile
+    querySfQueryHistory: QuerySfQueryHistory
   ) {
-    super(getSnowflakeProfile);
-
     this.#createLogic = createLogic;
     this.#createMaterialization = createMaterialization;
     this.#createColumn = createColumn;
@@ -133,13 +126,13 @@ export class CreateLineage
   }
 
   #writeLineageToPersistence = async (lineage: Lineage): Promise<void> => {
-    if (!this.#auth || !this.#profile)
-      throw new Error('profile or auth  not avaible');
+    if (!this.#auth || !this.#connPool)
+      throw new Error('connection pool or auth  not avaible');
 
     await this.#lineageRepo.insertOne(
       lineage,
-      this.#profile,
       this.#auth,
+      this.#connPool,
       this.#targetOrgId
     );
   };
@@ -152,52 +145,52 @@ export class CreateLineage
     logicsToCreate: Logic[];
     logicsToReplace: Logic[];
   }): Promise<void> => {
-    if (!this.#auth || !this.#profile)
-      throw new Error('profile or auth  not avaible');
+    if (!this.#auth || !this.#connPool)
+      throw new Error('connection pool or auth  not avaible');
 
     if (props.logicsToReplace.length)
       await this.#logicRepo.replaceMany(
         props.logicsToReplace,
-        this.#profile,
         this.#auth,
+        this.#connPool,
         this.#targetOrgId
       );
     if (props.matsToReplace.length)
       await this.#materializationRepo.replaceMany(
         props.matsToReplace,
-        this.#profile,
         this.#auth,
+        this.#connPool,
         this.#targetOrgId
       );
     if (props.columnsToReplace.length)
       await this.#columnRepo.replaceMany(
         props.columnsToReplace,
-        this.#profile,
         this.#auth,
+        this.#connPool,
         this.#targetOrgId
       );
 
     if (props.logicsToCreate.length)
       await this.#logicRepo.insertMany(
         props.logicsToCreate,
-        this.#profile,
         this.#auth,
+        this.#connPool,
         this.#targetOrgId
       );
 
     if (props.matsToCreate.length)
       await this.#materializationRepo.insertMany(
         props.matsToCreate,
-        this.#profile,
         this.#auth,
+        this.#connPool,
         this.#targetOrgId
       );
 
     if (props.columnsToCreate.length)
       await this.#columnRepo.insertMany(
         props.columnsToCreate,
-        this.#profile,
         this.#auth,
+        this.#connPool,
         this.#targetOrgId
       );
   };
@@ -205,14 +198,14 @@ export class CreateLineage
   #writeDashboardsToPersistence = async (
     dashboards: Dashboard[]
   ): Promise<void> => {
-    if (!this.#auth || !this.#profile)
-      throw new Error('profile or auth  not avaible');
+    if (!this.#auth || !this.#connPool)
+      throw new Error('connection pool or auth  not avaible');
 
     if (dashboards.length)
       await this.#dashboardRepo.insertMany(
         dashboards,
-        this.#profile,
         this.#auth,
+        this.#connPool,
         this.#targetOrgId
       );
   };
@@ -220,14 +213,14 @@ export class CreateLineage
   #writeDependenciesToPersistence = async (
     dependencies: Dependency[]
   ): Promise<void> => {
-    if (!this.#auth || !this.#profile)
-      throw new Error('profile or auth  not avaible');
+    if (!this.#auth || !this.#connPool)
+      throw new Error('connection pool or auth  not avaible');
 
     if (dependencies.length)
       await this.#dependencyRepo.insertMany(
         dependencies,
-        this.#profile,
         this.#auth,
+        this.#connPool,
         this.#targetOrgId
       );
   };
@@ -236,46 +229,41 @@ export class CreateLineage
     id: string,
     updateDto: LineageUpdateDto
   ): Promise<void> => {
-    if (!this.#auth || !this.#profile)
-      throw new Error('profile or auth  not avaible');
+    if (!this.#auth || !this.#connPool)
+      throw new Error('connection pool or auth  not avaible');
 
     await this.#lineageRepo.updateOne(
       id,
       updateDto,
-      this.#profile,
       this.#auth,
+      this.#connPool,
       this.#targetOrgId
     );
   };
 
   async execute(
-    request: CreateLineageRequestDto,
-    auth: CreateLineageAuthDto
+    req: CreateLineageRequestDto,
+    auth: CreateLineageAuthDto,
+    connPool: IConnectionPool
   ): Promise<CreateLineageResponseDto> {
     try {
-      if (auth.isSystemInternal && !request.targetOrgId)
+      if (auth.isSystemInternal && !req.targetOrgId)
         throw new Error('Target organization id missing');
       if (!auth.isSystemInternal && !auth.callerOrgId)
         throw new Error('Caller organization id missing');
-      if (!request.targetOrgId && !auth.callerOrgId)
+      if (!req.targetOrgId && !auth.callerOrgId)
         throw new Error('No organization Id instance provided');
-      if (request.targetOrgId && auth.callerOrgId)
+      if (req.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
       let orgId: string;
       if (auth.callerOrgId) orgId = auth.callerOrgId;
-      else if (request.targetOrgId) orgId = request.targetOrgId;
+      else if (req.targetOrgId) orgId = req.targetOrgId;
       else throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
+      this.#connPool = connPool;
       this.#auth = auth;
-      this.#targetOrgId = request.targetOrgId;
-
-      const profile = await this.createConnectionPool(
-        auth.jwt,
-        auth.isSystemInternal ? request.targetOrgId : undefined
-      );
-
-      this.#profile = profile;
+      this.#targetOrgId = req.targetOrgId;
 
       console.log('starting lineage creation...');
 
@@ -285,7 +273,7 @@ export class CreateLineage
       console.log('...writing lineage to persistence');
       await this.#writeLineageToPersistence(lineage);
 
-      const { dbtCatalog, dbtManifest } = request;
+      const { dbtCatalog, dbtManifest } = req;
 
       const dbtBased = dbtCatalog && dbtManifest;
 
@@ -297,8 +285,7 @@ export class CreateLineage
             dbtCatalog,
             dbtManifest,
             lineageId: lineage.id,
-            targetOrgId: request.targetOrgId,
-            profile,
+            targetOrgId: req.targetOrgId,
           },
           auth,
           {
@@ -318,7 +305,6 @@ export class CreateLineage
         dataEnvGenerator = new SfDataEnvGenerator(
           {
             lineageId: lineage.id,
-            profile,
           },
           { ...auth, callerOrgId },
           {
@@ -331,11 +317,11 @@ export class CreateLineage
         );
       }
       const { materializations, columns, logics, catalog } =
-        await dataEnvGenerator.generate();
+        await dataEnvGenerator.generate(connPool);
 
       console.log('...merging new lineage snapshot with last one');
       const dataEnvMerger = new DataEnvMerger(
-        { columns, materializations, logics, profile },
+        { columns, materializations, logics },
         auth,
         {
           lineageRepo: this.#lineageRepo,
@@ -345,10 +331,10 @@ export class CreateLineage
         }
       );
 
-      const mergedDataEnv = await dataEnvMerger.merge();
+      const mergedDataEnv = await dataEnvMerger.merge(connPool);
 
       console.log('...writing dw resources to persistence');
-      await this.#writeWhResourcesToPersistence({...mergedDataEnv });
+      await this.#writeWhResourcesToPersistence({ ...mergedDataEnv });
 
       console.log('...building dependencies');
       const dependenciesBuilder = await new DependenciesBuilder(
@@ -363,8 +349,7 @@ export class CreateLineage
           ),
           catalog,
           organizationId: orgId,
-          targetOrgId: request.targetOrgId,
-          profile,
+          targetOrgId: req.targetOrgId,
         },
         auth,
         {
@@ -376,7 +361,7 @@ export class CreateLineage
         }
       );
       const { dashboards, dependencies } = await dependenciesBuilder.build(
-        request.biTool
+        connPool, req.biTool
       );
 
       console.log('...writing dashboards to persistence');
