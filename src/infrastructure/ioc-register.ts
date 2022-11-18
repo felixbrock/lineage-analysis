@@ -34,7 +34,7 @@ import { GetSnowflakeProfile } from '../domain/integration-api/get-snowflake-pro
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
 iocRegister.register({
-  createLineage: asClass(CreateLineage).scoped(),
+  createLineage: asClass(CreateLineage),
   createLogic: asClass(CreateLogic),
   createMaterialization: asClass(CreateMaterialization),
   createColumn: asClass(CreateColumn),

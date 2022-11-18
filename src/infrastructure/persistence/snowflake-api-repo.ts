@@ -1,6 +1,7 @@
 import {Pool} from 'generic-pool';
 import { Connection, Statement } from 'snowflake-sdk';
 import {
+  Binds,
   ISnowflakeApiRepo,
   SnowflakeQueryResult,
 } from '../../domain/snowflake-api/i-snowflake-api-repo';
@@ -10,7 +11,7 @@ import handleStreamError from './db/snowflake';
 export default class SnowflakeApiRepo implements ISnowflakeApiRepo {
   runQuery = async (
     queryText: string,
-    binds: (string | number)[] | (string | number)[][],
+    binds: Binds,
     connectionPool: Pool<Connection>
   ): Promise<Result<SnowflakeQueryResult>> =>
     new Promise((resolve) => {

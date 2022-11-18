@@ -8,7 +8,7 @@ import {
   DependencyProps,
   parseDependencyType,
 } from '../../domain/entities/dependency';
-import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
+import { Bind, SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import BaseSfRepo, { Query } from './shared/base-sf-repo';
 import { ColumnDefinition } from './shared/query';
@@ -71,7 +71,7 @@ export default class DependencyRepo
     };
   };
 
-  getBinds = (entity: Dependency): (string | number)[] => [
+  getBinds = (entity: Dependency): Bind[] => [
     entity.id,
     entity.type,
     entity.headId,
@@ -80,7 +80,7 @@ export default class DependencyRepo
   ];
 
   protected buildFindByQuery(dto: DependencyQueryDto): Query {
-    const binds: (string | number)[] = [dto.lineageId];
+    const binds: Bind[] = [dto.lineageId];
     let whereClause = 'array_contains(?::variant, lineage_ids) ';
 
     if (dto.tailId) {

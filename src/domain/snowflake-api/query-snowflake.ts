@@ -1,6 +1,7 @@
 import Result from '../value-types/transient-types/result';
  
 import {
+  Binds,
   IConnectionPool,
   ISnowflakeApiRepo,
   SnowflakeQueryResult,
@@ -10,7 +11,7 @@ import IUseCase from '../services/use-case';
 
 export interface QuerySnowflakeRequestDto {
   queryText: string;
-  binds: (string | number)[] | (string | number)[][];
+  binds: Binds;
   targetOrgId?: string;
 }
 

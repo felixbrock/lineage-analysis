@@ -9,7 +9,6 @@ import {
   MaterializationDefinition,
 } from '../entities/logic';
 import { ILogicRepo } from './i-logic-repo';
-import { ReadLogics } from './read-logics';
  
 import BaseAuth from '../services/base-auth';
 import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
@@ -45,12 +44,9 @@ export class CreateLogic
   implements
     IUseCase<CreateLogicRequestDto, CreateLogicResponse, CreateLogicAuthDto>
 {
-  readonly #readLogics: ReadLogics;
-
   readonly #logicRepo: ILogicRepo;
 
-  constructor(readLogics: ReadLogics, logicRepo: ILogicRepo) {
-    this.#readLogics = readLogics;
+  constructor(logicRepo: ILogicRepo) {
     this.#logicRepo = logicRepo;
   }
 
@@ -83,21 +79,6 @@ export class CreateLogic
         },
         dbtProps,
       });
-
-      const readLogicsResult = await this.#readLogics.execute(
-        {
-          relationName: commonProps.relationName,
-          lineageId: commonProps.lineageId,
-          targetOrgId: commonProps.targetOrgId,
-        },
-        auth,
-        connPool
-      );
-
-      if (!readLogicsResult.success) throw new Error(readLogicsResult.error);
-      if (!readLogicsResult.value) throw new Error('Reading logics failed');
-      if (readLogicsResult.value.length)
-        throw new ReferenceError('Logic to be created already exists');
 
       if (req.options.writeToPersistence)
         await this.#logicRepo.insertOne(

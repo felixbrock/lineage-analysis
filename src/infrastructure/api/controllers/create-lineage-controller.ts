@@ -20,7 +20,11 @@ import {
 export default class CreateLineageController extends BaseController {
   readonly #createLineage: CreateLineage;
 
-  constructor(createLineage: CreateLineage, getAccounts: GetAccounts, getSnowflakeProfile: GetSnowflakeProfile) {
+  constructor(
+    createLineage: CreateLineage,
+    getAccounts: GetAccounts,
+    getSnowflakeProfile: GetSnowflakeProfile
+  ) {
     super(getAccounts, getSnowflakeProfile);
     this.#createLineage = createLineage;
   }
@@ -64,6 +68,7 @@ export default class CreateLineageController extends BaseController {
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {
+
       const authHeader = req.headers.authorization;
 
       if (!authHeader)
@@ -72,9 +77,7 @@ export default class CreateLineageController extends BaseController {
       const jwt = authHeader.split(' ')[1];
 
       const getUserAccountInfoResult: Result<UserAccountInfo> =
-        await this.getUserAccountInfo(
-          jwt,
-        );
+        await this.getUserAccountInfo(jwt);
 
       if (!getUserAccountInfoResult.success)
         return CreateLineageController.unauthorized(
@@ -101,6 +104,7 @@ export default class CreateLineageController extends BaseController {
         : useCaseResult.value;
 
       await connPool.drain();
+      await connPool.clear();
 
       return CreateLineageController.ok(res, resultValue, CodeHttp.CREATED);
 

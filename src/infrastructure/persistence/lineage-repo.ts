@@ -1,6 +1,7 @@
 import { Lineage, LineageProps } from '../../domain/entities/lineage';
 import { ColumnDefinition, getUpdateQueryText } from './shared/query';
 import {
+  Bind,
   IConnectionPool,
   SnowflakeEntity,
 } from '../../domain/snowflake-api/i-snowflake-api-repo';
@@ -90,7 +91,7 @@ export default class LineageRepo
     }
   };
 
-  getBinds = (entity: Lineage): (string | number)[] => [
+  getBinds = (entity: Lineage): Bind[] => [
     entity.id,
     entity.createdAt,
     entity.completed.toString(),

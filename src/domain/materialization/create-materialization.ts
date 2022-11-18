@@ -81,24 +81,6 @@ export class CreateMaterialization
         comment: req.comment,
       });
 
-      const readMaterializationsResult =
-        await this.#readMaterializations.execute(
-          {
-            relationName: req.relationName,
-            lineageId: req.lineageId,
-            targetOrgId: req.targetOrgId,
-          },
-          auth,
-          connPool
-        );
-
-      if (!readMaterializationsResult.success)
-        throw new Error(readMaterializationsResult.error);
-      if (!readMaterializationsResult.value)
-        throw new Error('Reading materializations failed');
-      if (readMaterializationsResult.value.length)
-        throw new Error(`Materialization already exists`);
-
       if (req.writeToPersistence)
         await this.#materializationRepo.insertOne(
           materialization,

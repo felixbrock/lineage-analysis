@@ -2,7 +2,6 @@ import { v4 as uuidv4 } from 'uuid';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { Column, ColumnDataType } from '../entities/column';
-import { ReadColumns } from './read-columns';
 import { IColumnRepo } from './i-column-repo';
 import BaseAuth from '../services/base-auth';
 import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
@@ -35,10 +34,8 @@ export class CreateColumn
 {
   readonly #columnRepo: IColumnRepo;
 
-  readonly #readColumns: ReadColumns;
 
-  constructor(readColumns: ReadColumns, columnRepo: IColumnRepo) {
-    this.#readColumns = readColumns;
+  constructor(columnRepo: IColumnRepo) {
     this.#columnRepo = columnRepo;
   }
 
@@ -69,22 +66,6 @@ export class CreateColumn
         isNullable: req.isNullable,
         comment: req.comment,
       });
-
-      const readColumnsResult = await this.#readColumns.execute(
-        {
-          name: req.name,
-          materializationId: req.materializationId,
-          lineageId: req.lineageId,
-          targetOrgId: req.targetOrgId,
-        },
-        auth,
-        connPool
-      );
-
-      if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
-      if (!readColumnsResult.value) throw new Error('Reading columns failed');
-      if (readColumnsResult.value.length)
-        throw new Error(`Column for materialization already exists`);
 
       if (req.writeToPersistence)
         await this.#columnRepo.insertOne(

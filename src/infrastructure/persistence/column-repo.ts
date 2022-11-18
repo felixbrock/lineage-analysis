@@ -9,7 +9,7 @@ import {
   parseColumnDataType,
 } from '../../domain/entities/column';
 
-import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
+import { Bind, SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import BaseSfRepo, { Query } from './shared/base-sf-repo';
 import { ColumnDefinition } from './shared/query';
@@ -88,7 +88,7 @@ export default class ColumnRepo
     };
   };
 
-  getBinds = (entity: Column): (string | number)[] => [
+  getBinds = (entity: Column): Bind[] => [
     entity.id,
     entity.name,
     entity.relationName,
@@ -102,7 +102,7 @@ export default class ColumnRepo
   ];
 
   buildFindByQuery(dto: ColumnQueryDto): Query {
-    const binds: (string | number)[] = [dto.lineageId];
+    const binds: Bind[] = [dto.lineageId];
     let whereClause = 'array_contains(?::variant, lineage_ids) ';
 
     if (dto.relationName) {

@@ -4,7 +4,6 @@ import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { Dependency } from '../entities/dependency';
 import { IDependencyRepo } from './i-dependency-repo';
-import { ReadDependencies } from './read-dependencies';
 import { ColumnRef } from '../entities/logic';
 import { ReadColumns } from '../column/read-columns';
 import { Column } from '../entities/column';
@@ -38,8 +37,6 @@ export class CreateDependency
 {
   readonly #readColumns: ReadColumns;
 
-  readonly #readDependencies: ReadDependencies;
-
   readonly #dependencyRepo: IDependencyRepo;
 
   #auth?: CreateDependencyAuthDto;
@@ -47,6 +44,14 @@ export class CreateDependency
   #targetOrgId?: string;
 
   #connPool?: IConnectionPool;
+
+  constructor(
+    readColumns: ReadColumns,
+    dependencyRepo: IDependencyRepo
+  ) {
+    this.#readColumns = readColumns;
+    this.#dependencyRepo = dependencyRepo;
+  }
 
   /* Returns the object id of the parent column which self column depends upon */
   #getParentId = async (
@@ -135,16 +140,6 @@ export class CreateDependency
     // return filterResult[0];
   };
 
-  constructor(
-    readColumns: ReadColumns,
-    readDependencies: ReadDependencies,
-    dependencyRepo: IDependencyRepo
-  ) {
-    this.#readColumns = readColumns;
-    this.#readDependencies = readDependencies;
-    this.#dependencyRepo = dependencyRepo;
-  }
-
   async execute(
     req: CreateDependencyRequestDto,
     auth: CreateDependencyAuthDto,
@@ -188,27 +183,6 @@ export class CreateDependency
         tailId: parentId,
         lineageId: req.lineageId,
       });
-
-      const readDependencyResult = await this.#readDependencies.execute(
-        {
-          type: req.dependencyRef.dependencyType,
-          headId: headColumn.id,
-          tailId: parentId,
-          lineageId: req.lineageId,
-          targetOrgId: req.targetOrgId,
-        },
-        auth,
-        connPool
-      );
-
-      if (!readDependencyResult.success)
-        throw new Error(readDependencyResult.error);
-      if (!readDependencyResult.value)
-        throw new Error('Creating dependency failed');
-      if (readDependencyResult.value.length)
-        throw new Error(
-          `Attempting to create a dependency that already exists`
-        );
 
       if (req.writeToPersistence)
         await this.#dependencyRepo.insertOne(

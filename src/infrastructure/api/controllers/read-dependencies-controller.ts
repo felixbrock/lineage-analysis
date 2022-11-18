@@ -118,7 +118,7 @@ export default class ReadDependenciesController extends BaseController {
         ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
 
-      await connPool.drain();
+      await connPool.drain(); await connPool.clear();
 
       return ReadDependenciesController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {

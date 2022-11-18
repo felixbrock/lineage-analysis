@@ -5,7 +5,7 @@ import {
   Refs,
 } from '../../domain/entities/logic';
 import { ColumnDefinition } from './shared/query';
-import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
+import { Bind, SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import BaseSfRepo, { Query } from './shared/base-sf-repo';
 import {
@@ -89,7 +89,7 @@ export default class LogicRepo
     };
   };
 
-  getBinds = (entity: Logic): (string | number)[] => [
+  getBinds = (entity: Logic): Bind[] => [
     entity.id,
     entity.relationName,
     entity.sql,
@@ -100,7 +100,7 @@ export default class LogicRepo
   ];
 
   buildFindByQuery(dto: LogicQueryDto): Query {
-    const binds: (string | number)[] = [dto.lineageId];
+    const binds: Bind[] = [dto.lineageId];
     if (dto.relationName) binds.push(dto.relationName);
 
     const text = `select * from cito.lineage.${this.matName}

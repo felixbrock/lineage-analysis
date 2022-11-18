@@ -131,7 +131,7 @@ export default class ReadMaterializationsController extends BaseController {
         ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
 
-      await connPool.drain();
+      await connPool.drain(); await connPool.clear();
 
       return ReadMaterializationsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {

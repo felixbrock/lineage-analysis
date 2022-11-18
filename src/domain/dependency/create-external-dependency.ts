@@ -6,7 +6,6 @@ import IUseCase from '../services/use-case';
 import { Dependency } from '../entities/dependency';
 import { IDependencyRepo } from './i-dependency-repo';
 import { Dashboard } from '../entities/dashboard';
-import { ReadDependencies } from './read-dependencies';
 import BaseAuth from '../services/base-auth';
 import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 
@@ -29,15 +28,12 @@ export class CreateExternalDependency
       CreateExternalDependencyAuthDto
     >
 {
-  readonly #readDependencies: ReadDependencies;
 
   readonly #dependencyRepo: IDependencyRepo;
 
   constructor(
-    readDependencies: ReadDependencies,
     dependencyRepo: IDependencyRepo
   ) {
-    this.#readDependencies = readDependencies;
     this.#dependencyRepo = dependencyRepo;
   }
 
@@ -63,28 +59,6 @@ export class CreateExternalDependency
         tailId: req.dashboard.columnId,
         lineageId: req.lineageId,
       });
-
-      const readExternalDependenciesResult =
-        await this.#readDependencies.execute(
-          {
-            type: 'external',
-            headId: req.dashboard.id,
-            tailId: req.dashboard.columnId,
-            lineageId: req.lineageId,
-            targetOrgId: req.targetOrgId,
-          },
-          auth,
-          connPool
-        );
-
-      if (!readExternalDependenciesResult.success)
-        throw new Error(readExternalDependenciesResult.error);
-      if (!readExternalDependenciesResult.value)
-        throw new Error('Creating external dependency failed');
-      if (readExternalDependenciesResult.value.length)
-        throw new Error(
-          `Attempting to create an external dependency that already exists`
-        );
 
       if (req.writeToPersistence)
         await this.#dependencyRepo.insertOne(

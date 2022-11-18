@@ -103,6 +103,7 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
         : useCaseResult.value;
 
       await connPool.drain();
+      await connPool.clear();
 
       return InternalInvokeCreateLineageController.ok(
         resultValue,

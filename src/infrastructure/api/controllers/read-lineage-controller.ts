@@ -94,7 +94,7 @@ export default class ReadLineageController extends BaseController {
         ? useCaseResult.value.toDto()
         : useCaseResult.value;
 
-        await connPool.drain();
+        await connPool.drain(); await connPool.clear();
 
 
       return ReadLineageController.ok(res, resultValue, CodeHttp.OK);

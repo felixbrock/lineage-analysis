@@ -1,6 +1,9 @@
+import { Blob } from 'node:buffer';
 import { IBaseServiceRepo } from '../../../domain/services/i-base-service-repo';
 import BaseAuth from '../../../domain/services/base-auth';
 import {
+  Bind,
+  Binds,
   IConnectionPool,
   SnowflakeEntity,
 } from '../../../domain/snowflake-api/i-snowflake-api-repo';
@@ -14,7 +17,7 @@ import {
 
 export interface Query {
   text: string;
-  binds: (string | number)[];
+  binds: Bind[];
   colDefinitions?: ColumnDefinition[];
 }
 
@@ -159,15 +162,30 @@ export default abstract class BaseSfRepo<
     }
   };
 
+  #splitBinds = (queryTextSize: string, binds: Binds): Binds[] => {
+    Split into only a 
+
+    // Upload as file and then copy into table
+
+    const bindsSize =  new Blob([JSON.stringify(binds)]).size;
+
+    const totalQuerySize = bytesOfQueryText 
+
+
+  }
+
   insertMany = async (
     entities: Entity[],
-
     auth: BaseAuth,
     connPool: IConnectionPool,
     targetOrgId?: string
   ): Promise<string[]> => {
     try {
       const binds = entities.map((entity) => this.getBinds(entity));
+
+
+
+      const bindSequences = 
 
       const row = `(${this.colDefinitions.map(() => '?').join(', ')})`;
 

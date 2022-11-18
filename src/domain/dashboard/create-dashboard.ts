@@ -2,7 +2,6 @@ import { v4 as uuidv4 } from 'uuid';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { Dashboard } from '../entities/dashboard';
-import { ReadDashboards } from './read-dashboards';
 import { IDashboardRepo } from './i-dashboard-repo';
 import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 
@@ -37,11 +36,7 @@ export class CreateDashboard
 {
   readonly #dashboardRepo: IDashboardRepo;
 
-  readonly #readDashboards: ReadDashboards;
-
-
-  constructor(readDashboards: ReadDashboards, dashboardRepo: IDashboardRepo) {
-    this.#readDashboards = readDashboards;
+  constructor(dashboardRepo: IDashboardRepo) {
     this.#dashboardRepo = dashboardRepo;
   }
 
@@ -71,23 +66,6 @@ export class CreateDashboard
       });
 
       if (!req.url) return Result.ok(dashboard);
-
-      const readDashboardsResult = await this.#readDashboards.execute(
-        {
-          url: req.url,
-          lineageId: req.lineageId,
-          targetOrgId: req.targetOrgId,
-        },
-        auth,
-        connPool
-      );
-
-      if (!readDashboardsResult.success)
-        throw new Error(readDashboardsResult.error);
-      if (!readDashboardsResult.value)
-        throw new Error('Reading dashboards failed');
-      if (readDashboardsResult.value.length)
-        throw new Error(`Dashboard already exists`);
 
       if (req.writeToPersistence)
         await this.#dashboardRepo.insertOne(dashboard, auth, connPool, req.targetOrgId);

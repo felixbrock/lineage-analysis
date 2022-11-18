@@ -106,7 +106,7 @@ export default class ReadColumnsController extends BaseController {
         ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
 
-      await connPool.drain();
+      await connPool.drain(); await connPool.clear();
 
       return ReadColumnsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {

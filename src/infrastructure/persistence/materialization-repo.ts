@@ -4,7 +4,7 @@ import {
   parseMaterializationType,
 } from '../../domain/entities/materialization';
 import { ColumnDefinition } from './shared/query';
-import { SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
+import { Bind, SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import BaseSfRepo, { Query } from './shared/base-sf-repo';
 import {
@@ -96,7 +96,7 @@ export default class MaterializationRepo
     };
   };
 
-  getBinds = (el: Materialization): (string | number)[] => [
+  getBinds = (el: Materialization): Bind[] => [
     el.id,
     el.name,
     el.schemaName,
@@ -111,7 +111,7 @@ export default class MaterializationRepo
   ];
 
   buildFindByQuery(dto: MaterializationQueryDto): Query {
-    const binds: (string | number)[] = [dto.lineageId];
+    const binds: Bind[] = [dto.lineageId];
     let whereClause = 'array_contains(?::variant, lineage_ids) ';
 
     if (dto.relationName) {
