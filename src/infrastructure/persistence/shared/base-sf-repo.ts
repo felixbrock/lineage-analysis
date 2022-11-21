@@ -102,6 +102,30 @@ export default abstract class BaseSfRepo<
     }
   };
 
+  findByCustom = async (
+    query: { text: string; binds: Binds },
+    auth: BaseAuth,
+    connPool: IConnectionPool,
+    targetOrgId?: string
+  ): Promise<Entity[]> => {
+    try {
+      const result = await this.querySnowflake.execute(
+        { queryText: query.text, targetOrgId, binds: query.binds },
+        auth,
+        connPool
+      );
+
+      if (!result.success) throw new Error(result.error);
+      if (!result.value) throw new Error('Missing sf query value');
+
+      return result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      return Promise.reject(new Error());
+    }
+  };
+
   all = async (
     auth: BaseAuth,
     connPool: IConnectionPool,
@@ -131,7 +155,6 @@ export default abstract class BaseSfRepo<
 
   insertOne = async (
     entity: Entity,
-
     auth: BaseAuth,
     connPool: IConnectionPool,
     targetOrgId?: string

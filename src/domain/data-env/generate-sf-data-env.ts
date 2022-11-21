@@ -1,32 +1,36 @@
-import { CreateLogic } from '../../logic/create-logic';
-import { CreateColumn } from '../../column/create-column';
+// todo clean architecture violation
+import Result from '../value-types/transient-types/result';
+import IUseCase from '../services/use-case';
+import BaseAuth from '../services/base-auth';
+import { DataEnv } from './data-env';
 import {
   Column,
   ColumnDataType,
   parseColumnDataType,
-} from '../../entities/column';
-import { Logic, ModelRepresentation } from '../../entities/logic';
+} from '../entities/column';
 import {
   Materialization,
   MaterializationType,
   parseMaterializationType,
-} from '../../entities/materialization';
-import { CreateMaterialization } from '../../materialization/create-materialization';
+} from '../entities/materialization';
+import { CreateMaterialization } from '../materialization/create-materialization';
+import { CreateColumn } from '../column/create-column';
+import { CreateLogic } from '../logic/create-logic';
+import { QuerySnowflake } from '../snowflake-api/query-snowflake';
+import { ParseSQL } from '../sql-parser-api/parse-sql';
+import { Logic, ModelRepresentation } from '../entities/logic';
+import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 
-import { ParseSQL } from '../../sql-parser-api/parse-sql';
-import { GenerateResult, IDataEnvGenerator } from './i-data-env-generator';
-import { QuerySnowflake } from '../../snowflake-api/query-snowflake';
-import { IConnectionPool } from '../../snowflake-api/i-snowflake-api-repo';
-
-interface Auth {
-  jwt: string;
-  callerOrgId: string;
-  isSystemInternal: boolean;
-}
-
-export interface SfDataEnvProps {
+export interface GenerateSfDataEnvRequestDto {
   lineageId: string;
 }
+
+export interface GenerateSfDataEnvAuthDto
+  extends Omit<BaseAuth, 'callerOrgId'> {
+  callerOrgId: string;
+}
+
+export type GenerateSfDataEnvResponse = Result<DataEnv>;
 
 interface ColumnRepresentation {
   relationName: string;
@@ -60,7 +64,14 @@ interface LogicRepresentation {
   sql: string;
 }
 
-export class SfDataEnvGenerator implements IDataEnvGenerator {
+export class GenerateSfDataEnv
+  implements
+    IUseCase<
+      GenerateSfDataEnvRequestDto,
+      GenerateSfDataEnvResponse,
+      GenerateSfDataEnvAuthDto
+    >
+{
   readonly #createMaterialization: CreateMaterialization;
 
   readonly #createColumn: CreateColumn;
@@ -71,13 +82,7 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
 
   readonly #parseSQL: ParseSQL;
 
-  readonly #lineageId: string;
-
-  readonly #auth: Auth;
-
   readonly #materializations: Materialization[] = [];
-
-  #connPool?: IConnectionPool;
 
   get materializations(): Materialization[] {
     return this.#materializations;
@@ -97,34 +102,32 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
 
   #catalog: ModelRepresentation[] = [];
 
+  #connPool?: IConnectionPool;
+
+  #auth?: GenerateSfDataEnvAuthDto;
+
+  #req?: GenerateSfDataEnvRequestDto;
+
+  #lineageId?: string;
+
   constructor(
-    props: SfDataEnvProps,
-    auth: Auth,
-    dependencies: {
-      createMaterialization: CreateMaterialization;
-      createColumn: CreateColumn;
-      createLogic: CreateLogic;
-      querySnowflake: QuerySnowflake;
-      parseSQL: ParseSQL;
-    }
+    createMaterialization: CreateMaterialization,
+    createColumn: CreateColumn,
+    createLogic: CreateLogic,
+    querySnowflake: QuerySnowflake,
+    parseSQL: ParseSQL
   ) {
-    this.#createMaterialization = dependencies.createMaterialization;
-    this.#createColumn = dependencies.createColumn;
-    this.#createLogic = dependencies.createLogic;
-    this.#querySnowflake = dependencies.querySnowflake;
-    this.#parseSQL = dependencies.parseSQL;
-
-    this.#auth = auth;
-
-    this.#lineageId = props.lineageId;
+    this.#createMaterialization = createMaterialization;
+    this.#createColumn = createColumn;
+    this.#createLogic = createLogic;
+    this.#querySnowflake = querySnowflake;
+    this.#parseSQL = parseSQL;
   }
 
   /* Get database representations from snowflake */
   #getDbRepresentations = async (): Promise<DatabaseRepresentation[]> => {
-    if (!this.#connPool)
-      throw new Error(
-        'Connection pool not provided. Not able to perform sf queries'
-      );
+    if (!this.#connPool || !this.#auth)
+      throw new Error('Missing properties for generating sf data env');
 
     const queryText =
       "select database_name, database_owner, is_transient, comment from cito.information_schema.databases where not array_contains(database_name::variant, ['SNOWFLAKE', 'SNOWFLAKE_SAMPLE_DATA', 'CITO'])";
@@ -177,10 +180,8 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
   #getMatRepresentations = async (
     targetDbName: string
   ): Promise<MaterializationRepresentation[]> => {
-    if (!this.#connPool)
-      throw new Error(
-        'Connection pool not provided. Not able to perform sf queries'
-      );
+    if (!this.#connPool || !this.#auth)
+      throw new Error('Missing properties for generating sf data env');
 
     const queryText = `select table_catalog, table_schema, table_name, table_owner, table_type, is_transient, comment  from ${targetDbName}.information_schema.tables where table_schema != 'INFORMATION_SCHEMA';`;
     const queryResult = await this.#querySnowflake.execute(
@@ -293,10 +294,8 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
   #getColumnRepresentations = async (
     targetDbName: string
   ): Promise<ColumnRepresentation[]> => {
-    if (!this.#connPool)
-      throw new Error(
-        'Connection pool not provided. Not able to perform sf queries'
-      );
+    if (!this.#connPool || !this.#auth)
+      throw new Error('Missing properties for generating sf data env');
 
     const queryText = `select table_catalog, table_schema, table_name, column_name, ordinal_position, is_nullable, data_type, is_identity, comment from ${targetDbName}.information_schema.columns where table_schema != 'INFORMATION_SCHEMA'`;
     const queryResult = await this.#querySnowflake.execute(
@@ -380,7 +379,8 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
     columnRepresentation: ColumnRepresentation,
     matId: string
   ): Promise<Column> => {
-    if (!this.#connPool) throw new Error('Connection pool missing');
+    if (!this.#connPool || !this.#lineageId || !this.#auth)
+      throw new Error('Missing properties for generating sf data env');
 
     const createColumnResult = await this.#createColumn.execute(
       {
@@ -410,7 +410,8 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
     logicRepresentation: LogicRepresentation,
     relationName: string
   ): Promise<Logic> => {
-    if (!this.#connPool) throw new Error('Connection pool missing');
+    if (!this.#connPool || !this.#lineageId || !this.#auth)
+      throw new Error('Missing properties for generating sf data env');
 
     // const parsedLogic = logicRepresentation.sql
     //   ? await this.#parseLogic(logicRepresentation.sql)
@@ -458,7 +459,8 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
     },
     options: { writeToPersistence: boolean }
   ): Promise<void> => {
-    if (!this.#connPool) throw new Error('Connection pool missing');
+    if (!this.#connPool || !this.#lineageId || !this.#auth)
+      throw new Error('Missing properties for generating sf data env');
 
     const { matRepresentation, columnRepresentations, logicRepresentation } =
       resourceProps;
@@ -540,7 +542,7 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
     const colRepresentationsByRelationName: {
       [key: string]: ColumnRepresentation[];
     } = columnRepresentations.reduce(
-      SfDataEnvGenerator.#groupByRelationName,
+      GenerateSfDataEnv.#groupByRelationName,
       {}
     );
 
@@ -574,22 +576,31 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
   };
 
   /* Runs through snowflake and creates objects like logic, materializations and columns */
-  generate = async (connPool: IConnectionPool): Promise<GenerateResult> => {
-    this.#connPool = connPool;
+  async execute(
+    req: GenerateSfDataEnvRequestDto,
+    auth: GenerateSfDataEnvAuthDto,
+    connPool: IConnectionPool
+  ): Promise<GenerateSfDataEnvResponse> {
+    try {
+      this.#connPool = connPool;
 
-    const dbRepresentations = await this.#getDbRepresentations();
+      const dbRepresentations = await this.#getDbRepresentations();
 
-    await Promise.all(
-      dbRepresentations.map(async (el) => {
-        await this.#generateDbResources(el.name);
-      })
-    );
+      await Promise.all(
+        dbRepresentations.map(async (el) => {
+          await this.#generateDbResources(el.name);
+        })
+      );
 
-    return {
-      materializations: this.#materializations,
-      columns: this.#columns,
-      logics: this.#logics,
-      catalog: this.#catalog,
-    };
-  };
+      return Result.ok({
+        matsToCreate: this.#materializations,
+        columnsToCreate: this.#columns,
+        logicsToCreate: this.#logics,
+      });
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message) console.trace(error.message);
+      else if (!(error instanceof Error) && error) console.trace(error);
+      return Result.fail('');
+    }
+  }
 }
