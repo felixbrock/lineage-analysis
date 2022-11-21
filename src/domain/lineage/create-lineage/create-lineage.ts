@@ -277,6 +277,12 @@ export class CreateLineage
 
       const dbtBased = dbtCatalog && dbtManifest;
 
+
+      SELECT t2.relation_name as removed_mat, lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) as added_mat
+FROM cito.lineage.materializations as t2
+  full JOIN test.information_schema.tables as t1 ON lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) = t2.relation_name
+WHERE t1.table_name IS NULL or (t2.relation_name is Null and t1.table_schema != 'INFORMATION_SCHEMA');
+
       console.log('...generating warehouse resources');
       let dataEnvGenerator: DbtDataEnvGenerator | SfDataEnvGenerator;
       if (dbtBased)
