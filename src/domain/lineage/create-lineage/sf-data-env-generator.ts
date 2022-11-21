@@ -127,7 +127,7 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
       );
 
     const queryText =
-      "select database_name, database_owner, is_transient, comment from cito.information_schema.databases where not array_contains(database_name::variant, ['SNOWFLAKE', 'SNOWFLAKE_SAMPLE_DATA'])";
+      "select database_name, database_owner, is_transient, comment from cito.information_schema.databases where not array_contains(database_name::variant, ['SNOWFLAKE', 'SNOWFLAKE_SAMPLE_DATA', 'CITO'])";
     const queryResult = await this.#querySnowflake.execute(
       { queryText, binds: [] },
       this.#auth,

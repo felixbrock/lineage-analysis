@@ -223,6 +223,17 @@ export default class DataEnvMerger {
     return updatedLogic;
   };
 
+  #handleNewMat = (mat: Materialization): void => {
+    this.#matsToCreate.push(mat);
+    this.#columnsToCreate.push(...this.#columnsToHandleByMatId[mat.id]);
+
+    if (!mat.logicId) return;
+
+    const logic = this.#logicsToHandle.find((el) => el.id === mat.logicId);
+    if (!logic) throw new Error(`Missing logic for logic id ${mat.logicId}`);
+    this.#logicsToCreate.push(logic);
+  };
+
   merge = async (
     connPool: IConnectionPool
   ): Promise<{
@@ -260,6 +271,26 @@ export default class DataEnvMerger {
       this.#targetOrgId
     );
 
+    this.#oldColumnsByMatId = (
+      await this.#columnRepo.findBy(
+        {
+          lineageId: latestLineage.id,
+        },
+        this.#auth,
+        connPool,
+        this.#targetOrgId
+      )
+    ).reduce(DataEnvMerger.#groupByMatId, {});
+
+    this.#oldLogics = await this.#logicRepo.findBy(
+      {
+        lineageId: latestLineage.id,
+      },
+      this.#auth,
+      connPool,
+      this.#targetOrgId
+    );
+
     await Promise.all(
       this.#matsToHandle.map(async (matToHandle) => {
         const matchingMat = oldMats.find(
@@ -267,21 +298,7 @@ export default class DataEnvMerger {
         );
 
         if (!matchingMat) {
-          this.#matsToCreate.push(matToHandle);
-          this.#columnsToCreate.push(
-            ...this.#columnsToHandleByMatId[matToHandle.id]
-          );
-
-          if (!matToHandle.logicId) return;
-
-          const logic = this.#logicsToHandle.find(
-            (el) => el.id === matToHandle.logicId
-          );
-          if (!logic)
-            throw new Error(
-              `Missing logic for logic id ${matToHandle.logicId}`
-            );
-          this.#logicsToCreate.push(logic);
+          this.#handleNewMat(matToHandle);
           return;
         }
 
@@ -299,33 +316,11 @@ export default class DataEnvMerger {
         );
         this.#matsToReplace.push(updatedMat);
 
-        if (!Object.keys(this.#oldColumnsByMatId).length)
-          this.#oldColumnsByMatId = (
-            await this.#columnRepo.findBy(
-              {
-                lineageId: latestLineage.id,
-              },
-              this.#auth,
-              connPool,
-              this.#targetOrgId
-            )
-          ).reduce(DataEnvMerger.#groupByMatId, {});
-
         const { columnsToCreate, columnsToReplace } =
           await this.#mergeMatColumns(matToHandle.id, matchingMat.id);
 
         this.#columnsToCreate.push(...columnsToCreate);
         this.#columnsToReplace.push(...columnsToReplace);
-
-        if (!Object.keys(this.#oldLogics).length)
-          this.#oldLogics = await this.#logicRepo.findBy(
-            {
-              lineageId: latestLineage.id,
-            },
-            this.#auth,
-            connPool,
-            this.#targetOrgId
-          );
 
         if (matToHandle.logicId && matchingMat.logicId) {
           const logic = await this.#mergeMatLogic(

@@ -108,7 +108,7 @@ export default class LineageRepo
     const binds = [id];
 
     if (dto.completed !== undefined) {
-      colDefinitions.push(this.getDefinition('activated'));
+      colDefinitions.push(this.getDefinition('completed'));
       binds.push(dto.completed.toString());
     }
 

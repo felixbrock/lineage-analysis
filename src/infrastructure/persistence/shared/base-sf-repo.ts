@@ -162,17 +162,37 @@ export default abstract class BaseSfRepo<
     }
   };
 
-  #splitBinds = (queryTextSize: string, binds: Binds): Binds[] => {
-    Split into only a 
+  #splitBinds = (queryTextSize: number, binds: Binds): Binds[] => {
+    // todo - Upload as file and then copy into table
+    const byteToMBDivisor = 1000000;
+    const maxQueryMBSize = 1;
+    const querySizeOffset = 0.1;
+    const maxQueryTextMBSize = 0.2;
 
-    // Upload as file and then copy into table
+    const queryTextMBSize = queryTextSize / byteToMBDivisor;
+    const bindsSize = new Blob([JSON.stringify(binds)]).size;
+    const bindsMBSize = bindsSize / byteToMBDivisor;
 
-    const bindsSize =  new Blob([JSON.stringify(binds)]).size;
+    if (queryTextMBSize + bindsMBSize < maxQueryMBSize * (1 - querySizeOffset))
+      return [binds];
+    if (queryTextMBSize > maxQueryTextMBSize)
+      throw new Error('Query text size too large. Implement file upload');
 
-    const totalQuerySize = bytesOfQueryText 
+    // in MB (subtracting offset)
+    const maxSize = 1 * (1 - querySizeOffset);
+    const maxBindsSequenceMBSize = maxSize - queryTextMBSize;
 
+    const numSequences = Math.ceil(bindsMBSize / maxBindsSequenceMBSize);
+    const numElementsPerSequence = Math.ceil(binds.length / numSequences);
 
-  }
+    const res: Binds[] = [];
+    for (let i = 0; i < binds.length; i += numElementsPerSequence) {
+      const chunk = binds.slice(i, i + numElementsPerSequence);
+      res.push(chunk);
+    }
+
+    return res;
+  };
 
   insertMany = async (
     entities: Entity[],
@@ -183,24 +203,30 @@ export default abstract class BaseSfRepo<
     try {
       const binds = entities.map((entity) => this.getBinds(entity));
 
-
-
-      const bindSequences = 
-
       const row = `(${this.colDefinitions.map(() => '?').join(', ')})`;
 
       const queryText = getInsertQueryText(this.matName, this.colDefinitions, [
         row,
       ]);
 
-      const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds },
-        auth,
-        connPool
+      const bindSequences = this.#splitBinds(new Blob([queryText]).size, binds);
+
+      const results = await Promise.all(
+        bindSequences.map(async (el) => {
+          const res = await this.querySnowflake.execute(
+            { queryText, targetOrgId, binds: el },
+            auth,
+            connPool
+          );
+
+          return res;
+        })
       );
 
-      if (!result.success) throw new Error(result.error);
-      if (!result.value) throw new Error('Missing sf query value');
+      if (results.some((el) => !el.success))
+        throw new Error(results.filter((el) => !el.success)[0].error);
+      if (results.some((el) => !el.value))
+        throw new Error('Missing sf query value');
 
       return entities.map((el) => el.id);
     } catch (error: unknown) {
@@ -270,14 +296,24 @@ export default abstract class BaseSfRepo<
         row,
       ]);
 
-      const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds },
-        auth,
-        connPool
+      const bindSequences = this.#splitBinds(new Blob([queryText]).size, binds);
+
+      const results = await Promise.all(
+        bindSequences.map(async (el) => {
+          const res = await this.querySnowflake.execute(
+            { queryText, targetOrgId, binds: el },
+            auth,
+            connPool
+          );
+
+          return res;
+        })
       );
 
-      if (!result.success) throw new Error(result.error);
-      if (!result.value) throw new Error('Missing sf query value');
+      if (results.some((el) => !el.success))
+        throw new Error(results.filter((el) => !el.success)[0].error);
+      if (results.some((el) => !el.value))
+        throw new Error('Missing sf query value');
 
       return entities.length;
     } catch (error: unknown) {
