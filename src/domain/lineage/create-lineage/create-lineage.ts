@@ -83,12 +83,14 @@ export class CreateLineage
 
   readonly #readColumns: ReadColumns;
 
-  #targetOrgId?: string;
-
   #auth?: CreateLineageAuthDto;
 
   #connPool?: IConnectionPool;
 
+  #req?: CreateLineageRequestDto;
+
+  
+  
   constructor(
     createLogic: CreateLogic,
     createMaterialization: CreateMaterialization,
@@ -126,14 +128,14 @@ export class CreateLineage
   }
 
   #writeLineageToPersistence = async (lineage: Lineage): Promise<void> => {
-    if (!this.#auth || !this.#connPool)
-      throw new Error('connection pool or auth  not avaible');
+    if (!this.#auth || !this.#connPool || !this.#req)
+      throw new Error('Missing properties detected when creating lineage');
 
     await this.#lineageRepo.insertOne(
       lineage,
       this.#auth,
       this.#connPool,
-      this.#targetOrgId
+      this.#req.targetOrgId
     );
   };
 
@@ -145,29 +147,29 @@ export class CreateLineage
     logicsToCreate: Logic[];
     logicsToReplace: Logic[];
   }): Promise<void> => {
-    if (!this.#auth || !this.#connPool)
-      throw new Error('connection pool or auth  not avaible');
+    if (!this.#auth || !this.#connPool || !this.#req)
+      throw new Error('Missing properties detected when creating lineage');
 
     if (props.logicsToReplace.length)
       await this.#logicRepo.replaceMany(
         props.logicsToReplace,
         this.#auth,
         this.#connPool,
-        this.#targetOrgId
+        this.#req.targetOrgId
       );
     if (props.matsToReplace.length)
       await this.#materializationRepo.replaceMany(
         props.matsToReplace,
         this.#auth,
         this.#connPool,
-        this.#targetOrgId
+        this.#req.targetOrgId
       );
     if (props.columnsToReplace.length)
       await this.#columnRepo.replaceMany(
         props.columnsToReplace,
         this.#auth,
         this.#connPool,
-        this.#targetOrgId
+        this.#req.targetOrgId
       );
 
     if (props.logicsToCreate.length)
@@ -175,7 +177,7 @@ export class CreateLineage
         props.logicsToCreate,
         this.#auth,
         this.#connPool,
-        this.#targetOrgId
+        this.#req.targetOrgId
       );
 
     if (props.matsToCreate.length)
@@ -183,7 +185,7 @@ export class CreateLineage
         props.matsToCreate,
         this.#auth,
         this.#connPool,
-        this.#targetOrgId
+        this.#req.targetOrgId
       );
 
     if (props.columnsToCreate.length)
@@ -191,37 +193,37 @@ export class CreateLineage
         props.columnsToCreate,
         this.#auth,
         this.#connPool,
-        this.#targetOrgId
+        this.#req.targetOrgId
       );
   };
 
   #writeDashboardsToPersistence = async (
     dashboards: Dashboard[]
   ): Promise<void> => {
-    if (!this.#auth || !this.#connPool)
-      throw new Error('connection pool or auth  not avaible');
+    if (!this.#auth || !this.#connPool || !this.#req)
+      throw new Error('Missing properties detected when creating lineage');
 
     if (dashboards.length)
       await this.#dashboardRepo.insertMany(
         dashboards,
         this.#auth,
         this.#connPool,
-        this.#targetOrgId
+        this.#req.targetOrgId
       );
   };
 
   #writeDependenciesToPersistence = async (
     dependencies: Dependency[]
   ): Promise<void> => {
-    if (!this.#auth || !this.#connPool)
-      throw new Error('connection pool or auth  not avaible');
+    if (!this.#auth || !this.#connPool || !this.#req)
+      throw new Error('Missing properties detected when creating lineage');
 
     if (dependencies.length)
       await this.#dependencyRepo.insertMany(
         dependencies,
         this.#auth,
         this.#connPool,
-        this.#targetOrgId
+        this.#req.targetOrgId
       );
   };
 
@@ -229,17 +231,109 @@ export class CreateLineage
     id: string,
     updateDto: LineageUpdateDto
   ): Promise<void> => {
-    if (!this.#auth || !this.#connPool)
-      throw new Error('connection pool or auth  not avaible');
+    if (!this.#auth || !this.#connPool || !this.#req)
+      throw new Error('Missing properties detected when creating lineage');
 
     await this.#lineageRepo.updateOne(
       id,
       updateDto,
       this.#auth,
       this.#connPool,
-      this.#targetOrgId
+      this.#req.targetOrgId
     );
   };
+
+#generateEnv = async (): Promise<unknown> => {
+  if (!this.#auth || !this.#connPool || !this.#req)
+      throw new Error('Missing properties detected when creating lineage');
+
+  console.log('...generating warehouse resources');
+
+  let dataEnvGenerator: DbtDataEnvGenerator | SfDataEnvGenerator;
+  if (this.#req.dbtCatalog && this.#req.dbtManifest)
+    dataEnvGenerator = new DbtDataEnvGenerator(
+      {
+        dbtCatalog: this.#req.dbtCatalog,
+        dbtManifest: this.#req.dbtManifest,
+        lineageId: lineage.id,
+        targetOrgId: this.#req.targetOrgId,
+      },
+      this.#auth,
+      {
+        createColumn: this.#createColumn,
+        createLogic: this.#createLogic,
+        createMaterialization: this.#createMaterialization,
+        parseSQL: this.#parseSQL,
+      }
+    );
+  else {
+    const { callerOrgId } = this.#auth;
+    if (!callerOrgId)
+      throw new Error(
+        'Sf based lineage creation has to be invoked by user'
+      );
+
+    dataEnvGenerator = new SfDataEnvGenerator(
+      {
+        lineageId: lineage.id,
+      },
+      { ...this.#auth, callerOrgId },
+      {
+        createColumn: this.#createColumn,
+        createMaterialization: this.#createMaterialization,
+        createLogic: this.#createLogic,
+        parseSQL: this.#parseSQL,
+        querySnowflake: this.#querySnowflake,
+      }
+    );
+  }
+  const { materializations, columns, logics, catalog } =
+    await dataEnvGenerator.generate(this.#connPool);
+}
+
+#refreshEnv = async () => {
+  console.log('...merging new lineage snapshot with last one');
+  const dataEnvMerger = new DataEnvMerger(
+    { columns, materializations, logics },
+    auth,
+    {
+      lineageRepo: this.#lineageRepo,
+      columnRepo: this.#columnRepo,
+      logicRepo: this.#logicRepo,
+      materializationRepo: this.#materializationRepo,
+    }
+  );
+
+  const mergedDataEnv = await dataEnvMerger.merge(connPool);
+
+}
+
+#getNewDataEnv = async (auth: BaseAuth, connPool: IConnectionPool): Promise<  {
+  matsToCreate: Materialization[];
+  matsToReplace: Materialization[];
+  columnsToCreate: Column[];
+  columnsToReplace: Column[];
+  logicsToCreate: Logic[];
+  logicsToReplace: Logic[];
+}> =>{
+  const latestLineage = await this.#lineageRepo.findLatest(
+    { tolerateIncomplete: false },
+    auth,
+    connPool,
+    this.#req.targetOrgId
+  );
+
+  if(!latestLineage)
+  const results = this.#generateEnv()
+  else
+  const results = this.#refreshEnv()
+
+
+
+
+
+
+};
 
   async execute(
     req: CreateLineageRequestDto,
@@ -263,7 +357,8 @@ export class CreateLineage
 
       this.#connPool = connPool;
       this.#auth = auth;
-      this.#targetOrgId = req.targetOrgId;
+      
+
 
       console.log('starting lineage creation...');
 
@@ -275,69 +370,9 @@ export class CreateLineage
 
       const { dbtCatalog, dbtManifest } = req;
 
-      const dbtBased = dbtCatalog && dbtManifest;
+      
 
 
-      SELECT t2.relation_name as removed_mat, lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) as added_mat
-FROM cito.lineage.materializations as t2
-  full JOIN test.information_schema.tables as t1 ON lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) = t2.relation_name
-WHERE t1.table_name IS NULL or (t2.relation_name is Null and t1.table_schema != 'INFORMATION_SCHEMA');
-
-      console.log('...generating warehouse resources');
-      let dataEnvGenerator: DbtDataEnvGenerator | SfDataEnvGenerator;
-      if (dbtBased)
-        dataEnvGenerator = new DbtDataEnvGenerator(
-          {
-            dbtCatalog,
-            dbtManifest,
-            lineageId: lineage.id,
-            targetOrgId: req.targetOrgId,
-          },
-          auth,
-          {
-            createColumn: this.#createColumn,
-            createLogic: this.#createLogic,
-            createMaterialization: this.#createMaterialization,
-            parseSQL: this.#parseSQL,
-          }
-        );
-      else {
-        const { callerOrgId } = auth;
-        if (!callerOrgId)
-          throw new Error(
-            'Sf based lineage creation has to be invoked by user'
-          );
-
-        dataEnvGenerator = new SfDataEnvGenerator(
-          {
-            lineageId: lineage.id,
-          },
-          { ...auth, callerOrgId },
-          {
-            createColumn: this.#createColumn,
-            createMaterialization: this.#createMaterialization,
-            createLogic: this.#createLogic,
-            parseSQL: this.#parseSQL,
-            querySnowflake: this.#querySnowflake,
-          }
-        );
-      }
-      const { materializations, columns, logics, catalog } =
-        await dataEnvGenerator.generate(connPool);
-
-      console.log('...merging new lineage snapshot with last one');
-      const dataEnvMerger = new DataEnvMerger(
-        { columns, materializations, logics },
-        auth,
-        {
-          lineageRepo: this.#lineageRepo,
-          columnRepo: this.#columnRepo,
-          logicRepo: this.#logicRepo,
-          materializationRepo: this.#materializationRepo,
-        }
-      );
-
-      const mergedDataEnv = await dataEnvMerger.merge(connPool);
 
       console.log('...writing dw resources to persistence');
       await this.#writeWhResourcesToPersistence({ ...mergedDataEnv });
