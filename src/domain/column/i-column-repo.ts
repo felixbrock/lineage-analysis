@@ -1,5 +1,5 @@
 import { Column } from '../entities/column';
-import { IBaseServiceRepo } from '../services/i-base-service-repo';
+import { IServiceRepo } from '../services/i-service-repo';
 
 export type ColumnUpdateDto = undefined
 
@@ -12,4 +12,4 @@ export interface ColumnQueryDto {
   lineageId: string;
 }
 
-export type IColumnRepo =  IBaseServiceRepo<Column, ColumnQueryDto, ColumnUpdateDto>;
+export type IColumnRepo =  IServiceRepo<Column, ColumnQueryDto, ColumnUpdateDto>;

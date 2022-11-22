@@ -8,7 +8,7 @@ export type IAuth = {
 
 type IBinds = (string | number)[] | (string | number)[][];
 
-export interface IBaseServiceRepo<Entity, QueryDto, UpdateDto> {
+export interface IServiceRepo<Entity, QueryDto, UpdateDto> {
   findOne(
     id: string,
     auth: IAuth,
