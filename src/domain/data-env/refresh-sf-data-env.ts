@@ -3,15 +3,15 @@ import IUseCase from '../services/use-case';
 import BaseAuth from '../services/base-auth';
 import { DataEnv } from './data-env';
 import { Column } from '../entities/column';
-import {
-  Materialization,
-} from '../entities/materialization';
+import { Materialization } from '../entities/materialization';
 import { Logic } from '../entities/logic';
 import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 import { ILineageRepo } from '../lineage/i-lineage-repo';
 import { IMaterializationRepo } from '../materialization/i-materialization-repo';
 import { IColumnRepo } from '../column/i-column-repo';
 import { ILogicRepo } from '../logic/i-logic-repo';
+import BaseGetSfDataEnv from './base-get-sf-data-env';
+import { QuerySnowflake } from '../snowflake-api/query-snowflake';
 
 export interface RefreshSfDataEnvRequestDto {
   targetOrgId?: string;
@@ -23,6 +23,7 @@ export type RefreshSfDataEnvAuthDto = BaseAuth;
 export type RefreshSfDataEnvResponse = Result<DataEnv>;
 
 export class RefreshSfDataEnv
+  extends BaseGetSfDataEnv
   implements
     IUseCase<
       RefreshSfDataEnvRequestDto,
@@ -72,8 +73,10 @@ export class RefreshSfDataEnv
     lineageRepo: ILineageRepo,
     materializationRepo: IMaterializationRepo,
     columnRepo: IColumnRepo,
-    logicRepo: ILogicRepo
+    logicRepo: ILogicRepo,
+    querySnowflake: QuerySnowflake
   ) {
+    super(querySnowflake);
     this.#lineageRepo = lineageRepo;
     this.#materializationRepo = materializationRepo;
     this.#columnRepo = columnRepo;
@@ -221,18 +224,30 @@ export class RefreshSfDataEnv
     connPool: IConnectionPool
   ): Promise<RefreshSfDataEnvResponse> {
     try {
-      SELECT t2.relation_name as removed_mat, lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) as added_mat, t1.table_name is not null and t2.relation_name is not null as altered 
-      FROM cito.lineage.materializations as t2
-        full JOIN test.information_schema.tables as t1 ON lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) = t2.relation_name
-      WHERE t1.table_name IS NULL or (t2.relation_name is Null and t1.table_schema != 'INFORMATION_SCHEMA') or
-      timediff(minute, convert_timezone('UTC', last_altered)::timestamp_ntz, sysdate()) < 30
+      const dbRepresentations = await this.getDbRepresentations(connPool, auth);
 
-      const latestLineage = await this.#lineageRepo.findLatest(
-        { tolerateIncomplete: false },
-        auth,
-        connPool,
-        this.#targetOrgId
-      );
+      dbRepresentations.forEach(el => {
+        const binds = [req.latestLineageCompleted];
+
+        const queryText = `SELECT t2.relation_name as removed_mat, lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) as added_mat, t1.table_name is not null and t2.relation_name is not null as altered 
+        FROM cito.lineage.materializations as t2
+          full JOIN ${el.name}.information_schema.tables as t1 ON lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) = t2.relation_name
+        WHERE t1.table_name IS NULL or (t2.relation_name is Null and t1.table_schema != 'INFORMATION_SCHEMA') or
+        timediff(minute, ?::timestamp_ntz, convert_timezone('UTC', last_altered)::timestamp_ntz) > 0`;
+
+        this.#materializationRepo.findByCustom
+  
+
+      });
+
+      
+
+
+
+
+
+
+
 
       const oldMats = await this.#materializationRepo.all(
         auth,
@@ -241,11 +256,7 @@ export class RefreshSfDataEnv
       );
 
       this.#oldColumnsByMatId = (
-        await this.#columnRepo.all(
-          auth,
-          connPool,
-          this.#targetOrgId
-        )
+        await this.#columnRepo.all(auth, connPool, this.#targetOrgId)
       ).reduce(RefreshSfDataEnv.#groupByMatId, {});
 
       this.#oldLogics = await this.#logicRepo.all(

@@ -6,6 +6,8 @@ export type IAuth = {
   callerOrgId?: string;
 };
 
+type IBinds = (string | number)[] | (string | number)[][];
+
 export interface IBaseServiceRepo<Entity, QueryDto, UpdateDto> {
   findOne(
     id: string,
@@ -15,6 +17,12 @@ export interface IBaseServiceRepo<Entity, QueryDto, UpdateDto> {
   ): Promise<Entity | null>;
   findBy(
     queryDto: QueryDto,
+    auth: IAuth,
+    connPool: IConnectionPool,
+    targetOrgId?: string
+  ): Promise<Entity[]>;
+  findByCustom(
+    query: { text: string; binds: IBinds },
     auth: IAuth,
     connPool: IConnectionPool,
     targetOrgId?: string

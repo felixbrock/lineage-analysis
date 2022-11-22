@@ -20,6 +20,7 @@ import { QuerySnowflake } from '../snowflake-api/query-snowflake';
 import { ParseSQL } from '../sql-parser-api/parse-sql';
 import { Logic, ModelRepresentation } from '../entities/logic';
 import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
+import BaseGetSfDataEnv from './base-get-sf-data-env';
 
 export interface GenerateSfDataEnvRequestDto {
   lineageId: string;
@@ -42,13 +43,6 @@ interface ColumnRepresentation {
   comment?: string;
 }
 
-interface DatabaseRepresentation {
-  name: string;
-  ownerId: string;
-  isTransient: boolean;
-  comment?: string;
-}
-
 interface MaterializationRepresentation {
   databaseName: string;
   schemaName: string;
@@ -64,7 +58,7 @@ interface LogicRepresentation {
   sql: string;
 }
 
-export class GenerateSfDataEnv
+export class GenerateSfDataEnv extends BaseGetSfDataEnv
   implements
     IUseCase<
       GenerateSfDataEnvRequestDto,
@@ -117,6 +111,7 @@ export class GenerateSfDataEnv
     querySnowflake: QuerySnowflake,
     parseSQL: ParseSQL
   ) {
+    super(querySnowflake);
     this.#createMaterialization = createMaterialization;
     this.#createColumn = createColumn;
     this.#createLogic = createLogic;
@@ -124,57 +119,7 @@ export class GenerateSfDataEnv
     this.#parseSQL = parseSQL;
   }
 
-  /* Get database representations from snowflake */
-  #getDbRepresentations = async (): Promise<DatabaseRepresentation[]> => {
-    if (!this.#connPool || !this.#auth)
-      throw new Error('Missing properties for generating sf data env');
-
-    const queryText =
-      "select database_name, database_owner, is_transient, comment from cito.information_schema.databases where not array_contains(database_name::variant, ['SNOWFLAKE', 'SNOWFLAKE_SAMPLE_DATA', 'CITO'])";
-    const queryResult = await this.#querySnowflake.execute(
-      { queryText, binds: [] },
-      this.#auth,
-      this.#connPool
-    );
-    if (!queryResult.success) {
-      throw new Error(queryResult.error);
-    }
-    if (!queryResult.value) throw new Error('Query did not return a value');
-
-    const results = queryResult.value;
-
-    const dbRepresentations: DatabaseRepresentation[] = results.map((el) => {
-      const {
-        DATABASE_NAME: name,
-        DATABASE_OWNER: ownerId,
-        IS_TRANSIENT: isTransient,
-        COMMENT: comment,
-      } = el;
-
-      const isComment = (val: unknown): val is string | undefined =>
-        !val || typeof val === 'string';
-
-      if (
-        typeof name !== 'string' ||
-        typeof ownerId !== 'string' ||
-        typeof isTransient !== 'string' ||
-        !['yes', 'no'].includes(isTransient.toLowerCase()) ||
-        !isComment(comment)
-      )
-        throw new Error(
-          'Received mat representation field value in unexpected format'
-        );
-
-      return {
-        name: name.toLowerCase(),
-        ownerId,
-        isTransient: isTransient.toLowerCase() !== 'no',
-        comment: comment || undefined,
-      };
-    });
-
-    return dbRepresentations;
-  };
+  
 
   /* Get materialization representations from snowflake */
   #getMatRepresentations = async (
@@ -584,7 +529,7 @@ export class GenerateSfDataEnv
     try {
       this.#connPool = connPool;
 
-      const dbRepresentations = await this.#getDbRepresentations();
+      const dbRepresentations = await this.getDbRepresentations(connPool, auth);
 
       await Promise.all(
         dbRepresentations.map(async (el) => {
