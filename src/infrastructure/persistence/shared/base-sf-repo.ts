@@ -1,6 +1,6 @@
 import { Blob } from 'node:buffer';
-import { IBaseServiceRepo } from '../../../domain/services/i-base-service-repo';
 import BaseAuth from '../../../domain/services/base-auth';
+import { IServiceRepo } from '../../../domain/services/i-service-repo';
 import {
   Bind,
   Binds,
@@ -26,7 +26,7 @@ export default abstract class BaseSfRepo<
   EntityProps,
   QueryDto extends object | undefined,
   UpdateDto extends object | undefined
-> implements IBaseServiceRepo<Entity, QueryDto, UpdateDto>
+> implements IServiceRepo<Entity, QueryDto, UpdateDto>
 {
   protected abstract readonly matName: string;
 
@@ -41,8 +41,7 @@ export default abstract class BaseSfRepo<
   findOne = async (
     id: string,
     auth: BaseAuth,
-    connPool: IConnectionPool,
-    targetOrgId?: string
+    connPool: IConnectionPool
   ): Promise<Entity | null> => {
     try {
       const queryText = `select * from ${relationPath}.${this.matName}
@@ -51,7 +50,7 @@ export default abstract class BaseSfRepo<
       const binds: (string | number)[] = [id];
 
       const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, binds },
         auth,
         connPool
       );
@@ -76,17 +75,16 @@ export default abstract class BaseSfRepo<
   findBy = async (
     queryDto: QueryDto,
     auth: BaseAuth,
-    connPool: IConnectionPool,
-    targetOrgId?: string
+    connPool: IConnectionPool
   ): Promise<Entity[]> => {
     try {
       if (!queryDto || !Object.keys(queryDto).length)
-        return await this.all(auth, connPool, targetOrgId);
+        return await this.all(auth, connPool);
 
       const query = this.buildFindByQuery(queryDto);
 
       const result = await this.querySnowflake.execute(
-        { queryText: query.text, targetOrgId, binds: query.binds },
+        { queryText: query.text, binds: query.binds },
         auth,
         connPool
       );
@@ -105,12 +103,11 @@ export default abstract class BaseSfRepo<
   findByCustom = async (
     query: { text: string; binds: Binds },
     auth: BaseAuth,
-    connPool: IConnectionPool,
-    targetOrgId?: string
+    connPool: IConnectionPool
   ): Promise<Entity[]> => {
     try {
       const result = await this.querySnowflake.execute(
-        { queryText: query.text, targetOrgId, binds: query.binds },
+        { queryText: query.text, binds: query.binds },
         auth,
         connPool
       );
@@ -128,14 +125,13 @@ export default abstract class BaseSfRepo<
 
   all = async (
     auth: BaseAuth,
-    connPool: IConnectionPool,
-    targetOrgId?: string
+    connPool: IConnectionPool
   ): Promise<Entity[]> => {
     try {
       const queryText = `select * from ${relationPath}.${this.matName};`;
 
       const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds: [] },
+        { queryText, binds: [] },
         auth,
         connPool
       );
@@ -156,8 +152,7 @@ export default abstract class BaseSfRepo<
   insertOne = async (
     entity: Entity,
     auth: BaseAuth,
-    connPool: IConnectionPool,
-    targetOrgId?: string
+    connPool: IConnectionPool
   ): Promise<string> => {
     try {
       const binds = this.getBinds(entity);
@@ -169,7 +164,7 @@ export default abstract class BaseSfRepo<
       ]);
 
       const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, binds },
         auth,
         connPool
       );
@@ -220,8 +215,7 @@ export default abstract class BaseSfRepo<
   insertMany = async (
     entities: Entity[],
     auth: BaseAuth,
-    connPool: IConnectionPool,
-    targetOrgId?: string
+    connPool: IConnectionPool
   ): Promise<string[]> => {
     try {
       const binds = entities.map((entity) => this.getBinds(entity));
@@ -237,7 +231,7 @@ export default abstract class BaseSfRepo<
       const results = await Promise.all(
         bindSequences.map(async (el) => {
           const res = await this.querySnowflake.execute(
-            { queryText, targetOrgId, binds: el },
+            { queryText, binds: el },
             auth,
             connPool
           );
@@ -272,8 +266,7 @@ export default abstract class BaseSfRepo<
     id: string,
     updateDto: UpdateDto,
     auth: BaseAuth,
-    connPool: IConnectionPool,
-    targetOrgId?: string
+    connPool: IConnectionPool
   ): Promise<string> => {
     try {
       const query = this.buildUpdateQuery(id, updateDto);
@@ -288,7 +281,7 @@ export default abstract class BaseSfRepo<
       ]);
 
       const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds: query.binds },
+        { queryText, binds: query.binds },
         auth,
         connPool
       );
@@ -307,8 +300,7 @@ export default abstract class BaseSfRepo<
   replaceMany = async (
     entities: Entity[],
     auth: BaseAuth,
-    connPool: IConnectionPool,
-    targetOrgId?: string
+    connPool: IConnectionPool
   ): Promise<number> => {
     try {
       const binds = entities.map((column) => this.getBinds(column));
@@ -324,7 +316,7 @@ export default abstract class BaseSfRepo<
       const results = await Promise.all(
         bindSequences.map(async (el) => {
           const res = await this.querySnowflake.execute(
-            { queryText, targetOrgId, binds: el },
+            { queryText, binds: el },
             auth,
             connPool
           );
