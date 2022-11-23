@@ -37,7 +37,7 @@ export class CreateMaterialization
     IUseCase<
       CreateMaterializationRequestDto,
       CreateMaterializationResponseDto,
-      CreateMaterializationAuthDto
+      CreateMaterializationAuthDto,IConnectionPool
     >
 {
   readonly #readMaterializations: ReadMaterializations;
@@ -86,12 +86,11 @@ export class CreateMaterialization
           materialization,
           auth,
           connPool,
-          req.targetOrgId
         );
 
       return Result.ok(materialization);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
+      if (error instanceof Error && error.message) console.error(error.stack);
       else if (!(error instanceof Error) && error) console.trace(error);
       return Result.fail('');
     }

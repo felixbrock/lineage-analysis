@@ -127,7 +127,7 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
 
       // return CreateLineageController.ok(res, 'Lineage creation is in progress...', CodeHttp.CREATED);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
+      if (error instanceof Error && error.message) console.error(error.stack);
       else if (!(error instanceof Error) && error) console.trace(error);
       return InternalInvokeCreateLineageController.fail(
         'Internal error occurred while invoking create lineage operation'

@@ -268,7 +268,6 @@ export default class DataEnvMerger {
       { lineageId: latestLineage.id },
       this.#auth,
       connPool,
-      this.#targetOrgId
     );
 
     this.#oldColumnsByMatId = (
@@ -278,7 +277,6 @@ export default class DataEnvMerger {
         },
         this.#auth,
         connPool,
-        this.#targetOrgId
       )
     ).reduce(DataEnvMerger.#groupByMatId, {});
 
@@ -288,7 +286,6 @@ export default class DataEnvMerger {
       },
       this.#auth,
       connPool,
-      this.#targetOrgId
     );
 
     await Promise.all(

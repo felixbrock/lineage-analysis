@@ -21,7 +21,7 @@ export type ReadColumnsResponseDto = Result<Column[]>;
 
 export class ReadColumns
   implements
-    IUseCase<ReadColumnsRequestDto, ReadColumnsResponseDto, ReadColumnsAuthDto>
+    IUseCase<ReadColumnsRequestDto, ReadColumnsResponseDto, ReadColumnsAuthDto,IConnectionPool>
 {
   readonly #columnRepo: IColumnRepo;
 
@@ -50,13 +50,12 @@ export class ReadColumns
         this.#buildColumnQueryDto(req),
         auth,
         connPool,
-        req.targetOrgId
       );
       if (!columns) throw new Error(`Queried columns do not exist`);
 
       return Result.ok(columns);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
+      if (error instanceof Error && error.message) console.error(error.stack);
       else if (!(error instanceof Error) && error) console.trace(error);
       return Result.fail('');
     }

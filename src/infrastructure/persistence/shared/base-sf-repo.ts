@@ -42,7 +42,6 @@ export default abstract class BaseSfRepo<
     id: string,
     auth: BaseAuth,
     connPool: IConnectionPool,
-    targetOrgId?: string
   ): Promise<Entity | null> => {
     try {
       const queryText = `select * from ${relationPath}.${this.matName}
@@ -51,7 +50,7 @@ export default abstract class BaseSfRepo<
       const binds: (string | number)[] = [id];
 
       const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, binds },
         auth,
         connPool
       );
@@ -65,7 +64,7 @@ export default abstract class BaseSfRepo<
         ? null
         : this.toEntity(this.buildEntityProps(result.value[0]));
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
+      if (error instanceof Error && error.message) console.error(error.stack);
       else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error());
     }
@@ -77,16 +76,15 @@ export default abstract class BaseSfRepo<
     queryDto: QueryDto,
     auth: BaseAuth,
     connPool: IConnectionPool,
-    targetOrgId?: string
   ): Promise<Entity[]> => {
     try {
       if (!queryDto || !Object.keys(queryDto).length)
-        return await this.all(auth, connPool, targetOrgId);
+        return await this.all(auth, connPool);
 
       const query = this.buildFindByQuery(queryDto);
 
       const result = await this.querySnowflake.execute(
-        { queryText: query.text, targetOrgId, binds: query.binds },
+        { queryText: query.text, binds: query.binds },
         auth,
         connPool
       );
@@ -96,7 +94,7 @@ export default abstract class BaseSfRepo<
 
       return result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
+      if (error instanceof Error && error.message) console.error(error.stack);
       else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error());
     }
@@ -105,13 +103,12 @@ export default abstract class BaseSfRepo<
   all = async (
     auth: BaseAuth,
     connPool: IConnectionPool,
-    targetOrgId?: string
   ): Promise<Entity[]> => {
     try {
       const queryText = `select * from ${relationPath}.${this.matName};`;
 
       const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds: [] },
+        { queryText, binds: [] },
         auth,
         connPool
       );
@@ -121,7 +118,7 @@ export default abstract class BaseSfRepo<
 
       return result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
+      if (error instanceof Error && error.message) console.error(error.stack);
       else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error());
     }
@@ -134,7 +131,6 @@ export default abstract class BaseSfRepo<
 
     auth: BaseAuth,
     connPool: IConnectionPool,
-    targetOrgId?: string
   ): Promise<string> => {
     try {
       const binds = this.getBinds(entity);
@@ -146,7 +142,7 @@ export default abstract class BaseSfRepo<
       ]);
 
       const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText,  binds },
         auth,
         connPool
       );
@@ -156,7 +152,7 @@ export default abstract class BaseSfRepo<
 
       return entity.id;
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
+      if (error instanceof Error && error.message) console.error(error.stack);
       else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error());
     }
@@ -198,7 +194,6 @@ export default abstract class BaseSfRepo<
     entities: Entity[],
     auth: BaseAuth,
     connPool: IConnectionPool,
-    targetOrgId?: string
   ): Promise<string[]> => {
     try {
       const binds = entities.map((entity) => this.getBinds(entity));
@@ -214,7 +209,7 @@ export default abstract class BaseSfRepo<
       const results = await Promise.all(
         bindSequences.map(async (el) => {
           const res = await this.querySnowflake.execute(
-            { queryText, targetOrgId, binds: el },
+            { queryText,  binds: el },
             auth,
             connPool
           );
@@ -230,7 +225,7 @@ export default abstract class BaseSfRepo<
 
       return entities.map((el) => el.id);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
+      if (error instanceof Error && error.message) console.error(error.stack);
       else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error());
     }
@@ -250,7 +245,6 @@ export default abstract class BaseSfRepo<
     updateDto: UpdateDto,
     auth: BaseAuth,
     connPool: IConnectionPool,
-    targetOrgId?: string
   ): Promise<string> => {
     try {
       const query = this.buildUpdateQuery(id, updateDto);
@@ -265,7 +259,7 @@ export default abstract class BaseSfRepo<
       ]);
 
       const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds: query.binds },
+        { queryText,  binds: query.binds },
         auth,
         connPool
       );
@@ -275,7 +269,7 @@ export default abstract class BaseSfRepo<
 
       return id;
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
+      if (error instanceof Error && error.message) console.error(error.stack);
       else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error());
     }
@@ -285,7 +279,6 @@ export default abstract class BaseSfRepo<
     entities: Entity[],
     auth: BaseAuth,
     connPool: IConnectionPool,
-    targetOrgId?: string
   ): Promise<number> => {
     try {
       const binds = entities.map((column) => this.getBinds(column));
@@ -301,7 +294,7 @@ export default abstract class BaseSfRepo<
       const results = await Promise.all(
         bindSequences.map(async (el) => {
           const res = await this.querySnowflake.execute(
-            { queryText, targetOrgId, binds: el },
+            { queryText,  binds: el },
             auth,
             connPool
           );
@@ -317,7 +310,7 @@ export default abstract class BaseSfRepo<
 
       return entities.length;
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
+      if (error instanceof Error && error.message) console.error(error.stack);
       else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error());
     }

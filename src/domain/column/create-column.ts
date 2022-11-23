@@ -30,6 +30,7 @@ export class CreateColumn
       CreateColumnRequestDto,
       CreateColumnResponseDto,
       CreateColumnAuthDto
+      ,IConnectionPool
     >
 {
   readonly #columnRepo: IColumnRepo;
@@ -72,12 +73,11 @@ export class CreateColumn
           column,
           auth,
           connPool,
-          req.targetOrgId
         );
 
       return Result.ok(column);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
+      if (error instanceof Error && error.message) console.error(error.stack);
       else if (!(error instanceof Error) && error) console.trace(error);
       return Result.fail('');
     }

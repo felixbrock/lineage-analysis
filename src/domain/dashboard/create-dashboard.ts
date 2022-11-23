@@ -31,7 +31,7 @@ export class CreateDashboard
       CreateDashboardRequestDto,
       CreateDashboardResponseDto,
       CreateDashboardAuthDto
-      
+      ,IConnectionPool
     >
 {
   readonly #dashboardRepo: IDashboardRepo;
@@ -68,11 +68,11 @@ export class CreateDashboard
       if (!req.url) return Result.ok(dashboard);
 
       if (req.writeToPersistence)
-        await this.#dashboardRepo.insertOne(dashboard, auth, connPool, req.targetOrgId);
+        await this.#dashboardRepo.insertOne(dashboard, auth, connPool);
 
       return Result.ok(dashboard);
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if(error instanceof Error && error.message) console.error(error.stack); else if (!(error instanceof Error) && error) console.trace(error);
       return Result.fail('');
     }
   }

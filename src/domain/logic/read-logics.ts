@@ -18,7 +18,7 @@ export type ReadLogicsResponseDto = Result<Logic[]>;
 
 export class ReadLogics
   implements
-    IUseCase<ReadLogicsRequestDto, ReadLogicsResponseDto, ReadLogicsAuthDto>
+    IUseCase<ReadLogicsRequestDto, ReadLogicsResponseDto, ReadLogicsAuthDto,IConnectionPool>
 {
   readonly #logicRepo: ILogicRepo;
 
@@ -45,13 +45,12 @@ export class ReadLogics
         this.#buildLogicQueryDto(req),
         auth,
         connPool,
-        req.targetOrgId
       );
       if (!logics) throw new Error(`Queried logics do not exist`);
 
       return Result.ok(logics);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
+      if (error instanceof Error && error.message) console.error(error.stack);
       else if (!(error instanceof Error) && error) console.trace(error);
       return Result.fail('');
     }

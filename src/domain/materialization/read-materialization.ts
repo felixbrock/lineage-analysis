@@ -23,7 +23,7 @@ export class ReadMaterialization
     IUseCase<
       ReadMaterializationRequestDto,
       ReadMaterializationResponseDto,
-      ReadMaterializationAuthDto
+      ReadMaterializationAuthDto,IConnectionPool
     >
 {
   readonly #materializationRepo: IMaterializationRepo;
@@ -42,14 +42,13 @@ export class ReadMaterialization
         request.id,
         auth,
         connPool,
-        request.targetOrgId
       );
       if (!materialization)
         throw new Error(`Materialization with id ${request.id} does not exist`);
 
       return Result.ok(materialization);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
+      if (error instanceof Error && error.message) console.error(error.stack);
       else if (!(error instanceof Error) && error) console.trace(error);
       return Result.fail('');
     }

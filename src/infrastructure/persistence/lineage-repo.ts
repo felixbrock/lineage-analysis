@@ -54,7 +54,6 @@ export default class LineageRepo
     filter: { tolerateIncomplete: boolean; minuteTolerance?: number },
     auth: BaseAuth,
     connPool: IConnectionPool,
-    targetOrgId?: string
   ): Promise<Lineage | null> => {
     const minuteTolerance: number = filter.minuteTolerance || 10;
 
@@ -71,7 +70,7 @@ export default class LineageRepo
 
     try {
       const result = await this.querySnowflake.execute(
-        { queryText, targetOrgId, binds },
+        { queryText, binds },
         auth,
         connPool
       );
@@ -85,7 +84,7 @@ export default class LineageRepo
         ? null
         : this.toEntity(this.buildEntityProps(result.value[0]));
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
+      if (error instanceof Error && error.message) console.error(error.stack);
       else if (!(error instanceof Error) && error) console.trace(error);
       return Promise.reject(new Error());
     }

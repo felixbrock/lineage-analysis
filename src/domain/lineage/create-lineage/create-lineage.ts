@@ -48,7 +48,7 @@ export class CreateLineage
     IUseCase<
       CreateLineageRequestDto,
       CreateLineageResponseDto,
-      CreateLineageAuthDto
+      CreateLineageAuthDto,IConnectionPool
     >
 {
   readonly #createLogic: CreateLogic;
@@ -133,7 +133,6 @@ export class CreateLineage
       lineage,
       this.#auth,
       this.#connPool,
-      this.#targetOrgId
     );
   };
 
@@ -153,21 +152,18 @@ export class CreateLineage
         props.logicsToReplace,
         this.#auth,
         this.#connPool,
-        this.#targetOrgId
       );
     if (props.matsToReplace.length)
       await this.#materializationRepo.replaceMany(
         props.matsToReplace,
         this.#auth,
         this.#connPool,
-        this.#targetOrgId
       );
     if (props.columnsToReplace.length)
       await this.#columnRepo.replaceMany(
         props.columnsToReplace,
         this.#auth,
         this.#connPool,
-        this.#targetOrgId
       );
 
     if (props.logicsToCreate.length)
@@ -175,7 +171,6 @@ export class CreateLineage
         props.logicsToCreate,
         this.#auth,
         this.#connPool,
-        this.#targetOrgId
       );
 
     if (props.matsToCreate.length)
@@ -183,7 +178,6 @@ export class CreateLineage
         props.matsToCreate,
         this.#auth,
         this.#connPool,
-        this.#targetOrgId
       );
 
     if (props.columnsToCreate.length)
@@ -191,7 +185,6 @@ export class CreateLineage
         props.columnsToCreate,
         this.#auth,
         this.#connPool,
-        this.#targetOrgId
       );
   };
 
@@ -206,7 +199,6 @@ export class CreateLineage
         dashboards,
         this.#auth,
         this.#connPool,
-        this.#targetOrgId
       );
   };
 
@@ -221,7 +213,6 @@ export class CreateLineage
         dependencies,
         this.#auth,
         this.#connPool,
-        this.#targetOrgId
       );
   };
 
@@ -237,7 +228,6 @@ export class CreateLineage
       updateDto,
       this.#auth,
       this.#connPool,
-      this.#targetOrgId
     );
   };
 
@@ -383,7 +373,7 @@ export class CreateLineage
         })
       );
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
+      if (error instanceof Error && error.message) console.error(error.stack);
       else if (!(error instanceof Error) && error) console.trace(error);
       return Result.fail('');
     }

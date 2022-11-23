@@ -39,7 +39,7 @@ export class ParseSQL
 
       return Result.ok(parseSQLResponse);
     } catch (error: unknown) {
-      if(error instanceof Error && error.message) console.trace(error.message); else if (!(error instanceof Error) && error) console.trace(error);
+      if(error instanceof Error && error.message) console.error(error.stack); else if (!(error instanceof Error) && error) console.trace(error);
       return Result.fail('');
     }
   }

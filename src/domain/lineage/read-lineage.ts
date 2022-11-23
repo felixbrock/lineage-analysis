@@ -19,7 +19,7 @@ export type ReadLineageResponseDto = Result<Lineage | null>;
 
 export class ReadLineage
   implements
-    IUseCase<ReadLineageRequestDto, ReadLineageResponseDto, ReadLineageAuthDto>
+    IUseCase<ReadLineageRequestDto, ReadLineageResponseDto, ReadLineageAuthDto,IConnectionPool>
 {
   readonly #lineageRepo: ILineageRepo;
 
@@ -40,7 +40,6 @@ export class ReadLineage
             req.id,
             auth,
             connPool,
-            req.targetOrgId
           )
         : await this.#lineageRepo.findLatest(
             {
@@ -58,7 +57,7 @@ export class ReadLineage
 
       return Result.ok(lineage);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
+      if (error instanceof Error && error.message) console.error(error.stack);
       else if (!(error instanceof Error) && error) console.trace(error);
       return Result.fail('');
     }

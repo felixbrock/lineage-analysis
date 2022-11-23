@@ -24,7 +24,7 @@ export class ReadDependencies
     IUseCase<
       ReadDependenciesRequestDto,
       ReadDependenciesResponseDto,
-      ReadDependenciesAuthDto
+      ReadDependenciesAuthDto,IConnectionPool
     >
 {
   readonly #dependencyRepo: IDependencyRepo;
@@ -54,14 +54,13 @@ export class ReadDependencies
         this.#buildDependencyQueryDto(req),
         auth,
         connPool,
-        req.targetOrgId
       );
       if (!dependencies)
         throw new ReferenceError(`Queried dependencies do not exist`);
 
       return Result.ok(dependencies);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
+      if (error instanceof Error && error.message) console.error(error.stack);
       else if (!(error instanceof Error) && error) console.trace(error);
       return Result.fail('');
     }
