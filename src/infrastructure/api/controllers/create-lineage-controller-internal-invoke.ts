@@ -16,7 +16,7 @@ import {
   Request,
   Response,
   UserAccountInfo,
-} from '../../../shared/internal-invoke-controller';
+} from './shared/internal-invoke-controller';
 
 export default class InternalInvokeCreateLineageController extends InternalInvokeController<CreateLineageRequestDto> {
   readonly #createLineage: CreateLineage;

@@ -15,7 +15,7 @@ import {
   BaseController,
   CodeHttp,
   UserAccountInfo,
-} from '../../../shared/base-controller';
+} from './shared/base-controller';
 
 export default class ReadColumnsController extends BaseController {
   readonly #readColumns: ReadColumns;
@@ -106,7 +106,8 @@ export default class ReadColumnsController extends BaseController {
         ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
 
-      await connPool.drain(); await connPool.clear();
+      await connPool.drain();
+      await connPool.clear();
 
       return ReadColumnsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {

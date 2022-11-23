@@ -1,16 +1,16 @@
 import { Request, Response } from 'express';
 import jsonwebtoken from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
-import { appConfig } from '../config';
+import { appConfig } from '../../../../config';
 import {
   GetAccounts,
   GetAccountsResponseDto,
-} from '../domain/account-api/get-accounts';
-import { GetSnowflakeProfile } from '../domain/integration-api/get-snowflake-profile';
-import { SnowflakeProfileDto } from '../domain/integration-api/i-integration-api-repo';
-import { DbOptions } from '../domain/services/i-db';
-import { IConnectionPool } from '../domain/snowflake-api/i-snowflake-api-repo';
-import Result from '../domain/value-types/transient-types/result';
+} from '../../../../domain/account-api/get-accounts';
+import { GetSnowflakeProfile } from '../../../../domain/integration-api/get-snowflake-profile';
+import { SnowflakeProfileDto } from '../../../../domain/integration-api/i-integration-api-repo';
+import { DbOptions } from '../../../../domain/services/i-db';
+import { IConnectionPool } from '../../../../domain/snowflake-api/i-snowflake-api-repo';
+import Result from '../../../../domain/value-types/transient-types/result';
 
 export enum CodeHttp {
   OK = 200,
@@ -31,9 +31,9 @@ export interface UserAccountInfo {
 }
 
 export abstract class BaseController {
-  #getSnowflakeProfile: GetSnowflakeProfile;
+  readonly #getSnowflakeProfile: GetSnowflakeProfile;
 
-  #getAccounts: GetAccounts;
+  readonly #getAccounts: GetAccounts;
 
   constructor(getAccounts: GetAccounts, getSnowflakeProfile: GetSnowflakeProfile) {
     this.#getAccounts = getAccounts;

@@ -8,7 +8,7 @@ import {
   InternalInvokeType,
   parseInternalInvokeType,
   Response,
-} from './shared/internal-invoke-controller';
+} from './infrastructure/api/controllers/shared/internal-invoke-controller';
 import { CreateLineageRequestDto } from './domain/lineage/create-lineage/create-lineage';
 import { parseBiTool } from './domain/value-types/bi-tool';
 

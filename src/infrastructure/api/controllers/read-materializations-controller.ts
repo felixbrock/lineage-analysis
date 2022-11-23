@@ -19,7 +19,7 @@ import {
   BaseController,
   CodeHttp,
   UserAccountInfo,
-} from '../../../shared/base-controller';
+} from './shared/base-controller';
 
 export default class ReadMaterializationsController extends BaseController {
   readonly #readMaterializations: ReadMaterializations;
