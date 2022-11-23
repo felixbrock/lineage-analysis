@@ -20,7 +20,11 @@ import {
 export default class ReadLineageController extends BaseController {
   readonly #readLineage: ReadLineage;
 
-  constructor(readLineage: ReadLineage, getAccounts: GetAccounts, getSnowflakeProfile: GetSnowflakeProfile) {
+  constructor(
+    readLineage: ReadLineage,
+    getAccounts: GetAccounts,
+    getSnowflakeProfile: GetSnowflakeProfile
+  ) {
     super(getAccounts, getSnowflakeProfile);
     this.#readLineage = readLineage;
   }
@@ -35,17 +39,17 @@ export default class ReadLineageController extends BaseController {
     )
       throw new Error('TolerateIncomplete param missing or in wrong format');
 
-      if (
-        minuteTolerance &&
-        (typeof minuteTolerance !== 'string' ||
+    if (
+      minuteTolerance &&
+      (typeof minuteTolerance !== 'string' ||
         Number.isNaN(Number(minuteTolerance)))
-      )
-        throw new Error('MinuteTolerance param in wrong format');
+    )
+      throw new Error('MinuteTolerance param in wrong format');
 
     return {
       id: httpRequest.params.id,
       tolerateIncomplete: tolerateIncomplete === 'true',
-      minuteTolerance: Number(minuteTolerance)
+      minuteTolerance: Number(minuteTolerance),
     };
   };
 
@@ -86,6 +90,9 @@ export default class ReadLineageController extends BaseController {
       const useCaseResult: ReadLineageResponseDto =
         await this.#readLineage.execute(requestDto, authDto, connPool);
 
+      await connPool.drain();
+      await connPool.clear();
+
       if (!useCaseResult.success) {
         return ReadLineageController.badRequest(res);
       }
@@ -93,9 +100,6 @@ export default class ReadLineageController extends BaseController {
       const resultValue = useCaseResult.value
         ? useCaseResult.value.toDto()
         : useCaseResult.value;
-
-        await connPool.drain(); await connPool.clear();
-
 
       return ReadLineageController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {

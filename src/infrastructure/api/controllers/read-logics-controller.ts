@@ -85,6 +85,9 @@ export default class ReadLogicsController extends BaseController {
       const useCaseResult: ReadLogicsResponseDto =
         await this.#readLogics.execute(requestDto, authDto, connPool);
 
+      await connPool.drain();
+      await connPool.clear();
+
       if (!useCaseResult.success) {
         return ReadLogicsController.badRequest(res);
       }
@@ -92,8 +95,6 @@ export default class ReadLogicsController extends BaseController {
       const resultValue = useCaseResult.value
         ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
-
-      await connPool.drain(); await connPool.clear();
 
       return ReadLogicsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {

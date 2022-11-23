@@ -68,7 +68,6 @@ export default class CreateLineageController extends BaseController {
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {
-
       const authHeader = req.headers.authorization;
 
       if (!authHeader)
@@ -95,6 +94,9 @@ export default class CreateLineageController extends BaseController {
       const useCaseResult: CreateLineageResponseDto =
         await this.#createLineage.execute(requestDto, authDto, connPool);
 
+      await connPool.drain();
+      await connPool.clear();
+
       if (!useCaseResult.success) {
         return CreateLineageController.badRequest(res);
       }
@@ -102,9 +104,6 @@ export default class CreateLineageController extends BaseController {
       const resultValue = useCaseResult.value
         ? useCaseResult.value.toDto()
         : useCaseResult.value;
-
-      await connPool.drain();
-      await connPool.clear();
 
       return CreateLineageController.ok(res, resultValue, CodeHttp.CREATED);
 

@@ -73,6 +73,9 @@ export default class ReadLogicController extends BaseController {
         connPool
       );
 
+      await connPool.drain();
+      await connPool.clear();
+      
       if (!useCaseResult.success) {
         return ReadLogicController.badRequest(res);
       }
@@ -81,7 +84,6 @@ export default class ReadLogicController extends BaseController {
         ? useCaseResult.value.toDto()
         : useCaseResult.value;
 
-      await connPool.drain(); await connPool.clear();
 
       return ReadLogicController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {

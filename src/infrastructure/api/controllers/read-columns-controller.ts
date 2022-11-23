@@ -98,6 +98,9 @@ export default class ReadColumnsController extends BaseController {
       const useCaseResult: ReadColumnsResponseDto =
         await this.#readColumns.execute(requestDto, authDto, connPool);
 
+      await connPool.drain();
+      await connPool.clear();
+
       if (!useCaseResult.success) {
         return ReadColumnsController.badRequest(res);
       }
@@ -105,9 +108,6 @@ export default class ReadColumnsController extends BaseController {
       const resultValue = useCaseResult.value
         ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
-
-      await connPool.drain();
-      await connPool.clear();
 
       return ReadColumnsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {

@@ -123,6 +123,9 @@ export default class ReadMaterializationsController extends BaseController {
       const useCaseResult: ReadMaterializationsResponseDto =
         await this.#readMaterializations.execute(requestDto, authDto, connPool);
 
+      await connPool.drain();
+      await connPool.clear();
+
       if (!useCaseResult.success) {
         return ReadMaterializationsController.badRequest(res);
       }
@@ -130,8 +133,6 @@ export default class ReadMaterializationsController extends BaseController {
       const resultValue = useCaseResult.value
         ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
-
-      await connPool.drain(); await connPool.clear();
 
       return ReadMaterializationsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
