@@ -4,7 +4,10 @@ import {
   parseMaterializationType,
 } from '../../domain/entities/materialization';
 import { ColumnDefinition } from './shared/query';
-import { Bind, SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
+import {
+  Bind,
+  SnowflakeEntity,
+} from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import BaseSfRepo, { Query } from './shared/base-sf-repo';
 import {
@@ -122,16 +125,14 @@ export default class MaterializationRepo
       binds.push(dto.type);
       whereClause = whereClause.concat('and type = ? ');
     }
-    if (dto.name) {
+    if (dto.names && dto.names.length) {
       binds.push(
-        Array.isArray(dto.name)
-          ? dto.name.map((el) => `'${el}'`).join(', ')
-          : dto.name
+        dto.names.length === 1
+          ? dto.names[0]
+          : dto.names.map((el) => `'${el}'`).join(', ')
       );
       whereClause = whereClause.concat(
-        Array.isArray(dto.name)
-          ? 'and array_contains(name::variant, array_construct(?))'
-          : 'and name = ? '
+        'and array_contains(name::variant, array_construct(?))'
       );
     }
     if (dto.schemaName) {

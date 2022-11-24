@@ -64,8 +64,8 @@ export default abstract class BaseSfRepo<
         ? null
         : this.toEntity(this.buildEntityProps(result.value[0]));
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.error(error.stack);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return Promise.reject(new Error());
     }
   };
@@ -94,8 +94,8 @@ export default abstract class BaseSfRepo<
 
       return result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.error(error.stack);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return Promise.reject(new Error());
     }
   };
@@ -118,8 +118,8 @@ export default abstract class BaseSfRepo<
 
       return result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.error(error.stack);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return Promise.reject(new Error());
     }
   };
@@ -152,8 +152,8 @@ export default abstract class BaseSfRepo<
 
       return entity.id;
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.error(error.stack);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return Promise.reject(new Error());
     }
   };
@@ -225,8 +225,8 @@ export default abstract class BaseSfRepo<
 
       return entities.map((el) => el.id);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.error(error.stack);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return Promise.reject(new Error());
     }
   };
@@ -269,8 +269,8 @@ export default abstract class BaseSfRepo<
 
       return id;
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.error(error.stack);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return Promise.reject(new Error());
     }
   };
@@ -310,8 +310,8 @@ export default abstract class BaseSfRepo<
 
       return entities.length;
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.error(error.stack);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return Promise.reject(new Error());
     }
   };

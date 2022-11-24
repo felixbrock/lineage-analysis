@@ -6,11 +6,11 @@ import Result from '../value-types/transient-types/result';
 import { IColumnRepo, ColumnQueryDto } from './i-column-repo';
 
 export interface ReadColumnsRequestDto {
-  relationName?: string | string[];
-  name?: string | string[];
+  relationNames?: string[];
+  names?: string[];
   index?: string;
   type?: string;
-  materializationId?: string | string[];
+  materializationIds?: string[];
   lineageId: string;
   targetOrgId?: string;
 }
@@ -55,8 +55,8 @@ export class ReadColumns
 
       return Result.ok(columns);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.error(error.stack);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return Result.fail('');
     }
   }
@@ -66,12 +66,12 @@ export class ReadColumns
       lineageId: request.lineageId,
     };
 
-    if (request.relationName) queryDto.relationName = request.relationName;
-    if (request.name) queryDto.name = request.name;
+    if (request.relationNames) queryDto.relationNames = request.relationNames;
+    if (request.names) queryDto.names = request.names;
     if (request.index) queryDto.index = request.index;
     if (request.type) queryDto.type = request.type;
-    if (request.materializationId)
-      queryDto.materializationId = request.materializationId;
+    if (request.materializationIds)
+      queryDto.materializationIds = request.materializationIds;
 
     return queryDto;
   };

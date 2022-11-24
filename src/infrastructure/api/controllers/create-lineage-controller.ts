@@ -124,8 +124,8 @@ export default class CreateLineageController extends BaseController {
 
       // return CreateLineageController.ok(res, 'Lineage creation is in progress...', CodeHttp.CREATED);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.error(error.stack);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return CreateLineageController.fail(
         res,
         'Internal error occurred while creating lineage'

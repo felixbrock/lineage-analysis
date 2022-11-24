@@ -84,8 +84,8 @@ export default class LineageRepo
         ? null
         : this.toEntity(this.buildEntityProps(result.value[0]));
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.error(error.stack);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return Promise.reject(new Error());
     }
   };

@@ -37,7 +37,7 @@ export default class ReadMaterializationsController extends BaseController {
     const {
       relationName,
       materializationType,
-      name,
+      names,
       schemaName,
       databaseName,
       logicId,
@@ -70,13 +70,19 @@ export default class ReadMaterializationsController extends BaseController {
         'When querying materializations the lineageId query param must be of type string'
       );
 
+      const isStringArray = (obj: unknown): obj is string[] =>
+      Array.isArray(obj) && obj.every((el) => typeof el === 'string');
+
+      if(names && !isStringArray(names))
+      throw new Error('names format not accepted');
+
     return {
       relationName: typeof relationName === 'string' ? relationName : undefined,
       materializationType:
         materializationType && isMaterializationType(materializationType)
           ? materializationType
           : undefined,
-      name: typeof name === 'string' ? name : undefined,
+      names: typeof names === 'string' ? [names] : names,
       schemaName: typeof schemaName === 'string' ? schemaName : undefined,
       databaseName: typeof databaseName === 'string' ? databaseName : undefined,
       logicId: typeof logicId === 'string' ? logicId : undefined,
@@ -136,8 +142,8 @@ export default class ReadMaterializationsController extends BaseController {
 
       return ReadMaterializationsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.error(error.stack);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return ReadMaterializationsController.fail(
         res,
         'Internal error occurred while reading materializations'

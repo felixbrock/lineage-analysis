@@ -14,7 +14,7 @@ import {
 export interface ReadMaterializationsRequestDto {
   relationName?: string;
   materializationType?: MaterializationType;
-  name?: string | string[];
+  names?: string[];
   schemaName?: string;
   databaseName?: string;
   logicId?: string;
@@ -70,8 +70,8 @@ export class ReadMaterializations
 
       return Result.ok(materializations);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.error(error.stack);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return Result.fail('');
     }
   }
@@ -84,7 +84,7 @@ export class ReadMaterializations
     };
 
     if (request.relationName) queryDto.relationName = request.relationName;
-    if (request.name) queryDto.name = request.name;
+    if (request.names) queryDto.names = request.names;
     if (request.logicId) queryDto.logicId = request.logicId;
 
     return queryDto;
