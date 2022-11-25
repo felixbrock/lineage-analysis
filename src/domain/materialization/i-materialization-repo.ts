@@ -1,5 +1,5 @@
 import { Materialization, MaterializationType } from '../entities/materialization';
-import { IBaseServiceRepo } from '../services/i-base-service-repo';
+import { IServiceRepo } from '../services/i-service-repo';
 
 export type MaterializationUpdateDto = undefined;
 
@@ -13,5 +13,5 @@ export interface MaterializationQueryDto {
   lineageId: string;
 }
 
-export type IMaterializationRepo =  IBaseServiceRepo<Materialization, MaterializationQueryDto, MaterializationUpdateDto>;
+export type IMaterializationRepo =  IServiceRepo<Materialization, MaterializationQueryDto, MaterializationUpdateDto>;
 

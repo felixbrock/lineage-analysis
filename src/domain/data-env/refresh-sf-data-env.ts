@@ -5,7 +5,10 @@ import { DataEnv } from './data-env';
 import { Column } from '../entities/column';
 import { Materialization } from '../entities/materialization';
 import { Logic } from '../entities/logic';
-import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
+import {
+  IConnectionPool,
+  SnowflakeEntity,
+} from '../snowflake-api/i-snowflake-api-repo';
 import { ILineageRepo } from '../lineage/i-lineage-repo';
 import { IMaterializationRepo } from '../materialization/i-materialization-repo';
 import { IColumnRepo } from '../column/i-column-repo';
@@ -15,12 +18,18 @@ import { QuerySnowflake } from '../snowflake-api/query-snowflake';
 
 export interface RefreshSfDataEnvRequestDto {
   targetOrgId?: string;
-  latestLineageCompleted: string;
+  lastLineageCompletedTimestamp: string;
 }
 
 export type RefreshSfDataEnvAuthDto = BaseAuth;
 
 export type RefreshSfDataEnvResponse = Result<DataEnv>;
+
+interface DataEnvDiff {
+  addedMatIds: string[];
+  removedMatIds: string[];
+  modifiedMatIds: string[];
+}
 
 export class RefreshSfDataEnv
   extends BaseGetSfDataEnv
@@ -68,6 +77,10 @@ export class RefreshSfDataEnv
   readonly #columnsToRemove: Column[] = [];
 
   #targetOrgId?: string;
+
+  #auth?: RefreshSfDataEnvAuthDto;
+
+  #connPool?: IConnectionPool;
 
   constructor(
     lineageRepo: ILineageRepo,
@@ -217,6 +230,106 @@ export class RefreshSfDataEnv
     this.#logicsToCreate.push(logic);
   };
 
+  #getDataEnvDiff = (values: SnowflakeEntity[]): DataEnvDiff => {
+    const isOptionalOfType = <T>(
+      val: unknown,
+      targetType:
+        | 'string'
+        | 'number'
+        | 'bigint'
+        | 'boolean'
+        | 'symbol'
+        | 'undefined'
+        | 'object'
+        | 'function'
+    ): val is T => val === null || typeof val === targetType;
+
+    const dataEnvDiff = values.reduce(
+      (accumulation: DataEnvDiff, el: SnowflakeEntity): DataEnvDiff => {
+        const localAcc = accumulation;
+
+        const {
+          REMOVED_MAT_ID: removedMatId,
+          ADDED_MAT_ID: addedMatId,
+          ALTERED: altered,
+        } = el;
+
+        if (typeof altered !== 'boolean')
+          throw new Error('Unexpected altered value');
+        if (!isOptionalOfType<string>(removedMatId, 'string'))
+          throw new Error('Unexpected removedMatId value');
+        if (!isOptionalOfType<string>(addedMatId, 'string'))
+          throw new Error('Unexpected addedMatId value');
+
+        if (altered) {
+          if (typeof addedMatId !== 'string')
+            throw new Error('Unexpected added mat id value');
+          localAcc.modifiedMatIds.push(addedMatId);
+        } else if (addedMatId) localAcc.addedMatIds.push(addedMatId);
+        else if (removedMatId) localAcc.removedMatIds.push(removedMatId);
+        else throw new Error('Unhandled use case returned');
+
+        return localAcc;
+      },
+
+      { addedMatIds: [], removedMatIds: [], modifiedMatIds: [] }
+    );
+
+    return dataEnvDiff;
+  };
+
+  #addResources = async (addedMatIds: string[]): Promise<void> => {
+    await Promise.all(addedMatIds.map(async(el) => {
+
+      
+
+
+    }));
+    
+
+  };
+
+  #removeResources = async (addedMatIds: string[]): Promise<void> => {
+    throw new Error('Not implemented');
+  };
+
+  #modifyResources = async (addedMatIds: string[]): Promise<void> => {
+    throw new Error('Not implemented');
+  };
+
+  #refreshDbDataEnv = async (
+    dbName: string,
+    lastLineageCompletedTimestamp: string
+  ): Promise<void> => {
+    if (!this.#auth || !this.#connPool)
+      throw new Error('Missing auth or connPool');
+
+    const binds = [lastLineageCompletedTimestamp];
+
+    const queryText = `select t2.relation_name as removed_mat_id, lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) as added_mat_id, t1.table_name is not null and t2.relation_name is not null as altered
+from cito.lineage.materializations as t2
+full join ${dbName}.information_schema.tables as t1 
+on lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) = t2.relation_name
+where t1.table_name is null or (t2.relation_name is null and t1.table_schema != 'INFORMATION_SCHEMA') 
+or timediff(minute, ?::timestamp_ntz, convert_timezone('UTC', last_altered)::timestamp_ntz) > 0`;
+
+    const queryResult = await this.querySnowflake.execute(
+      { queryText, binds },
+      this.#auth,
+      this.#connPool
+    );
+
+    if (!queryResult.success) throw new Error(queryResult.error);
+    if (!queryResult.value)
+      throw new Error('Query result is missing value field');
+
+    const dataEnvDiff = this.#getDataEnvDiff(queryResult.value);
+
+    await this.#addResources(dataEnvDiff.addedMatIds);
+    await this.#removeResources(dataEnvDiff.removedMatIds);
+    await this.#modifyResources(dataEnvDiff.modifiedMatIds);
+  };
+
   /* Checks Snowflake resources for changes and returns partial data env to merge with existing snapshot */
   async execute(
     req: RefreshSfDataEnvRequestDto,
@@ -226,28 +339,9 @@ export class RefreshSfDataEnv
     try {
       const dbRepresentations = await this.getDbRepresentations(connPool, auth);
 
-      dbRepresentations.forEach(el => {
-        const binds = [req.latestLineageCompleted];
-
-        const queryText = `SELECT t2.relation_name as removed_mat, lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) as added_mat, t1.table_name is not null and t2.relation_name is not null as altered 
-        FROM cito.lineage.materializations as t2
-          full JOIN ${el.name}.information_schema.tables as t1 ON lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) = t2.relation_name
-        WHERE t1.table_name IS NULL or (t2.relation_name is Null and t1.table_schema != 'INFORMATION_SCHEMA') or
-        timediff(minute, ?::timestamp_ntz, convert_timezone('UTC', last_altered)::timestamp_ntz) > 0`;
-
-        this.#materializationRepo.findByCustom
-  
-
-      });
-
-      
-
-
-
-
-
-
-
+      await Promise.all(
+        dbRepresentations.map(async (el) => refreshDbDataEnv())
+      );
 
       const oldMats = await this.#materializationRepo.all(
         auth,
@@ -327,4 +421,6 @@ export class RefreshSfDataEnv
       return Result.fail('');
     }
   }
+
+  abstract 
 }
