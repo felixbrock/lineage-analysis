@@ -19,7 +19,7 @@ import {
   BaseController,
   CodeHttp,
   UserAccountInfo,
-} from '../../../shared/base-controller';
+} from './shared/base-controller';
 
 export default class ReadMaterializationsController extends BaseController {
   readonly #readMaterializations: ReadMaterializations;
@@ -37,7 +37,7 @@ export default class ReadMaterializationsController extends BaseController {
     const {
       relationName,
       materializationType,
-      name,
+      names,
       schemaName,
       databaseName,
       logicId,
@@ -70,13 +70,19 @@ export default class ReadMaterializationsController extends BaseController {
         'When querying materializations the lineageId query param must be of type string'
       );
 
+      const isStringArray = (obj: unknown): obj is string[] =>
+      Array.isArray(obj) && obj.every((el) => typeof el === 'string');
+
+      if(names && !isStringArray(names))
+      throw new Error('names format not accepted');
+
     return {
       relationName: typeof relationName === 'string' ? relationName : undefined,
       materializationType:
         materializationType && isMaterializationType(materializationType)
           ? materializationType
           : undefined,
-      name: typeof name === 'string' ? name : undefined,
+      names: typeof names === 'string' ? [names] : names,
       schemaName: typeof schemaName === 'string' ? schemaName : undefined,
       databaseName: typeof databaseName === 'string' ? databaseName : undefined,
       logicId: typeof logicId === 'string' ? logicId : undefined,
@@ -123,6 +129,9 @@ export default class ReadMaterializationsController extends BaseController {
       const useCaseResult: ReadMaterializationsResponseDto =
         await this.#readMaterializations.execute(requestDto, authDto, connPool);
 
+      await connPool.drain();
+      await connPool.clear();
+
       if (!useCaseResult.success) {
         return ReadMaterializationsController.badRequest(res);
       }
@@ -131,12 +140,10 @@ export default class ReadMaterializationsController extends BaseController {
         ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
 
-      await connPool.drain(); await connPool.clear();
-
       return ReadMaterializationsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return ReadMaterializationsController.fail(
         res,
         'Internal error occurred while reading materializations'

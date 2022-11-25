@@ -32,7 +32,7 @@ export class CreateDependency
     IUseCase<
       CreateDependencyRequestDto,
       CreateDependencyResponse,
-      CreateDependencyAuthDto
+      CreateDependencyAuthDto,IConnectionPool
     >
 {
   readonly #readColumns: ReadColumns;
@@ -64,8 +64,8 @@ export class CreateDependency
 
     const readColumnsResult = await this.#readColumns.execute(
       {
-        relationName: parentRelationNames,
-        name: dependencyRef.name,
+        relationNames: parentRelationNames,
+        names: [dependencyRef.name],
         lineageId,
         targetOrgId: this.#targetOrgId,
       },
@@ -104,9 +104,9 @@ export class CreateDependency
 
     const readSelfColumnResult = await this.#readColumns.execute(
       {
-        relationName: selfRelationName,
+        relationNames: [selfRelationName],
         lineageId,
-        name: dependencyRef.alias || dependencyRef.name,
+        names: [dependencyRef.alias || dependencyRef.name],
         targetOrgId: this.#targetOrgId,
       },
       this.#auth,
@@ -189,13 +189,12 @@ export class CreateDependency
           dependency,
           auth,
           connPool,
-          req.targetOrgId
         );
 
       return Result.ok(dependency);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       console.warn(
         'todo - fix. Creating dependency failed. Empty Result returned instead'
       );

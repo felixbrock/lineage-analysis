@@ -4,11 +4,11 @@ import { IServiceRepo } from '../services/i-service-repo';
 export type ColumnUpdateDto = undefined
 
 export interface ColumnQueryDto {
-  relationName?: string | string[];
-  name?: string | string[];
+  relationNames?: string[];
+  names?: string[];
   index?: string;
   type?: string;
-  materializationId?: string | string[];
+  materializationIds?: string[];
   lineageId: string;
 }
 

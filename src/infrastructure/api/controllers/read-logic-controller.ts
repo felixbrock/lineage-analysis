@@ -15,7 +15,7 @@ import {
   BaseController,
   CodeHttp,
   UserAccountInfo,
-} from '../../../shared/base-controller';
+} from './shared/base-controller';
 
 export default class ReadLogicController extends BaseController {
   readonly #readLogic: ReadLogic;
@@ -73,6 +73,9 @@ export default class ReadLogicController extends BaseController {
         connPool
       );
 
+      await connPool.drain();
+      await connPool.clear();
+      
       if (!useCaseResult.success) {
         return ReadLogicController.badRequest(res);
       }
@@ -81,12 +84,11 @@ export default class ReadLogicController extends BaseController {
         ? useCaseResult.value.toDto()
         : useCaseResult.value;
 
-      await connPool.drain(); await connPool.clear();
 
       return ReadLogicController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return ReadLogicController.fail(
         res,
         'Internal error occurred while reading logic'

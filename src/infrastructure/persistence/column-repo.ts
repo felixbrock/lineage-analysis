@@ -9,7 +9,10 @@ import {
   parseColumnDataType,
 } from '../../domain/entities/column';
 
-import { Bind, SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
+import {
+  Bind,
+  SnowflakeEntity,
+} from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import BaseSfRepo, { Query } from './shared/base-sf-repo';
 import { ColumnDefinition } from './shared/query';
@@ -105,28 +108,20 @@ export default class ColumnRepo
     const binds: Bind[] = [dto.lineageId];
     let whereClause = 'array_contains(?::variant, lineage_ids) ';
 
-    if (dto.relationName) {
-      binds.push(
-        Array.isArray(dto.relationName)
-          ? dto.relationName.map((el) => `'${el}'`).join(', ')
-          : dto.relationName
-      );
+    if (dto.relationNames && dto.relationNames.length) {
+      binds.push(...dto.relationNames);
       whereClause = whereClause.concat(
-        Array.isArray(dto.relationName)
-          ? 'and array_contains(relation_name::variant, array_construct(?))'
-          : 'and relation_name = ? '
+        `and array_contains(relation_name::variant, array_construct(${dto.relationNames
+          .map(() => '?')
+          .join(',')}))`
       );
     }
-    if (dto.name) {
-      binds.push(
-        Array.isArray(dto.name)
-          ? dto.name.map((el) => `'${el}'`).join(', ')
-          : dto.name
-      );
+    if (dto.names && dto.names.length) {
+      binds.push(...dto.names);
       whereClause = whereClause.concat(
-        Array.isArray(dto.name)
-          ? 'and array_contains(name::variant, array_construct(?))'
-          : 'and name = ? '
+        `and array_contains(name::variant, array_construct(${dto.names
+          .map(() => '?')
+          .join(',')}))`
       );
     }
     if (dto.index) {
@@ -137,16 +132,12 @@ export default class ColumnRepo
       binds.push(dto.type);
       whereClause = whereClause.concat('and type = ? ');
     }
-    if (dto.materializationId) {
-      binds.push(
-        Array.isArray(dto.materializationId)
-          ? dto.materializationId.map((el) => `'${el}'`).join(', ')
-          : dto.materializationId
-      );
+    if (dto.materializationIds && dto.materializationIds.length) {
+      binds.push(...dto.materializationIds);
       whereClause = whereClause.concat(
-        Array.isArray(dto.materializationId)
-          ? 'and array_contains(materializationId::variant, array_construct(?))'
-          : 'and materialization_id = ? '
+        `and array_contains(materializationId::variant, array_construct(${dto.materializationIds
+          .map(() => '?')
+          .join(',')}))`
       );
     }
 
@@ -158,7 +149,9 @@ export default class ColumnRepo
 
   buildUpdateQuery(id: string, dto: undefined): Query {
     throw new Error(
-      `Update Method not implemented. Provided Input [${id}, ${JSON.stringify(dto)}]`
+      `Update Method not implemented. Provided Input [${id}, ${JSON.stringify(
+        dto
+      )}]`
     );
   }
 

@@ -42,7 +42,7 @@ export type CreateLogicResponse = Result<Logic>;
 
 export class CreateLogic
   implements
-    IUseCase<CreateLogicRequestDto, CreateLogicResponse, CreateLogicAuthDto>
+    IUseCase<CreateLogicRequestDto, CreateLogicResponse, CreateLogicAuthDto,IConnectionPool>
 {
   readonly #logicRepo: ILogicRepo;
 
@@ -85,13 +85,12 @@ export class CreateLogic
           logic,
           auth,
           connPool,
-          req.props.generalProps.targetOrgId
         );
 
       return Result.ok(logic);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return Result.fail('');
     }
   }

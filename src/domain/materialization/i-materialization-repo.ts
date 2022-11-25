@@ -6,7 +6,7 @@ export type MaterializationUpdateDto = undefined;
 export interface MaterializationQueryDto {
   relationName?: string;
   type?: MaterializationType;
-  name?: string | string[];
+  names?: string[];
   schemaName?: string;
   databaseName?: string;
   logicId?: string;

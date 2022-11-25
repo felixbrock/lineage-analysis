@@ -19,7 +19,7 @@ import {
   BaseController,
   CodeHttp,
   UserAccountInfo,
-} from '../../../shared/base-controller';
+} from './shared/base-controller';
 
 export default class ReadDependenciesController extends BaseController {
   readonly #readDependencies: ReadDependencies;
@@ -102,13 +102,13 @@ export default class ReadDependenciesController extends BaseController {
       const requestDto: ReadDependenciesRequestDto = this.#buildRequestDto(req);
       const authDto = this.#buildAuthDto(getUserAccountInfoResult.value, jwt);
 
-      const connPool = await this.createConnectionPool(
-        jwt,
-        createPool
-      );
+      const connPool = await this.createConnectionPool(jwt, createPool);
 
       const useCaseResult: ReadDependenciesResponseDto =
         await this.#readDependencies.execute(requestDto, authDto, connPool);
+
+      await connPool.drain();
+      await connPool.clear();
 
       if (!useCaseResult.success) {
         return ReadDependenciesController.badRequest(res);
@@ -118,12 +118,10 @@ export default class ReadDependenciesController extends BaseController {
         ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
 
-      await connPool.drain(); await connPool.clear();
-
       return ReadDependenciesController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return ReadDependenciesController.fail(
         res,
         'Internal error occurred while reading dependencies'

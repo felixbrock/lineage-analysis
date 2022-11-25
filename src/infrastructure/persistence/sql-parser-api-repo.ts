@@ -30,8 +30,8 @@ export default class SQLParserApiRepoImpl implements ISQLParserApiRepo {
       if (response.status === 200) return jsonResponse;
       throw new Error(jsonResponse.message);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       /* error code 500 is returned when we encounter a parse
            error. Returning empty fle allows us to continue and 
            create as much lineage as possible instead of failing */

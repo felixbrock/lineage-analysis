@@ -15,7 +15,7 @@ import {
   BaseController,
   CodeHttp,
   UserAccountInfo,
-} from '../../../shared/base-controller';
+} from './shared/base-controller';
 
 export default class ReadLogicsController extends BaseController {
   readonly #readLogics: ReadLogics;
@@ -85,6 +85,9 @@ export default class ReadLogicsController extends BaseController {
       const useCaseResult: ReadLogicsResponseDto =
         await this.#readLogics.execute(requestDto, authDto, connPool);
 
+      await connPool.drain();
+      await connPool.clear();
+
       if (!useCaseResult.success) {
         return ReadLogicsController.badRequest(res);
       }
@@ -93,12 +96,10 @@ export default class ReadLogicsController extends BaseController {
         ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
 
-      await connPool.drain(); await connPool.clear();
-
       return ReadLogicsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return ReadLogicsController.fail(
         res,
         'Internal error occurred while reading logics'

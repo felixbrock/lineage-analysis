@@ -16,12 +16,16 @@ import {
   Request,
   Response,
   UserAccountInfo,
-} from '../../../shared/internal-invoke-controller';
+} from './shared/internal-invoke-controller';
 
 export default class InternalInvokeCreateLineageController extends InternalInvokeController<CreateLineageRequestDto> {
   readonly #createLineage: CreateLineage;
 
-  constructor(createLineage: CreateLineage, getAccounts: GetAccounts, getSnowflakeProfile: GetSnowflakeProfile) {
+  constructor(
+    createLineage: CreateLineage,
+    getAccounts: GetAccounts,
+    getSnowflakeProfile: GetSnowflakeProfile
+  ) {
     super(getAccounts, getSnowflakeProfile);
     this.#createLineage = createLineage;
   }
@@ -71,9 +75,7 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
       const { jwt } = req.auth;
 
       const getUserAccountInfoResult: Result<UserAccountInfo> =
-        await this.getUserAccountInfo(
-          jwt,
-        );
+        await this.getUserAccountInfo(jwt);
 
       if (!getUserAccountInfoResult.success)
         return InternalInvokeCreateLineageController.unauthorized(
@@ -92,7 +94,14 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
       const connPool = await this.createConnectionPool(jwt, createPool);
 
       const useCaseResult: CreateLineageResponseDto =
-        await this.#createLineage.execute(this.#transformReq(req.req), authDto, connPool);
+        await this.#createLineage.execute(
+          this.#transformReq(req.req),
+          authDto,
+          connPool
+        );
+
+      await connPool.drain();
+      await connPool.clear();
 
       if (!useCaseResult.success) {
         return InternalInvokeCreateLineageController.badRequest();
@@ -101,9 +110,6 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
       const resultValue = useCaseResult.value
         ? useCaseResult.value.toDto()
         : useCaseResult.value;
-
-      await connPool.drain();
-      await connPool.clear();
 
       return InternalInvokeCreateLineageController.ok(
         resultValue,
@@ -127,8 +133,8 @@ export default class InternalInvokeCreateLineageController extends InternalInvok
 
       // return CreateLineageController.ok(res, 'Lineage creation is in progress...', CodeHttp.CREATED);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return InternalInvokeCreateLineageController.fail(
         'Internal error occurred while invoking create lineage operation'
       );

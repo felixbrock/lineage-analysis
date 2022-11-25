@@ -15,7 +15,7 @@ import {
   BaseController,
   CodeHttp,
   UserAccountInfo,
-} from '../../../shared/base-controller';
+} from './shared/base-controller';
 
 export default class CreateLineageController extends BaseController {
   readonly #createLineage: CreateLineage;
@@ -68,7 +68,6 @@ export default class CreateLineageController extends BaseController {
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {
-
       const authHeader = req.headers.authorization;
 
       if (!authHeader)
@@ -95,6 +94,9 @@ export default class CreateLineageController extends BaseController {
       const useCaseResult: CreateLineageResponseDto =
         await this.#createLineage.execute(requestDto, authDto, connPool);
 
+      await connPool.drain();
+      await connPool.clear();
+
       if (!useCaseResult.success) {
         return CreateLineageController.badRequest(res);
       }
@@ -102,9 +104,6 @@ export default class CreateLineageController extends BaseController {
       const resultValue = useCaseResult.value
         ? useCaseResult.value.toDto()
         : useCaseResult.value;
-
-      await connPool.drain();
-      await connPool.clear();
 
       return CreateLineageController.ok(res, resultValue, CodeHttp.CREATED);
 
@@ -125,8 +124,8 @@ export default class CreateLineageController extends BaseController {
 
       // return CreateLineageController.ok(res, 'Lineage creation is in progress...', CodeHttp.CREATED);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return CreateLineageController.fail(
         res,
         'Internal error occurred while creating lineage'

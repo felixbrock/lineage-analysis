@@ -21,7 +21,7 @@ export class QuerySfQueryHistory
     IUseCase<
       QuerySfQueryHistoryRequestDto,
       QuerySfQueryHistoryResponseDto,
-      QuerySfQueryHistoryAuthDto
+      QuerySfQueryHistoryAuthDto,IConnectionPool
     >
 {
   readonly #querySnowflake: QuerySnowflake;
@@ -87,7 +87,6 @@ export class QuerySfQueryHistory
         {
           queryText,
           binds,
-          targetOrgId: request.targetOrgId,
         },
         auth,
         connPool
@@ -98,8 +97,8 @@ export class QuerySfQueryHistory
 
       return Result.ok(queryResult.value);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return Result.fail('');
     }
   }

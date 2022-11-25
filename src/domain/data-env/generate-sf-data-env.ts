@@ -128,7 +128,7 @@ export class GenerateSfDataEnv extends BaseGetSfDataEnv
     if (!this.#connPool || !this.#auth)
       throw new Error('Missing properties for generating sf data env');
 
-    const queryText = `select table_catalog, table_schema, table_name, table_owner, table_type, is_transient, comment  from ${targetDbName}.information_schema.tables where table_schema != 'INFORMATION_SCHEMA';`;
+    const queryText = `select table_catalog, table_schema, table_name, table_owner, table_type, is_transient, comment  from ${targetDbName}.information_schema.tables where table_schema != upper('information_schema');`;
     const queryResult = await this.#querySnowflake.execute(
       { queryText, binds: [] },
       this.#auth,
@@ -242,7 +242,7 @@ export class GenerateSfDataEnv extends BaseGetSfDataEnv
     if (!this.#connPool || !this.#auth)
       throw new Error('Missing properties for generating sf data env');
 
-    const queryText = `select table_catalog, table_schema, table_name, column_name, ordinal_position, is_nullable, data_type, is_identity, comment from ${targetDbName}.information_schema.columns where table_schema != 'INFORMATION_SCHEMA'`;
+    const queryText = `select table_catalog, table_schema, table_name, column_name, ordinal_position, is_nullable, data_type, is_identity, comment from ${targetDbName}.information_schema.columns where table_schema != uppper('information_schema')`;
     const queryResult = await this.#querySnowflake.execute(
       { queryText, binds: [] },
       this.#auth,

@@ -15,7 +15,7 @@ import {
   BaseController,
   CodeHttp,
   UserAccountInfo,
-} from '../../../shared/base-controller';
+} from './shared/base-controller';
 
 export default class ReadColumnsController extends BaseController {
   readonly #readColumns: ReadColumns;
@@ -31,11 +31,11 @@ export default class ReadColumnsController extends BaseController {
 
   #buildRequestDto = (httpRequest: Request): ReadColumnsRequestDto => {
     const {
-      relationName,
-      name,
+      relationNames,
+      names,
       index,
       type,
-      materializationId,
+      materializationIds,
       lineageId,
       targetOrgId,
     } = httpRequest.query;
@@ -49,13 +49,30 @@ export default class ReadColumnsController extends BaseController {
         'When querying columns the lineageId query param must be of type string'
       );
 
+    const isStringArray = (obj: unknown): obj is string[] =>
+      Array.isArray(obj) && obj.every((el) => typeof el === 'string');
+
+    if (
+      relationNames &&
+      typeof relationNames !== 'string' &&
+      !isStringArray(relationNames)
+    )
+      throw new Error('relationNames format not accepted');
+    if (names && !isStringArray(names))
+      throw new Error('names format not accepted');
+    if (materializationIds && !isStringArray(materializationIds))
+      throw new Error('materializationIds format not accepted');
+
     return {
-      relationName: typeof relationName === 'string' ? relationName : undefined,
-      name: typeof name === 'string' ? name : undefined,
+      relationNames:
+        typeof relationNames === 'string' ? [relationNames] : relationNames,
+      names: typeof names === 'string' ? [names] : names,
       index: typeof index === 'string' ? index : undefined,
       type: typeof type === 'string' ? type : undefined,
-      materializationId:
-        typeof materializationId === 'string' ? materializationId : undefined,
+      materializationIds:
+        typeof materializationIds === 'string'
+          ? [materializationIds]
+          : materializationIds,
       lineageId,
       targetOrgId: typeof targetOrgId === 'string' ? targetOrgId : undefined,
     };
@@ -98,6 +115,9 @@ export default class ReadColumnsController extends BaseController {
       const useCaseResult: ReadColumnsResponseDto =
         await this.#readColumns.execute(requestDto, authDto, connPool);
 
+      await connPool.drain();
+      await connPool.clear();
+
       if (!useCaseResult.success) {
         return ReadColumnsController.badRequest(res);
       }
@@ -106,12 +126,10 @@ export default class ReadColumnsController extends BaseController {
         ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
 
-      await connPool.drain(); await connPool.clear();
-
       return ReadColumnsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return ReadColumnsController.fail(
         res,
         'Internal error occurred while reading columns'

@@ -25,7 +25,7 @@ export class CreateExternalDependency
     IUseCase<
       CreateExternalDependencyRequestDto,
       CreateExternalDependencyResponse,
-      CreateExternalDependencyAuthDto
+      CreateExternalDependencyAuthDto,IConnectionPool
     >
 {
 
@@ -65,13 +65,12 @@ export class CreateExternalDependency
           dependency,
           auth,
           connPool,
-          req.targetOrgId
         );
 
       return Result.ok(dependency);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error ) console.error(error.stack);
+      else if (error) console.trace(error);
       return Result.fail('');
     }
   }
