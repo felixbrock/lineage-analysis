@@ -126,8 +126,11 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
         'Connection pool not provided. Not able to perform sf queries'
       );
 
-    const queryText =
-      "select database_name, database_owner, is_transient, comment from cito.information_schema.databases where not array_contains(database_name::variant, array_construct(upper('snowflake'), upper('snowflake_sample_data'), upper('cito')))";
+    const sfDbName = 'snowflake';
+    const sfSampleDataDb = 'snowflake_sample_data';
+    const citoDbName = 'cito';
+
+    const queryText = `select database_name, database_owner, is_transient, comment from cito.information_schema.databases where not array_contains(database_name::variant, array_construct('${sfDbName}', '${sfSampleDataDb}', '${citoDbName}', upper('${sfDbName}'), upper('${sfSampleDataDb}'), upper('${citoDbName}')))`;
     const queryResult = await this.#querySnowflake.execute(
       { queryText, binds: [] },
       this.#auth,
@@ -182,7 +185,7 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
         'Connection pool not provided. Not able to perform sf queries'
       );
 
-    const queryText = `select table_catalog, table_schema, table_name, table_owner, table_type, is_transient, comment  from ${targetDbName}.information_schema.tables where table_schema != upper('information_schema');`;
+    const queryText = `select table_catalog, table_schema, table_name, table_owner, table_type, is_transient, comment  from ${targetDbName}.information_schema.tables where table_schema not ilike 'information_schema';`;
     const queryResult = await this.#querySnowflake.execute(
       { queryText, binds: [] },
       this.#auth,
