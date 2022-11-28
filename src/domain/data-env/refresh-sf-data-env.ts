@@ -15,6 +15,10 @@ import { IColumnRepo } from '../column/i-column-repo';
 import { ILogicRepo } from '../logic/i-logic-repo';
 import BaseGetSfDataEnv, { ColumnRepresentation } from './base-get-sf-data-env';
 import { QuerySnowflake } from '../snowflake-api/query-snowflake';
+import { CreateMaterialization } from '../materialization/create-materialization';
+import { CreateColumn } from '../column/create-column';
+import { CreateLogic } from '../logic/create-logic';
+import { ParseSQL } from '../sql-parser-api/parse-sql';
 
 export interface RefreshSfDataEnvRequestDto {
   targetOrgId?: string;
@@ -37,7 +41,8 @@ export class RefreshSfDataEnv
     IUseCase<
       RefreshSfDataEnvRequestDto,
       RefreshSfDataEnvResponse,
-      RefreshSfDataEnvAuthDto
+      RefreshSfDataEnvAuthDto,
+      IConnectionPool
     >
 {
   readonly #lineageRepo: ILineageRepo;
@@ -48,33 +53,33 @@ export class RefreshSfDataEnv
 
   readonly #logicRepo: ILogicRepo;
 
-  #logicsToHandle?: Logic[];
+  // #logicsToHandle?: Logic[];
 
-  #oldLogics: Logic[] = [];
+  // #oldLogics: Logic[] = [];
 
   readonly #logicsToReplace: Logic[] = [];
 
   readonly #logicsToCreate: Logic[] = [];
 
-  readonly #logicsToRemove: Logic[] = [];
+  readonly #logicIdsToRemove: string[] = [];
 
-  #matsToHandle?: Materialization[];
+  // #matsToHandle?: Materialization[];
 
   readonly #matsToReplace: Materialization[] = [];
 
   readonly #matsToCreate: Materialization[] = [];
 
-  readonly #matsToRemove: Materialization[] = [];
+  readonly #matIdsToRemove: string[] = [];
 
-  #columnsToHandleByMatId?: { [key: string]: Column[] };
+  // #columnsToHandleByMatId?: { [key: string]: Column[] };
 
-  #oldColumnsByMatId: { [key: string]: Column[] } = {};
+  // #oldColumnsByMatId: { [key: string]: Column[] } = {};
 
   readonly #columnsToReplace: Column[] = [];
 
   readonly #columnsToCreate: Column[] = [];
 
-  readonly #columnsToRemove: Column[] = [];
+  readonly #columnIdsToRemove: string[] = [];
 
   #targetOrgId?: string;
 
@@ -87,9 +92,19 @@ export class RefreshSfDataEnv
     materializationRepo: IMaterializationRepo,
     columnRepo: IColumnRepo,
     logicRepo: ILogicRepo,
-    querySnowflake: QuerySnowflake
+    querySnowflake: QuerySnowflake,
+    createMaterialization: CreateMaterialization,
+    createColumn: CreateColumn,
+    createLogic: CreateLogic,
+    parseSQL: ParseSQL
   ) {
-    super(querySnowflake);
+    super(
+      createMaterialization,
+      createColumn,
+      createLogic,
+      querySnowflake,
+      parseSQL
+    );
     this.#lineageRepo = lineageRepo;
     this.#materializationRepo = materializationRepo;
     this.#columnRepo = columnRepo;
@@ -146,88 +161,65 @@ export class RefreshSfDataEnv
     return mat;
   };
 
-  static #groupByMatId = <T extends { materializationId: string }>(
-    accumulation: { [key: string]: T[] },
-    element: T
-  ): { [key: string]: T[] } => {
-    const localAcc = accumulation;
-
-    const key = element.materializationId;
-    if (!(key in accumulation)) {
-      localAcc[key] = [];
-    }
-    localAcc[key].push(element);
-    return localAcc;
-  };
-
   #mergeMatColumns = async (
-    matToHandleId: string,
-    oldMatId: string
-  ): Promise<{ columnsToReplace: Column[]; columnsToCreate: Column[] }> => {
+    newCols: Column[],
+    oldCols: Column[]
+  ): Promise<{
+    columnsToReplace: Column[];
+    columnsToCreate: Column[];
+    columnIdsToRemove: string[];
+  }> => {
     const columnsToReplace: Column[] = [];
     const columnsToCreate: Column[] = [];
 
     await Promise.all(
-      this.#columnsToHandleByMatId[matToHandleId].map(
-        async (columnToHandle) => {
-          const matchingColumn = this.#oldColumnsByMatId[oldMatId].find(
-            (oldColumn) => oldColumn.name === columnToHandle.name
+      newCols.map(async (columnToHandle) => {
+        const matchingColumn = oldCols.find(
+          (oldColumn) => oldColumn.name === columnToHandle.name
+        );
+
+        if (matchingColumn) {
+          const updatedColumn = await this.#buildColumnToReplace(
+            {
+              id: matchingColumn.id,
+              name: matchingColumn.name,
+              materializationId: matchingColumn.materializationId,
+              lineageIds: matchingColumn.lineageIds,
+            },
+            columnToHandle
           );
 
-          if (matchingColumn) {
-            const updatedColumn = await this.#buildColumnToReplace(
-              {
-                id: matchingColumn.id,
-                name: matchingColumn.name,
-                materializationId: matchingColumn.materializationId,
-                lineageIds: matchingColumn.lineageIds,
-              },
-              columnToHandle
-            );
-
-            columnsToReplace.push(updatedColumn);
-          } else columnsToCreate.push(columnToHandle);
-        }
-      )
+          columnsToReplace.push(updatedColumn);
+        } else columnsToCreate.push(columnToHandle);
+      })
     );
 
-    return { columnsToCreate, columnsToReplace };
+    const isString = (obj: unknown): obj is string => typeof obj === 'string';
+
+    const columnIdsToRemove = oldCols
+      .map((oldCol) => {
+        const matchingColumn = newCols.find(
+          (newCol) => newCol.name === oldCol.name
+        );
+
+        if (!matchingColumn) return oldCol.id;
+        return undefined;
+      })
+      .filter(isString);
+
+    return { columnsToCreate, columnsToReplace, columnIdsToRemove };
   };
 
-  #mergeMatLogic = async (
-    logicToHandleId: string,
-    oldLogicId: string
-  ): Promise<Logic> => {
-    const logicToHandle = this.#logicsToHandle.find(
-      (logic) => logic.id === logicToHandleId
-    );
-    const oldLogic = this.#oldLogics.find((logic) => logic.id === oldLogicId);
-
-    if (!logicToHandle || !oldLogic)
-      throw new Error(
-        'While merging logics an error occured. Error: Logic(s) not found'
-      );
-
+  #mergeMatLogic = async (newLogic: Logic, oldLogic: Logic): Promise<Logic> => {
     const updatedLogic = this.#buildLogicToReplace(
       {
         id: oldLogic.id,
         lineageIds: oldLogic.lineageIds,
       },
-      logicToHandle
+      newLogic
     );
 
     return updatedLogic;
-  };
-
-  #handleNewMat = (mat: Materialization): void => {
-    this.#matsToCreate.push(mat);
-    this.#columnsToCreate.push(...this.#columnsToHandleByMatId[mat.id]);
-
-    if (!mat.logicId) return;
-
-    const logic = this.#logicsToHandle.find((el) => el.id === mat.logicId);
-    if (!logic) throw new Error(`Missing logic for logic id ${mat.logicId}`);
-    this.#logicsToCreate.push(logic);
   };
 
   #getDataEnvDiff = (values: SnowflakeEntity[]): DataEnvDiff => {
@@ -278,16 +270,28 @@ export class RefreshSfDataEnv
     return dataEnvDiff;
   };
 
-  generateDbResources = async (base: string): Promise<void> => {
-    const matRepresentations = await this.getMatRepresentations(base);
-    const columnRepresentations = await this.getColumnRepresentations(base);
+  #addResourcesToAdd = async (
+    addedMatIds: string[],
+    dbName: string
+  ): Promise<void> => {
+    const whereCondition = `array_contains(lower(table_name)::variant, array_construct(${addedMatIds
+      .map(() => `?`)
+      .join(', ')}))`;
+    const binds = addedMatIds.map((el) => el.toLowerCase());
+    const matRepresentations = await this.getMatRepresentations(
+      dbName,
+      whereCondition,
+      binds
+    );
+    const columnRepresentations = await this.getColumnRepresentations(
+      dbName,
+      whereCondition,
+      binds
+    );
 
     const colRepresentationsByRelationName: {
       [key: string]: ColumnRepresentation[];
-    } = columnRepresentations.reduce(
-      this.groupByRelationName,
-      {}
-    );
+    } = columnRepresentations.reduce(this.groupByRelationName, {});
 
     this.generateCatalog(matRepresentations, colRepresentationsByRelationName);
 
@@ -304,7 +308,7 @@ export class RefreshSfDataEnv
           el.databaseName
         );
 
-        await this.generateDWResource(
+        const resourcesToCreate = await this.generateDWResource(
           {
             matRepresentation: el,
             logicRepresentation,
@@ -314,27 +318,171 @@ export class RefreshSfDataEnv
           },
           options
         );
+
+        this.#matsToCreate.push(resourcesToCreate.matToCreate);
+        this.#columnsToCreate.push(...resourcesToCreate.colsToCreate);
+        this.#logicsToCreate.push(resourcesToCreate.logicToCreate);
       })
     );
   };
 
-  #addResources = async (addedMatIds: string[]): Promise<void> => {
-    await Promise.all(addedMatIds.map(async(el) => {
+  #groupByMatId = <T extends { materializationId: string }>(
+    accumulation: { [key: string]: T[] },
+    element: T
+  ): { [key: string]: T[] } => {
+    const localAcc = accumulation;
 
-    gene    
-
-
-    }));
-    
-
+    const key = element.materializationId;
+    if (!(key in accumulation)) {
+      localAcc[key] = [];
+    }
+    localAcc[key].push(element);
+    return localAcc;
   };
 
-  #removeResources = async (addedMatIds: string[]): Promise<void> => {
-    throw new Error('Not implemented');
+  #addResourcesToModify = async (
+    modifiedMatIds: string[],
+    dbName: string
+  ): Promise<void> => {
+    if (!this.#auth || !this.#connPool)
+      throw new Error('auth or connPool missing');
+
+    const oldMats = await this.#materializationRepo.findBy(
+      { ids: modifiedMatIds },
+      this.#auth,
+      this.#connPool
+    );
+
+    const oldCols = await this.#columnRepo.findBy(
+      { materializationIds: modifiedMatIds },
+      this.#auth,
+      this.#connPool
+    );
+
+    const oldColsByMatId: { [key: string]: Column[] } = oldCols.reduce(
+      this.#groupByMatId,
+      {}
+    );
+
+    const oldLogics = await this.#logicRepo.findBy(
+      { materializationIds: modifiedMatIds },
+      this.#auth,
+      this.#connPool
+    );
+
+    const whereCondition = `array_contains(lower(table_name)::variant, array_construct(${modifiedMatIds
+      .map(() => `?`)
+      .join(', ')}))`;
+    const binds = modifiedMatIds.map((el) => el.toLowerCase());
+    const newMatReps = await this.getMatRepresentations(
+      dbName,
+      whereCondition,
+      binds
+    );
+    const newColReps = await this.getColumnRepresentations(
+      dbName,
+      whereCondition,
+      binds
+    );
+
+    const colRepresentationsByRelationName: {
+      [key: string]: ColumnRepresentation[];
+    } = newColReps.reduce(this.groupByRelationName, {});
+
+    await Promise.all(
+      newMatReps.map(async (el) => {
+        const options = {
+          writeToPersistence: false,
+        };
+
+        const newLogicRep = await this.getLogicRepresentation(
+          el.type === 'view' ? 'view' : 'table',
+          el.name,
+          el.schemaName,
+          el.databaseName
+        );
+
+        const {
+          matToCreate: matToHandle,
+          colsToCreate: colsToHandle,
+          logicToCreate: logicToHandle,
+        } = await this.generateDWResource(
+          {
+            matRepresentation: el,
+            logicRepresentation: newLogicRep,
+            columnRepresentations:
+              colRepresentationsByRelationName[el.relationName],
+            relationName: el.relationName,
+          },
+          options
+        );
+
+        const matchingMat = oldMats.find(
+          (oldMat) => matToHandle.relationName === oldMat.relationName
+        );
+
+        if (!matchingMat) throw new Error('No mat to modify found');
+
+        const updatedMat = await this.#buildMatToReplace(
+          {
+            lineageIds: matchingMat.lineageIds,
+            id: matchingMat.id,
+            logicId:
+              matToHandle.logicId && !matchingMat.logicId
+                ? matToHandle.logicId
+                : matchingMat.logicId,
+            relationName: matchingMat.relationName,
+          },
+          matToHandle
+        );
+        this.#matsToReplace.push(updatedMat);
+
+        const { columnsToCreate, columnsToReplace, columnIdsToRemove } =
+          await this.#mergeMatColumns(
+            colsToHandle,
+            oldColsByMatId[matchingMat.id]
+          );
+
+        this.#columnsToCreate.push(...columnsToCreate);
+        this.#columnsToReplace.push(...columnsToReplace);
+        this.#columnIdsToRemove.push(...columnIdsToRemove);
+
+        const oldLogic = oldLogics.find(
+          (element) => element.id === matchingMat.logicId
+        );
+        if (!oldLogic) throw new Error('Old logic not found');
+
+        if (matToHandle.logicId && matchingMat.logicId) {
+          const logic = await this.#mergeMatLogic(logicToHandle, oldLogic);
+
+          this.#logicsToReplace.push(logic);
+        } else if (!matToHandle.logicId && matchingMat.logicId)
+          console.warn(
+            `Mat to handle ${matToHandle.id} that is matching old mat ${matchingMat.id} with logic id ${matchingMat.logicId} is missing logic id`
+          );
+      })
+    );
   };
 
-  #modifyResources = async (addedMatIds: string[]): Promise<void> => {
-    throw new Error('Not implemented');
+  #addResourcesToRemove = async (removedMatIds: string[]): Promise<void> => {
+    if (!this.#auth || !this.#connPool)
+      throw new Error('auth or connPool missing');
+
+    const columns = await this.#columnRepo.findBy(
+      { materializationIds: removedMatIds },
+      this.#auth,
+      this.#connPool
+    );
+
+    const logics = await this.#logicRepo.findBy(
+      { materializationIds: removedMatIds },
+      this.#auth,
+      this.#connPool
+    );
+
+    this.#matIdsToRemove.push(...removedMatIds);
+    this.#columnIdsToRemove.push(...columns.map((el) => el.id));
+    this.#logicIdsToRemove.push(...logics.map((el) => el.id));
   };
 
   #refreshDbDataEnv = async (
@@ -347,11 +495,11 @@ export class RefreshSfDataEnv
     const binds = [lastLineageCompletedTimestamp];
 
     const queryText = `select t2.relation_name as removed_mat_id, lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) as added_mat_id, t1.table_name is not null and t2.relation_name is not null as altered
-from cito.lineage.materializations as t2
-full join ${dbName}.information_schema.tables as t1 
-on lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) = t2.relation_name
-where t1.table_name is null or (t2.relation_name is null and t1.table_schema != 'INFORMATION_SCHEMA') 
-or timediff(minute, ?::timestamp_ntz, convert_timezone('UTC', last_altered)::timestamp_ntz) > 0`;
+      from cito.lineage.materializations as t2
+      full join ${dbName}.information_schema.tables as t1 
+      on lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) = t2.relation_name
+      where t1.table_name is null or (t2.relation_name is null and t1.table_schema != 'INFORMATION_SCHEMA') 
+      or timediff(minute, ?::timestamp_ntz, convert_timezone('UTC', last_altered)::timestamp_ntz) > 0`;
 
     const queryResult = await this.querySnowflake.execute(
       { queryText, binds },
@@ -365,9 +513,9 @@ or timediff(minute, ?::timestamp_ntz, convert_timezone('UTC', last_altered)::tim
 
     const dataEnvDiff = this.#getDataEnvDiff(queryResult.value);
 
-    await this.#addResources(dataEnvDiff.addedMatIds);
-    await this.#removeResources(dataEnvDiff.removedMatIds);
-    await this.#modifyResources(dataEnvDiff.modifiedMatIds);
+    await this.#addResourcesToAdd(dataEnvDiff.addedMatIds, dbName);
+    await this.#addResourcesToRemove(dataEnvDiff.removedMatIds);
+    await this.#addResourcesToModify(dataEnvDiff.modifiedMatIds, dbName);
   };
 
   /* Checks Snowflake resources for changes and returns partial data env to merge with existing snapshot */
@@ -380,80 +528,21 @@ or timediff(minute, ?::timestamp_ntz, convert_timezone('UTC', last_altered)::tim
       const dbRepresentations = await this.getDbRepresentations(connPool, auth);
 
       await Promise.all(
-        dbRepresentations.map(async (el) => refreshDbDataEnv())
-      );
-
-      const oldMats = await this.#materializationRepo.all(
-        auth,
-        connPool,
-        this.#targetOrgId
-      );
-
-      this.#oldColumnsByMatId = (
-        await this.#columnRepo.all(auth, connPool, this.#targetOrgId)
-      ).reduce(RefreshSfDataEnv.#groupByMatId, {});
-
-      this.#oldLogics = await this.#logicRepo.all(
-        auth,
-        connPool,
-        this.#targetOrgId
-      );
-
-      await Promise.all(
-        this.#matsToHandle.map(async (matToHandle) => {
-          const matchingMat = oldMats.find(
-            (oldMat) => matToHandle.relationName === oldMat.relationName
-          );
-
-          if (!matchingMat) {
-            this.#handleNewMat(matToHandle);
-            return;
-          }
-
-          const updatedMat = await this.#buildMatToReplace(
-            {
-              lineageIds: matchingMat.lineageIds,
-              id: matchingMat.id,
-              logicId:
-                matToHandle.logicId && !matchingMat.logicId
-                  ? matToHandle.logicId
-                  : matchingMat.logicId,
-              relationName: matchingMat.relationName,
-            },
-            matToHandle
-          );
-          this.#matsToReplace.push(updatedMat);
-
-          const { columnsToCreate, columnsToReplace } =
-            await this.#mergeMatColumns(matToHandle.id, matchingMat.id);
-
-          this.#columnsToCreate.push(...columnsToCreate);
-          this.#columnsToReplace.push(...columnsToReplace);
-
-          if (matToHandle.logicId && matchingMat.logicId) {
-            const logic = await this.#mergeMatLogic(
-              matToHandle.logicId,
-              matchingMat.logicId
-            );
-
-            this.#logicsToReplace.push(logic);
-          } else if (!matToHandle.logicId && matchingMat.logicId)
-            console.warn(
-              `Mat to handle ${matToHandle.id} that is matching old mat ${matchingMat.id} with logic id ${matchingMat.logicId} is missing logic id`
-            );
-        })
+        dbRepresentations.map(async (el) =>
+          this.#refreshDbDataEnv(el.name, req.lastLineageCompletedTimestamp)
+        )
       );
 
       return Result.ok({
         matsToCreate: this.#matsToCreate,
         matsToReplace: this.#matsToReplace,
-        matsToRemove: this.#matsToRemove,
+        matsToRemove: this.#matIdsToRemove,
         columnsToCreate: this.#columnsToCreate,
         columnsToReplace: this.#columnsToReplace,
-        columnsToRemove: this.#columnsToRemove,
+        columnsToRemove: this.#columnIdsToRemove,
         logicsToCreate: this.#logicsToCreate,
         logicsToReplace: this.#logicsToReplace,
-        logicsToRemove: this.#logicsToRemove,
+        logicsToRemove: this.#logicIdsToRemove,
       });
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);

@@ -4,6 +4,7 @@ import { IServiceRepo } from '../services/i-service-repo';
 export type MaterializationUpdateDto = undefined;
 
 export interface MaterializationQueryDto {
+  ids?: string[];
   relationName?: string;
   type?: MaterializationType;
   names?: string[];

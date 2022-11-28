@@ -298,9 +298,9 @@ export class CreateLineage
     }
   );
 
-  const refreshdDataEnv = await dataEnvRefresher.refresh(this.#connPool);
+  const refreshedDataEnv = await dataEnvRefresher.refresh(this.#connPool);
 
-  return refreshdDataEnv;
+  return refreshedDataEnv;
 };
 
 #getNewDataEnv = async (lineageId:string): Promise<DataEnv> =>{
@@ -362,7 +362,7 @@ export class CreateLineage
       const dataEnv = this.#getNewDataEnv()
 
       console.log('...writing dw resources to persistence');
-      await this.#writeWhResourcesToPersistence({ ...refreshdDataEnv });
+      await this.#writeWhResourcesToPersistence({ ...c });
 
       console.log('...building dependencies');
       const dependenciesBuilder = await new DependenciesBuilder(

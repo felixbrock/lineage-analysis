@@ -5,7 +5,10 @@ import {
   Refs,
 } from '../../domain/entities/logic';
 import { ColumnDefinition } from './shared/query';
-import { Bind, SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
+import {
+  Bind,
+  SnowflakeEntity,
+} from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import BaseSfRepo, { Query } from './shared/base-sf-repo';
 import {
@@ -101,12 +104,25 @@ export default class LogicRepo
 
   buildFindByQuery(dto: LogicQueryDto): Query {
     const binds: Bind[] = [dto.lineageId];
-    if (dto.relationName) binds.push(dto.relationName);
+    let whereClause = 'array_contains(?::variant, lineage_ids) ';
+
+    if (dto.relationName) {
+      binds.push(dto.relationName);
+      whereClause = whereClause.concat('and relation_name = ? ');
+    }
+
+    if (dto.materializationIds && dto.materializationIds.length) {
+      binds.push(...dto.materializationIds);
+      whereClause = whereClause.concat(
+        `and array_contains(materializationId::variant, array_construct(${dto.materializationIds
+          .map(() => '?')
+          .join(',')}))`
+      );
+    }
 
     const text = `select * from cito.lineage.${this.matName}
-  where array_contains(?::variant, lineage_ids) ${
-    dto.relationName ? 'and relation_name = ?' : ''
-  };`;
+  where ${whereClause};`;
+
     return { text, binds };
   }
 

@@ -27,9 +27,11 @@ export class GenerateSfDataEnv
       IConnectionPool
     >
 {
-  generateDbResources = async (base: string): Promise<void> => {
-    const matRepresentations = await this.getMatRepresentations(base);
-    const columnRepresentations = await this.getColumnRepresentations(base);
+  #generateDbResources = async (dbName: string): Promise<void> => {
+    const binds = ['information_schema'];
+    const whereCondition = `table_schema not ilike ?`;
+    const matRepresentations = await this.getMatRepresentations(dbName, whereCondition , binds );
+    const columnRepresentations = await this.getColumnRepresentations(dbName, whereCondition, binds);
 
     const colRepresentationsByRelationName: {
       [key: string]: ColumnRepresentation[];
@@ -82,7 +84,7 @@ export class GenerateSfDataEnv
 
       await Promise.all(
         dbRepresentations.map(async (el) => {
-          await this.generateDbResources(el.name);
+          await this.#generateDbResources(el.name);
         })
       );
 

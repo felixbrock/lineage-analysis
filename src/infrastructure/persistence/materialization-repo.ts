@@ -117,6 +117,16 @@ export default class MaterializationRepo
     const binds: Bind[] = [dto.lineageId];
     let whereClause = 'array_contains(?::variant, lineage_ids) ';
 
+    if (dto.ids && dto.ids.length) {
+      binds.push(
+        dto.ids.length === 1
+          ? dto.ids[0]
+          : dto.ids.map((el) => `'${el}'`).join(', ')
+      );
+      whereClause = whereClause.concat(
+        'and array_contains(id::variant, array_construct(?))'
+      );
+    }
     if (dto.relationName) {
       binds.push(dto.relationName);
       whereClause = whereClause.concat('and relation_name = ? ');

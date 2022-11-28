@@ -5,11 +5,11 @@ import { Materialization } from "../entities/materialization";
 export interface DataEnv {
   matsToCreate?: Materialization[];
   matsToReplace?: Materialization[];
-  matsToRemove?: Materialization[];
+  matIdsToRemove?: Materialization[];
   columnsToCreate?: Column[];
   columnsToReplace?: Column[];
-  columnsToRemove?: Column[];
+  columnIdsToRemove?: Column[];
   logicsToCreate?: Logic[];
   logicsToReplace?: Logic[];
-  logicsToRemove?: Logic[];
+  logicIdsToRemove?: Logic[];
 }
