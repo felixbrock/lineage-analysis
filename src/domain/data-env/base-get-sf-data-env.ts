@@ -482,5 +482,19 @@ export default abstract class BaseGetSfDataEnv {
     this.columns.push(...generatedColumns);
   };
 
+  protected groupByRelationName = <T extends { relationName: string }>(
+    accumulation: { [key: string]: T[] },
+    element: T
+  ): { [key: string]: T[] } => {
+    const localAcc = accumulation;
+
+    const key = element.relationName;
+    if (!(key in accumulation)) {
+      localAcc[key] = [];
+    }
+    localAcc[key].push(element);
+    return localAcc;
+  };
+
   protected abstract generateDbResources(base: unknown):Promise<void>;
 }

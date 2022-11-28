@@ -13,7 +13,7 @@ import { ILineageRepo } from '../lineage/i-lineage-repo';
 import { IMaterializationRepo } from '../materialization/i-materialization-repo';
 import { IColumnRepo } from '../column/i-column-repo';
 import { ILogicRepo } from '../logic/i-logic-repo';
-import BaseGetSfDataEnv from './base-get-sf-data-env';
+import BaseGetSfDataEnv, { ColumnRepresentation } from './base-get-sf-data-env';
 import { QuerySnowflake } from '../snowflake-api/query-snowflake';
 
 export interface RefreshSfDataEnvRequestDto {
@@ -278,10 +278,50 @@ export class RefreshSfDataEnv
     return dataEnvDiff;
   };
 
+  generateDbResources = async (base: string): Promise<void> => {
+    const matRepresentations = await this.getMatRepresentations(base);
+    const columnRepresentations = await this.getColumnRepresentations(base);
+
+    const colRepresentationsByRelationName: {
+      [key: string]: ColumnRepresentation[];
+    } = columnRepresentations.reduce(
+      this.groupByRelationName,
+      {}
+    );
+
+    this.generateCatalog(matRepresentations, colRepresentationsByRelationName);
+
+    await Promise.all(
+      matRepresentations.map(async (el) => {
+        const options = {
+          writeToPersistence: false,
+        };
+
+        const logicRepresentation = await this.getLogicRepresentation(
+          el.type === 'view' ? 'view' : 'table',
+          el.name,
+          el.schemaName,
+          el.databaseName
+        );
+
+        await this.generateDWResource(
+          {
+            matRepresentation: el,
+            logicRepresentation,
+            columnRepresentations:
+              colRepresentationsByRelationName[el.relationName],
+            relationName: el.relationName,
+          },
+          options
+        );
+      })
+    );
+  };
+
   #addResources = async (addedMatIds: string[]): Promise<void> => {
     await Promise.all(addedMatIds.map(async(el) => {
 
-      
+    gene    
 
 
     }));
@@ -421,6 +461,4 @@ or timediff(minute, ?::timestamp_ntz, convert_timezone('UTC', last_altered)::tim
       return Result.fail('');
     }
   }
-
-  abstract 
 }

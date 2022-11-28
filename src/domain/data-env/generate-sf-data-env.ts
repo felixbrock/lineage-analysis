@@ -27,20 +27,6 @@ export class GenerateSfDataEnv
       IConnectionPool
     >
 {
-  static #groupByRelationName = <T extends { relationName: string }>(
-    accumulation: { [key: string]: T[] },
-    element: T
-  ): { [key: string]: T[] } => {
-    const localAcc = accumulation;
-
-    const key = element.relationName;
-    if (!(key in accumulation)) {
-      localAcc[key] = [];
-    }
-    localAcc[key].push(element);
-    return localAcc;
-  };
-
   generateDbResources = async (base: string): Promise<void> => {
     const matRepresentations = await this.getMatRepresentations(base);
     const columnRepresentations = await this.getColumnRepresentations(base);
@@ -48,7 +34,7 @@ export class GenerateSfDataEnv
     const colRepresentationsByRelationName: {
       [key: string]: ColumnRepresentation[];
     } = columnRepresentations.reduce(
-      GenerateSfDataEnv.#groupByRelationName,
+      this.groupByRelationName,
       {}
     );
 
