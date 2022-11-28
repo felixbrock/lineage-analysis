@@ -53,27 +53,17 @@ export class RefreshSfDataEnv
 
   readonly #logicRepo: ILogicRepo;
 
-  // #logicsToHandle?: Logic[];
-
-  // #oldLogics: Logic[] = [];
-
   readonly #logicsToReplace: Logic[] = [];
 
   readonly #logicsToCreate: Logic[] = [];
 
   readonly #logicIdsToRemove: string[] = [];
 
-  // #matsToHandle?: Materialization[];
-
   readonly #matsToReplace: Materialization[] = [];
 
   readonly #matsToCreate: Materialization[] = [];
 
   readonly #matIdsToRemove: string[] = [];
-
-  // #columnsToHandleByMatId?: { [key: string]: Column[] };
-
-  // #oldColumnsByMatId: { [key: string]: Column[] } = {};
 
   readonly #columnsToReplace: Column[] = [];
 
