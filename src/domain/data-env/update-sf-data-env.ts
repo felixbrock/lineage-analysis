@@ -520,6 +520,14 @@ export class UpdateSfDataEnv
 
     const binds = [lastLineageCompletedAt];
 
+
+    select t2.relation_name as deleted_mat_id, lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) as added_mat_id, t1.table_name is not null and t2.relation_name is not null as altered
+    from cito.lineage.materializations as t2
+    full join cito.information_schema.tables as t1 
+    on lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) = t2.relation_name
+    where lower(t1.table_catalog) = lower(t2.database_name) and (t1.table_name is null or (t2.relation_name is null and t1.table_schema != 'INFORMATION_SCHEMA'))
+    or timediff(minute, '2022-11-21T12:23:44.213Z'::timestamp_ntz, convert_timezone('UTC', last_altered)::timestamp_ntz) > 0;
+
     const queryText = `select t2.relation_name as deleted_mat_id, lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) as added_mat_id, t1.table_name is not null and t2.relation_name is not null as altered
       from cito.lineage.materializations as t2
       full join ${dbName}.information_schema.tables as t1 
@@ -564,6 +572,9 @@ export class UpdateSfDataEnv
     connPool: IConnectionPool
   ): Promise<UpdateSfDataEnvResponse> {
     try {
+      this.#auth = auth;
+      this.#connPool = connPool;
+
       const dbRepresentations = await this.getDbRepresentations(connPool, auth);
 
       const dbToCoverNames = dbRepresentations.map((el) => el.name);
@@ -599,8 +610,8 @@ export class UpdateSfDataEnv
         dbCoveredNames: dbRepresentations.map((el) => el.name),
       });
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error) console.error(error.stack);
+      else if (error) console.trace(error);
       return Result.fail('');
     }
   }

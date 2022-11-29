@@ -141,8 +141,8 @@ export default abstract class BaseSfRepo<
 
       return result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
     } catch (error: unknown) {
-      if (error instanceof Error && error.message) console.trace(error.message);
-      else if (!(error instanceof Error) && error) console.trace(error);
+      if (error instanceof Error) console.error(error.stack);
+      else if (error) console.trace(error);
       return Promise.reject(new Error());
     }
   };
@@ -401,13 +401,17 @@ export default abstract class BaseSfRepo<
     try {
       const binds = ids;
 
-      const getQueryText = (bindSequence: Binds): string => `delete from ${this.#relationPath}.${
-        this.matName
-      } where array_contains(id::variant, array_construct(${bindSequence
-        .map(() => '?')
-        .join(', ')});`;
+      const getQueryText = (bindSequence: Binds): string =>
+        `delete from ${this.#relationPath}.${
+          this.matName
+        } where array_contains(id::variant, array_construct(${bindSequence
+          .map(() => '?')
+          .join(', ')}));`;
 
-      const bindSequences = this.#splitBinds(new Blob([getQueryText(binds)]).size, binds);
+      const bindSequences = this.#splitBinds(
+        new Blob([getQueryText(binds)]).size,
+        binds
+      );
 
       const results = await Promise.all(
         bindSequences.map(async (el) => {

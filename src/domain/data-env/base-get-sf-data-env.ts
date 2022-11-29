@@ -86,7 +86,7 @@ export default abstract class BaseGetSfDataEnv {
     const sfSampleDataDb = 'snowflake_sample_data';
     const citoDbName = 'cito';
 
-    const queryText = `select database_name, database_owner, is_transient, comment from cito.information_schema.databases where not array_contains(lower(database_name)::variant, array_construct('${sfDbName.toLowerCase()}', '${sfSampleDataDb.toLowerCase()}', '${citoDbName.toLowerCase()}')`;
+    const queryText = `select database_name, database_owner, is_transient, comment from cito.information_schema.databases where not array_contains(lower(database_name)::variant, array_construct('${sfDbName.toLowerCase()}', '${sfSampleDataDb.toLowerCase()}', '${citoDbName.toLowerCase()}'))`;
     const queryResult = await this.querySnowflake.execute(
       { queryText, binds: [] },
       auth,

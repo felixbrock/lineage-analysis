@@ -311,7 +311,7 @@ export class CreateLineage
     if (!this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
-    console.log('...updateing data env');
+    console.log('...updating data env');
 
     const result =
       this.#req.dbtCatalog && this.#req.dbtManifest
