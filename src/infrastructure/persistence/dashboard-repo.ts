@@ -7,10 +7,7 @@ import { Dashboard, DashboardProps } from '../../domain/entities/dashboard';
 
 import { Bind, SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
-import BaseSfRepo, { Query } from './shared/base-sf-repo';
-import {
-  ColumnDefinition,
-} from './shared/query';
+import BaseSfRepo, { ColumnDefinition, Query } from './shared/base-sf-repo';
 
 export default class DashboardRepo
   extends BaseSfRepo<Dashboard, DashboardProps, DashboardQueryDto, DashboardUpdateDto>

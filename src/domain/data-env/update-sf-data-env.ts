@@ -1,10 +1,15 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import BaseAuth from '../services/base-auth';
-import { ColToRemoveRef, DataEnv, LogicToRemoveRef, MatToRemoveRef } from './data-env';
+import {
+  ColToDeleteRef,
+  DataEnv,
+  LogicToDeleteRef,
+  MatToDeleteRef,
+} from './data-env';
 import { Column } from '../entities/column';
 import { Materialization } from '../entities/materialization';
-import { Logic } from '../entities/logic';
+import { Logic, ModelRepresentation } from '../entities/logic';
 import {
   IConnectionPool,
   SnowflakeEntity,
@@ -20,27 +25,30 @@ import { CreateColumn } from '../column/create-column';
 import { CreateLogic } from '../logic/create-logic';
 import { ParseSQL } from '../sql-parser-api/parse-sql';
 
-export interface RefreshSfDataEnvRequestDto {
+export interface UpdateSfDataEnvRequestDto {
   lastLineageCompletedAt: string;
 }
 
-export type RefreshSfDataEnvAuthDto = BaseAuth;
+export type UpdateSfDataEnvAuthDto = BaseAuth;
 
-export type RefreshSfDataEnvResponse = Result<DataEnv>;
+export type UpdateSfDataEnvResponse = Result<{
+  dataEnv: DataEnv;
+  catalog: ModelRepresentation[];
+}>;
 
 interface DataEnvDiff {
   addedMatIds: string[];
-  removedMatIds: string[];
+  matToDeleteRefs: string[];
   modifiedMatIds: string[];
 }
 
-export class RefreshSfDataEnv
+export class UpdateSfDataEnv
   extends BaseGetSfDataEnv
   implements
     IUseCase<
-      RefreshSfDataEnvRequestDto,
-      RefreshSfDataEnvResponse,
-      RefreshSfDataEnvAuthDto,
+      UpdateSfDataEnvRequestDto,
+      UpdateSfDataEnvResponse,
+      UpdateSfDataEnvAuthDto,
       IConnectionPool
     >
 {
@@ -56,21 +64,21 @@ export class RefreshSfDataEnv
 
   readonly #logicsToCreate: Logic[] = [];
 
-  readonly #logicToRemoveRefs: LogicToRemoveRef[] = [];
+  readonly #logicToDeleteRefs: LogicToDeleteRef[] = [];
 
   readonly #matsToReplace: Materialization[] = [];
 
   readonly #matsToCreate: Materialization[] = [];
 
-  readonly #matToRemoveRefs: MatToRemoveRef[] = [];
+  readonly #matToDeleteRefs: MatToDeleteRef[] = [];
 
   readonly #columnsToReplace: Column[] = [];
 
   readonly #columnsToCreate: Column[] = [];
 
-  readonly #columnToRemoveRefs: ColToRemoveRef[] = [];
+  readonly #columnToDeleteRefs: ColToDeleteRef[] = [];
 
-  #auth?: RefreshSfDataEnvAuthDto;
+  #auth?: UpdateSfDataEnvAuthDto;
 
   #connPool?: IConnectionPool;
 
@@ -99,7 +107,7 @@ export class RefreshSfDataEnv
   }
 
   #buildLogicToReplace = (
-    oldLogicProps: { id: string},
+    oldLogicProps: { id: string },
     logicToHandle: Logic
   ): Logic =>
     Logic.build({
@@ -149,7 +157,7 @@ export class RefreshSfDataEnv
   ): Promise<{
     columnsToReplace: Column[];
     columnsToCreate: Column[];
-    columnToRemoveRefs: ColToRemoveRef[];
+    columnToDeleteRefs: ColToDeleteRef[];
   }> => {
     const columnsToReplace: Column[] = [];
     const columnsToCreate: Column[] = [];
@@ -175,11 +183,11 @@ export class RefreshSfDataEnv
       })
     );
 
-    const isString = (obj: unknown): obj is ColToRemoveRef =>
+    const isString = (obj: unknown): obj is ColToDeleteRef =>
       !!obj && typeof obj === 'object' && 'relationName' in obj;
 
-    const colToRemoveRefs = oldCols
-      .map((oldCol): ColToRemoveRef | undefined => {
+    const colToDeleteRefs = oldCols
+      .map((oldCol): ColToDeleteRef | undefined => {
         const matchingColumn = newCols.find(
           (newCol) => newCol.name === oldCol.name
         );
@@ -198,7 +206,7 @@ export class RefreshSfDataEnv
     return {
       columnsToCreate,
       columnsToReplace,
-      columnToRemoveRefs: colToRemoveRefs,
+      columnToDeleteRefs: colToDeleteRefs,
     };
   };
 
@@ -232,15 +240,15 @@ export class RefreshSfDataEnv
         const localAcc = accumulation;
 
         const {
-          REMOVED_MAT_ID: removedMatId,
+          DELETED_MAT_ID: deletedMatId,
           ADDED_MAT_ID: addedMatId,
           ALTERED: altered,
         } = el;
 
         if (typeof altered !== 'boolean')
           throw new Error('Unexpected altered value');
-        if (!isOptionalOfType<string>(removedMatId, 'string'))
-          throw new Error('Unexpected removedMatId value');
+        if (!isOptionalOfType<string>(deletedMatId, 'string'))
+          throw new Error('Unexpected deletedMatId value');
         if (!isOptionalOfType<string>(addedMatId, 'string'))
           throw new Error('Unexpected addedMatId value');
 
@@ -249,13 +257,13 @@ export class RefreshSfDataEnv
             throw new Error('Unexpected added mat id value');
           localAcc.modifiedMatIds.push(addedMatId);
         } else if (addedMatId) localAcc.addedMatIds.push(addedMatId);
-        else if (removedMatId) localAcc.removedMatIds.push(removedMatId);
+        else if (deletedMatId) localAcc.matToDeleteRefs.push(deletedMatId);
         else throw new Error('Unhandled use case returned');
 
         return localAcc;
       },
 
-      { addedMatIds: [], removedMatIds: [], modifiedMatIds: [] }
+      { addedMatIds: [], matToDeleteRefs: [], modifiedMatIds: [] }
     );
 
     return dataEnvDiff;
@@ -427,18 +435,15 @@ export class RefreshSfDataEnv
         );
         this.#matsToReplace.push(updatedMat);
 
-        const {
-          columnsToCreate,
-          columnsToReplace,
-          columnToRemoveRefs: columnIdsToRemove,
-        } = await this.#mergeMatColumns(
-          colsToHandle,
-          oldColsByMatId[matchingMat.id]
-        );
+        const { columnsToCreate, columnsToReplace, columnToDeleteRefs } =
+          await this.#mergeMatColumns(
+            colsToHandle,
+            oldColsByMatId[matchingMat.id]
+          );
 
         this.#columnsToCreate.push(...columnsToCreate);
         this.#columnsToReplace.push(...columnsToReplace);
-        this.#columnToRemoveRefs.push(...columnIdsToRemove);
+        this.#columnToDeleteRefs.push(...columnToDeleteRefs);
 
         const oldLogic = oldLogics.find(
           (element) => element.id === matchingMat.logicId
@@ -457,31 +462,31 @@ export class RefreshSfDataEnv
     );
   };
 
-  #addResourcesToRemove = async (removedMatIds: string[]): Promise<void> => {
+  #addResourcesToDelete = async (matToDeleteIds: string[]): Promise<void> => {
     if (!this.#auth || !this.#connPool)
       throw new Error('auth or connPool missing');
 
     const mats = await this.#materializationRepo.findBy(
-      { ids: removedMatIds },
+      { ids: matToDeleteIds },
       this.#auth,
       this.#connPool
     );
 
     const cols = await this.#columnRepo.findBy(
-      { materializationIds: removedMatIds },
+      { materializationIds: matToDeleteIds },
       this.#auth,
       this.#connPool
     );
 
     const logics = await this.#logicRepo.findBy(
-      { materializationIds: removedMatIds },
+      { materializationIds: matToDeleteIds },
       this.#auth,
       this.#connPool
     );
 
-    this.#matToRemoveRefs.push(
+    this.#matToDeleteRefs.push(
       ...mats.map(
-        (el): MatToRemoveRef => ({
+        (el): MatToDeleteRef => ({
           id: el.id,
           name: el.name,
           dbName: el.databaseName,
@@ -489,9 +494,9 @@ export class RefreshSfDataEnv
         })
       )
     );
-    this.#columnToRemoveRefs.push(
+    this.#columnToDeleteRefs.push(
       ...cols.map(
-        (el): ColToRemoveRef => ({
+        (el): ColToDeleteRef => ({
           id: el.id,
           matId: el.materializationId,
           name: el.name,
@@ -499,14 +504,14 @@ export class RefreshSfDataEnv
         })
       )
     );
-    this.#logicToRemoveRefs.push(
+    this.#logicToDeleteRefs.push(
       ...logics.map(
-        (el): LogicToRemoveRef => ({ id: el.id, relationName: el.relationName })
+        (el): LogicToDeleteRef => ({ id: el.id, relationName: el.relationName })
       )
     );
   };
 
-  #refreshDbDataEnv = async (
+  #updateDbDataEnv = async (
     dbName: string,
     lastLineageCompletedAt: string
   ): Promise<void> => {
@@ -515,7 +520,7 @@ export class RefreshSfDataEnv
 
     const binds = [lastLineageCompletedAt];
 
-    const queryText = `select t2.relation_name as removed_mat_id, lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) as added_mat_id, t1.table_name is not null and t2.relation_name is not null as altered
+    const queryText = `select t2.relation_name as deleted_mat_id, lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) as added_mat_id, t1.table_name is not null and t2.relation_name is not null as altered
       from cito.lineage.materializations as t2
       full join ${dbName}.information_schema.tables as t1 
       on lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) = t2.relation_name
@@ -535,35 +540,38 @@ export class RefreshSfDataEnv
     const dataEnvDiff = this.#getDataEnvDiff(queryResult.value);
 
     await this.#addResourcesToAdd(dataEnvDiff.addedMatIds, dbName);
-    await this.#addResourcesToRemove(dataEnvDiff.removedMatIds);
+    await this.#addResourcesToDelete(dataEnvDiff.matToDeleteRefs);
     await this.#addResourcesToModify(dataEnvDiff.modifiedMatIds, dbName);
   };
 
   /* Checks Snowflake resources for changes and returns partial data env to merge with existing snapshot */
   async execute(
-    req: RefreshSfDataEnvRequestDto,
-    auth: RefreshSfDataEnvAuthDto,
+    req: UpdateSfDataEnvRequestDto,
+    auth: UpdateSfDataEnvAuthDto,
     connPool: IConnectionPool
-  ): Promise<RefreshSfDataEnvResponse> {
+  ): Promise<UpdateSfDataEnvResponse> {
     try {
       const dbRepresentations = await this.getDbRepresentations(connPool, auth);
 
       await Promise.all(
         dbRepresentations.map(async (el) =>
-          this.#refreshDbDataEnv(el.name, req.lastLineageCompletedAt)
+          this.#updateDbDataEnv(el.name, req.lastLineageCompletedAt)
         )
       );
 
       return Result.ok({
-        matsToCreate: this.#matsToCreate,
-        matsToReplace: this.#matsToReplace,
-        matsToRemove: this.#matToRemoveRefs,
-        columnsToCreate: this.#columnsToCreate,
-        columnsToReplace: this.#columnsToReplace,
-        columnsToRemove: this.#columnToRemoveRefs,
-        logicsToCreate: this.#logicsToCreate,
-        logicsToReplace: this.#logicsToReplace,
-        logicsToRemove: this.#logicToRemoveRefs,
+        dataEnv: {
+          matsToCreate: this.#matsToCreate,
+          matsToReplace: this.#matsToReplace,
+          matsToDelete: this.#matToDeleteRefs,
+          columnsToCreate: this.#columnsToCreate,
+          columnsToReplace: this.#columnsToReplace,
+          columnsToDelete: this.#columnToDeleteRefs,
+          logicsToCreate: this.#logicsToCreate,
+          logicsToReplace: this.#logicsToReplace,
+          logicsToDelete: this.#logicToDeleteRefs,
+        },
+        catalog: this.catalog,
       });
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);

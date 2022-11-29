@@ -7,7 +7,7 @@ import {
   CreateLineageAuthDto,
   CreateLineageRequestDto,
   CreateLineageResponseDto,
-} from '../../../domain/lineage/create-lineage/create-lineage';
+} from '../../../domain/lineage/create-lineage';
 import Result from '../../../domain/value-types/transient-types/result';
 
 import {

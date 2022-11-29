@@ -3,13 +3,12 @@ import {
   MaterializationProps,
   parseMaterializationType,
 } from '../../domain/entities/materialization';
-import { ColumnDefinition } from './shared/query';
 import {
   Bind,
   SnowflakeEntity,
 } from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
-import BaseSfRepo, { Query } from './shared/base-sf-repo';
+import BaseSfRepo, { ColumnDefinition, Query } from './shared/base-sf-repo';
 import {
   IMaterializationRepo,
   MaterializationQueryDto,

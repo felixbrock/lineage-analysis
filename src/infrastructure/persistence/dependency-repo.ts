@@ -10,8 +10,7 @@ import {
 } from '../../domain/entities/dependency';
 import { Bind, SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
-import BaseSfRepo, { Query } from './shared/base-sf-repo';
-import { ColumnDefinition } from './shared/query';
+import BaseSfRepo, { ColumnDefinition, Query } from './shared/base-sf-repo';
 
 export default class DependencyRepo
   extends BaseSfRepo<

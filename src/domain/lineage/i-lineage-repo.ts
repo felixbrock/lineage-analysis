@@ -4,6 +4,7 @@ import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 
 export interface LineageUpdateDto {
   completed?: boolean;
+  diff?: string;
 }
 
 export type LineageQueryDto = undefined;

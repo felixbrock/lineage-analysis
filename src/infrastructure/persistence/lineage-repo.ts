@@ -1,12 +1,11 @@
 import { Lineage, LineageProps } from '../../domain/entities/lineage';
-import { ColumnDefinition, getUpdateQueryText } from './shared/query';
 import {
   Bind,
   IConnectionPool,
   SnowflakeEntity,
 } from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
-import BaseSfRepo, { Query } from './shared/base-sf-repo';
+import BaseSfRepo, { ColumnDefinition, Query } from './shared/base-sf-repo';
 import {
   ILineageRepo,
   LineageQueryDto,
@@ -112,7 +111,12 @@ export default class LineageRepo
       binds.push(dto.completed.toString());
     }
 
-    const text = getUpdateQueryText(this.matName, colDefinitions, [
+    if (dto.diff) {
+      colDefinitions.push(this.getDefinition('diff'));
+      binds.push(dto.diff);
+    }
+
+    const text = this.getUpdateQueryText(this.matName, colDefinitions, [
       `(${binds.map(() => '?').join(', ')})`,
     ]);
 

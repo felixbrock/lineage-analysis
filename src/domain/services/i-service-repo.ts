@@ -49,4 +49,9 @@ export interface IServiceRepo<Entity, QueryDto, UpdateDto> {
     auth: IAuth,
     connPool: IConnectionPool,
   ): Promise<number>;
+  deleteMany(
+    ids: string[],
+    auth: IAuth,
+    connPool: IConnectionPool,
+  ): Promise<number>;
 }

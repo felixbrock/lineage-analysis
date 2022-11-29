@@ -9,8 +9,8 @@ import {
   parseInternalInvokeType,
   Response,
 } from './infrastructure/api/controllers/shared/internal-invoke-controller';
-import { CreateLineageRequestDto } from './domain/lineage/create-lineage/create-lineage';
-import { parseBiTool } from './domain/value-types/bi-tool';
+import { CreateLineageRequestDto } from './domain/lineage/create-lineage';
+import { parseBiToolType } from './domain/value-types/bi-tool';
 
 interface InvokeEvent {
   req: {
@@ -76,7 +76,7 @@ const internalInvoke = async (
         dbtCatalog: event.req.catalog,
         dbtManifest: event.req.manifest,
         targetOrgId: event.req.targetOrgId,
-        biTool: event.req.biType ? parseBiTool(event.req.biType) : undefined,
+        biTool: event.req.biType ? parseBiToolType(event.req.biType) : undefined,
       };
 
       const auth = { jwt: event.auth.jwt };

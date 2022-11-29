@@ -7,7 +7,7 @@ import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 import BaseGetSfDataEnv, { ColumnRepresentation } from './base-get-sf-data-env';
 import { Materialization } from '../entities/materialization';
 import { Column } from '../entities/column';
-import { Logic } from '../entities/logic';
+import { Logic, ModelRepresentation } from '../entities/logic';
 
 export type GenerateSfDataEnvRequestDto = null;
 
@@ -16,7 +16,10 @@ export interface GenerateSfDataEnvAuthDto
   callerOrgId: string;
 }
 
-export type GenerateSfDataEnvResponse = Result<DataEnv>;
+export type GenerateSfDataEnvResponse = Result<{
+  dataEnv: DataEnv;
+  catalog: ModelRepresentation[];
+}>;
 
 export class GenerateSfDataEnv
   extends BaseGetSfDataEnv
@@ -31,21 +34,26 @@ export class GenerateSfDataEnv
   readonly #mats: Materialization[] = [];
 
   readonly #cols: Column[] = [];
-  
+
   readonly #logics: Logic[] = [];
 
   #generateDbResources = async (dbName: string): Promise<void> => {
     const binds = ['information_schema'];
     const whereCondition = `table_schema not ilike ?`;
-    const matRepresentations = await this.getMatRepresentations(dbName, whereCondition , binds );
-    const columnRepresentations = await this.getColumnRepresentations(dbName, whereCondition, binds);
+    const matRepresentations = await this.getMatRepresentations(
+      dbName,
+      whereCondition,
+      binds
+    );
+    const columnRepresentations = await this.getColumnRepresentations(
+      dbName,
+      whereCondition,
+      binds
+    );
 
     const colRepresentationsByRelationName: {
       [key: string]: ColumnRepresentation[];
-    } = columnRepresentations.reduce(
-      this.groupByRelationName,
-      {}
-    );
+    } = columnRepresentations.reduce(this.groupByRelationName, {});
 
     this.generateCatalog(matRepresentations, colRepresentationsByRelationName);
 
@@ -99,9 +107,12 @@ export class GenerateSfDataEnv
       );
 
       return Result.ok({
-        matsToCreate: this.#mats,
-        columnsToCreate: this.#cols,
-        logicsToCreate: this.#logics,
+        dataEnv: {
+          matsToCreate: this.#mats,
+          columnsToCreate: this.#cols,
+          logicsToCreate: this.#logics,
+        },
+        catalog: this.catalog,
       });
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);

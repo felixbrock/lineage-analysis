@@ -1,48 +1,40 @@
 // todo - Clean Architecture dependency violation. Fix
-import Result from '../../value-types/transient-types/result';
-import { CreateColumn } from '../../column/create-column';
-import { CreateMaterialization } from '../../materialization/create-materialization';
-import { CreateLogic } from '../../logic/create-logic';
-import { ParseSQL } from '../../sql-parser-api/parse-sql';
-import { Lineage } from '../../entities/lineage';
-import { Logic } from '../../entities/logic';
-import { CreateDependency } from '../../dependency/create-dependency';
-import { Dependency } from '../../entities/dependency';
-import { ReadColumns } from '../../column/read-columns';
-import { Materialization } from '../../entities/materialization';
-import { Column } from '../../entities/column';
-import { ILineageRepo, LineageUpdateDto } from '../i-lineage-repo';
-import { IDependencyRepo } from '../../dependency/i-dependency-repo';
-import { QuerySfQueryHistory } from '../../snowflake-api/query-snowflake-history';
-import { Dashboard } from '../../entities/dashboard';
-import { CreateExternalDependency } from '../../dependency/create-external-dependency';
-import { IDashboardRepo } from '../../dashboard/i-dashboard-repo';
-import { CreateDashboard } from '../../dashboard/create-dashboard';
-import { buildLineage } from './build-lineage';
-import { BiTool } from '../../value-types/bi-tool';
-import { ILogicRepo } from '../../logic/i-logic-repo';
-import { IMaterializationRepo } from '../../materialization/i-materialization-repo';
-import { IColumnRepo } from '../../column/i-column-repo';
-import { QuerySnowflake } from '../../snowflake-api/query-snowflake';
-import IUseCase from '../../services/use-case';
-import { IConnectionPool } from '../../snowflake-api/i-snowflake-api-repo';
-import BaseAuth from '../../services/base-auth';
-import DependenciesBuilder from './dependencies-builder';
-import { DataEnv } from '../../data-env/data-env';
-import { GenerateDbtDataEnv } from '../../data-env/generate-dbt-data-env';
-import { GenerateSfDataEnv } from '../../data-env/generate-sf-data-env';
-import { RefreshSfDataEnv } from '../../data-env/refresh-sf-data-env';
+import { v4 as uuidv4 } from 'uuid';
+import Result from '../value-types/transient-types/result';
+import { Lineage } from '../entities/lineage';
+import { CreateDependency } from '../dependency/create-dependency';
+import { Dependency } from '../entities/dependency';
+import { ILineageRepo, LineageUpdateDto } from './i-lineage-repo';
+import { IDependencyRepo } from '../dependency/i-dependency-repo';
+import { Dashboard } from '../entities/dashboard';
+import { CreateExternalDependency } from '../dependency/create-external-dependency';
+import { IDashboardRepo } from '../dashboard/i-dashboard-repo';
+import { BiToolType } from '../value-types/bi-tool';
+import { ILogicRepo } from '../logic/i-logic-repo';
+import { IMaterializationRepo } from '../materialization/i-materialization-repo';
+import { IColumnRepo } from '../column/i-column-repo';
+import IUseCase from '../services/use-case';
+import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
+import BaseAuth from '../services/base-auth';
+import { DataEnv } from '../data-env/data-env';
+import { GenerateDbtDataEnv } from '../data-env/generate-dbt-data-env';
+import { GenerateSfDataEnv } from '../data-env/generate-sf-data-env';
+import { UpdateSfDataEnv } from '../data-env/update-sf-data-env';
+import { BuildDependencies, BuildResult } from '../dependency/build-dependencies';
+import { ModelRepresentation } from '../entities/logic';
 
 export interface CreateLineageRequestDto {
   targetOrgId?: string;
   dbtCatalog?: string;
   dbtManifest?: string;
-  biTool?: BiTool;
+  biTool?: BiToolType;
 }
 
 export type CreateLineageAuthDto = BaseAuth;
 
 export type CreateLineageResponseDto = Result<Lineage>;
+
+type DataEnvOperation = 'create' | 'update';
 
 export class CreateLineage
   implements
@@ -53,24 +45,6 @@ export class CreateLineage
       IConnectionPool
     >
 {
-  readonly #createLogic: CreateLogic;
-
-  readonly #createMaterialization: CreateMaterialization;
-
-  readonly #createColumn: CreateColumn;
-
-  readonly #createDashboard: CreateDashboard;
-
-  readonly #createDependency: CreateDependency;
-
-  readonly #createExternalDependency: CreateExternalDependency;
-
-  readonly #parseSQL: ParseSQL;
-
-  readonly #querySnowflake: QuerySnowflake;
-
-  readonly #querySfQueryHistory: QuerySfQueryHistory;
-
   readonly #lineageRepo: ILineageRepo;
 
   readonly #logicRepo: ILogicRepo;
@@ -83,13 +57,13 @@ export class CreateLineage
 
   readonly #dashboardRepo: IDashboardRepo;
 
-  readonly #readColumns: ReadColumns;
-
   readonly #generateSfDataEnv: GenerateSfDataEnv;
 
   readonly #generateDbtDataEnv: GenerateDbtDataEnv;
 
-  readonly #refreshSfDataEnv: RefreshSfDataEnv;
+  readonly #updateSfDataEnv: UpdateSfDataEnv;
+
+  readonly #buildDependencies: BuildDependencies;
 
   #auth?: CreateLineageAuthDto;
 
@@ -98,45 +72,29 @@ export class CreateLineage
   #req?: CreateLineageRequestDto;
 
   constructor(
-    createLogic: CreateLogic,
-    createMaterialization: CreateMaterialization,
-    createColumn: CreateColumn,
     createDependency: CreateDependency,
     createExternalDependency: CreateExternalDependency,
-    parseSQL: ParseSQL,
     lineageRepo: ILineageRepo,
     logicRepo: ILogicRepo,
     materializationRepo: IMaterializationRepo,
     columnRepo: IColumnRepo,
     dependencyRepo: IDependencyRepo,
     dashboardRepo: IDashboardRepo,
-    readColumns: ReadColumns,
-    createDashboard: CreateDashboard,
-    querySnowflake: QuerySnowflake,
-    querySfQueryHistory: QuerySfQueryHistory,
     generateSfDataEnv: GenerateSfDataEnv,
     generateDbtDataEnv: GenerateDbtDataEnv,
-    refreshSfDataEnv: RefreshSfDataEnv
+    updateSfDataEnv: UpdateSfDataEnv,
+    buildDependencies: BuildDependencies,
   ) {
-    this.#createLogic = createLogic;
-    this.#createMaterialization = createMaterialization;
-    this.#createColumn = createColumn;
-    this.#createDependency = createDependency;
-    this.#createExternalDependency = createExternalDependency;
-    this.#createDashboard = createDashboard;
-    this.#parseSQL = parseSQL;
     this.#lineageRepo = lineageRepo;
     this.#logicRepo = logicRepo;
     this.#materializationRepo = materializationRepo;
     this.#columnRepo = columnRepo;
     this.#dependencyRepo = dependencyRepo;
     this.#dashboardRepo = dashboardRepo;
-    this.#readColumns = readColumns;
-    this.#querySnowflake = querySnowflake;
-    this.#querySfQueryHistory = querySfQueryHistory;
     this.#generateSfDataEnv = generateSfDataEnv;
     this.#generateDbtDataEnv = generateDbtDataEnv;
-    this.#refreshSfDataEnv = refreshSfDataEnv;
+    this.#updateSfDataEnv = updateSfDataEnv;
+    this.#buildDependencies = buildDependencies;
   }
 
   #writeLineageToPersistence = async (lineage: Lineage): Promise<void> => {
@@ -146,53 +104,67 @@ export class CreateLineage
     await this.#lineageRepo.insertOne(lineage, this.#auth, this.#connPool);
   };
 
-  #writeWhResourcesToPersistence = async (props: {
-    matsToCreate: Materialization[];
-    matsToReplace: Materialization[];
-    columnsToCreate: Column[];
-    columnsToReplace: Column[];
-    logicsToCreate: Logic[];
-    logicsToReplace: Logic[];
-  }): Promise<void> => {
+  #writeWhResourcesToPersistence = async (dataEnv: DataEnv): Promise<void> => {
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
-    if (props.logicsToReplace.length)
+    if (dataEnv.logicsToReplace && dataEnv.logicsToReplace.length)
       await this.#logicRepo.replaceMany(
-        props.logicsToReplace,
+        dataEnv.logicsToReplace,
         this.#auth,
         this.#connPool
       );
-    if (props.matsToReplace.length)
+    if (dataEnv.matsToReplace && dataEnv.matsToReplace.length)
       await this.#materializationRepo.replaceMany(
-        props.matsToReplace,
+        dataEnv.matsToReplace,
         this.#auth,
         this.#connPool
       );
-    if (props.columnsToReplace.length)
+    if (dataEnv.columnsToReplace && dataEnv.columnsToReplace.length)
       await this.#columnRepo.replaceMany(
-        props.columnsToReplace,
+        dataEnv.columnsToReplace,
         this.#auth,
         this.#connPool
       );
 
-    if (props.logicsToCreate.length)
+    if (dataEnv.logicsToCreate && dataEnv.logicsToCreate.length)
       await this.#logicRepo.insertMany(
-        props.logicsToCreate,
+        dataEnv.logicsToCreate,
         this.#auth,
         this.#connPool
       );
 
-    if (props.matsToCreate.length)
+    if (dataEnv.matsToCreate && dataEnv.matsToCreate.length)
       await this.#materializationRepo.insertMany(
-        props.matsToCreate,
+        dataEnv.matsToCreate,
         this.#auth,
         this.#connPool
       );
 
-    if (props.columnsToCreate.length)
+    if (dataEnv.columnsToCreate && dataEnv.columnsToCreate.length)
       await this.#columnRepo.insertMany(
-        props.columnsToCreate,
+        dataEnv.columnsToCreate,
+        this.#auth,
+        this.#connPool
+      );
+
+    if (dataEnv.logicToDeleteRefs && dataEnv.logicToDeleteRefs.length)
+      await this.#logicRepo.deleteMany(
+        dataEnv.logicToDeleteRefs.map((el) => el.id),
+        this.#auth,
+        this.#connPool
+      );
+
+    if (dataEnv.matToDeleteRefs && dataEnv.matToDeleteRefs.length)
+      await this.#materializationRepo.deleteMany(
+        dataEnv.matToDeleteRefs.map((el) => el.id),
+        this.#auth,
+        this.#connPool
+      );
+
+    if (dataEnv.columnToDeleteRefs && dataEnv.columnToDeleteRefs.length)
+      await this.#columnRepo.deleteMany(
+        dataEnv.columnToDeleteRefs.map((el) => el.id),
         this.#auth,
         this.#connPool
       );
@@ -241,7 +213,7 @@ export class CreateLineage
     );
   };
 
-  #genDbtDataEnv = async (): Promise<DataEnv> => {
+  #genDbtDataEnv = async (): Promise<{dataEnv: DataEnv, catalog: ModelRepresentation[]}> => {
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
@@ -269,7 +241,7 @@ export class CreateLineage
     return result.value;
   };
 
-  #genSfDataEnv = async (): Promise<DataEnv> => {
+  #genSfDataEnv = async (): Promise<{dataEnv: DataEnv, catalog: ModelRepresentation[]}> => {
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
@@ -290,25 +262,25 @@ export class CreateLineage
     return result.value;
   };
 
-  #generateEnv = async (): Promise<DataEnv> => {
+  #generateEnv = async (): Promise<{dataEnv: DataEnv, catalog: ModelRepresentation[]}> => {
     if (!this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
     console.log('...generating warehouse resources');
 
-    const dataEnv =
+    const res =
       this.#req.dbtCatalog && this.#req.dbtManifest
         ? await this.#genDbtDataEnv()
         : await this.#genSfDataEnv();
 
-    return dataEnv;
+    return res;
   };
 
-  #refrSfDataEnv = async (lastLineageCompletedAt: string): Promise<DataEnv> => {
+  #refrSfDataEnv = async (lastLineageCompletedAt: string): Promise<{dataEnv: DataEnv, catalog: ModelRepresentation[]}> => {
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
-    const result = await this.#refreshSfDataEnv.execute(
+    const result = await this.#updateSfDataEnv.execute(
       { lastLineageCompletedAt },
       this.#auth,
       this.#connPool
@@ -321,30 +293,34 @@ export class CreateLineage
     return result.value;
   };
 
-  #refrDbtDataEnv = async (): Promise<DataEnv> => {
+  #refrDbtDataEnv = async (): Promise<{dataEnv: DataEnv, catalog: ModelRepresentation[]}> => {
     throw new Error('Not implemented');
   };
 
-  #refreshEnv = async (lastLineageCompletedAt: string): Promise<DataEnv> => {
+  #updateEnv = async (lastLineageCompletedAt: string): Promise<{dataEnv: DataEnv, catalog: ModelRepresentation[]}> => {
     if (!this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
-    console.log('...refreshing data env');
+    console.log('...updateing data env');
 
     if (!this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
     console.log('...generating warehouse resources');
 
-    const dataEnv =
+    const result =
       this.#req.dbtCatalog && this.#req.dbtManifest
         ? await this.#refrDbtDataEnv()
         : await this.#refrSfDataEnv(lastLineageCompletedAt);
 
-    return dataEnv;
+    return result;
   };
 
-  #getNewDataEnv = async (): Promise<DataEnv> => {
+  #getNewDataEnv = async (): Promise<{
+    dataEnv: DataEnv;
+    operation: DataEnvOperation;
+    catalog: ModelRepresentation[];
+  }> => {
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
@@ -355,11 +331,44 @@ export class CreateLineage
       this.#req.targetOrgId
     );
 
-    let results: DataEnv;
-    if (!latestLineage) results = await this.#generateEnv();
-    else results = await this.#refreshEnv();
+    let generateDataEnvResult: {dataEnv: DataEnv, catalog: ModelRepresentation[]};
+    if (!latestLineage) generateDataEnvResult = await this.#generateEnv();
+    else generateDataEnvResult = await this.#updateEnv(latestLineage.createdAt);
 
-    return results;
+    return {
+      ...generateDataEnvResult,
+      operation: !latestLineage ? 'create' : 'update',
+    };
+  };
+
+  #buildDeps = async (dataEnv: DataEnv, catalog: ModelRepresentation[]): Promise<BuildResult> => {
+    if(!this.#auth  || !this.#connPool || !this.#req) throw new Error('Missing field values');
+
+    console.log('...building dependencies');
+
+    /* 
+    todo-fix potential bug since resources that were deleted are not taken into account. 
+    Also in case of data env update only a fraction of resources is available to build up dependencies 
+    */
+    const buildDependenciesResult = await this.#buildDependencies
+      .execute(
+        {
+          logics: (dataEnv.logicsToCreate || []).concat((dataEnv.logicsToReplace ||  [])),
+          mats: (dataEnv.matsToCreate || []).concat((dataEnv.matsToReplace || [])),
+          columns: (dataEnv.columnsToCreate || []).concat((dataEnv.columnsToReplace || [])),
+          catalog,
+          targetOrgId: this.#req.targetOrgId,
+          biToolType: this.#req.biTool,
+        },
+        this.#auth,
+        this.#connPool
+      );
+
+    if(!buildDependenciesResult.success) throw new Error(buildDependenciesResult.error);
+    if(!buildDependenciesResult.value) throw new Error('build dependencies usecase did not return val obj');
+
+    return buildDependenciesResult.value;
+
   };
 
   async execute(
@@ -377,11 +386,6 @@ export class CreateLineage
       if (req.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
-      let orgId: string;
-      if (auth.callerOrgId) orgId = auth.callerOrgId;
-      else if (req.targetOrgId) orgId = req.targetOrgId;
-      else throw new Error('callerOrgId and targetOrgId provided. Not allowed');
-
       this.#connPool = connPool;
       this.#auth = auth;
       this.#req = req;
@@ -389,45 +393,20 @@ export class CreateLineage
       console.log('starting lineage creation...');
 
       console.log('...building lineage object');
-      const lineage = buildLineage();
+      const lineage = Lineage.create({
+        id: uuidv4(),
+      });
 
       console.log('...writing lineage to persistence');
       await this.#writeLineageToPersistence(lineage);
 
-      const dataEnv = this.#getNewDataEnv();
+      const { dataEnv, operation: dataEnvOperation, catalog } =
+        await this.#getNewDataEnv();
 
       console.log('...writing dw resources to persistence');
-      await this.#writeWhResourcesToPersistence({ ...c });
+      await this.#writeWhResourcesToPersistence(dataEnv);
 
-      console.log('...building dependencies');
-      const dependenciesBuilder = await new DependenciesBuilder(
-        {
-          logics: refreshdDataEnv.logicsToCreate.concat(
-            refreshdDataEnv.logicsToReplace
-          ),
-          mats: refreshdDataEnv.matsToCreate.concat(
-            refreshdDataEnv.matsToReplace
-          ),
-          columns: refreshdDataEnv.columnsToCreate.concat(
-            refreshdDataEnv.columnsToReplace
-          ),
-          catalog,
-          organizationId: orgId,
-          targetOrgId: req.targetOrgId,
-        },
-        auth,
-        {
-          createDashboard: this.#createDashboard,
-          createDependency: this.#createDependency,
-          createExternalDependency: this.#createExternalDependency,
-          readColumns: this.#readColumns,
-          querySfQueryHistory: this.#querySfQueryHistory,
-        }
-      );
-      const { dashboards, dependencies } = await dependenciesBuilder.build(
-        connPool,
-        req.biTool
-      );
+      const { dashboards, dependencies } = await this.#buildDeps(dataEnv, catalog);
 
       console.log('...writing dashboards to persistence');
       await this.#writeDashboardsToPersistence(dashboards);
@@ -436,7 +415,7 @@ export class CreateLineage
       await this.#writeDependenciesToPersistence(dependencies);
 
       console.log('...setting lineage complete state to true');
-      await this.#updateLineage(lineage.id, { completed: true });
+      await this.#updateLineage(lineage.id, { completed: true, diff: dataEnvOperation === 'update' ? JSON.stringify(dataEnv) : undefined });
 
       console.log('finished lineage creation.');
 
@@ -445,6 +424,7 @@ export class CreateLineage
           id: lineage.id,
           createdAt: lineage.createdAt,
           completed: true,
+          diff: dataEnvOperation === 'update' ? JSON.stringify(dataEnv) : undefined
         })
       );
     } catch (error: unknown) {

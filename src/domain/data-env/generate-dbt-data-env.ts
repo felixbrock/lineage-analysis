@@ -32,7 +32,10 @@ export interface GenerateDbtDataEnvRequestDto {
 
 export type GenerateDbtDataEnvAuthDto = BaseAuth;
 
-export type GenerateDbtDataEnvResponse = Result<DataEnv>;
+export type GenerateDbtDataEnvResponse = Result<{
+  dataEnv: DataEnv;
+  catalog: ModelRepresentation[];
+}>;
 
 interface DbtNodeMetadata {
   name: string;
@@ -139,7 +142,7 @@ export class GenerateDbtDataEnv
     createMaterialization: CreateMaterialization,
     createColumn: CreateColumn,
     createLogic: CreateLogic,
-    parseSQL: ParseSQL,
+    parseSQL: ParseSQL
   ) {
     this.#createMaterialization = createMaterialization;
     this.#createColumn = createColumn;
@@ -679,9 +682,12 @@ export class GenerateDbtDataEnv
       );
 
       return Result.ok({
-        matsToCreate: this.#materializations,
-        columnsToCreate: this.#columns,
-        logicsToCreate: this.#logics,
+        dataEnv: {
+          matsToCreate: this.#materializations,
+          columnsToCreate: this.#columns,
+          logicsToCreate: this.#logics,
+        },
+        catalog: this.#catalog,
       });
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
