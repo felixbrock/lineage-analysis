@@ -25,7 +25,6 @@ import Result from '../value-types/transient-types/result';
 import { DataEnv } from './data-env';
 
 export interface GenerateDbtDataEnvRequestDto {
-  lineageId: string;
   dbtCatalog: string;
   dbtManifest: string;
   targetOrgId?: string;
@@ -98,7 +97,8 @@ export class GenerateDbtDataEnv
     IUseCase<
       GenerateDbtDataEnvRequestDto,
       GenerateDbtDataEnvResponse,
-      GenerateDbtDataEnvAuthDto
+      GenerateDbtDataEnvAuthDto,
+      IConnectionPool
     >
 {
   readonly #createMaterialization: CreateMaterialization;
@@ -138,13 +138,13 @@ export class GenerateDbtDataEnv
   constructor(
     createMaterialization: CreateMaterialization,
     createColumn: CreateColumn,
+    createLogic: CreateLogic,
     parseSQL: ParseSQL,
-    createLogic: CreateLogic
   ) {
     this.#createMaterialization = createMaterialization;
     this.#createColumn = createColumn;
-    this.#parseSQL = parseSQL;
     this.#createLogic = createLogic;
+    this.#parseSQL = parseSQL;
   }
 
   /* Get dbt nodes from catalog.json */
@@ -188,7 +188,6 @@ export class GenerateDbtDataEnv
         index: columnDefinition.index,
         dataType: columnDefinition.dataType,
         materializationId: sourceId,
-        lineageId: this.#req.lineageId,
         writeToPersistence: false,
         targetOrgId: this.#req.targetOrgId,
       },
@@ -229,7 +228,6 @@ export class GenerateDbtDataEnv
           ...createMaterializationProps,
 
           writeToPersistence: options.writeToPersistence,
-          lineageId: this.#req.lineageId,
           targetOrgId: this.#req.targetOrgId,
         },
         this.#auth,
@@ -327,7 +325,6 @@ export class GenerateDbtDataEnv
                 databaseName: matRef.databaseName || '',
                 // 'todo - read from snowflake'
                 logicId: undefined,
-                lineageId: this.#req.lineageId,
                 targetOrgId: this.#req.targetOrgId,
                 writeToPersistence: false,
               },
@@ -435,7 +432,6 @@ export class GenerateDbtDataEnv
           generalProps: {
             relationName: props.modelManifest.relation_name,
             sql,
-            lineageId: this.#req.lineageId,
             parsedLogic,
             targetOrgId: this.#req.targetOrgId,
             catalog: this.#catalog,
@@ -472,7 +468,6 @@ export class GenerateDbtDataEnv
       schemaName: props.model.metadata.schema,
       databaseName: props.model.metadata.database,
       logicId: logic.id,
-      lineageId: this.#req.lineageId,
       targetOrgId: this.#req.targetOrgId,
       writeToPersistence: false,
     });
@@ -505,7 +500,6 @@ export class GenerateDbtDataEnv
       relationName: props.modelManifest.relation_name,
       schemaName: props.model.metadata.schema,
       databaseName: props.model.metadata.database,
-      lineageId: this.#req.lineageId,
       targetOrgId: this.#req.targetOrgId,
       writeToPersistence: false,
     });

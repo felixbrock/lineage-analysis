@@ -30,20 +30,10 @@ export default class ReadLogicsController extends BaseController {
   }
 
   #buildRequestDto = (httpRequest: Request): ReadLogicsRequestDto => {
-    const { relationName, lineageId, targetOrgId } = httpRequest.query;
-
-    if (!lineageId)
-      throw new TypeError(
-        'When querying logics the lineageId must be provided'
-      );
-    if (typeof lineageId !== 'string')
-      throw new TypeError(
-        'When querying logics the lineageId query param must be of type string'
-      );
+    const { relationName, targetOrgId } = httpRequest.query;
 
     return {
       relationName: typeof relationName === 'string' ? relationName : undefined,
-      lineageId,
       targetOrgId: typeof targetOrgId === 'string' ? targetOrgId : undefined,
     };
   };

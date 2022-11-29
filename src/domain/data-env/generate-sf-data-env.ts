@@ -5,10 +5,11 @@ import BaseAuth from '../services/base-auth';
 import { DataEnv } from './data-env';
 import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 import BaseGetSfDataEnv, { ColumnRepresentation } from './base-get-sf-data-env';
+import { Materialization } from '../entities/materialization';
+import { Column } from '../entities/column';
+import { Logic } from '../entities/logic';
 
-export interface GenerateSfDataEnvRequestDto {
-  lineageId: string;
-}
+export type GenerateSfDataEnvRequestDto = null;
 
 export interface GenerateSfDataEnvAuthDto
   extends Omit<BaseAuth, 'callerOrgId'> {
@@ -27,6 +28,12 @@ export class GenerateSfDataEnv
       IConnectionPool
     >
 {
+  readonly #mats: Materialization[] = [];
+
+  readonly #cols: Column[] = [];
+  
+  readonly #logics: Logic[] = [];
+
   #generateDbResources = async (dbName: string): Promise<void> => {
     const binds = ['information_schema'];
     const whereCondition = `table_schema not ilike ?`;
@@ -55,7 +62,7 @@ export class GenerateSfDataEnv
           el.databaseName
         );
 
-        await this.generateDWResource(
+        const resource = await this.generateDWResource(
           {
             matRepresentation: el,
             logicRepresentation,
@@ -65,6 +72,10 @@ export class GenerateSfDataEnv
           },
           options
         );
+
+        this.#mats.push(resource.matToCreate);
+        this.#cols.push(...resource.colsToCreate);
+        this.#logics.push(resource.logicToCreate);
       })
     );
   };
@@ -78,7 +89,6 @@ export class GenerateSfDataEnv
     try {
       this.connPool = connPool;
       this.auth = auth;
-      this.lineageId = req.lineageId;
 
       const dbRepresentations = await this.getDbRepresentations(connPool, auth);
 
@@ -89,9 +99,9 @@ export class GenerateSfDataEnv
       );
 
       return Result.ok({
-        matsToCreate: this.materializations,
-        columnsToCreate: this.columns,
-        logicsToCreate: this.logics,
+        matsToCreate: this.#mats,
+        columnsToCreate: this.#cols,
+        logicsToCreate: this.#logics,
       });
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);

@@ -4,7 +4,6 @@ export interface DashboardProps {
   name?: string;
   materializationName: string;
   columnName: string;
-  lineageIds: string[];
   columnId: string;
   materializationId: string;
 }
@@ -15,7 +14,6 @@ export interface DashboardPrototype {
   name?: string;
   materializationName: string;
   columnName: string;
-  lineageId: string;
   columnId: string;
   materializationId: string;
 }
@@ -37,9 +35,6 @@ export class Dashboard {
 
   #id: string;
 
-  #lineageIds: string[];
-
-
   get url(): string | undefined {
     return this.#url;
   }
@@ -60,10 +55,6 @@ export class Dashboard {
     return this.#id;
   }
 
-  get lineageIds(): string[] {
-    return this.#lineageIds;
-  }
-
   get columnId(): string {
     return this.#columnId;
   }
@@ -79,7 +70,6 @@ export class Dashboard {
     this.#materializationName = properties.materializationName;
     this.#columnName = properties.columnName;
     this.#id = properties.id;
-    this.#lineageIds = properties.lineageIds;
     this.#columnId = properties.columnId;
     this.#materializationId = properties.materializationId;
   }
@@ -90,8 +80,6 @@ export class Dashboard {
     if (!prototype.columnName)
       throw new TypeError('Dashboard must have column');
     if (!prototype.id) throw new TypeError('Dashboard must have id');
-    if (!prototype.lineageId)
-      throw new TypeError('Dashboard must have lineageId');
     if (!prototype.columnId)
       throw new TypeError('Dashboard must have columnId');
     if (!prototype.materializationId)
@@ -99,7 +87,6 @@ export class Dashboard {
 
     const dashboard = new Dashboard({
       ...prototype,
-      lineageIds: [prototype.lineageId],
     });
 
     return dashboard;
@@ -110,8 +97,6 @@ export class Dashboard {
       throw new TypeError('Dashboard must have materialisation');
     if (!props.columnName) throw new TypeError('Dashboard must have column');
     if (!props.id) throw new TypeError('Dashboard must have id');
-    if (!props.lineageIds.length)
-      throw new TypeError('Dashboard must have lineageIds');
     if (!props.columnId) throw new TypeError('Dashboard must have columnId');
     if (!props.materializationId)
       throw new TypeError('Dashboard must have materializationId');
@@ -125,7 +110,6 @@ export class Dashboard {
     materializationName: this.#materializationName,
     columnName: this.#columnName,
     id: this.#id,
-    lineageIds: this.#lineageIds,
     columnId: this.#columnId,
     materializationId: this.#materializationId,
   });

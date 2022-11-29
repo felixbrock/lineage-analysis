@@ -18,7 +18,6 @@ export interface MaterializationProps {
   schemaName: string;
   databaseName: string;
   type: MaterializationType;
-  lineageIds: string[];
   logicId?: string ;
   ownerId?: string ;
   isTransient?: boolean ;
@@ -32,7 +31,6 @@ export interface MaterializationPrototype {
   schemaName: string;
   name: string;
   type: MaterializationType;
-  lineageId: string;
   logicId?: string;
   ownerId?: string;
   isTransient?: boolean;
@@ -53,9 +51,6 @@ export class Materialization {
   #databaseName: string;
 
   #type: MaterializationType;
-
-  #lineageIds: string[];
-
 
   #logicId: string | undefined;
 
@@ -89,11 +84,6 @@ export class Materialization {
     return this.#type;
   }
 
-  get lineageIds(): string[] {
-    return this.#lineageIds;
-  }
-
-
   get logicId(): string | undefined {
     return this.#logicId;
   }
@@ -117,7 +107,6 @@ export class Materialization {
     this.#schemaName = props.schemaName;
     this.#databaseName = props.databaseName;
     this.#type = props.type;
-    this.#lineageIds = props.lineageIds;
     this.#logicId = props.logicId;
     this.#ownerId = props.ownerId;
     this.#isTransient = props.isTransient;
@@ -135,8 +124,6 @@ export class Materialization {
       throw new TypeError('Materialization must have database name');
     if (!prototype.type)
       throw new TypeError('Materialization must have materialization type');
-    if (!prototype.lineageId)
-      throw new TypeError('Materialization must have lineageId');
 
     const materialization = new Materialization({
       ...prototype,
@@ -144,7 +131,6 @@ export class Materialization {
       ownerId: prototype.ownerId,
       isTransient: prototype.isTransient,
       comment: prototype.comment,
-      lineageIds: [prototype.lineageId],
     });
 
     return materialization;
@@ -161,8 +147,6 @@ export class Materialization {
       throw new TypeError('Materialization must have database name');
     if (!props.type)
       throw new TypeError('Materialization must have materialization type');
-    if (!props.lineageIds.length)
-      throw new TypeError('Materialization must have lineageIds');
 
     return new Materialization(props);
   };
@@ -174,7 +158,6 @@ export class Materialization {
     name: this.#name,
     schemaName: this.#schemaName,
     databaseName: this.#databaseName,
-    lineageIds: this.#lineageIds,
     logicId: this.#logicId,
     ownerId: this.#ownerId,
     isTransient: this.#isTransient,

@@ -21,7 +21,6 @@ interface GeneralRequestProps {
   relationName: string;
   sql: string;
   parsedLogic: string;
-  lineageId: string;
   catalog: ModelRepresentation[];
   targetOrgId?: string;
 }
@@ -74,7 +73,6 @@ export class CreateLogic
 
           sql: commonProps.sql,
           parsedLogic: commonProps.parsedLogic,
-          lineageId: commonProps.lineageId,
           catalog: commonProps.catalog,
         },
         dbtProps,

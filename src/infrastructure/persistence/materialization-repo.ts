@@ -37,7 +37,6 @@ export default class MaterializationRepo
     { name: 'is_transient', nullable: true },
     { name: 'logic_id', nullable: true },
     { name: 'owner_id', nullable: true },
-    { name: 'lineage_ids', selectType: 'parse_json', nullable: false },
     { name: 'comment', nullable: true },
   ];
 
@@ -57,7 +56,6 @@ export default class MaterializationRepo
       IS_TRANSIENT: isTransient,
       LOGIC_ID: logicId,
       OWNER_ID: ownerId,
-      LINEAGE_IDS: lineageIds,
       COMMENT: comment,
     } = sfEntity;
 
@@ -74,7 +72,6 @@ export default class MaterializationRepo
       );
 
     if (
-      !MaterializationRepo.isStringArray(lineageIds) ||
       !MaterializationRepo.isOptionalOfType<boolean>(isTransient, 'boolean') ||
       !MaterializationRepo.isOptionalOfType<string>(logicId, 'string') ||
       !MaterializationRepo.isOptionalOfType<string>(ownerId, 'string') ||
@@ -94,7 +91,6 @@ export default class MaterializationRepo
       isTransient,
       logicId,
       ownerId,
-      lineageIds,
       comment,
     };
   };
@@ -109,13 +105,12 @@ export default class MaterializationRepo
     el.isTransient !== undefined ? el.isTransient.toString() : 'null',
     el.logicId || 'null',
     el.ownerId || 'null',
-    JSON.stringify(el.lineageIds),
     el.comment || 'null',
   ];
 
   buildFindByQuery(dto: MaterializationQueryDto): Query {
-    const binds: Bind[] = [dto.lineageId];
-    let whereClause = 'array_contains(?::variant, lineage_ids) ';
+    const binds: (string | number)[] = [];
+    let whereClause = '';
 
     if (dto.ids && dto.ids.length) {
       binds.push(
@@ -123,17 +118,27 @@ export default class MaterializationRepo
           ? dto.ids[0]
           : dto.ids.map((el) => `'${el}'`).join(', ')
       );
-      whereClause = whereClause.concat(
-        'and array_contains(id::variant, array_construct(?))'
-      );
+      const whereCondition =
+        'and array_contains(id::variant, array_construct(?))';
+      whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
     }
     if (dto.relationName) {
       binds.push(dto.relationName);
-      whereClause = whereClause.concat('and relation_name = ? ');
+      const whereCondition = 'and relation_name = ?';
+
+      whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
     }
     if (dto.type) {
       binds.push(dto.type);
-      whereClause = whereClause.concat('and type = ? ');
+      const whereCondition = 'and type = ?';
+
+      whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
     }
     if (dto.names && dto.names.length) {
       binds.push(
@@ -141,21 +146,35 @@ export default class MaterializationRepo
           ? dto.names[0]
           : dto.names.map((el) => `'${el}'`).join(', ')
       );
-      whereClause = whereClause.concat(
-        'and array_contains(name::variant, array_construct(?))'
-      );
+      const whereCondition =
+        'and array_contains(name::variant, array_construct(?))';
+      whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
     }
     if (dto.schemaName) {
       binds.push(dto.schemaName);
-      whereClause = whereClause.concat('and schema_name = ? ');
+      const whereCondition = 'and schema_name = ?';
+
+      whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
     }
     if (dto.databaseName) {
       binds.push(dto.databaseName);
-      whereClause = whereClause.concat('and database_name = ? ');
+      const whereCondition = 'and database_name = ?';
+
+      whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
     }
     if (dto.logicId) {
       binds.push(dto.logicId);
-      whereClause = whereClause.concat('and logic_id = ? ');
+      const whereCondition = 'and logic_id = ?';
+
+      whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
     }
 
     const text = `select * from cito.lineage.${this.matName}

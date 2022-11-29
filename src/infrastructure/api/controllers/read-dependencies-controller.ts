@@ -34,7 +34,7 @@ export default class ReadDependenciesController extends BaseController {
   }
 
   #buildRequestDto = (httpRequest: Request): ReadDependenciesRequestDto => {
-    const { type, headId, tailId, lineageId, targetOrgId } = httpRequest.query;
+    const { type, headId, tailId, targetOrgId } = httpRequest.query;
 
     const isDependencyType = (
       queryParam: string
@@ -43,7 +43,7 @@ export default class ReadDependenciesController extends BaseController {
     if (type) {
       if (typeof type !== 'string')
         throw new TypeError(
-          'When querying dependencies the lineageId query param must be of type string'
+          'When querying dependencies the type query param must be of type string'
         );
 
       if (!isDependencyType(type))
@@ -52,20 +52,11 @@ export default class ReadDependenciesController extends BaseController {
         );
     }
 
-    if (!lineageId)
-      throw new TypeError(
-        'When querying dependencies the lineageId must be provided'
-      );
-    if (typeof lineageId !== 'string')
-      throw new TypeError(
-        'When querying dependencies the lineageId query param must be of type string'
-      );
 
     return {
       type: type && isDependencyType(type) ? type : undefined,
       headId: typeof headId === 'string' ? headId : undefined,
       tailId: typeof tailId === 'string' ? tailId : undefined,
-      lineageId,
       targetOrgId: typeof targetOrgId === 'string' ? targetOrgId : undefined,
     };
   };

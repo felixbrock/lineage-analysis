@@ -9,7 +9,6 @@ export interface ColumnQueryDto {
   index?: string;
   type?: string;
   materializationIds?: string[];
-  lineageId: string;
 }
 
 export type IColumnRepo =  IServiceRepo<Column, ColumnQueryDto, ColumnUpdateDto>;

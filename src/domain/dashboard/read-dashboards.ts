@@ -13,7 +13,6 @@ export interface ReadDashboardsRequestDto {
   id?: string;
   columnId?: string;
   materializationId?: string;
-  lineageId: string;
   targetOrgId?: string;
   
 }
@@ -75,7 +74,6 @@ export class ReadDashboards
     request: ReadDashboardsRequestDto
   ): DashboardQueryDto => {
     const queryDto: DashboardQueryDto = {
-      lineageId: request.lineageId,
     };
 
     if (request.url) queryDto.url = request.url;

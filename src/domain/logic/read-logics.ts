@@ -8,7 +8,6 @@ import { ILogicRepo, LogicQueryDto } from './i-logic-repo';
 
 export interface ReadLogicsRequestDto {
   relationName?: string;
-  lineageId: string;
   targetOrgId?: string;
 }
 
@@ -58,7 +57,6 @@ export class ReadLogics
 
   #buildLogicQueryDto = (request: ReadLogicsRequestDto): LogicQueryDto => {
     const queryDto: LogicQueryDto = {
-      lineageId: request.lineageId,
     };
 
     if (request.relationName) queryDto.relationName = request.relationName;

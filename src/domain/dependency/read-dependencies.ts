@@ -9,7 +9,6 @@ export interface ReadDependenciesRequestDto {
   type?: DependencyType;
   headId?: string;
   tailId?: string;
-  lineageId: string;
   targetOrgId?: string;
   
 }
@@ -69,7 +68,7 @@ export class ReadDependencies
   #buildDependencyQueryDto = (
     request: ReadDependenciesRequestDto
   ): DependencyQueryDto => {
-    const queryDto: DependencyQueryDto = { lineageId: request.lineageId };
+    const queryDto: DependencyQueryDto = {  };
 
     if (request.type) queryDto.type = request.type;
     if (request.headId) queryDto.headId = request.headId;

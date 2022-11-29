@@ -41,7 +41,6 @@ export default class ReadMaterializationsController extends BaseController {
       schemaName,
       databaseName,
       logicId,
-      lineageId,
       targetOrgId,
     } = httpRequest.query;
 
@@ -52,7 +51,7 @@ export default class ReadMaterializationsController extends BaseController {
     if (materializationType) {
       if (typeof materializationType !== 'string')
         throw new TypeError(
-          'When querying materializations the lineageId query param must be of type string'
+          'When querying materializations the matType query param must be of type string'
         );
 
       if (!isMaterializationType(materializationType))
@@ -60,15 +59,6 @@ export default class ReadMaterializationsController extends BaseController {
           'When querying materializations the materializationType needs to be of type MaterializationType'
         );
     }
-
-    if (!lineageId)
-      throw new TypeError(
-        'When querying materializations the lineageId must be provided'
-      );
-    if (typeof lineageId !== 'string')
-      throw new TypeError(
-        'When querying materializations the lineageId query param must be of type string'
-      );
 
       const isStringArray = (obj: unknown): obj is string[] =>
       Array.isArray(obj) && obj.every((el) => typeof el === 'string');
@@ -86,7 +76,6 @@ export default class ReadMaterializationsController extends BaseController {
       schemaName: typeof schemaName === 'string' ? schemaName : undefined,
       databaseName: typeof databaseName === 'string' ? databaseName : undefined,
       logicId: typeof logicId === 'string' ? logicId : undefined,
-      lineageId,
       targetOrgId: typeof targetOrgId === 'string' ? targetOrgId : undefined,
     };
   };

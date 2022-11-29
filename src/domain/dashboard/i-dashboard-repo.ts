@@ -1,5 +1,5 @@
 import { Dashboard } from '../entities/dashboard';
-import { IServiceRepo } from '../services/i-base-service-repo';
+import { IServiceRepo } from '../services/i-service-repo';
 
 export type DashboardUpdateDto = undefined
 
@@ -11,7 +11,6 @@ export interface DashboardQueryDto {
   id?: string;
   columnId?: string;
   materializationId?: string;
-  lineageId: string;
 }
 
 export type IDashboardRepo =  IServiceRepo<Dashboard, DashboardQueryDto, DashboardUpdateDto>;

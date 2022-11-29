@@ -30,6 +30,9 @@ import SnowflakeApiRepo from './persistence/snowflake-api-repo';
 import IntegrationApiRepo from './persistence/integration-api-repo';
 import { QuerySnowflake } from '../domain/snowflake-api/query-snowflake';
 import { GetSnowflakeProfile } from '../domain/integration-api/get-snowflake-profile';
+import { GenerateSfDataEnv } from '../domain/data-env/generate-sf-data-env';
+import { GenerateDbtDataEnv } from '../domain/data-env/generate-dbt-data-env';
+import { RefreshSfDataEnv } from '../domain/data-env/refresh-sf-data-env';
 
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
@@ -51,6 +54,10 @@ iocRegister.register({
   readColumns: asClass(ReadColumns),
   readDependencies: asClass(ReadDependencies),
   readDashboards: asClass(ReadDashboards),
+
+  generateSfDataEnv: asClass(GenerateSfDataEnv),
+  generateDbtDataEnv: asClass(GenerateDbtDataEnv),
+  refreshSfDataEnv: asClass(RefreshSfDataEnv),
 
   parseSQL: asClass(ParseSQL),
   querySnowflake: asClass(QuerySnowflake),

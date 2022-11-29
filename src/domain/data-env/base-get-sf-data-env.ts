@@ -62,8 +62,6 @@ export default abstract class BaseGetSfDataEnv {
 
   protected auth?: Auth;
 
-  protected lineageId?: string;
-
   constructor(
     createMaterialization: CreateMaterialization,
     createColumn: CreateColumn,
@@ -289,7 +287,7 @@ export default abstract class BaseGetSfDataEnv {
     columnRepresentation: ColumnRepresentation,
     matId: string
   ): Promise<Column> => {
-    if (!this.connPool || !this.lineageId || !this.auth)
+    if (!this.connPool || !this.auth)
       throw new Error('Missing properties for generating sf data env');
 
     const createColumnResult = await this.#createColumn.execute(
@@ -302,7 +300,6 @@ export default abstract class BaseGetSfDataEnv {
         isIdentity: columnRepresentation.isIdentity,
         isNullable: columnRepresentation.isNullable,
         comment: columnRepresentation.comment,
-        lineageId: this.lineageId,
         writeToPersistence: false,
       },
       this.auth,
@@ -372,7 +369,7 @@ export default abstract class BaseGetSfDataEnv {
     logicRepresentation: LogicRepresentation,
     relationName: string
   ): Promise<Logic> => {
-    if (!this.connPool || !this.lineageId || !this.auth)
+    if (!this.connPool || !this.auth)
       throw new Error('Missing properties for generating sf data env');
 
     // const parsedLogic = logicRepresentation.sql
@@ -387,7 +384,6 @@ export default abstract class BaseGetSfDataEnv {
           generalProps: {
             relationName,
             sql: logicRepresentation.sql,
-            lineageId: this.lineageId,
             parsedLogic,
             catalog: this.catalog,
           },
@@ -437,7 +433,7 @@ export default abstract class BaseGetSfDataEnv {
     },
     options: { writeToPersistence: boolean }
   ): Promise<{matToCreate: Materialization, colsToCreate: Column[], logicToCreate: Logic}> => {
-    if (!this.connPool || !this.lineageId || !this.auth)
+    if (!this.connPool || !this.auth)
       throw new Error('Missing properties for generating sf data env');
 
     const { matRepresentation, columnRepresentations, logicRepresentation } =
@@ -455,7 +451,6 @@ export default abstract class BaseGetSfDataEnv {
           relationName: resourceProps.relationName,
           writeToPersistence: options.writeToPersistence,
           logicId: logic.id,
-          lineageId: this.lineageId,
         },
         this.auth,
         this.connPool

@@ -32,7 +32,6 @@ export default class ColumnRepo
     { name: 'is_identity', nullable: true },
     { name: 'is_nullable', nullable: true },
     { name: 'materialization_id', nullable: false },
-    { name: 'lineage_ids', selectType: 'parse_json', nullable: false },
     { name: 'comment', nullable: true },
   ];
 
@@ -51,7 +50,6 @@ export default class ColumnRepo
       IS_IDENTITY: isIdentity,
       IS_NULLABLE: isNullable,
       MATERIALIZATION_ID: materializationId,
-      LINEAGE_IDS: lineageIds,
       COMMENT: comment,
     } = sfEntity;
 
@@ -68,7 +66,6 @@ export default class ColumnRepo
       );
 
     if (
-      !ColumnRepo.isStringArray(lineageIds) ||
       !ColumnRepo.isOptionalOfType<boolean>(isIdentity, 'boolean') ||
       !ColumnRepo.isOptionalOfType<boolean>(isNullable, 'boolean') ||
       !ColumnRepo.isOptionalOfType<string>(comment, 'string')
@@ -86,7 +83,6 @@ export default class ColumnRepo
       isIdentity,
       isNullable,
       materializationId,
-      lineageIds,
       comment,
     };
   };
@@ -100,45 +96,60 @@ export default class ColumnRepo
     entity.isIdentity !== undefined ? entity.isIdentity.toString() : 'null',
     entity.isNullable !== undefined ? entity.isNullable.toString() : 'null',
     entity.materializationId,
-    JSON.stringify(entity.lineageIds),
     entity.comment || 'null',
   ];
 
   buildFindByQuery(dto: ColumnQueryDto): Query {
-    const binds: Bind[] = [dto.lineageId];
-    let whereClause = 'array_contains(?::variant, lineage_ids) ';
+    const binds: (string | number)[] = [];
+    let whereClause = '';
 
     if (dto.relationNames && dto.relationNames.length) {
       binds.push(...dto.relationNames);
-      whereClause = whereClause.concat(
-        `and array_contains(relation_name::variant, array_construct(${dto.relationNames
-          .map(() => '?')
-          .join(',')}))`
-      );
+      const whereCondition = `array_contains(relation_name::variant, array_construct(${dto.relationNames
+        .map(() => '?')
+        .join(',')}))`;
+
+      whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
     }
     if (dto.names && dto.names.length) {
       binds.push(...dto.names);
-      whereClause = whereClause.concat(
-        `and array_contains(name::variant, array_construct(${dto.names
-          .map(() => '?')
-          .join(',')}))`
-      );
+
+      const whereCondition = `array_contains(name::variant, array_construct(${dto.names
+        .map(() => '?')
+        .join(',')}))`;
+
+      whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
     }
     if (dto.index) {
       binds.push(dto.index);
-      whereClause = whereClause.concat('and index = ? ');
+      const whereCondition = 'index = ?';
+
+      whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
     }
     if (dto.type) {
       binds.push(dto.type);
-      whereClause = whereClause.concat('and type = ? ');
+      const whereCondition = 'type = ?';
+
+      whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
     }
     if (dto.materializationIds && dto.materializationIds.length) {
       binds.push(...dto.materializationIds);
-      whereClause = whereClause.concat(
-        `and array_contains(materializationId::variant, array_construct(${dto.materializationIds
-          .map(() => '?')
-          .join(',')}))`
-      );
+
+      const whereCondition = `array_contains(materializationId::variant, array_construct(${dto.materializationIds
+        .map(() => '?')
+        .join(',')}))`;
+
+      whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
     }
 
     const text = `select * from cito.lineage.${this.matName}

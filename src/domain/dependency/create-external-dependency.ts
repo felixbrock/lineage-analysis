@@ -11,7 +11,6 @@ import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 
 export interface CreateExternalDependencyRequestDto {
   dashboard: Dashboard;
-  lineageId: string;
   writeToPersistence: boolean;
   targetOrgId?: string;
 }
@@ -57,7 +56,6 @@ export class CreateExternalDependency
         type: 'external',
         headId: req.dashboard.id,
         tailId: req.dashboard.columnId,
-        lineageId: req.lineageId,
       });
 
       if (req.writeToPersistence)

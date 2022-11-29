@@ -49,8 +49,6 @@ export default class DependenciesBuilder {
 
   readonly #auth: Auth;
 
-  readonly #lineageId: string;
-
   readonly #targetOrgId?: string;
 
   readonly #logics: Logic[];
@@ -77,7 +75,6 @@ export default class DependenciesBuilder {
 
   constructor(
     props: {
-      lineageId: string;
       targetOrgId?: string;
       organizationId: string;
       logics: Logic[];
@@ -102,7 +99,6 @@ export default class DependenciesBuilder {
 
     this.#auth = auth;
 
-    this.#lineageId = props.lineageId;
     this.#targetOrgId = props.targetOrgId;
     this.#logics = props.logics;
     this.#mats = props.mats;
@@ -237,8 +233,7 @@ export default class DependenciesBuilder {
     const materialization = this.#mats.find(
       (el) =>
         el.name === dashboardRef.materializationName &&
-        el.relationName === parentRelationNames[0] &&
-        el.lineageIds.includes(this.#lineageId)
+        el.relationName === parentRelationNames[0]
     );
 
     if (!materialization)
@@ -249,8 +244,7 @@ export default class DependenciesBuilder {
     const column = this.#columns.find(
       (el) =>
         el.name === dashboardRef.columnName &&
-        el.materializationId === materialization.id &&
-        el.lineageIds.includes(this.#lineageId)
+        el.materializationId === materialization.id
     );
 
     if (!column)
@@ -262,7 +256,6 @@ export default class DependenciesBuilder {
       {
         columnId: column.id,
         columnName: dashboardRef.columnName,
-        lineageId: this.#lineageId,
         materializationId: materialization.id,
         materializationName: dashboardRef.materializationName,
         url: dashboardRef.url,
@@ -286,7 +279,6 @@ export default class DependenciesBuilder {
       await this.#createExternalDependency.execute(
         {
           dashboard,
-          lineageId: this.#lineageId,
           targetOrgId: this.#targetOrgId,
           writeToPersistence: false,
         },
@@ -310,10 +302,8 @@ export default class DependenciesBuilder {
     parentRelationNames: string[]
   ): Promise<void> => {
     
-    const lineage = this.#lineageId;
     const connPool = this.#connPool;
     
-    if (!lineage) throw new ReferenceError('Lineage property is undefined');
     if(!connPool) throw new Error('Connection pool missing');
 
     const relationNameElements = relationName.split('.');
@@ -342,7 +332,6 @@ export default class DependenciesBuilder {
               dependencyRef: dependency,
               selfRelationName: relationName,
               parentRelationNames,
-              lineageId: this.#lineageId,
               targetOrgId: this.#targetOrgId,
               writeToPersistence: false,
             },
@@ -397,7 +386,6 @@ export default class DependenciesBuilder {
         dependencyRef,
         selfRelationName: relationName,
         parentRelationNames,
-        lineageId: this.#lineageId,
         targetOrgId: this.#targetOrgId,
         writeToPersistence: false,
       },
@@ -466,7 +454,6 @@ export default class DependenciesBuilder {
     const readColumnsResult = await this.#readColumns.execute(
       {
         relationNames: [relationName],
-        lineageId: this.#lineageId,
         targetOrgId: this.#targetOrgId,
       },
       this.#auth, this.#connPool

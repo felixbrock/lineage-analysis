@@ -24,6 +24,7 @@ export default class LineageRepo
     { name: 'id', nullable: false },
     { name: 'created_at', nullable: false },
     { name: 'completed', nullable: false },
+    { name: 'diff', nullable: true }
   ];
 
   // eslint-disable-next-line @typescript-eslint/no-useless-constructor

@@ -29,7 +29,6 @@ export default class DependencyRepo
     { name: 'type', nullable: false },
     { name: 'head_id', nullable: false },
     { name: 'tail_id', nullable: false },
-    { name: 'lineage_ids', selectType: 'parse_json', nullable: false },
   ];
 
   // eslint-disable-next-line @typescript-eslint/no-useless-constructor
@@ -43,30 +42,22 @@ export default class DependencyRepo
       TYPE: type,
       HEAD_ID: headId,
       TAIL_ID: tailId,
-      LINEAGE_IDS: lineageIds,
     } = sfEntity;
 
     if (
       typeof id !== 'string' ||
       typeof type !== 'string' ||
       typeof headId !== 'string' ||
-      typeof tailId !== 'string' ||
-      typeof lineageIds !== 'string'
+      typeof tailId !== 'string' 
     )
       throw new Error(
         'Retrieved unexpected dependency field types from persistence'
-      );
-
-    if (!DependencyRepo.isStringArray(lineageIds))
-      throw new Error(
-        'Type mismatch detected when reading materialization from persistence'
       );
 
     return {
       id,
       headId,
       tailId,
-      lineageIds,
       type: parseDependencyType(type),
     };
   };
@@ -76,12 +67,11 @@ export default class DependencyRepo
     entity.type,
     entity.headId,
     entity.tailId,
-    JSON.stringify(entity.lineageIds),
   ];
 
   protected buildFindByQuery(dto: DependencyQueryDto): Query {
-    const binds: Bind[] = [dto.lineageId];
-    let whereClause = 'array_contains(?::variant, lineage_ids) ';
+    const binds: (string | number)[] = [];
+    let whereClause = '';
 
     if (dto.tailId) {
       binds.push(dto.tailId);

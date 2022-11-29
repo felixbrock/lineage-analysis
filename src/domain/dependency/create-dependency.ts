@@ -14,7 +14,6 @@ export interface CreateDependencyRequestDto {
   dependencyRef: ColumnRef;
   selfRelationName: string;
   parentRelationNames: string[];
-  lineageId: string;
   writeToPersistence: boolean;
   targetOrgId?: string;
 }
@@ -57,7 +56,6 @@ export class CreateDependency
   #getParentId = async (
     dependencyRef: ColumnRef,
     parentRelationNames: string[],
-    lineageId: string
   ): Promise<string> => {
     if (!this.#auth || !this.#connPool)
       throw new Error('auth or connection pool missing');
@@ -66,7 +64,6 @@ export class CreateDependency
       {
         relationNames: parentRelationNames,
         names: [dependencyRef.name],
-        lineageId,
         targetOrgId: this.#targetOrgId,
       },
       this.#auth,
@@ -97,7 +94,6 @@ export class CreateDependency
   #getSelfColumn = async (
     selfRelationName: string,
     dependencyRef: ColumnRef,
-    lineageId: string
   ): Promise<Column> => {
     if (!this.#auth || !this.#connPool)
       throw new Error('auth or connection pool missing');
@@ -105,7 +101,6 @@ export class CreateDependency
     const readSelfColumnResult = await this.#readColumns.execute(
       {
         relationNames: [selfRelationName],
-        lineageId,
         names: [dependencyRef.alias || dependencyRef.name],
         targetOrgId: this.#targetOrgId,
       },
@@ -162,7 +157,6 @@ export class CreateDependency
       const headColumn = await this.#getSelfColumn(
         req.selfRelationName,
         req.dependencyRef,
-        req.lineageId
       );
 
       // const parentName =
@@ -173,7 +167,6 @@ export class CreateDependency
       const parentId = await this.#getParentId(
         req.dependencyRef,
         req.parentRelationNames,
-        req.lineageId
       );
 
       const dependency = Dependency.create({
@@ -181,7 +174,6 @@ export class CreateDependency
         type: req.dependencyRef.dependencyType,
         headId: headColumn.id,
         tailId: parentId,
-        lineageId: req.lineageId,
       });
 
       if (req.writeToPersistence)

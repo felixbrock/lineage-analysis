@@ -6,7 +6,6 @@ export type LogicUpdateDto = undefined;
 export interface LogicQueryDto {
   relationName?: string;
   materializationIds?: string[];
-  lineageId: string;
 }
 
 export type ILogicRepo =  IServiceRepo<Logic, LogicQueryDto, LogicUpdateDto>;

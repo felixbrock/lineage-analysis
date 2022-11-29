@@ -22,7 +22,6 @@ interface GeneralPrototypeProps {
   relationName: string;
   sql: string;
   parsedLogic: string;
-  lineageId: string;
   catalog: ModelRepresentation[];
 }
 
@@ -37,7 +36,6 @@ export interface LogicProps {
   dependentOn: DependentOn;
   parsedLogic: string;
   statementRefs: Refs;
-  lineageIds: string[];
 }
 
 type LogicDto = LogicProps;
@@ -169,8 +167,6 @@ export class Logic {
 
   #statementRefs: Refs;
 
-  #lineageIds: string[];
-
   get id(): string {
     return this.#id;
   }
@@ -195,10 +191,6 @@ export class Logic {
     return this.#statementRefs;
   }
 
-  get lineageIds(): string[] {
-    return this.#lineageIds;
-  }
-
   private constructor(properties: LogicProps) {
     this.#id = properties.id;
     this.#relationName = properties.relationName;
@@ -206,7 +198,6 @@ export class Logic {
     this.#dependentOn = properties.dependentOn;
     this.#parsedLogic = properties.parsedLogic;
     this.#statementRefs = properties.statementRefs;
-    this.#lineageIds = properties.lineageIds;
   }
 
   /* Adds a key to an already existing path that describes the current exploration route through a json tree */
@@ -1795,8 +1786,6 @@ export class Logic {
       throw new TypeError('Logic prototype must have SQL logic');
     if (!generalProps.parsedLogic)
       throw new TypeError('Logic  prototype must have parsed SQL logic');
-    if (!generalProps.lineageId)
-      throw new TypeError('Logic must have lineageId');
     if (!generalProps.catalog)
       throw new TypeError('Logic prototype must have catalog data');
 
@@ -1825,7 +1814,6 @@ export class Logic {
       dependentOn,
       parsedLogic: generalProps.parsedLogic,
       statementRefs,
-      lineageIds: [generalProps.lineageId],
     });
 
     return logic;
@@ -1837,8 +1825,6 @@ export class Logic {
       throw new TypeError('Logic must have relationName');
     if (!properties.parsedLogic)
       throw new TypeError('Logic creation requires parsed SQL logic');
-    if (!properties.lineageIds.length)
-      throw new TypeError('Logic must have lineageIds');
 
     const logic = new Logic(properties);
 
@@ -1852,7 +1838,6 @@ export class Logic {
     dependentOn: this.#dependentOn,
     parsedLogic: this.#parsedLogic,
     statementRefs: this.#statementRefs,
-    lineageIds: this.#lineageIds,
   });
 
   static #insensitiveEquality = (str1: string, str2: string): boolean =>

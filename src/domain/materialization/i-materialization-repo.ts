@@ -11,7 +11,6 @@ export interface MaterializationQueryDto {
   schemaName?: string;
   databaseName?: string;
   logicId?: string;
-  lineageId: string;
 }
 
 export type IMaterializationRepo =  IServiceRepo<Materialization, MaterializationQueryDto, MaterializationUpdateDto>;

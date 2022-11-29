@@ -26,7 +26,6 @@ export default class DashboardRepo
     { name: 'materialization_id', nullable: false },
     { name: 'column_name', nullable: false },
     { name: 'column_id', nullable: false },
-    { name: 'lineage_ids', selectType: 'parse_json', nullable: false },
   ];
   
 // eslint-disable-next-line @typescript-eslint/no-useless-constructor
@@ -43,7 +42,6 @@ buildEntityProps = (sfEntity: SnowflakeEntity): DashboardProps => {
       MATERIALIZATION_ID: materializationId,
       COLUMN_NAME: columnName,
       COLUMN_ID: columnId,
-      LINEAGE_IDS: lineageIds,
     } = sfEntity;
     
     if (
@@ -59,7 +57,6 @@ buildEntityProps = (sfEntity: SnowflakeEntity): DashboardProps => {
       
       
       if (
-        !DashboardRepo.isStringArray(lineageIds) ||
         !DashboardRepo.isOptionalOfType<string>(name, 'string') ||
         !DashboardRepo.isOptionalOfType<string>(url, 'string')
         )
@@ -75,7 +72,6 @@ buildEntityProps = (sfEntity: SnowflakeEntity): DashboardProps => {
       materializationId,
       columnName,
       columnId,
-      lineageIds,
     };
   };
   
@@ -87,36 +83,59 @@ buildEntityProps = (sfEntity: SnowflakeEntity): DashboardProps => {
     entity.materializationId,
     entity.columnName,
     entity.columnId,
-    JSON.stringify(entity.lineageIds),
   ];
 
   buildFindByQuery(dto: DashboardQueryDto): Query {
-    const binds: Bind[] = [dto.lineageId];
-      let whereClause = 'array_contains(?::variant, lineage_ids) ';
+    const binds: (string | number)[] = [];
+    let whereClause = '';
 
       if (dto.url) {
         binds.push(dto.url);
-        whereClause = whereClause.concat('and url = ? ');
+        const whereCondition = `url = ?`;
+
+        whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
       }
       if (dto.name) {
         binds.push(dto.name);
-        whereClause = whereClause.concat('and name = ? ');
+        const whereCondition = 'name = ?';
+
+        whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
       }
       if (dto.materializationName) {
         binds.push(dto.materializationName);
-        whereClause = whereClause.concat('and materialization_name = ? ');
+        const whereCondition = 'materialization_name = ?';
+
+        whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
       }
       if (dto.materializationId) {
         binds.push(dto.materializationId);
-        whereClause = whereClause.concat('and materialization_id = ? ');
+        const whereCondition = 'materialization_id = ?';
+
+        whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
       }
       if (dto.columnName) {
         binds.push(dto.columnName);
-        whereClause = whereClause.concat('and column_name = ? ');
+        const whereCondition = 'column_name = ?';
+
+        whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
       }
       if (dto.columnId) {
         binds.push(dto.columnId);
-        whereClause = whereClause.concat('and column_id = ? ');
+        const whereCondition = 'column_id = ?';
+
+        whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
       }
 
       const text = `select * from cito.lineage.${this.matName}

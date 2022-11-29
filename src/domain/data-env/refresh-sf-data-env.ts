@@ -1,7 +1,7 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import BaseAuth from '../services/base-auth';
-import { DataEnv } from './data-env';
+import { ColToRemoveRef, DataEnv, LogicToRemoveRef, MatToRemoveRef } from './data-env';
 import { Column } from '../entities/column';
 import { Materialization } from '../entities/materialization';
 import { Logic } from '../entities/logic';
@@ -21,8 +21,7 @@ import { CreateLogic } from '../logic/create-logic';
 import { ParseSQL } from '../sql-parser-api/parse-sql';
 
 export interface RefreshSfDataEnvRequestDto {
-  targetOrgId?: string;
-  lastLineageCompletedTimestamp: string;
+  lastLineageCompletedAt: string;
 }
 
 export type RefreshSfDataEnvAuthDto = BaseAuth;
@@ -57,21 +56,19 @@ export class RefreshSfDataEnv
 
   readonly #logicsToCreate: Logic[] = [];
 
-  readonly #logicIdsToRemove: string[] = [];
+  readonly #logicToRemoveRefs: LogicToRemoveRef[] = [];
 
   readonly #matsToReplace: Materialization[] = [];
 
   readonly #matsToCreate: Materialization[] = [];
 
-  readonly #matIdsToRemove: string[] = [];
+  readonly #matToRemoveRefs: MatToRemoveRef[] = [];
 
   readonly #columnsToReplace: Column[] = [];
 
   readonly #columnsToCreate: Column[] = [];
 
-  readonly #columnIdsToRemove: string[] = [];
-
-  #targetOrgId?: string;
+  readonly #columnToRemoveRefs: ColToRemoveRef[] = [];
 
   #auth?: RefreshSfDataEnvAuthDto;
 
@@ -102,13 +99,12 @@ export class RefreshSfDataEnv
   }
 
   #buildLogicToReplace = (
-    oldLogicProps: { id: string; lineageIds: string[] },
+    oldLogicProps: { id: string},
     logicToHandle: Logic
   ): Logic =>
     Logic.build({
       ...logicToHandle.toDto(),
       id: oldLogicProps.id,
-      lineageIds: oldLogicProps.lineageIds.concat(logicToHandle.lineageIds),
     });
 
   #buildColumnToReplace = (
@@ -116,7 +112,6 @@ export class RefreshSfDataEnv
       id: string;
       name: string;
       materializationId: string;
-      lineageIds: string[];
     },
     columnToHandle: Column
   ): Column => {
@@ -125,7 +120,6 @@ export class RefreshSfDataEnv
       id: oldColumnProps.id,
       name: oldColumnProps.name,
       materializationId: oldColumnProps.materializationId,
-      lineageIds: oldColumnProps.lineageIds.concat(columnToHandle.lineageIds),
     });
 
     return column;
@@ -136,7 +130,6 @@ export class RefreshSfDataEnv
       id: string;
       relationName: string;
       logicId?: string;
-      lineageIds: string[];
     },
     matToHandle: Materialization
   ): Materialization => {
@@ -145,7 +138,6 @@ export class RefreshSfDataEnv
       id: oldMatProps.id,
       relationName: oldMatProps.relationName,
       logicId: oldMatProps.logicId || matToHandle.logicId,
-      lineageIds: oldMatProps.lineageIds.concat(matToHandle.lineageIds),
     });
 
     return mat;
@@ -157,7 +149,7 @@ export class RefreshSfDataEnv
   ): Promise<{
     columnsToReplace: Column[];
     columnsToCreate: Column[];
-    columnIdsToRemove: string[];
+    columnToRemoveRefs: ColToRemoveRef[];
   }> => {
     const columnsToReplace: Column[] = [];
     const columnsToCreate: Column[] = [];
@@ -174,7 +166,6 @@ export class RefreshSfDataEnv
               id: matchingColumn.id,
               name: matchingColumn.name,
               materializationId: matchingColumn.materializationId,
-              lineageIds: matchingColumn.lineageIds,
             },
             columnToHandle
           );
@@ -184,27 +175,37 @@ export class RefreshSfDataEnv
       })
     );
 
-    const isString = (obj: unknown): obj is string => typeof obj === 'string';
+    const isString = (obj: unknown): obj is ColToRemoveRef =>
+      !!obj && typeof obj === 'object' && 'relationName' in obj;
 
-    const columnIdsToRemove = oldCols
-      .map((oldCol) => {
+    const colToRemoveRefs = oldCols
+      .map((oldCol): ColToRemoveRef | undefined => {
         const matchingColumn = newCols.find(
           (newCol) => newCol.name === oldCol.name
         );
 
-        if (!matchingColumn) return oldCol.id;
+        if (!matchingColumn)
+          return {
+            id: oldCol.id,
+            matId: oldCol.materializationId,
+            name: oldCol.name,
+            relationName: oldCol.relationName,
+          };
         return undefined;
       })
       .filter(isString);
 
-    return { columnsToCreate, columnsToReplace, columnIdsToRemove };
+    return {
+      columnsToCreate,
+      columnsToReplace,
+      columnToRemoveRefs: colToRemoveRefs,
+    };
   };
 
   #mergeMatLogic = async (newLogic: Logic, oldLogic: Logic): Promise<Logic> => {
     const updatedLogic = this.#buildLogicToReplace(
       {
         id: oldLogic.id,
-        lineageIds: oldLogic.lineageIds,
       },
       newLogic
     );
@@ -415,7 +416,6 @@ export class RefreshSfDataEnv
 
         const updatedMat = await this.#buildMatToReplace(
           {
-            lineageIds: matchingMat.lineageIds,
             id: matchingMat.id,
             logicId:
               matToHandle.logicId && !matchingMat.logicId
@@ -427,15 +427,18 @@ export class RefreshSfDataEnv
         );
         this.#matsToReplace.push(updatedMat);
 
-        const { columnsToCreate, columnsToReplace, columnIdsToRemove } =
-          await this.#mergeMatColumns(
-            colsToHandle,
-            oldColsByMatId[matchingMat.id]
-          );
+        const {
+          columnsToCreate,
+          columnsToReplace,
+          columnToRemoveRefs: columnIdsToRemove,
+        } = await this.#mergeMatColumns(
+          colsToHandle,
+          oldColsByMatId[matchingMat.id]
+        );
 
         this.#columnsToCreate.push(...columnsToCreate);
         this.#columnsToReplace.push(...columnsToReplace);
-        this.#columnIdsToRemove.push(...columnIdsToRemove);
+        this.#columnToRemoveRefs.push(...columnIdsToRemove);
 
         const oldLogic = oldLogics.find(
           (element) => element.id === matchingMat.logicId
@@ -458,7 +461,13 @@ export class RefreshSfDataEnv
     if (!this.#auth || !this.#connPool)
       throw new Error('auth or connPool missing');
 
-    const columns = await this.#columnRepo.findBy(
+    const mats = await this.#materializationRepo.findBy(
+      { ids: removedMatIds },
+      this.#auth,
+      this.#connPool
+    );
+
+    const cols = await this.#columnRepo.findBy(
       { materializationIds: removedMatIds },
       this.#auth,
       this.#connPool
@@ -470,19 +479,41 @@ export class RefreshSfDataEnv
       this.#connPool
     );
 
-    this.#matIdsToRemove.push(...removedMatIds);
-    this.#columnIdsToRemove.push(...columns.map((el) => el.id));
-    this.#logicIdsToRemove.push(...logics.map((el) => el.id));
+    this.#matToRemoveRefs.push(
+      ...mats.map(
+        (el): MatToRemoveRef => ({
+          id: el.id,
+          name: el.name,
+          dbName: el.databaseName,
+          schemaName: el.schemaName,
+        })
+      )
+    );
+    this.#columnToRemoveRefs.push(
+      ...cols.map(
+        (el): ColToRemoveRef => ({
+          id: el.id,
+          matId: el.materializationId,
+          name: el.name,
+          relationName: el.relationName,
+        })
+      )
+    );
+    this.#logicToRemoveRefs.push(
+      ...logics.map(
+        (el): LogicToRemoveRef => ({ id: el.id, relationName: el.relationName })
+      )
+    );
   };
 
   #refreshDbDataEnv = async (
     dbName: string,
-    lastLineageCompletedTimestamp: string
+    lastLineageCompletedAt: string
   ): Promise<void> => {
     if (!this.#auth || !this.#connPool)
       throw new Error('Missing auth or connPool');
 
-    const binds = [lastLineageCompletedTimestamp];
+    const binds = [lastLineageCompletedAt];
 
     const queryText = `select t2.relation_name as removed_mat_id, lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) as added_mat_id, t1.table_name is not null and t2.relation_name is not null as altered
       from cito.lineage.materializations as t2
@@ -519,20 +550,20 @@ export class RefreshSfDataEnv
 
       await Promise.all(
         dbRepresentations.map(async (el) =>
-          this.#refreshDbDataEnv(el.name, req.lastLineageCompletedTimestamp)
+          this.#refreshDbDataEnv(el.name, req.lastLineageCompletedAt)
         )
       );
 
       return Result.ok({
         matsToCreate: this.#matsToCreate,
         matsToReplace: this.#matsToReplace,
-        matsToRemove: this.#matIdsToRemove,
+        matsToRemove: this.#matToRemoveRefs,
         columnsToCreate: this.#columnsToCreate,
         columnsToReplace: this.#columnsToReplace,
-        columnsToRemove: this.#columnIdsToRemove,
+        columnsToRemove: this.#columnToRemoveRefs,
         logicsToCreate: this.#logicsToCreate,
         logicsToReplace: this.#logicsToReplace,
-        logicsToRemove: this.#logicIdsToRemove,
+        logicsToRemove: this.#logicToRemoveRefs,
       });
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);

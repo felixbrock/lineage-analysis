@@ -11,7 +11,6 @@ export interface CreateDashboardRequestDto {
   materializationId: string;
   columnName: string;
   columnId: string;
-  lineageId: string;
   targetOrgId?: string;
   writeToPersistence: boolean;
   
@@ -57,7 +56,6 @@ export class CreateDashboard
 
       const dashboard = Dashboard.create({
         id: uuidv4(),
-        lineageId: req.lineageId,
         url: req.url,
         materializationName: req.materializationName,
         columnName: req.columnName,

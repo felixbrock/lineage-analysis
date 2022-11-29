@@ -30,7 +30,6 @@ export default class LogicRepo
     { name: 'dependent_on', selectType: 'parse_json', nullable: false },
     { name: 'parsed_logic', nullable: false },
     { name: 'statement_refs', selectType: 'parse_json', nullable: false },
-    { name: 'lineage_ids', selectType: 'parse_json', nullable: false },
   ];
 
   // eslint-disable-next-line @typescript-eslint/no-useless-constructor
@@ -46,7 +45,6 @@ export default class LogicRepo
       DEPENDENT_ON: dependentOn,
       PARSED_LOGIC: parsedLogic,
       STATEMENT_REFS: statementRefs,
-      LINEAGE_IDS: lineageIds,
     } = sfEntity;
 
     if (
@@ -55,8 +53,7 @@ export default class LogicRepo
       typeof sql !== 'string' ||
       typeof dependentOn !== 'object' ||
       typeof parsedLogic !== 'string' ||
-      typeof statementRefs !== 'object' ||
-      typeof lineageIds !== 'object'
+      typeof statementRefs !== 'object' 
     )
       throw new Error(
         'Retrieved unexpected logic field types from persistence'
@@ -74,8 +71,7 @@ export default class LogicRepo
 
     if (
       !isDependentOnObj(dependentOn) ||
-      !isRefsObj(statementRefs) ||
-      !LogicRepo.isStringArray(lineageIds)
+      !isRefsObj(statementRefs) 
     )
       throw new Error(
         'Type mismatch detected when reading logic from persistence'
@@ -86,7 +82,6 @@ export default class LogicRepo
       sql,
       relationName,
       dependentOn,
-      lineageIds,
       parsedLogic,
       statementRefs,
     };
@@ -99,25 +94,32 @@ export default class LogicRepo
     JSON.stringify(entity.dependentOn),
     entity.parsedLogic,
     JSON.stringify(entity.statementRefs),
-    JSON.stringify(entity.lineageIds),
   ];
 
   buildFindByQuery(dto: LogicQueryDto): Query {
-    const binds: Bind[] = [dto.lineageId];
-    let whereClause = 'array_contains(?::variant, lineage_ids) ';
+    const binds: (string | number)[] = [];
+    let whereClause = '';
 
     if (dto.relationName) {
       binds.push(dto.relationName);
-      whereClause = whereClause.concat('and relation_name = ? ');
+      const whereCondition = 'and relation_name = ? ';
+
+      whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
     }
 
     if (dto.materializationIds && dto.materializationIds.length) {
       binds.push(...dto.materializationIds);
-      whereClause = whereClause.concat(
+      const whereCondition = 
         `and array_contains(materializationId::variant, array_construct(${dto.materializationIds
           .map(() => '?')
           .join(',')}))`
-      );
+      ;
+
+      whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
     }
 
     const text = `select * from cito.lineage.${this.matName}

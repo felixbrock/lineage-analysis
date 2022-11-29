@@ -19,7 +19,6 @@ export interface CreateMaterializationRequestDto {
   name: string;
   schemaName: string;
   databaseName: string;
-  lineageId: string;
   writeToPersistence: boolean;
   logicId?: string;
   ownerId?: string;
@@ -74,7 +73,6 @@ export class CreateMaterialization
         name: req.name,
         schemaName: req.schemaName,
         databaseName: req.databaseName,
-        lineageId: req.lineageId,
         logicId: req.logicId,
         ownerId: req.ownerId,
         isTransient: req.isTransient,
