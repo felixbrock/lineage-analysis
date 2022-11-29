@@ -3,13 +3,13 @@ import IUseCase from '../services/use-case';
 import BaseAuth from '../services/base-auth';
 import {
   ColToDeleteRef,
-  DataEnv,
+  DataEnvProps,
   LogicToDeleteRef,
   MatToDeleteRef,
 } from './data-env';
 import { Column } from '../entities/column';
 import { Materialization } from '../entities/materialization';
-import { Logic, ModelRepresentation } from '../entities/logic';
+import { Logic } from '../entities/logic';
 import {
   IConnectionPool,
   SnowflakeEntity,
@@ -26,15 +26,15 @@ import { CreateLogic } from '../logic/create-logic';
 import { ParseSQL } from '../sql-parser-api/parse-sql';
 
 export interface UpdateSfDataEnvRequestDto {
-  lastLineageCompletedAt: string;
+  latestLineage: {
+    completedAt: string;
+    dbCoveredNames: string[];
+  };
 }
 
 export type UpdateSfDataEnvAuthDto = BaseAuth;
 
-export type UpdateSfDataEnvResponse = Result<{
-  dataEnv: DataEnv;
-  catalog: ModelRepresentation[];
-}>;
+export type UpdateSfDataEnvResponse = Result<DataEnvProps>;
 
 interface DataEnvDiff {
   addedMatIds: string[];
@@ -544,6 +544,19 @@ export class UpdateSfDataEnv
     await this.#addResourcesToModify(dataEnvDiff.modifiedMatIds, dbName);
   };
 
+  #addRemovedDbToRemove = async (dbName: string): Promise<void> => {
+    if (!this.#auth || !this.#connPool)
+      throw new Error('Missing auth or connPool');
+
+    const matsToRemove = await this.#materializationRepo.findBy(
+      { databaseName: dbName },
+      this.#auth,
+      this.#connPool
+    );
+
+    await this.#addResourcesToDelete(matsToRemove.map((el) => el.id));
+  };
+
   /* Checks Snowflake resources for changes and returns partial data env to merge with existing snapshot */
   async execute(
     req: UpdateSfDataEnvRequestDto,
@@ -553,10 +566,21 @@ export class UpdateSfDataEnv
     try {
       const dbRepresentations = await this.getDbRepresentations(connPool, auth);
 
+      const dbToCoverNames = dbRepresentations.map((el) => el.name);
+      const dbRemovedNames = req.latestLineage.dbCoveredNames.filter(
+        (dbOldName) => !dbToCoverNames.includes(dbOldName)
+      );
+
       await Promise.all(
-        dbRepresentations.map(async (el) =>
-          this.#updateDbDataEnv(el.name, req.lastLineageCompletedAt)
-        )
+        dbRemovedNames.map(async (el) => {
+          await this.#addRemovedDbToRemove(el);
+        })
+      );
+
+      await Promise.all(
+        dbRepresentations.map(async (el) => {
+          await this.#updateDbDataEnv(el.name, req.latestLineage.completedAt);
+        })
       );
 
       return Result.ok({
@@ -572,6 +596,7 @@ export class UpdateSfDataEnv
           logicsToDelete: this.#logicToDeleteRefs,
         },
         catalog: this.catalog,
+        dbCoveredNames: dbRepresentations.map((el) => el.name),
       });
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);

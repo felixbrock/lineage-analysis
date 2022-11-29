@@ -2,12 +2,12 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import BaseAuth from '../services/base-auth';
-import { DataEnv } from './data-env';
+import { DataEnvProps } from './data-env';
 import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 import BaseGetSfDataEnv, { ColumnRepresentation } from './base-get-sf-data-env';
 import { Materialization } from '../entities/materialization';
 import { Column } from '../entities/column';
-import { Logic, ModelRepresentation } from '../entities/logic';
+import { Logic } from '../entities/logic';
 
 export type GenerateSfDataEnvRequestDto = null;
 
@@ -16,10 +16,7 @@ export interface GenerateSfDataEnvAuthDto
   callerOrgId: string;
 }
 
-export type GenerateSfDataEnvResponse = Result<{
-  dataEnv: DataEnv;
-  catalog: ModelRepresentation[];
-}>;
+export type GenerateSfDataEnvResponse = Result<DataEnvProps>;
 
 export class GenerateSfDataEnv
   extends BaseGetSfDataEnv
@@ -113,6 +110,7 @@ export class GenerateSfDataEnv
           logicsToCreate: this.#logics,
         },
         catalog: this.catalog,
+        dbCoveredNames: dbRepresentations.map((el) => el.name),
       });
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);

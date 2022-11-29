@@ -23,7 +23,8 @@ export default class LineageRepo
     { name: 'id', nullable: false },
     { name: 'created_at', nullable: false },
     { name: 'completed', nullable: false },
-    { name: 'diff', nullable: true }
+    { name: 'db_covered_names', selectType: 'parse_json', nullable: false },
+    { name: 'diff', nullable: true },
   ];
 
   // eslint-disable-next-line @typescript-eslint/no-useless-constructor
@@ -32,12 +33,20 @@ export default class LineageRepo
   }
 
   buildEntityProps = (sfEntity: SnowflakeEntity): LineageProps => {
-    const { ID: id, COMPLETED: completed, CREATED_AT: createdAt } = sfEntity;
+    const {
+      ID: id,
+      COMPLETED: completed,
+      CREATED_AT: createdAt,
+      DIFF: diff,
+      DB_COVERED_NAMES: dbCoveredNames,
+    } = sfEntity;
 
     if (
       typeof id !== 'string' ||
       typeof completed !== 'boolean' ||
-      !(createdAt instanceof Date)
+      !(createdAt instanceof Date) ||
+      !LineageRepo.isOptionalOfType<string>(diff, 'string') ||
+      !LineageRepo.isStringArray(dbCoveredNames)
     )
       throw new Error(
         'Retrieved unexpected lineage field types from persistence'
@@ -47,13 +56,15 @@ export default class LineageRepo
       id,
       completed,
       createdAt: createdAt.toISOString(),
+      diff,
+      dbCoveredNames,
     };
   };
 
   findLatest = async (
     filter: { tolerateIncomplete: boolean; minuteTolerance?: number },
     auth: BaseAuth,
-    connPool: IConnectionPool,
+    connPool: IConnectionPool
   ): Promise<Lineage | null> => {
     const minuteTolerance: number = filter.minuteTolerance || 10;
 
@@ -84,7 +95,7 @@ export default class LineageRepo
         ? null
         : this.toEntity(this.buildEntityProps(result.value[0]));
     } catch (error: unknown) {
-      if (error instanceof Error ) console.error(error.stack);
+      if (error instanceof Error) console.error(error.stack);
       else if (error) console.trace(error);
       return Promise.reject(new Error());
     }
@@ -94,6 +105,8 @@ export default class LineageRepo
     entity.id,
     entity.createdAt,
     entity.completed.toString(),
+    JSON.stringify(entity.dbCoveredNames),
+    entity.diff || 'null'
   ];
 
   buildFindByQuery(dto: undefined): Query {
@@ -115,6 +128,10 @@ export default class LineageRepo
       colDefinitions.push(this.getDefinition('diff'));
       binds.push(dto.diff);
     }
+
+    if (dto.dbCoveredNames)
+      colDefinitions.push(this.getDefinition('db_covered_names'));
+    binds.push(JSON.stringify(dto.dbCoveredNames));
 
     const text = this.getUpdateQueryText(this.matName, colDefinitions, [
       `(${binds.map(() => '?').join(', ')})`,

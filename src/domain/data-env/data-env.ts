@@ -1,5 +1,5 @@
 import { Column } from "../entities/column";
-import { Logic} from "../entities/logic";
+import { Logic, ModelRepresentation} from "../entities/logic";
 import { Materialization } from "../entities/materialization";
 
 export interface MatToDeleteRef {
@@ -31,4 +31,10 @@ export interface DataEnv {
   logicsToCreate?: Logic[];
   logicsToReplace?: Logic[];
   logicToDeleteRefs?: LogicToDeleteRef[];
+}
+
+export interface DataEnvProps{
+  dataEnv: DataEnv;
+  catalog: ModelRepresentation[];
+  dbCoveredNames: string[]
 }

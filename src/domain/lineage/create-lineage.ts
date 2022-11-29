@@ -14,11 +14,14 @@ import { IColumnRepo } from '../column/i-column-repo';
 import IUseCase from '../services/use-case';
 import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 import BaseAuth from '../services/base-auth';
-import { DataEnv } from '../data-env/data-env';
+import { DataEnv, DataEnvProps } from '../data-env/data-env';
 import { GenerateDbtDataEnv } from '../data-env/generate-dbt-data-env';
 import { GenerateSfDataEnv } from '../data-env/generate-sf-data-env';
 import { UpdateSfDataEnv } from '../data-env/update-sf-data-env';
-import { BuildDependencies, BuildResult } from '../dependency/build-dependencies';
+import {
+  BuildDependencies,
+  BuildResult,
+} from '../dependency/build-dependencies';
 import { ModelRepresentation } from '../entities/logic';
 
 export interface CreateLineageRequestDto {
@@ -79,7 +82,7 @@ export class CreateLineage
     generateSfDataEnv: GenerateSfDataEnv,
     generateDbtDataEnv: GenerateDbtDataEnv,
     updateSfDataEnv: UpdateSfDataEnv,
-    buildDependencies: BuildDependencies,
+    buildDependencies: BuildDependencies
   ) {
     this.#lineageRepo = lineageRepo;
     this.#logicRepo = logicRepo;
@@ -209,7 +212,7 @@ export class CreateLineage
     );
   };
 
-  #genDbtDataEnv = async (): Promise<{dataEnv: DataEnv, catalog: ModelRepresentation[]}> => {
+  #genDbtDataEnv = async (): Promise<DataEnvProps> => {
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
@@ -237,7 +240,7 @@ export class CreateLineage
     return result.value;
   };
 
-  #genSfDataEnv = async (): Promise<{dataEnv: DataEnv, catalog: ModelRepresentation[]}> => {
+  #genSfDataEnv = async (): Promise<DataEnvProps> => {
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
@@ -258,7 +261,7 @@ export class CreateLineage
     return result.value;
   };
 
-  #generateEnv = async (): Promise<{dataEnv: DataEnv, catalog: ModelRepresentation[]}> => {
+  #generateEnv = async (): Promise<DataEnvProps> => {
     if (!this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
@@ -272,12 +275,20 @@ export class CreateLineage
     return res;
   };
 
-  #refrSfDataEnv = async (lastLineageCompletedAt: string): Promise<{dataEnv: DataEnv, catalog: ModelRepresentation[]}> => {
+  #updSfDataEnv = async (
+    latestLineageCompletedAt: string,
+    latestLineagedbCoveredNames: string[]
+  ): Promise<DataEnvProps> => {
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
     const result = await this.#updateSfDataEnv.execute(
-      { lastLineageCompletedAt },
+      {
+        latestLineage: {
+          completedAt: latestLineageCompletedAt,
+          dbCoveredNames: latestLineagedbCoveredNames,
+        },
+      },
       this.#auth,
       this.#connPool
     );
@@ -289,34 +300,33 @@ export class CreateLineage
     return result.value;
   };
 
-  #refrDbtDataEnv = async (): Promise<{dataEnv: DataEnv, catalog: ModelRepresentation[]}> => {
+  #updDbtDataEnv = async (): Promise<DataEnvProps> => {
     throw new Error('Not implemented');
   };
 
-  #updateEnv = async (lastLineageCompletedAt: string): Promise<{dataEnv: DataEnv, catalog: ModelRepresentation[]}> => {
+  #updateEnv = async (
+    latestLineageCompletedAt: string,
+    latestLineageDbCoveredNames: string[]
+  ): Promise<DataEnvProps> => {
     if (!this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
     console.log('...updateing data env');
 
-    if (!this.#req)
-      throw new Error('Missing properties detected when creating lineage');
-
-    console.log('...generating warehouse resources');
-
     const result =
       this.#req.dbtCatalog && this.#req.dbtManifest
-        ? await this.#refrDbtDataEnv()
-        : await this.#refrSfDataEnv(lastLineageCompletedAt);
+        ? await this.#updDbtDataEnv()
+        : await this.#updSfDataEnv(
+            latestLineageCompletedAt,
+            latestLineageDbCoveredNames
+          );
 
     return result;
   };
 
-  #getNewDataEnv = async (): Promise<{
-    dataEnv: DataEnv;
-    operation: DataEnvOperation;
-    catalog: ModelRepresentation[];
-  }> => {
+  #getNewDataEnv = async (): Promise<
+    DataEnvProps & { operation: DataEnvOperation }
+  > => {
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
@@ -327,9 +337,13 @@ export class CreateLineage
       this.#req.targetOrgId
     );
 
-    let generateDataEnvResult: {dataEnv: DataEnv, catalog: ModelRepresentation[]};
+    let generateDataEnvResult: DataEnvProps;
     if (!latestLineage) generateDataEnvResult = await this.#generateEnv();
-    else generateDataEnvResult = await this.#updateEnv(latestLineage.createdAt);
+    else
+      generateDataEnvResult = await this.#updateEnv(
+        latestLineage.createdAt,
+        latestLineage.dbCoveredNames
+      );
 
     return {
       ...generateDataEnvResult,
@@ -337,8 +351,12 @@ export class CreateLineage
     };
   };
 
-  #buildDeps = async (dataEnv: DataEnv, catalog: ModelRepresentation[]): Promise<BuildResult> => {
-    if(!this.#auth  || !this.#connPool || !this.#req) throw new Error('Missing field values');
+  #buildDeps = async (
+    dataEnv: DataEnv,
+    catalog: ModelRepresentation[]
+  ): Promise<BuildResult> => {
+    if (!this.#auth || !this.#connPool || !this.#req)
+      throw new Error('Missing field values');
 
     console.log('...building dependencies');
 
@@ -346,25 +364,29 @@ export class CreateLineage
     todo-fix potential bug since resources that were deleted are not taken into account. 
     Also in case of data env update only a fraction of resources is available to build up dependencies 
     */
-    const buildDependenciesResult = await this.#buildDependencies
-      .execute(
-        {
-          logics: (dataEnv.logicsToCreate || []).concat((dataEnv.logicsToReplace ||  [])),
-          mats: (dataEnv.matsToCreate || []).concat((dataEnv.matsToReplace || [])),
-          columns: (dataEnv.columnsToCreate || []).concat((dataEnv.columnsToReplace || [])),
-          catalog,
-          targetOrgId: this.#req.targetOrgId,
-          biToolType: this.#req.biTool,
-        },
-        this.#auth,
-        this.#connPool
-      );
+    const buildDependenciesResult = await this.#buildDependencies.execute(
+      {
+        logics: (dataEnv.logicsToCreate || []).concat(
+          dataEnv.logicsToReplace || []
+        ),
+        mats: (dataEnv.matsToCreate || []).concat(dataEnv.matsToReplace || []),
+        columns: (dataEnv.columnsToCreate || []).concat(
+          dataEnv.columnsToReplace || []
+        ),
+        catalog,
+        targetOrgId: this.#req.targetOrgId,
+        biToolType: this.#req.biTool,
+      },
+      this.#auth,
+      this.#connPool
+    );
 
-    if(!buildDependenciesResult.success) throw new Error(buildDependenciesResult.error);
-    if(!buildDependenciesResult.value) throw new Error('build dependencies usecase did not return val obj');
+    if (!buildDependenciesResult.success)
+      throw new Error(buildDependenciesResult.error);
+    if (!buildDependenciesResult.value)
+      throw new Error('build dependencies usecase did not return val obj');
 
     return buildDependenciesResult.value;
-
   };
 
   async execute(
@@ -396,13 +418,20 @@ export class CreateLineage
       console.log('...writing lineage to persistence');
       await this.#writeLineageToPersistence(lineage);
 
-      const { dataEnv, operation: dataEnvOperation, catalog } =
-        await this.#getNewDataEnv();
+      const {
+        dataEnv,
+        operation: dataEnvOperation,
+        catalog,
+        dbCoveredNames,
+      } = await this.#getNewDataEnv();
 
       console.log('...writing dw resources to persistence');
       await this.#writeWhResourcesToPersistence(dataEnv);
 
-      const { dashboards, dependencies } = await this.#buildDeps(dataEnv, catalog);
+      const { dashboards, dependencies } = await this.#buildDeps(
+        dataEnv,
+        catalog
+      );
 
       console.log('...writing dashboards to persistence');
       await this.#writeDashboardsToPersistence(dashboards);
@@ -411,7 +440,12 @@ export class CreateLineage
       await this.#writeDependenciesToPersistence(dependencies);
 
       console.log('...setting lineage complete state to true');
-      await this.#updateLineage(lineage.id, { completed: true, diff: dataEnvOperation === 'update' ? JSON.stringify(dataEnv) : undefined });
+      await this.#updateLineage(lineage.id, {
+        completed: true,
+        dbCoveredNames,
+        diff:
+          dataEnvOperation === 'update' ? JSON.stringify(dataEnv) : undefined,
+      });
 
       console.log('finished lineage creation.');
 
@@ -420,7 +454,9 @@ export class CreateLineage
           id: lineage.id,
           createdAt: lineage.createdAt,
           completed: true,
-          diff: dataEnvOperation === 'update' ? JSON.stringify(dataEnv) : undefined
+          dbCoveredNames,
+          diff:
+            dataEnvOperation === 'update' ? JSON.stringify(dataEnv) : undefined,
         })
       );
     } catch (error: unknown) {

@@ -22,7 +22,7 @@ import IUseCase from '../services/use-case';
 import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 import { ParseSQL, ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
 import Result from '../value-types/transient-types/result';
-import { DataEnv } from './data-env';
+import { DataEnvProps } from './data-env';
 
 export interface GenerateDbtDataEnvRequestDto {
   dbtCatalog: string;
@@ -32,10 +32,7 @@ export interface GenerateDbtDataEnvRequestDto {
 
 export type GenerateDbtDataEnvAuthDto = BaseAuth;
 
-export type GenerateDbtDataEnvResponse = Result<{
-  dataEnv: DataEnv;
-  catalog: ModelRepresentation[];
-}>;
+export type GenerateDbtDataEnvResponse = Result<DataEnvProps>;
 
 interface DbtNodeMetadata {
   name: string;
@@ -688,6 +685,8 @@ export class GenerateDbtDataEnv
           logicsToCreate: this.#logics,
         },
         catalog: this.#catalog,
+        // todo - needs to be updated. Not retrieved
+        dbCoveredNames: []
       });
     } catch (error: unknown) {
       if (error instanceof Error && error.message) console.trace(error.message);
