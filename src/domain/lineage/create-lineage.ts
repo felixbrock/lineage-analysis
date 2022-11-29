@@ -2,12 +2,10 @@
 import { v4 as uuidv4 } from 'uuid';
 import Result from '../value-types/transient-types/result';
 import { Lineage } from '../entities/lineage';
-import { CreateDependency } from '../dependency/create-dependency';
 import { Dependency } from '../entities/dependency';
 import { ILineageRepo, LineageUpdateDto } from './i-lineage-repo';
 import { IDependencyRepo } from '../dependency/i-dependency-repo';
 import { Dashboard } from '../entities/dashboard';
-import { CreateExternalDependency } from '../dependency/create-external-dependency';
 import { IDashboardRepo } from '../dashboard/i-dashboard-repo';
 import { BiToolType } from '../value-types/bi-tool';
 import { ILogicRepo } from '../logic/i-logic-repo';
@@ -72,8 +70,6 @@ export class CreateLineage
   #req?: CreateLineageRequestDto;
 
   constructor(
-    createDependency: CreateDependency,
-    createExternalDependency: CreateExternalDependency,
     lineageRepo: ILineageRepo,
     logicRepo: ILogicRepo,
     materializationRepo: IMaterializationRepo,
