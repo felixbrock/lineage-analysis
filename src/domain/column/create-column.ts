@@ -12,7 +12,6 @@ export interface CreateColumnRequestDto {
   index: string;
   dataType: ColumnDataType;
   materializationId: string;
-  lineageId: string;
   writeToPersistence: boolean;
   targetOrgId?: string;
   isIdentity?: boolean;
@@ -62,7 +61,6 @@ export class CreateColumn
         index: req.index,
         dataType: req.dataType,
         materializationId: req.materializationId,
-        lineageId: req.lineageId,
         isIdentity: req.isIdentity,
         isNullable: req.isNullable,
         comment: req.comment,

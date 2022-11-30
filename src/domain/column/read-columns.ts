@@ -11,7 +11,6 @@ export interface ReadColumnsRequestDto {
   index?: string;
   type?: string;
   materializationIds?: string[];
-  lineageId: string;
   targetOrgId?: string;
 }
 
@@ -63,7 +62,6 @@ export class ReadColumns
 
   #buildColumnQueryDto = (request: ReadColumnsRequestDto): ColumnQueryDto => {
     const queryDto: ColumnQueryDto = {
-      lineageId: request.lineageId,
     };
 
     if (request.relationNames) queryDto.relationNames = request.relationNames;

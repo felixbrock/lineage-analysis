@@ -1,33 +1,36 @@
+// todo clean architecture violation
 import { v4 as uuidv4 } from 'uuid';
-import { ReadColumns } from '../../column/read-columns';
-import { CreateDashboard } from '../../dashboard/create-dashboard';
+import { ReadColumns } from '../column/read-columns';
+import { CreateDashboard } from '../dashboard/create-dashboard';
 import {
   CreateDependency,
   CreateDependencyResponse,
-} from '../../dependency/create-dependency';
-import { CreateExternalDependency } from '../../dependency/create-external-dependency';
-import { Column } from '../../entities/column';
-import { Dashboard } from '../../entities/dashboard';
-import { Dependency } from '../../entities/dependency';
+} from './create-dependency';
+import { CreateExternalDependency } from './create-external-dependency';
+import { Column } from '../entities/column';
+import { Dashboard } from '../entities/dashboard';
+import { Dependency } from '../entities/dependency';
 import {
   ColumnRef,
   DashboardRef,
   Logic,
   ModelRepresentation,
   Refs,
-} from '../../entities/logic';
-import { Materialization } from '../../entities/materialization';
+} from '../entities/logic';
+import { Materialization } from '../entities/materialization';
 import {
   QuerySfQueryHistory,
   QuerySfQueryHistoryResponseDto,
-} from '../../snowflake-api/query-snowflake-history';
-import { BiTool } from '../../value-types/bi-tool';
-import SQLElement from '../../value-types/sql-element';
+} from '../snowflake-api/query-snowflake-history';
+import { BiToolType } from '../value-types/bi-tool';
+import SQLElement from '../value-types/sql-element';
 import {
   IConnectionPool,
   SnowflakeQueryResult,
-} from '../../snowflake-api/i-snowflake-api-repo';
-import BaseAuth from '../../services/base-auth';
+} from '../snowflake-api/i-snowflake-api-repo';
+import BaseAuth from '../services/base-auth';
+import Result from '../value-types/transient-types/result';
+import IUseCase from '../services/use-case';
 
 export type Auth = BaseAuth;
 
@@ -36,7 +39,28 @@ export interface BuildResult {
   dependencies: Dependency[];
 }
 
-export default class DependenciesBuilder {
+export interface BuildDependenciesRequestDto {
+  targetOrgId?: string;
+  logics: Logic[];
+  mats: Materialization[];
+  columns: Column[];
+  catalog: ModelRepresentation[];
+  biToolType?: BiToolType;
+}
+
+export type BuildDependenciesAuthDto = BaseAuth;
+
+export type BuildDependenciesResponse = Result<BuildResult>;
+
+export class BuildDependencies
+  implements
+    IUseCase<
+      BuildDependenciesRequestDto,
+      BuildDependenciesResponse,
+      BuildDependenciesAuthDto,
+      IConnectionPool
+    >
+{
   readonly #createDashboard: CreateDashboard;
 
   readonly #createDependency: CreateDependency;
@@ -47,73 +71,43 @@ export default class DependenciesBuilder {
 
   readonly #querySfQueryHistory: QuerySfQueryHistory;
 
-  readonly #auth: Auth;
+  #auth?: Auth;
 
-  readonly #lineageId: string;
+  #targetOrgId?: string;
 
-  readonly #targetOrgId?: string;
+  #logics?: Logic[];
 
-  readonly #logics: Logic[];
+  #mats?: Materialization[];
 
-  readonly #mats: Materialization[];
+  #columns?: Column[];
 
-  readonly #columns: Column[];
-
-  readonly #catalog: ModelRepresentation[];
+  #catalog?: ModelRepresentation[];
 
   #dependencies: Dependency[] = [];
 
-  get dependencies(): Dependency[] {
-    return this.#dependencies;
-  }
-
   #dashboards: Dashboard[] = [];
-
-  get dashboards(): Dashboard[] {
-    return this.#dashboards;
-  }
 
   #connPool?: IConnectionPool;
 
   constructor(
-    props: {
-      lineageId: string;
-      targetOrgId?: string;
-      organizationId: string;
-      logics: Logic[];
-      mats: Materialization[];
-      columns: Column[];
-      catalog: ModelRepresentation[];
-    },
-    auth: Auth,
-    dependencies: {
-      createDashboard: CreateDashboard;
-      createDependency: CreateDependency;
-      createExternalDependency: CreateExternalDependency;
-      readColumns: ReadColumns;
-      querySfQueryHistory: QuerySfQueryHistory;
-    }
+    createDashboard: CreateDashboard,
+    createDependency: CreateDependency,
+    createExternalDependency: CreateExternalDependency,
+    readColumns: ReadColumns,
+    querySfQueryHistory: QuerySfQueryHistory
   ) {
-    this.#createDashboard = dependencies.createDashboard;
-    this.#createDependency = dependencies.createDependency;
-    this.#createExternalDependency = dependencies.createExternalDependency;
-    this.#readColumns = dependencies.readColumns;
-    this.#querySfQueryHistory = dependencies.querySfQueryHistory;
-
-    this.#auth = auth;
-
-    this.#lineageId = props.lineageId;
-    this.#targetOrgId = props.targetOrgId;
-    this.#logics = props.logics;
-    this.#mats = props.mats;
-    this.#columns = props.columns;
-    this.#catalog = props.catalog;
+    this.#createDashboard = createDashboard;
+    this.#createDependency = createDependency;
+    this.#createExternalDependency = createExternalDependency;
+    this.#readColumns = readColumns;
+    this.#querySfQueryHistory = querySfQueryHistory;
   }
 
   #retrieveQuerySfQueryHistory = async (
-    biType: BiTool
+    biType: BiToolType
   ): Promise<SnowflakeQueryResult> => {
-    if (!this.#connPool) throw new Error('connection pool missing');
+    if (!this.#connPool || !this.#auth)
+      throw new Error('connection pool or auth missing');
 
     const querySfQueryHistoryResult: QuerySfQueryHistoryResponseDto =
       await this.#querySfQueryHistory.execute(
@@ -138,7 +132,7 @@ export default class DependenciesBuilder {
   static #getDashboardDataDependencyRefs = async (
     statementRefs: Refs,
     querySfQueryHistoryResult: SnowflakeQueryResult,
-    biTool: BiTool
+    biTool: BiToolType
   ): Promise<DashboardRef[]> => {
     const dependentDashboards: DashboardRef[] = [];
 
@@ -191,12 +185,12 @@ export default class DependenciesBuilder {
         index ===
         self.findIndex(
           (ref) =>
-            DependenciesBuilder.#insensitiveEquality(ref.name, value.name) &&
-            DependenciesBuilder.#insensitiveEquality(
+            BuildDependencies.#insensitiveEquality(ref.name, value.name) &&
+            BuildDependencies.#insensitiveEquality(
               ref.context.path,
               value.context.path
             ) &&
-            DependenciesBuilder.#insensitiveEquality(
+            BuildDependencies.#insensitiveEquality(
               ref.materializationName,
               value.materializationName
             )
@@ -228,7 +222,8 @@ export default class DependenciesBuilder {
     relationName: string,
     parentRelationNames: string[]
   ): Promise<void> => {
-    if (!this.#connPool) throw new Error('Connection pool missing');
+    if (!this.#connPool || !this.#mats || !this.#columns || !this.#auth)
+      throw new Error('Build dependency field values missing');
 
     const relationNameElements = relationName.split('.');
     if (relationNameElements.length !== 3)
@@ -237,8 +232,7 @@ export default class DependenciesBuilder {
     const materialization = this.#mats.find(
       (el) =>
         el.name === dashboardRef.materializationName &&
-        el.relationName === parentRelationNames[0] &&
-        el.lineageIds.includes(this.#lineageId)
+        el.relationName === parentRelationNames[0]
     );
 
     if (!materialization)
@@ -249,8 +243,7 @@ export default class DependenciesBuilder {
     const column = this.#columns.find(
       (el) =>
         el.name === dashboardRef.columnName &&
-        el.materializationId === materialization.id &&
-        el.lineageIds.includes(this.#lineageId)
+        el.materializationId === materialization.id
     );
 
     if (!column)
@@ -262,7 +255,6 @@ export default class DependenciesBuilder {
       {
         columnId: column.id,
         columnName: dashboardRef.columnName,
-        lineageId: this.#lineageId,
         materializationId: materialization.id,
         materializationName: dashboardRef.materializationName,
         url: dashboardRef.url,
@@ -286,7 +278,6 @@ export default class DependenciesBuilder {
       await this.#createExternalDependency.execute(
         {
           dashboard,
-          lineageId: this.#lineageId,
           targetOrgId: this.#targetOrgId,
           writeToPersistence: false,
         },
@@ -309,12 +300,10 @@ export default class DependenciesBuilder {
     relationName: string,
     parentRelationNames: string[]
   ): Promise<void> => {
-    
-    const lineage = this.#lineageId;
     const connPool = this.#connPool;
-    
-    if (!lineage) throw new ReferenceError('Lineage property is undefined');
-    if(!connPool) throw new Error('Connection pool missing');
+    const auth = this.#auth;
+
+    if (!connPool || !auth) throw new Error('Connection pool or auth missing');
 
     const relationNameElements = relationName.split('.');
     if (relationNameElements.length !== 3)
@@ -342,11 +331,10 @@ export default class DependenciesBuilder {
               dependencyRef: dependency,
               selfRelationName: relationName,
               parentRelationNames,
-              lineageId: this.#lineageId,
               targetOrgId: this.#targetOrgId,
               writeToPersistence: false,
             },
-            this.#auth,
+            auth,
             connPool
           );
 
@@ -386,7 +374,8 @@ export default class DependenciesBuilder {
     relationName: string,
     parentRelationNames: string[]
   ): Promise<void> => {
-    if(!this.#connPool) throw new Error('Connection pool missing');
+    if (!this.#connPool || !this.#auth)
+      throw new Error('Connection pool or auth missing');
 
     const relationNameElements = relationName.split('.');
     if (relationNameElements.length !== 3)
@@ -397,11 +386,11 @@ export default class DependenciesBuilder {
         dependencyRef,
         selfRelationName: relationName,
         parentRelationNames,
-        lineageId: this.#lineageId,
         targetOrgId: this.#targetOrgId,
         writeToPersistence: false,
       },
-      this.#auth, this.#connPool
+      this.#auth,
+      this.#connPool
     );
 
     if (!createDependencyResult.success)
@@ -420,10 +409,11 @@ export default class DependenciesBuilder {
   #getDependenciesForWildcard = async (
     dependencyRef: ColumnRef
   ): Promise<ColumnRef[]> => {
-    if(!this.#connPool) throw new Error('Connection pool missing');
+    if (!this.#connPool || !this.#catalog || !this.#auth)
+      throw new Error('Connection pool or catalog missing');
 
     const catalogMatches = this.#catalog.filter((catalogEl) => {
-      const nameIsEqual = DependenciesBuilder.#insensitiveEquality(
+      const nameIsEqual = BuildDependencies.#insensitiveEquality(
         dependencyRef.materializationName,
         catalogEl.materializationName
       );
@@ -432,7 +422,7 @@ export default class DependenciesBuilder {
         !dependencyRef.schemaName ||
         (typeof dependencyRef.schemaName === 'string' &&
         typeof catalogEl.schemaName === 'string'
-          ? DependenciesBuilder.#insensitiveEquality(
+          ? BuildDependencies.#insensitiveEquality(
               dependencyRef.schemaName,
               catalogEl.schemaName
             )
@@ -442,7 +432,7 @@ export default class DependenciesBuilder {
         !dependencyRef.databaseName ||
         (typeof dependencyRef.databaseName === 'string' &&
         typeof catalogEl.databaseName === 'string'
-          ? DependenciesBuilder.#insensitiveEquality(
+          ? BuildDependencies.#insensitiveEquality(
               dependencyRef.databaseName,
               catalogEl.databaseName
             )
@@ -466,10 +456,10 @@ export default class DependenciesBuilder {
     const readColumnsResult = await this.#readColumns.execute(
       {
         relationNames: [relationName],
-        lineageId: this.#lineageId,
         targetOrgId: this.#targetOrgId,
       },
-      this.#auth, this.#connPool
+      this.#auth,
+      this.#connPool
     );
 
     if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
@@ -486,97 +476,122 @@ export default class DependenciesBuilder {
     return dependencies;
   };
 
-  /* Creates all dependencies that exist between DWH resources */
-  build = async (connPool: IConnectionPool, biType?: BiTool): Promise<BuildResult> => {
-    // todo - should method be completely sync? Probably resolves once transformed into batch job.
-
-    this.#connPool = connPool;
-
-    const querySfQueryHistory: SnowflakeQueryResult | undefined = biType
-      ? await this.#retrieveQuerySfQueryHistory(biType)
-      : undefined;
-
-    await Promise.all(
-      this.#logics.map(async (logic) => {
-        const colDataDependencyRefs =
-          DependenciesBuilder.#getColDataDependencyRefs(logic.statementRefs);
-        await Promise.all(
-          colDataDependencyRefs.map(async (dependencyRef) =>
-            this.#buildColumnRefDependency(
-              dependencyRef,
-              logic.relationName,
-              logic.dependentOn.dbtDependencyDefinitions
-                .concat(logic.dependentOn.dwDependencyDefinitions)
-                .map((element) => element.relationName)
-            )
-          )
-        );
-
-        const wildcardDataDependencyRefs =
-          DependenciesBuilder.#getWildcardDataDependencyRefs(
-            logic.statementRefs
-          );
-
-        await Promise.all(
-          wildcardDataDependencyRefs.map(async (dependencyRef) =>
-            this.#buildWildcardRefDependency(
-              dependencyRef,
-              logic.relationName,
-              logic.dependentOn.dbtDependencyDefinitions
-                .concat(logic.dependentOn.dwDependencyDefinitions)
-                .map((element) => element.relationName)
-            )
-          )
-        );
-
-        if (biType && querySfQueryHistory) {
-          const dashboardDataDependencyRefs =
-            await DependenciesBuilder.#getDashboardDataDependencyRefs(
-              logic.statementRefs,
-              querySfQueryHistory,
-              biType
-            );
-
-          const uniqueDashboardRefs = dashboardDataDependencyRefs.filter(
-            (value, index, self) =>
-              index ===
-              self.findIndex((dashboard) =>
-                typeof dashboard.name === 'string' &&
-                typeof value.name === 'string'
-                  ? DependenciesBuilder.#insensitiveEquality(
-                      dashboard.name,
-                      value.name
-                    )
-                  : dashboard.name === value.name &&
-                    DependenciesBuilder.#insensitiveEquality(
-                      dashboard.columnName,
-                      value.columnName
-                    ) &&
-                    DependenciesBuilder.#insensitiveEquality(
-                      dashboard.materializationName,
-                      value.materializationName
-                    )
-              )
-          );
-
-          await Promise.all(
-            uniqueDashboardRefs.map(async (dashboardRef) =>
-              this.#buildDashboardRefDependency(
-                dashboardRef,
-                logic.relationName,
-                logic.dependentOn.dbtDependencyDefinitions.map(
-                  (element) => element.relationName
-                )
-              )
-            )
-          );
-        }
-      })
-    );
-
-    return { dashboards: this.#dashboards, dependencies: this.#dependencies };
-  };
-
   static #insensitiveEquality = (str1: string, str2: string): boolean =>
     str1.toLowerCase() === str2.toLowerCase();
+
+  /* Creates all dependencies that exist between DWH resources */
+  async execute(
+    req: BuildDependenciesRequestDto,
+    auth: BuildDependenciesAuthDto,
+    connPool: IConnectionPool
+  ): Promise<BuildDependenciesResponse> {
+    try {
+      this.#connPool = connPool;
+      this.#auth = auth;
+      this.#mats = req.mats;
+      this.#columns = req.columns;
+      this.#logics = req.logics;
+      this.#catalog = req.catalog;
+      this.#targetOrgId = req.targetOrgId;
+
+      // todo - needs to updated (due to sf only env)
+      if(auth)
+      return Result.ok({
+        dashboards: this.#dashboards,
+        dependencies: this.#dependencies,
+      });
+
+      const querySfQueryHistory: SnowflakeQueryResult | undefined =
+        req.biToolType
+          ? await this.#retrieveQuerySfQueryHistory(req.biToolType)
+          : undefined;
+
+      await Promise.all(
+        this.#logics.map(async (logic) => {
+          const colDataDependencyRefs =
+            BuildDependencies.#getColDataDependencyRefs(logic.statementRefs);
+          await Promise.all(
+            colDataDependencyRefs.map(async (dependencyRef) =>
+              this.#buildColumnRefDependency(
+                dependencyRef,
+                logic.relationName,
+                logic.dependentOn.dbtDependencyDefinitions
+                  .concat(logic.dependentOn.dwDependencyDefinitions)
+                  .map((element) => element.relationName)
+              )
+            )
+          );
+
+          const wildcardDataDependencyRefs =
+            BuildDependencies.#getWildcardDataDependencyRefs(
+              logic.statementRefs
+            );
+
+          await Promise.all(
+            wildcardDataDependencyRefs.map(async (dependencyRef) =>
+              this.#buildWildcardRefDependency(
+                dependencyRef,
+                logic.relationName,
+                logic.dependentOn.dbtDependencyDefinitions
+                  .concat(logic.dependentOn.dwDependencyDefinitions)
+                  .map((element) => element.relationName)
+              )
+            )
+          );
+
+          if (req.biToolType && querySfQueryHistory) {
+            const dashboardDataDependencyRefs =
+              await BuildDependencies.#getDashboardDataDependencyRefs(
+                logic.statementRefs,
+                querySfQueryHistory,
+                req.biToolType
+              );
+
+            const uniqueDashboardRefs = dashboardDataDependencyRefs.filter(
+              (value, index, self) =>
+                index ===
+                self.findIndex((dashboard) =>
+                  typeof dashboard.name === 'string' &&
+                  typeof value.name === 'string'
+                    ? BuildDependencies.#insensitiveEquality(
+                        dashboard.name,
+                        value.name
+                      )
+                    : dashboard.name === value.name &&
+                      BuildDependencies.#insensitiveEquality(
+                        dashboard.columnName,
+                        value.columnName
+                      ) &&
+                      BuildDependencies.#insensitiveEquality(
+                        dashboard.materializationName,
+                        value.materializationName
+                      )
+                )
+            );
+
+            await Promise.all(
+              uniqueDashboardRefs.map(async (dashboardRef) =>
+                this.#buildDashboardRefDependency(
+                  dashboardRef,
+                  logic.relationName,
+                  logic.dependentOn.dbtDependencyDefinitions.map(
+                    (element) => element.relationName
+                  )
+                )
+              )
+            );
+          }
+        })
+      );
+
+      return Result.ok({
+        dashboards: this.#dashboards,
+        dependencies: this.#dependencies,
+      });
+    } catch (error: unknown) {
+      if (error instanceof Error) console.error(error.stack);
+      else if (error) console.trace(error);
+      return Result.ok();
+    }
+  }
 }

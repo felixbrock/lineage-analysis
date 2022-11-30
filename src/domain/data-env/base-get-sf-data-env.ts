@@ -1,34 +1,22 @@
-import { CreateLogic } from '../../logic/create-logic';
-import { CreateColumn } from '../../column/create-column';
-import {
-  Column,
-  ColumnDataType,
-  parseColumnDataType,
-} from '../../entities/column';
-import { Logic, ModelRepresentation } from '../../entities/logic';
-import {
-  Materialization,
-  MaterializationType,
-  parseMaterializationType,
-} from '../../entities/materialization';
-import { CreateMaterialization } from '../../materialization/create-materialization';
+import { CreateColumn } from '../column/create-column';
+import { Column, ColumnDataType, parseColumnDataType } from '../entities/column';
+import { Logic, ModelRepresentation } from '../entities/logic';
+import { Materialization, MaterializationType, parseMaterializationType } from '../entities/materialization';
+import { CreateLogic } from '../logic/create-logic';
+import { CreateMaterialization } from '../materialization/create-materialization';
+import BaseAuth from '../services/base-auth';
+import { Binds, IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
+import { QuerySnowflake } from '../snowflake-api/query-snowflake';
+import { ParseSQL } from '../sql-parser-api/parse-sql';
 
-import { ParseSQL } from '../../sql-parser-api/parse-sql';
-import { GenerateResult, IDataEnvGenerator } from './i-data-env-generator';
-import { QuerySnowflake } from '../../snowflake-api/query-snowflake';
-import { IConnectionPool } from '../../snowflake-api/i-snowflake-api-repo';
-
-interface Auth {
-  jwt: string;
-  callerOrgId: string;
-  isSystemInternal: boolean;
+export interface DatabaseRepresentation {
+  name: string;
+  ownerId: string;
+  isTransient: boolean;
+  comment?: string;
 }
 
-export interface SfDataEnvProps {
-  lineageId: string;
-}
-
-interface ColumnRepresentation {
+export interface ColumnRepresentation {
   relationName: string;
   name: string;
   dataType: ColumnDataType;
@@ -38,14 +26,7 @@ interface ColumnRepresentation {
   comment?: string;
 }
 
-interface DatabaseRepresentation {
-  name: string;
-  ownerId: string;
-  isTransient: boolean;
-  comment?: string;
-}
-
-interface MaterializationRepresentation {
+export interface MaterializationRepresentation {
   databaseName: string;
   schemaName: string;
   name: string;
@@ -56,85 +37,60 @@ interface MaterializationRepresentation {
   comment?: string;
 }
 
-interface LogicRepresentation {
+export interface LogicRepresentation {
   sql: string;
 }
 
-export class SfDataEnvGenerator implements IDataEnvGenerator {
+interface Auth extends Omit<BaseAuth, 'callerOrgId'> {
+  callerOrgId: string;
+}
+
+export default abstract class BaseGetSfDataEnv {
+  readonly querySnowflake: QuerySnowflake;
+
   readonly #createMaterialization: CreateMaterialization;
 
   readonly #createColumn: CreateColumn;
 
   readonly #createLogic: CreateLogic;
 
-  readonly #querySnowflake: QuerySnowflake;
-
   readonly #parseSQL: ParseSQL;
 
-  readonly #lineageId: string;
+  protected readonly catalog: ModelRepresentation[] = [];
 
-  readonly #auth: Auth;
+  protected connPool?: IConnectionPool;
 
-  readonly #materializations: Materialization[] = [];
-
-  #connPool?: IConnectionPool;
-
-  get materializations(): Materialization[] {
-    return this.#materializations;
-  }
-
-  #columns: Column[] = [];
-
-  get columns(): Column[] {
-    return this.#columns;
-  }
-
-  #logics: Logic[] = [];
-
-  get logics(): Logic[] {
-    return this.#logics;
-  }
-
-  #catalog: ModelRepresentation[] = [];
+  protected auth?: Auth;
 
   constructor(
-    props: SfDataEnvProps,
-    auth: Auth,
-    dependencies: {
-      createMaterialization: CreateMaterialization;
-      createColumn: CreateColumn;
-      createLogic: CreateLogic;
-      querySnowflake: QuerySnowflake;
-      parseSQL: ParseSQL;
-    }
+    createMaterialization: CreateMaterialization,
+    createColumn: CreateColumn,
+    createLogic: CreateLogic,
+    querySnowflake: QuerySnowflake,
+    parseSQL: ParseSQL
   ) {
-    this.#createMaterialization = dependencies.createMaterialization;
-    this.#createColumn = dependencies.createColumn;
-    this.#createLogic = dependencies.createLogic;
-    this.#querySnowflake = dependencies.querySnowflake;
-    this.#parseSQL = dependencies.parseSQL;
-
-    this.#auth = auth;
-
-    this.#lineageId = props.lineageId;
+    this.#createMaterialization = createMaterialization;
+    this.#createColumn = createColumn;
+    this.#createLogic = createLogic;
+    this.querySnowflake = querySnowflake;
+    this.#parseSQL = parseSQL;
   }
 
   /* Get database representations from snowflake */
-  #getDbRepresentations = async (): Promise<DatabaseRepresentation[]> => {
-    if (!this.#connPool)
-      throw new Error(
-        'Connection pool not provided. Not able to perform sf queries'
-      );
+  protected getDbRepresentations = async (
+    connPool: IConnectionPool,
+    auth: BaseAuth
+  ): Promise<DatabaseRepresentation[]> => {
 
     const sfDbName = 'snowflake';
     const sfSampleDataDb = 'snowflake_sample_data';
     const citoDbName = 'cito';
 
-    const queryText = `select database_name, database_owner, is_transient, comment from cito.information_schema.databases where not array_contains(database_name::variant, array_construct('${sfDbName}', '${sfSampleDataDb}', '${citoDbName}', upper('${sfDbName}'), upper('${sfSampleDataDb}'), upper('${citoDbName}')))`;
-    const queryResult = await this.#querySnowflake.execute(
+    const queryText = `select database_name, database_owner, is_transient, comment from cito.information_schema.databases where not array_contains(lower(database_name)::variant, array_construct('${sfDbName.toLowerCase()}', '${sfSampleDataDb.toLowerCase()}', '${citoDbName.toLowerCase()}'))`;
+    const queryResult = await this.querySnowflake.execute(
       { queryText, binds: [] },
-      this.#auth,
-      this.#connPool
+      auth,
+      connPool
     );
     if (!queryResult.success) {
       throw new Error(queryResult.error);
@@ -177,19 +133,19 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
   };
 
   /* Get materialization representations from snowflake */
-  #getMatRepresentations = async (
-    targetDbName: string
+  protected getMatRepresentations = async (
+    targetDbName: string,
+    whereCondition: string,
+    binds: Binds
   ): Promise<MaterializationRepresentation[]> => {
-    if (!this.#connPool)
-      throw new Error(
-        'Connection pool not provided. Not able to perform sf queries'
-      );
+    if (!this.connPool || !this.auth)
+      throw new Error('Missing properties for generating sf data env');
 
-    const queryText = `select table_catalog, table_schema, table_name, table_owner, table_type, is_transient, comment  from ${targetDbName}.information_schema.tables where table_schema not ilike 'information_schema';`;
-    const queryResult = await this.#querySnowflake.execute(
-      { queryText, binds: [] },
-      this.#auth,
-      this.#connPool
+    const queryText = `select table_catalog, table_schema, table_name, table_owner, table_type, is_transient, comment  from ${targetDbName}.information_schema.tables ${whereCondition ? 'where': ''} ${whereCondition};`;
+    const queryResult = await this.querySnowflake.execute(
+      { queryText, binds },
+      this.auth,
+      this.connPool
     );
     if (!queryResult.success) {
       throw new Error(queryResult.error);
@@ -254,58 +210,20 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
     return matRepresentations;
   };
 
-  /* Get logic representations from Snowflake */
-  #getLogicRepresentation = async (
-    ddlObjectType: 'table' | 'view',
-    matName: string,
-    schemaName: string,
-    dbName: string
-  ): Promise<LogicRepresentation> => {
-    const foo = 'Lineage';
-    return {
-      sql: `${foo} SQL model placeholder for ${ddlObjectType} ${dbName}.${schemaName}.${matName}`,
-    };
-
-    // const binds = [ddlObjectType, `${dbName}.${schemaName}.${matName}`];
-    // const queryText = `select get_ddl(?, ?, true) as sql`;
-    // const queryResult = await this.#querySnowflake.execute(
-    //   { queryText, binds, profile: this.#profile },
-    //   this.#auth
-    // );
-    // if (!queryResult.success) {
-    //   throw new Error(queryResult.error);
-    // }
-    // if (!queryResult.value) throw new Error('Query did not return a value');
-
-    // const results = queryResult.value;
-
-    // if (results.length !== 1)
-    //   throw new Error('No or multiple sql logic instances returned for mat');
-
-    // const { SQL: sql } = results[0];
-
-    // if (typeof sql !== 'string')
-    //   throw new Error(
-    //     'Received mat representation field value in unexpected format'
-    //   );
-
-    // return { sql };
-  };
-
   /* Get column representations from snowflake */
-  #getColumnRepresentations = async (
-    targetDbName: string
+  protected getColumnRepresentations = async (
+    targetDbName: string,
+    whereCondition: string,
+    binds: Binds
   ): Promise<ColumnRepresentation[]> => {
-    if (!this.#connPool)
-      throw new Error(
-        'Connection pool not provided. Not able to perform sf queries'
-      );
+    if (!this.connPool || !this.auth)
+      throw new Error('Missing properties for generating sf data env');
 
-    const queryText = `select table_catalog, table_schema, table_name, column_name, ordinal_position, is_nullable, data_type, is_identity, comment from ${targetDbName}.information_schema.columns where table_schema != uppper('information_schema')`;
-    const queryResult = await this.#querySnowflake.execute(
-      { queryText, binds: [] },
-      this.#auth,
-      this.#connPool
+    const queryText = `select table_catalog, table_schema, table_name, column_name, ordinal_position, is_nullable, data_type, is_identity, comment from ${targetDbName}.information_schema.columns ${whereCondition ? 'where': ''} ${whereCondition}`;
+    const queryResult = await this.querySnowflake.execute(
+      { queryText, binds },
+      this.auth,
+      this.connPool
     );
     if (!queryResult.success) {
       throw new Error(queryResult.error);
@@ -365,6 +283,74 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
     return columnRepresentations;
   };
 
+  #generateColumn = async (
+    columnRepresentation: ColumnRepresentation,
+    matId: string
+  ): Promise<Column> => {
+    if (!this.connPool || !this.auth)
+      throw new Error('Missing properties for generating sf data env');
+
+    const createColumnResult = await this.#createColumn.execute(
+      {
+        relationName: columnRepresentation.relationName,
+        name: columnRepresentation.name,
+        index: columnRepresentation.index,
+        dataType: columnRepresentation.dataType,
+        materializationId: matId,
+        isIdentity: columnRepresentation.isIdentity,
+        isNullable: columnRepresentation.isNullable,
+        comment: columnRepresentation.comment,
+        writeToPersistence: false,
+      },
+      this.auth,
+      this.connPool
+    );
+
+    if (!createColumnResult.success) throw new Error(createColumnResult.error);
+    if (!createColumnResult.value)
+      throw new SyntaxError(`Creation of column failed`);
+
+    return createColumnResult.value;
+  };
+
+  /* Get logic representations from Snowflake */
+  protected getLogicRepresentation = async (
+    ddlObjectType: 'table' | 'view',
+    matName: string,
+    schemaName: string,
+    dbName: string
+  ): Promise<LogicRepresentation> => {
+    const foo = 'Lineage';
+    return {
+      sql: `${foo} SQL model placeholder for ${ddlObjectType} ${dbName}.${schemaName}.${matName}`,
+    };
+
+    // const binds = [ddlObjectType, `${dbName}.${schemaName}.${matName}`];
+    // const queryText = `select get_ddl(?, ?, true) as sql`;
+    // const queryResult = await this.querySnowflake.execute(
+    //   { queryText, binds, profile: this.#profile },
+    //   this.#auth
+    // );
+    // if (!queryResult.success) {
+    //   throw new Error(queryResult.error);
+    // }
+    // if (!queryResult.value) throw new Error('Query did not return a value');
+
+    // const results = queryResult.value;
+
+    // if (results.length !== 1)
+    //   throw new Error('No or multiple sql logic instances returned for mat');
+
+    // const { SQL: sql } = results[0];
+
+    // if (typeof sql !== 'string')
+    //   throw new Error(
+    //     'Received mat representation field value in unexpected format'
+    //   );
+
+    // return { sql };
+  };
+
   /* Sends sql to parse SQL microservices and receives parsed SQL logic back */
   // #parseLogic = async (sql: string): Promise<string> => {
   //   const parseSQLResult: ParseSQLResponseDto = await this.#parseSQL.execute({
@@ -379,41 +365,12 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
   //   return JSON.stringify(parseSQLResult.value);
   // };
 
-  #generateColumn = async (
-    columnRepresentation: ColumnRepresentation,
-    matId: string
-  ): Promise<Column> => {
-    if (!this.#connPool) throw new Error('Connection pool missing');
-
-    const createColumnResult = await this.#createColumn.execute(
-      {
-        relationName: columnRepresentation.relationName,
-        name: columnRepresentation.name,
-        index: columnRepresentation.index,
-        dataType: columnRepresentation.dataType,
-        materializationId: matId,
-        isIdentity: columnRepresentation.isIdentity,
-        isNullable: columnRepresentation.isNullable,
-        comment: columnRepresentation.comment,
-        lineageId: this.#lineageId,
-        writeToPersistence: false,
-      },
-      this.#auth,
-      this.#connPool
-    );
-
-    if (!createColumnResult.success) throw new Error(createColumnResult.error);
-    if (!createColumnResult.value)
-      throw new SyntaxError(`Creation of column failed`);
-
-    return createColumnResult.value;
-  };
-
   #generateLogic = async (
     logicRepresentation: LogicRepresentation,
     relationName: string
   ): Promise<Logic> => {
-    if (!this.#connPool) throw new Error('Connection pool missing');
+    if (!this.connPool || !this.auth)
+      throw new Error('Missing properties for generating sf data env');
 
     // const parsedLogic = logicRepresentation.sql
     //   ? await this.#parseLogic(logicRepresentation.sql)
@@ -427,17 +384,16 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
           generalProps: {
             relationName,
             sql: logicRepresentation.sql,
-            lineageId: this.#lineageId,
             parsedLogic,
-            catalog: this.#catalog,
+            catalog: this.catalog,
           },
         },
         options: {
           writeToPersistence: false,
         },
       },
-      this.#auth,
-      this.#connPool
+      this.auth,
+      this.connPool
     );
 
     if (!createLogicResult.success) throw new Error(createLogicResult.error);
@@ -446,13 +402,29 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
 
     const logic = createLogicResult.value;
 
-    this.#logics.push(logic);
-
     return logic;
   };
 
+  protected generateCatalog = (
+    matRepresentations: MaterializationRepresentation[],
+    colRepresentationsByRelationName: {
+      [key: string]: ColumnRepresentation[];
+    }
+  ): ModelRepresentation[] =>
+    matRepresentations.map(
+      (el): ModelRepresentation => ({
+        relationName: el.relationName,
+        materializationName: el.name,
+        schemaName: el.schemaName,
+        databaseName: el.databaseName,
+        columnNames: colRepresentationsByRelationName[el.relationName].map(
+          (colRep) => colRep.name
+        ),
+      })
+    );
+
   /* Creates materialization object and its column objects */
-  #generateDWResource = async (
+  protected generateDWResource = async (
     resourceProps: {
       matRepresentation: MaterializationRepresentation;
       logicRepresentation: LogicRepresentation;
@@ -460,13 +432,14 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
       relationName: string;
     },
     options: { writeToPersistence: boolean }
-  ): Promise<void> => {
-    if (!this.#connPool) throw new Error('Connection pool missing');
+  ): Promise<{matToCreate: Materialization, colsToCreate: Column[], logicToCreate: Logic}> => {
+    if (!this.connPool || !this.auth)
+      throw new Error('Missing properties for generating sf data env');
 
     const { matRepresentation, columnRepresentations, logicRepresentation } =
       resourceProps;
 
-    const { id: logicId } = await this.#generateLogic(
+    const logic = await this.#generateLogic(
       logicRepresentation,
       resourceProps.relationName
     );
@@ -477,11 +450,10 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
           ...matRepresentation,
           relationName: resourceProps.relationName,
           writeToPersistence: options.writeToPersistence,
-          logicId,
-          lineageId: this.#lineageId,
+          logicId: logic.id,
         },
-        this.#auth,
-        this.#connPool
+        this.auth,
+        this.connPool
       );
 
     if (!createMaterializationResult.success)
@@ -497,32 +469,14 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
       )
     );
 
-    this.#materializations.push(materialization);
-    this.#columns.push(...generatedColumns);
+    return {
+      matToCreate: materialization,
+      colsToCreate: generatedColumns,
+      logicToCreate: logic
+    };
   };
 
-  #generateCatalog = (
-    matRepresentations: MaterializationRepresentation[],
-    colRepresentationsByRelationName: {
-      [key: string]: ColumnRepresentation[];
-    }
-  ): void => {
-    const modelRepresentations = matRepresentations.map(
-      (el): ModelRepresentation => ({
-        relationName: el.relationName,
-        materializationName: el.name,
-        schemaName: el.schemaName,
-        databaseName: el.databaseName,
-        columnNames: colRepresentationsByRelationName[el.relationName].map(
-          (colRep) => colRep.name
-        ),
-      })
-    );
-
-    this.#catalog.push(...modelRepresentations);
-  };
-
-  static #groupByRelationName = <T extends { relationName: string }>(
+  protected groupByRelationName = <T extends { relationName: string }>(
     accumulation: { [key: string]: T[] },
     element: T
   ): { [key: string]: T[] } => {
@@ -536,63 +490,4 @@ export class SfDataEnvGenerator implements IDataEnvGenerator {
     return localAcc;
   };
 
-  #generateDbResources = async (dbName: string): Promise<void> => {
-    const matRepresentations = await this.#getMatRepresentations(dbName);
-    const columnRepresentations = await this.#getColumnRepresentations(dbName);
-
-    const colRepresentationsByRelationName: {
-      [key: string]: ColumnRepresentation[];
-    } = columnRepresentations.reduce(
-      SfDataEnvGenerator.#groupByRelationName,
-      {}
-    );
-
-    this.#generateCatalog(matRepresentations, colRepresentationsByRelationName);
-
-    await Promise.all(
-      matRepresentations.map(async (el) => {
-        const options = {
-          writeToPersistence: false,
-        };
-
-        const logicRepresentation = await this.#getLogicRepresentation(
-          el.type === 'view' ? 'view' : 'table',
-          el.name,
-          el.schemaName,
-          el.databaseName
-        );
-
-        await this.#generateDWResource(
-          {
-            matRepresentation: el,
-            logicRepresentation,
-            columnRepresentations:
-              colRepresentationsByRelationName[el.relationName],
-            relationName: el.relationName,
-          },
-          options
-        );
-      })
-    );
-  };
-
-  /* Runs through snowflake and creates objects like logic, materializations and columns */
-  generate = async (connPool: IConnectionPool): Promise<GenerateResult> => {
-    this.#connPool = connPool;
-
-    const dbRepresentations = await this.#getDbRepresentations();
-
-    await Promise.all(
-      dbRepresentations.map(async (el) => {
-        await this.#generateDbResources(el.name);
-      })
-    );
-
-    return {
-      materializations: this.#materializations,
-      columns: this.#columns,
-      logics: this.#logics,
-      catalog: this.#catalog,
-    };
-  };
 }

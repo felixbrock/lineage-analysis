@@ -1,5 +1,5 @@
 import Result from '../value-types/transient-types/result';
- 
+
 import {
   Binds,
   IConnectionPool,
@@ -14,17 +14,19 @@ export interface QuerySnowflakeRequestDto {
   binds: Binds;
 }
 
-export type QuerySnowflakeAuthDto = BaseAuth
-
+export type QuerySnowflakeAuthDto = BaseAuth;
 
 export type QuerySnowflakeResponseDto = Result<SnowflakeQueryResult>;
 
-export class QuerySnowflake implements IUseCase<
-  QuerySnowflakeRequestDto,
-  QuerySnowflakeResponseDto,
-  QuerySnowflakeAuthDto, 
-  IConnectionPool
-> {
+export class QuerySnowflake
+  implements
+    IUseCase<
+      QuerySnowflakeRequestDto,
+      QuerySnowflakeResponseDto,
+      QuerySnowflakeAuthDto,
+      IConnectionPool
+    >
+{
   readonly #snowflakeApiRepo: ISnowflakeApiRepo;
 
   constructor(snowflakeApiRepo: ISnowflakeApiRepo) {

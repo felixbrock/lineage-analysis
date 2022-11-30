@@ -6,7 +6,9 @@ export type IAuth = {
   callerOrgId?: string;
 };
 
-export interface IBaseServiceRepo<Entity, QueryDto, UpdateDto> {
+type IBinds = (string | number)[] | (string | number)[][];
+
+export interface IServiceRepo<Entity, QueryDto, UpdateDto> {
   findOne(
     id: string,
     auth: IAuth,
@@ -14,6 +16,11 @@ export interface IBaseServiceRepo<Entity, QueryDto, UpdateDto> {
   ): Promise<Entity | null>;
   findBy(
     queryDto: QueryDto,
+    auth: IAuth,
+    connPool: IConnectionPool,
+  ): Promise<Entity[]>;
+  findByCustom(
+    query: { text: string; binds: IBinds },
     auth: IAuth,
     connPool: IConnectionPool,
   ): Promise<Entity[]>;
@@ -39,6 +46,11 @@ export interface IBaseServiceRepo<Entity, QueryDto, UpdateDto> {
   ): Promise<string>;
   replaceMany(
     entities: Entity[],
+    auth: IAuth,
+    connPool: IConnectionPool,
+  ): Promise<number>;
+  deleteMany(
+    ids: string[],
     auth: IAuth,
     connPool: IConnectionPool,
   ): Promise<number>;

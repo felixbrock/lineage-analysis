@@ -5,19 +5,24 @@ import {
 } from '../../domain/dashboard/i-dashboard-repo';
 import { Dashboard, DashboardProps } from '../../domain/entities/dashboard';
 
-import { Bind, SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
-import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
-import BaseSfRepo, { Query } from './shared/base-sf-repo';
 import {
-  ColumnDefinition,
-} from './shared/query';
+  Bind,
+  SnowflakeEntity,
+} from '../../domain/snowflake-api/i-snowflake-api-repo';
+import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
+import BaseSfRepo, { ColumnDefinition, Query } from './shared/base-sf-repo';
 
 export default class DashboardRepo
-  extends BaseSfRepo<Dashboard, DashboardProps, DashboardQueryDto, DashboardUpdateDto>
+  extends BaseSfRepo<
+    Dashboard,
+    DashboardProps,
+    DashboardQueryDto,
+    DashboardUpdateDto
+  >
   implements IDashboardRepo
 {
   readonly matName = 'dashboards';
-  
+
   readonly colDefinitions: ColumnDefinition[] = [
     { name: 'id', nullable: false },
     { name: 'name', nullable: true },
@@ -26,26 +31,24 @@ export default class DashboardRepo
     { name: 'materialization_id', nullable: false },
     { name: 'column_name', nullable: false },
     { name: 'column_id', nullable: false },
-    { name: 'lineage_ids', selectType: 'parse_json', nullable: false },
   ];
-  
-// eslint-disable-next-line @typescript-eslint/no-useless-constructor
-constructor(querySnowflake: QuerySnowflake) {
-  super(querySnowflake);
-}
 
-buildEntityProps = (sfEntity: SnowflakeEntity): DashboardProps => {
-  const {
-    ID: id,
-    NAME: name,
-    URL: url,
-    MATERIALIZATION_NAME: materializationName,
+  // eslint-disable-next-line @typescript-eslint/no-useless-constructor
+  constructor(querySnowflake: QuerySnowflake) {
+    super(querySnowflake);
+  }
+
+  buildEntityProps = (sfEntity: SnowflakeEntity): DashboardProps => {
+    const {
+      ID: id,
+      NAME: name,
+      URL: url,
+      MATERIALIZATION_NAME: materializationName,
       MATERIALIZATION_ID: materializationId,
       COLUMN_NAME: columnName,
       COLUMN_ID: columnId,
-      LINEAGE_IDS: lineageIds,
     } = sfEntity;
-    
+
     if (
       typeof id !== 'string' ||
       typeof materializationName !== 'string' ||
@@ -53,21 +56,19 @@ buildEntityProps = (sfEntity: SnowflakeEntity): DashboardProps => {
       typeof columnName !== 'string' ||
       typeof columnId !== 'string'
     )
-    throw new Error(
-      'Retrieved unexpected dashboard field types from persistence'
+      throw new Error(
+        'Retrieved unexpected dashboard field types from persistence'
       );
-      
-      
-      if (
-        !DashboardRepo.isStringArray(lineageIds) ||
-        !DashboardRepo.isOptionalOfType<string>(name, 'string') ||
-        !DashboardRepo.isOptionalOfType<string>(url, 'string')
-        )
-        throw new Error(
-          'Type mismatch detected when reading dashboard from persistence'
-          );
-          
-          return {
+
+    if (
+      !DashboardRepo.isOptionalOfType<string>(name, 'string') ||
+      !DashboardRepo.isOptionalOfType<string>(url, 'string')
+    )
+      throw new Error(
+        'Type mismatch detected when reading dashboard from persistence'
+      );
+
+    return {
       id,
       name,
       url,
@@ -75,10 +76,9 @@ buildEntityProps = (sfEntity: SnowflakeEntity): DashboardProps => {
       materializationId,
       columnName,
       columnId,
-      lineageIds,
     };
   };
-  
+
   getBinds = (entity: Dashboard): Bind[] => [
     entity.id,
     entity.name || 'null',
@@ -87,49 +87,74 @@ buildEntityProps = (sfEntity: SnowflakeEntity): DashboardProps => {
     entity.materializationId,
     entity.columnName,
     entity.columnId,
-    JSON.stringify(entity.lineageIds),
   ];
 
   buildFindByQuery(dto: DashboardQueryDto): Query {
-    const binds: Bind[] = [dto.lineageId];
-      let whereClause = 'array_contains(?::variant, lineage_ids) ';
+    const binds: (string | number)[] = [];
+    let whereClause = '';
 
-      if (dto.url) {
-        binds.push(dto.url);
-        whereClause = whereClause.concat('and url = ? ');
-      }
-      if (dto.name) {
-        binds.push(dto.name);
-        whereClause = whereClause.concat('and name = ? ');
-      }
-      if (dto.materializationName) {
-        binds.push(dto.materializationName);
-        whereClause = whereClause.concat('and materialization_name = ? ');
-      }
-      if (dto.materializationId) {
-        binds.push(dto.materializationId);
-        whereClause = whereClause.concat('and materialization_id = ? ');
-      }
-      if (dto.columnName) {
-        binds.push(dto.columnName);
-        whereClause = whereClause.concat('and column_name = ? ');
-      }
-      if (dto.columnId) {
-        binds.push(dto.columnId);
-        whereClause = whereClause.concat('and column_id = ? ');
-      }
+    if (dto.url) {
+      binds.push(dto.url);
+      const whereCondition = `url = ?`;
 
-      const text = `select * from cito.lineage.${this.matName}
-              where  ${whereClause};`;
+      whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
+    }
+    if (dto.name) {
+      binds.push(dto.name);
+      const whereCondition = 'name = ?';
 
-      return {text, binds};
+      whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
+    }
+    if (dto.materializationName) {
+      binds.push(dto.materializationName);
+      const whereCondition = 'materialization_name = ?';
+
+      whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
+    }
+    if (dto.materializationId) {
+      binds.push(dto.materializationId);
+      const whereCondition = 'materialization_id = ?';
+
+      whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
+    }
+    if (dto.columnName) {
+      binds.push(dto.columnName);
+      const whereCondition = 'column_name = ?';
+
+      whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
+    }
+    if (dto.columnId) {
+      binds.push(dto.columnId);
+      const whereCondition = 'column_id = ?';
+
+      whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
+    }
+
+    const text = `select * from cito.lineage.${this.matName}
+              ${whereClause ? 'where' : ''}  ${whereClause};`;
+
+    return { text, binds };
   }
 
   buildUpdateQuery(id: string, dto: undefined): Query {
     throw new Error(
-      `Update Method not implemented. Provided Input [${id}, ${JSON.stringify(dto)}]`
+      `Update Method not implemented. Provided Input [${id}, ${JSON.stringify(
+        dto
+      )}]`
     );
   }
-  
+
   toEntity = (props: DashboardProps): Dashboard => Dashboard.build(props);
 }

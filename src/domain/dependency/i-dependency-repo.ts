@@ -1,5 +1,5 @@
 import { Dependency, DependencyType } from '../entities/dependency';
-import { IBaseServiceRepo } from '../services/i-base-service-repo';
+import { IServiceRepo } from '../services/i-service-repo';
 
 export type DependencyUpdateDto = undefined;
 
@@ -7,7 +7,6 @@ export interface DependencyQueryDto {
   type?: DependencyType;
   headId?: string;
   tailId?: string;
-  lineageId: string;
 }
 
-export type IDependencyRepo =  IBaseServiceRepo<Dependency, DependencyQueryDto, DependencyUpdateDto>;
+export type IDependencyRepo =  IServiceRepo<Dependency, DependencyQueryDto, DependencyUpdateDto>;

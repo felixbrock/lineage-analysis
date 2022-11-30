@@ -38,18 +38,8 @@ export default class ReadDashboardsController extends BaseController {
       id,
       columnId,
       materializationId,
-      lineageId,
       targetOrgId,
     } = httpRequest.query;
-
-    if (!lineageId)
-      throw new TypeError(
-        'When querying dependencies the lineageId must be provided'
-      );
-    if (typeof lineageId !== 'string')
-      throw new TypeError(
-        'When querying dependencies the lineageId query param must be of type string'
-      );
 
     return {
       url: typeof url === 'string' ? url : undefined,
@@ -63,7 +53,6 @@ export default class ReadDashboardsController extends BaseController {
       columnId: typeof columnId === 'string' ? columnId : undefined,
       materializationId:
         typeof materializationId === 'string' ? materializationId : undefined,
-      lineageId,
       targetOrgId: typeof targetOrgId === 'string' ? targetOrgId : undefined,
     };
   };

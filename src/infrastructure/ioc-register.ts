@@ -1,6 +1,6 @@
 import { InjectionMode, asClass, createContainer } from 'awilix';
 
-import { CreateLineage } from '../domain/lineage/create-lineage/create-lineage';
+import { CreateLineage } from '../domain/lineage/create-lineage';
 import AccountApiRepo from './persistence/account-api-repo';
 import { GetAccounts } from '../domain/account-api/get-accounts';
 import { ParseSQL } from '../domain/sql-parser-api/parse-sql';
@@ -30,6 +30,10 @@ import SnowflakeApiRepo from './persistence/snowflake-api-repo';
 import IntegrationApiRepo from './persistence/integration-api-repo';
 import { QuerySnowflake } from '../domain/snowflake-api/query-snowflake';
 import { GetSnowflakeProfile } from '../domain/integration-api/get-snowflake-profile';
+import { GenerateSfDataEnv } from '../domain/data-env/generate-sf-data-env';
+import { GenerateDbtDataEnv } from '../domain/data-env/generate-dbt-data-env';
+import { UpdateSfDataEnv } from '../domain/data-env/update-sf-data-env';
+import { BuildDependencies } from '../domain/dependency/build-dependencies';
 
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
@@ -51,6 +55,11 @@ iocRegister.register({
   readColumns: asClass(ReadColumns),
   readDependencies: asClass(ReadDependencies),
   readDashboards: asClass(ReadDashboards),
+
+  generateSfDataEnv: asClass(GenerateSfDataEnv),
+  generateDbtDataEnv: asClass(GenerateDbtDataEnv),
+  updateSfDataEnv: asClass(UpdateSfDataEnv),
+  buildDependencies: asClass(BuildDependencies),
 
   parseSQL: asClass(ParseSQL),
   querySnowflake: asClass(QuerySnowflake),

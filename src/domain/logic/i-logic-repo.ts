@@ -1,12 +1,11 @@
 import { Logic } from '../entities/logic';
-import { IBaseServiceRepo } from '../services/i-base-service-repo';
+import { IServiceRepo } from '../services/i-service-repo';
 
 export type LogicUpdateDto = undefined;
 
 export interface LogicQueryDto {
-  relationName?: string;
-  lineageId: string;
+  relationNames?: string[];
 }
 
-export type ILogicRepo =  IBaseServiceRepo<Logic, LogicQueryDto, LogicUpdateDto>;
+export type ILogicRepo =  IServiceRepo<Logic, LogicQueryDto, LogicUpdateDto>;
 

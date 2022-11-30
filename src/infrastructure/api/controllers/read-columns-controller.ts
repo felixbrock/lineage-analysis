@@ -36,18 +36,8 @@ export default class ReadColumnsController extends BaseController {
       index,
       type,
       materializationIds,
-      lineageId,
       targetOrgId,
     } = httpRequest.query;
-
-    if (!lineageId)
-      throw new TypeError(
-        'When querying columns the lineageId must be provided'
-      );
-    if (typeof lineageId !== 'string')
-      throw new TypeError(
-        'When querying columns the lineageId query param must be of type string'
-      );
 
     const isStringArray = (obj: unknown): obj is string[] =>
       Array.isArray(obj) && obj.every((el) => typeof el === 'string');
@@ -73,7 +63,6 @@ export default class ReadColumnsController extends BaseController {
         typeof materializationIds === 'string'
           ? [materializationIds]
           : materializationIds,
-      lineageId,
       targetOrgId: typeof targetOrgId === 'string' ? targetOrgId : undefined,
     };
   };

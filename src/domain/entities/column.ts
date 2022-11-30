@@ -50,7 +50,6 @@ export interface ColumnProps {
   index: string;
   dataType: ColumnDataType;
   materializationId: string;
-  lineageIds: string[];
   isIdentity?: boolean;
   isNullable?: boolean;
   comment?: string;
@@ -63,7 +62,6 @@ export interface ColumnPrototype {
   index: string;
   dataType: ColumnDataType;
   materializationId: string;
-  lineageId: string;
   isIdentity?: boolean;
   isNullable?: boolean;
   comment?: string;
@@ -83,9 +81,6 @@ export class Column {
   #dataType: ColumnDataType;
 
   #materializationId: string;
-
-  #lineageIds: string[];
-
 
   #isIdentity?: boolean;
 
@@ -117,11 +112,6 @@ export class Column {
     return this.#materializationId;
   }
 
-  get lineageIds(): string[] {
-    return this.#lineageIds;
-  }
-
-
   get isIdentity(): boolean | undefined {
     return this.#isIdentity;
   }
@@ -141,7 +131,6 @@ export class Column {
     this.#index = props.index;
     this.#dataType = props.dataType;
     this.#materializationId = props.materializationId;
-    this.#lineageIds = props.lineageIds;
     this.#isIdentity = props.isIdentity;
     this.#isNullable = props.isNullable;
     this.#comment = props.comment;
@@ -156,15 +145,12 @@ export class Column {
     if (!prototype.dataType) throw new TypeError('Column must have type');
     if (!prototype.materializationId)
       throw new TypeError('Column must have materializationId');
-    if (!prototype.lineageId)
-      throw new TypeError('Column must have lineage id');
 
       const column = Column.build({
       ...prototype,
       isIdentity: prototype.isIdentity,
       isNullable: prototype.isNullable,
       comment: prototype.comment,
-      lineageIds: [prototype.lineageId],
     });
 
     return column;
@@ -179,8 +165,6 @@ export class Column {
     if (!props.dataType) throw new TypeError('Column must have type');
     if (!props.materializationId)
       throw new TypeError('Column must have materializationId');
-    if (!props.lineageIds.length)
-      throw new TypeError('Column must have lineage ids');
 
     return new Column(props);
   };
@@ -192,7 +176,6 @@ export class Column {
     index: this.#index,
     dataType: this.#dataType,
     materializationId: this.#materializationId,
-    lineageIds: this.#lineageIds,
     isIdentity: this.#isIdentity,
     isNullable: this.#isNullable,
     comment: this.#comment,

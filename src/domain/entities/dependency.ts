@@ -19,7 +19,6 @@ export interface DependencyProps {
   type: DependencyType;
   headId: string;
   tailId: string;
-  lineageIds: string[];
 }
 
 export interface DependencyPrototype {
@@ -27,7 +26,6 @@ export interface DependencyPrototype {
   type: DependencyType;
   headId: string;
   tailId: string;
-  lineageId: string;
 }
 
 type DependencyDto = DependencyProps;
@@ -40,9 +38,6 @@ export class Dependency {
   #headId: string;
 
   #tailId: string;
-
-  #lineageIds: string[];
-
 
   get id(): string {
     return this.#id;
@@ -60,17 +55,11 @@ export class Dependency {
     return this.#tailId;
   }
 
-  get lineageIds(): string[] {
-    return this.#lineageIds;
-  }
-
-
   private constructor(properties: DependencyProps) {
     this.#id = properties.id;
     this.#type = properties.type;
     this.#headId = properties.headId;
     this.#tailId = properties.tailId;
-    this.#lineageIds = properties.lineageIds;
   }
 
   static create = (prototype: DependencyPrototype): Dependency => {
@@ -81,12 +70,9 @@ export class Dependency {
       throw new TypeError('Dependency object must have headId');
     if (!prototype.tailId)
       throw new TypeError('Dependency object must have tailId');
-    if (!prototype.lineageId)
-      throw new TypeError('Dependency object must have lineageId');
 
     const dependency = new Dependency({
       ...prototype,
-      lineageIds: [prototype.lineageId],
     });
 
     return dependency;
@@ -99,8 +85,6 @@ export class Dependency {
       throw new TypeError('Dependency object must have headId');
     if (!props.tailId)
       throw new TypeError('Dependency object must have tailId');
-    if (!props.lineageIds.length)
-      throw new TypeError('Dependency object must have lineageIds');
 
     return new Dependency(props);
   };
@@ -110,6 +94,5 @@ export class Dependency {
     type: this.#type,
     headId: this.#headId,
     tailId: this.#tailId,
-    lineageIds: this.#lineageIds,
   });
 }
