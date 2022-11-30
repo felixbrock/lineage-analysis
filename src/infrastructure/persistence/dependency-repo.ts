@@ -74,19 +74,31 @@ export default class DependencyRepo
 
     if (dto.tailId) {
       binds.push(dto.tailId);
-      whereClause = whereClause.concat('and tail_id = ? ');
+      const whereCondition = 'tail_id = ?';
+
+      whereClause = whereClause
+        ? whereClause.concat(`and ${whereCondition} `)
+        : whereCondition;
     }
     if (dto.headId) {
       binds.push(dto.headId);
-      whereClause = whereClause.concat('and head_id = ? ');
+      const whereCondition = 'head_id = ?';
+
+      whereClause = whereClause
+      ? whereClause.concat(`and ${whereCondition} `)
+      : whereCondition;
     }
     if (dto.type) {
       binds.push(dto.type);
-      whereClause = whereClause.concat('and type = ? ');
+      const whereCondition = 'type = ?';
+
+      whereClause = whereClause
+      ? whereClause.concat(`and ${whereCondition} `)
+      : whereCondition;
     }
 
     const text = `select * from cito.lineage.${this.matName}
-        where  ${whereClause};`;
+        ${whereClause ? 'where': ''}  ${whereClause};`;
 
     return { text, binds };
   }

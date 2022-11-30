@@ -139,7 +139,9 @@ export default abstract class BaseSfRepo<
       if (!result.success) throw new Error(result.error);
       if (!result.value) throw new Error('Missing sf query value');
 
-      return result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
+      const entities = result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
+
+      return entities;
     } catch (error: unknown) {
       if (error instanceof Error) console.error(error.stack);
       else if (error) console.trace(error);

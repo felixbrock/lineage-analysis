@@ -50,6 +50,7 @@ export class Lineage {
     this.#createdAt = props.createdAt;
     this.#completed = props.completed;
     this.#dbCoveredNames = props.dbCoveredNames;
+    this.#diff = props.diff;
   }
 
   static create = (prototype: LineagePrototype): Lineage => {

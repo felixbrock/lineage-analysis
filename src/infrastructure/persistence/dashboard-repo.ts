@@ -5,16 +5,24 @@ import {
 } from '../../domain/dashboard/i-dashboard-repo';
 import { Dashboard, DashboardProps } from '../../domain/entities/dashboard';
 
-import { Bind, SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
+import {
+  Bind,
+  SnowflakeEntity,
+} from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import BaseSfRepo, { ColumnDefinition, Query } from './shared/base-sf-repo';
 
 export default class DashboardRepo
-  extends BaseSfRepo<Dashboard, DashboardProps, DashboardQueryDto, DashboardUpdateDto>
+  extends BaseSfRepo<
+    Dashboard,
+    DashboardProps,
+    DashboardQueryDto,
+    DashboardUpdateDto
+  >
   implements IDashboardRepo
 {
   readonly matName = 'dashboards';
-  
+
   readonly colDefinitions: ColumnDefinition[] = [
     { name: 'id', nullable: false },
     { name: 'name', nullable: true },
@@ -24,23 +32,23 @@ export default class DashboardRepo
     { name: 'column_name', nullable: false },
     { name: 'column_id', nullable: false },
   ];
-  
-// eslint-disable-next-line @typescript-eslint/no-useless-constructor
-constructor(querySnowflake: QuerySnowflake) {
-  super(querySnowflake);
-}
 
-buildEntityProps = (sfEntity: SnowflakeEntity): DashboardProps => {
-  const {
-    ID: id,
-    NAME: name,
-    URL: url,
-    MATERIALIZATION_NAME: materializationName,
+  // eslint-disable-next-line @typescript-eslint/no-useless-constructor
+  constructor(querySnowflake: QuerySnowflake) {
+    super(querySnowflake);
+  }
+
+  buildEntityProps = (sfEntity: SnowflakeEntity): DashboardProps => {
+    const {
+      ID: id,
+      NAME: name,
+      URL: url,
+      MATERIALIZATION_NAME: materializationName,
       MATERIALIZATION_ID: materializationId,
       COLUMN_NAME: columnName,
       COLUMN_ID: columnId,
     } = sfEntity;
-    
+
     if (
       typeof id !== 'string' ||
       typeof materializationName !== 'string' ||
@@ -48,20 +56,19 @@ buildEntityProps = (sfEntity: SnowflakeEntity): DashboardProps => {
       typeof columnName !== 'string' ||
       typeof columnId !== 'string'
     )
-    throw new Error(
-      'Retrieved unexpected dashboard field types from persistence'
+      throw new Error(
+        'Retrieved unexpected dashboard field types from persistence'
       );
-      
-      
-      if (
-        !DashboardRepo.isOptionalOfType<string>(name, 'string') ||
-        !DashboardRepo.isOptionalOfType<string>(url, 'string')
-        )
-        throw new Error(
-          'Type mismatch detected when reading dashboard from persistence'
-          );
-          
-          return {
+
+    if (
+      !DashboardRepo.isOptionalOfType<string>(name, 'string') ||
+      !DashboardRepo.isOptionalOfType<string>(url, 'string')
+    )
+      throw new Error(
+        'Type mismatch detected when reading dashboard from persistence'
+      );
+
+    return {
       id,
       name,
       url,
@@ -71,7 +78,7 @@ buildEntityProps = (sfEntity: SnowflakeEntity): DashboardProps => {
       columnId,
     };
   };
-  
+
   getBinds = (entity: Dashboard): Bind[] => [
     entity.id,
     entity.name || 'null',
@@ -86,66 +93,68 @@ buildEntityProps = (sfEntity: SnowflakeEntity): DashboardProps => {
     const binds: (string | number)[] = [];
     let whereClause = '';
 
-      if (dto.url) {
-        binds.push(dto.url);
-        const whereCondition = `url = ?`;
+    if (dto.url) {
+      binds.push(dto.url);
+      const whereCondition = `url = ?`;
 
-        whereClause = whereClause
+      whereClause = whereClause
         ? whereClause.concat(`and ${whereCondition} `)
         : whereCondition;
-      }
-      if (dto.name) {
-        binds.push(dto.name);
-        const whereCondition = 'name = ?';
+    }
+    if (dto.name) {
+      binds.push(dto.name);
+      const whereCondition = 'name = ?';
 
-        whereClause = whereClause
+      whereClause = whereClause
         ? whereClause.concat(`and ${whereCondition} `)
         : whereCondition;
-      }
-      if (dto.materializationName) {
-        binds.push(dto.materializationName);
-        const whereCondition = 'materialization_name = ?';
+    }
+    if (dto.materializationName) {
+      binds.push(dto.materializationName);
+      const whereCondition = 'materialization_name = ?';
 
-        whereClause = whereClause
+      whereClause = whereClause
         ? whereClause.concat(`and ${whereCondition} `)
         : whereCondition;
-      }
-      if (dto.materializationId) {
-        binds.push(dto.materializationId);
-        const whereCondition = 'materialization_id = ?';
+    }
+    if (dto.materializationId) {
+      binds.push(dto.materializationId);
+      const whereCondition = 'materialization_id = ?';
 
-        whereClause = whereClause
+      whereClause = whereClause
         ? whereClause.concat(`and ${whereCondition} `)
         : whereCondition;
-      }
-      if (dto.columnName) {
-        binds.push(dto.columnName);
-        const whereCondition = 'column_name = ?';
+    }
+    if (dto.columnName) {
+      binds.push(dto.columnName);
+      const whereCondition = 'column_name = ?';
 
-        whereClause = whereClause
+      whereClause = whereClause
         ? whereClause.concat(`and ${whereCondition} `)
         : whereCondition;
-      }
-      if (dto.columnId) {
-        binds.push(dto.columnId);
-        const whereCondition = 'column_id = ?';
+    }
+    if (dto.columnId) {
+      binds.push(dto.columnId);
+      const whereCondition = 'column_id = ?';
 
-        whereClause = whereClause
+      whereClause = whereClause
         ? whereClause.concat(`and ${whereCondition} `)
         : whereCondition;
-      }
+    }
 
-      const text = `select * from cito.lineage.${this.matName}
-              where  ${whereClause};`;
+    const text = `select * from cito.lineage.${this.matName}
+              ${whereClause ? 'where' : ''}  ${whereClause};`;
 
-      return {text, binds};
+    return { text, binds };
   }
 
   buildUpdateQuery(id: string, dto: undefined): Query {
     throw new Error(
-      `Update Method not implemented. Provided Input [${id}, ${JSON.stringify(dto)}]`
+      `Update Method not implemented. Provided Input [${id}, ${JSON.stringify(
+        dto
+      )}]`
     );
   }
-  
+
   toEntity = (props: DashboardProps): Dashboard => Dashboard.build(props);
 }

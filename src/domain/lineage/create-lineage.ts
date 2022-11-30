@@ -14,7 +14,7 @@ import { IColumnRepo } from '../column/i-column-repo';
 import IUseCase from '../services/use-case';
 import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 import BaseAuth from '../services/base-auth';
-import { DataEnv, DataEnvProps } from '../data-env/data-env';
+import { DataEnv, DataEnvDto, DataEnvProps } from '../data-env/data-env';
 import { GenerateDbtDataEnv } from '../data-env/generate-dbt-data-env';
 import { GenerateSfDataEnv } from '../data-env/generate-sf-data-env';
 import { UpdateSfDataEnv } from '../data-env/update-sf-data-env';
@@ -282,6 +282,10 @@ export class CreateLineage
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
+    const { callerOrgId } = this.#auth;
+    if (!callerOrgId)
+      throw new Error('Caller Org Id required to update Sf data env');
+
     const result = await this.#updateSfDataEnv.execute(
       {
         latestLineage: {
@@ -289,7 +293,7 @@ export class CreateLineage
           dbCoveredNames: latestLineagedbCoveredNames,
         },
       },
-      this.#auth,
+      { ...this.#auth, callerOrgId },
       this.#connPool
     );
 
@@ -439,12 +443,52 @@ export class CreateLineage
       console.log('...writing dependencies to persistence');
       await this.#writeDependenciesToPersistence(dependencies);
 
+      let dataEnvDto: DataEnvDto | undefined;
+      if (dataEnvOperation === 'update')
+        dataEnvDto = {
+          colToCreateRelationNames: dataEnv.columnsToCreate.map((el) => ({
+            name: el.name,
+            relationName: el.relationName,
+          })),
+          colToDeleteRelationNames: dataEnv.columnToDeleteRefs.map((el) => ({
+            name: el.name,
+            relationName: el.relationName,
+          })),
+          colToReplaceRelationNames: dataEnv.columnsToReplace.map((el) => ({
+            name: el.name,
+            relationName: el.relationName,
+          })),
+          logicToCreateRelationNames: dataEnv.logicsToCreate.map((el) => ({
+            relationName: el.relationName,
+          })),
+          logicToDeleteRelationNames: dataEnv.logicToDeleteRefs.map((el) => ({
+            relationName: el.relationName,
+          })),
+          logicToReplaceRelationNames: dataEnv.logicsToReplace.map((el) => ({
+            relationName: el.relationName,
+          })),
+          matToCreateRelationNames: dataEnv.matsToCreate.map((el) => ({
+            name: el.name,
+            schemaName: el.schemaName,
+            dbName: el.databaseName,
+          })),
+          matToDeleteRelationNames: dataEnv.matToDeleteRefs.map((el) => ({
+            name: el.name,
+            schemaName: el.schemaName,
+            dbName: el.dbName,
+          })),
+          matToReplaceRelationNames: dataEnv.matsToReplace.map((el) => ({
+            name: el.name,
+            schemaName: el.schemaName,
+            dbName: el.databaseName,
+          })),
+        };
+
       console.log('...setting lineage complete state to true');
       await this.#updateLineage(lineage.id, {
         completed: true,
         dbCoveredNames,
-        diff:
-          dataEnvOperation === 'update' ? JSON.stringify(dataEnv) : undefined,
+        diff: dataEnvDto ? JSON.stringify(dataEnvDto) : undefined,
       });
 
       console.log('finished lineage creation.');
@@ -455,8 +499,7 @@ export class CreateLineage
           createdAt: lineage.createdAt,
           completed: true,
           dbCoveredNames,
-          diff:
-            dataEnvOperation === 'update' ? JSON.stringify(dataEnv) : undefined,
+          diff: dataEnvDto ? JSON.stringify(dataEnvDto) : undefined,
         })
       );
     } catch (error: unknown) {

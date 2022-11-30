@@ -8,6 +8,11 @@ import BaseGetSfDataEnv, { ColumnRepresentation } from './base-get-sf-data-env';
 import { Materialization } from '../entities/materialization';
 import { Column } from '../entities/column';
 import { Logic } from '../entities/logic';
+import { QuerySnowflake } from '../snowflake-api/query-snowflake';
+import { CreateMaterialization } from '../materialization/create-materialization';
+import { CreateColumn } from '../column/create-column';
+import { CreateLogic } from '../logic/create-logic';
+import { ParseSQL } from '../sql-parser-api/parse-sql';
 
 export type GenerateSfDataEnvRequestDto = null;
 
@@ -33,6 +38,22 @@ export class GenerateSfDataEnv
   readonly #cols: Column[] = [];
 
   readonly #logics: Logic[] = [];
+
+  constructor(
+    querySnowflake: QuerySnowflake,
+    createMaterialization: CreateMaterialization,
+    createColumn: CreateColumn,
+    createLogic: CreateLogic,
+    parseSQL: ParseSQL
+  ) {
+    super(
+      createMaterialization,
+      createColumn,
+      createLogic,
+      querySnowflake,
+      parseSQL
+    );
+  }
 
   #generateDbResources = async (dbName: string): Promise<void> => {
     const binds = ['information_schema'];
@@ -108,6 +129,12 @@ export class GenerateSfDataEnv
           matsToCreate: this.#mats,
           columnsToCreate: this.#cols,
           logicsToCreate: this.#logics,
+          columnsToReplace: [],
+          columnToDeleteRefs: [],
+          logicsToReplace: [],
+          logicToDeleteRefs: [],
+          matsToReplace: [],
+          matToDeleteRefs: [],
         },
         catalog: this.catalog,
         dbCoveredNames: dbRepresentations.map((el) => el.name),

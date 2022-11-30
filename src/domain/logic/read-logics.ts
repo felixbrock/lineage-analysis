@@ -7,7 +7,7 @@ import Result from '../value-types/transient-types/result';
 import { ILogicRepo, LogicQueryDto } from './i-logic-repo';
 
 export interface ReadLogicsRequestDto {
-  relationName?: string;
+  relationNames?: string[];
   targetOrgId?: string;
 }
 
@@ -59,7 +59,7 @@ export class ReadLogics
     const queryDto: LogicQueryDto = {
     };
 
-    if (request.relationName) queryDto.relationName = request.relationName;
+    if (request.relationNames) queryDto.relationNames = request.relationNames;
 
     return queryDto;
   };

@@ -32,14 +32,21 @@ export interface UpdateSfDataEnvRequestDto {
   };
 }
 
-export type UpdateSfDataEnvAuthDto = BaseAuth;
+export interface UpdateSfDataEnvAuthDto extends Omit<BaseAuth, 'callerOrgId'> {
+  callerOrgId: string;
+}
 
 export type UpdateSfDataEnvResponse = Result<DataEnvProps>;
 
+interface MatModifiedDiff {
+  oldMatId: string;
+  relationName: string;
+}
+
 interface DataEnvDiff {
-  addedMatIds: string[];
-  matToDeleteRefs: string[];
-  modifiedMatIds: string[];
+  matAddedRelationNames: string[];
+  matDeletedIds: string[];
+  matModifiedDiffs: MatModifiedDiff[];
 }
 
 export class UpdateSfDataEnv
@@ -77,10 +84,6 @@ export class UpdateSfDataEnv
   readonly #columnsToCreate: Column[] = [];
 
   readonly #columnToDeleteRefs: ColToDeleteRef[] = [];
-
-  #auth?: UpdateSfDataEnvAuthDto;
-
-  #connPool?: IConnectionPool;
 
   constructor(
     lineageRepo: ILineageRepo,
@@ -240,43 +243,56 @@ export class UpdateSfDataEnv
         const localAcc = accumulation;
 
         const {
-          DELETED_MAT_ID: deletedMatId,
-          ADDED_MAT_ID: addedMatId,
+          MAT_DELETED_ID: matDeletedId,
+          MAT_ADDED_RELATION_NAME: matAddedRelationName,
           ALTERED: altered,
         } = el;
 
         if (typeof altered !== 'boolean')
           throw new Error('Unexpected altered value');
-        if (!isOptionalOfType<string>(deletedMatId, 'string'))
+        if (!isOptionalOfType<string>(matDeletedId, 'string'))
           throw new Error('Unexpected deletedMatId value');
-        if (!isOptionalOfType<string>(addedMatId, 'string'))
+        if (!isOptionalOfType<string>(matAddedRelationName, 'string'))
           throw new Error('Unexpected addedMatId value');
 
         if (altered) {
-          if (typeof addedMatId !== 'string')
-            throw new Error('Unexpected added mat id value');
-          localAcc.modifiedMatIds.push(addedMatId);
-        } else if (addedMatId) localAcc.addedMatIds.push(addedMatId);
-        else if (deletedMatId) localAcc.matToDeleteRefs.push(deletedMatId);
+          if (
+            typeof matAddedRelationName !== 'string' ||
+            typeof matDeletedId !== 'string'
+          )
+            throw new Error('Unexpected altered column input');
+          localAcc.matModifiedDiffs.push({
+            oldMatId: matDeletedId,
+            relationName: matAddedRelationName,
+          });
+        } else if (matAddedRelationName)
+          localAcc.matAddedRelationNames.push(matAddedRelationName);
+        else if (matDeletedId) localAcc.matDeletedIds.push(matDeletedId);
         else throw new Error('Unhandled use case returned');
 
         return localAcc;
       },
 
-      { addedMatIds: [], matToDeleteRefs: [], modifiedMatIds: [] }
+      {
+        matDeletedIds: [],
+        matAddedRelationNames: [],
+        matModifiedDiffs: [],
+      }
     );
 
     return dataEnvDiff;
   };
 
   #addResourcesToAdd = async (
-    addedMatIds: string[],
+    relationNames: string[],
     dbName: string
   ): Promise<void> => {
-    const whereCondition = `array_contains(lower(table_name)::variant, array_construct(${addedMatIds
+    if (!relationNames.length) return;
+
+    const whereCondition = `array_contains(lower(concat(table_catalog, '.', table_schema, '.', table_name))::variant, array_construct(${relationNames
       .map(() => `?`)
       .join(', ')}))`;
-    const binds = addedMatIds.map((el) => el.toLowerCase());
+    const binds = relationNames.map((el) => el.toLowerCase());
     const matRepresentations = await this.getMatRepresentations(
       dbName,
       whereCondition,
@@ -340,22 +356,39 @@ export class UpdateSfDataEnv
   };
 
   #addResourcesToModify = async (
-    modifiedMatIds: string[],
+    modifiedMatDiffs: MatModifiedDiff[],
     dbName: string
   ): Promise<void> => {
-    if (!this.#auth || !this.#connPool)
+    if (!this.auth || !this.connPool)
       throw new Error('auth or connPool missing');
 
+    if (!modifiedMatDiffs.length) return;
+
+    const { ids, relationNames } = modifiedMatDiffs.reduce(
+      (
+        accumulation: { relationNames: string[]; ids: string[] },
+        el: MatModifiedDiff
+      ): { relationNames: string[]; ids: string[] } => {
+        const localAcc = accumulation;
+
+        localAcc.ids.push(el.oldMatId);
+        localAcc.relationNames.push(el.relationName);
+
+        return localAcc;
+      },
+      { relationNames: [], ids: [] }
+    );
+
     const oldMats = await this.#materializationRepo.findBy(
-      { ids: modifiedMatIds },
-      this.#auth,
-      this.#connPool
+      { ids },
+      this.auth,
+      this.connPool
     );
 
     const oldCols = await this.#columnRepo.findBy(
-      { materializationIds: modifiedMatIds },
-      this.#auth,
-      this.#connPool
+      { materializationIds: ids },
+      this.auth,
+      this.connPool
     );
 
     const oldColsByMatId: { [key: string]: Column[] } = oldCols.reduce(
@@ -364,15 +397,15 @@ export class UpdateSfDataEnv
     );
 
     const oldLogics = await this.#logicRepo.findBy(
-      { materializationIds: modifiedMatIds },
-      this.#auth,
-      this.#connPool
+      { relationNames },
+      this.auth,
+      this.connPool
     );
 
-    const whereCondition = `array_contains(lower(table_name)::variant, array_construct(${modifiedMatIds
+    const whereCondition = `array_contains(lower(concat(table_catalog, '.', table_schema, '.', table_name))::variant, array_construct(${relationNames
       .map(() => `?`)
       .join(', ')}))`;
-    const binds = modifiedMatIds.map((el) => el.toLowerCase());
+    const binds = relationNames.map((el) => el.toLowerCase());
     const newMatReps = await this.getMatRepresentations(
       dbName,
       whereCondition,
@@ -462,26 +495,35 @@ export class UpdateSfDataEnv
     );
   };
 
-  #addResourcesToDelete = async (matToDeleteIds: string[]): Promise<void> => {
-    if (!this.#auth || !this.#connPool)
+  #addResourcesToDelete = async (props: {
+    matToDeleteIds: string[];
+    matsToDelete?: Materialization[];
+  }): Promise<void> => {
+    if (!this.auth || !this.connPool)
       throw new Error('auth or connPool missing');
 
-    const mats = await this.#materializationRepo.findBy(
-      { ids: matToDeleteIds },
-      this.#auth,
-      this.#connPool
-    );
+    if (!props.matToDeleteIds.length) return;
+
+    const mats =
+      props.matsToDelete ||
+      (await this.#materializationRepo.findBy(
+        { ids: props.matToDeleteIds },
+        this.auth,
+        this.connPool
+      ));
+
+    if (!mats.length) throw new Error('Desired mats not found');
 
     const cols = await this.#columnRepo.findBy(
-      { materializationIds: matToDeleteIds },
-      this.#auth,
-      this.#connPool
+      { materializationIds: props.matToDeleteIds },
+      this.auth,
+      this.connPool
     );
 
     const logics = await this.#logicRepo.findBy(
-      { materializationIds: matToDeleteIds },
-      this.#auth,
-      this.#connPool
+      { relationNames: mats.map((el) => el.relationName) },
+      this.auth,
+      this.connPool
     );
 
     this.#matToDeleteRefs.push(
@@ -515,30 +557,36 @@ export class UpdateSfDataEnv
     dbName: string,
     lastLineageCompletedAt: string
   ): Promise<void> => {
-    if (!this.#auth || !this.#connPool)
+    if (!this.auth || !this.connPool)
       throw new Error('Missing auth or connPool');
 
-    const binds = [lastLineageCompletedAt];
+    const binds = [dbName, lastLineageCompletedAt];
 
-
-    select t2.relation_name as deleted_mat_id, lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) as added_mat_id, t1.table_name is not null and t2.relation_name is not null as altered
+    const queryText = `select t2.id as mat_deleted_id, lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) as mat_added_relation_name, t1.table_name is not null and t2.relation_name is not null as altered
     from cito.lineage.materializations as t2
-    full join cito.information_schema.tables as t1 
+    full join ${dbName}.information_schema.tables as t1 
     on lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) = t2.relation_name
-    where lower(t1.table_catalog) = lower(t2.database_name) and (t1.table_name is null or (t2.relation_name is null and t1.table_schema != 'INFORMATION_SCHEMA'))
-    or timediff(minute, '2022-11-21T12:23:44.213Z'::timestamp_ntz, convert_timezone('UTC', last_altered)::timestamp_ntz) > 0;
-
-    const queryText = `select t2.relation_name as deleted_mat_id, lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) as added_mat_id, t1.table_name is not null and t2.relation_name is not null as altered
-      from cito.lineage.materializations as t2
-      full join ${dbName}.information_schema.tables as t1 
-      on lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) = t2.relation_name
-      where t1.table_name is null or (t2.relation_name is null and t1.table_schema != 'INFORMATION_SCHEMA') 
-      or timediff(minute, ?::timestamp_ntz, convert_timezone('UTC', last_altered)::timestamp_ntz) > 0`;
+    where 
+    (
+        array_contains(lower(t2.database_name)::variant, array_construct(:1, null))
+        and
+        array_contains(lower(t1.table_catalog)::variant, array_construct(:1, null))
+    ) 
+    and 
+    (
+        (
+            t1.table_name is null 
+            or 
+            (t2.relation_name is null and t1.table_schema != 'INFORMATION_SCHEMA')
+        )
+        or 
+        timediff(minute, :2::timestamp_ntz, convert_timezone('UTC', last_altered)::timestamp_ntz) > 0
+    );`;
 
     const queryResult = await this.querySnowflake.execute(
       { queryText, binds },
-      this.#auth,
-      this.#connPool
+      this.auth,
+      this.connPool
     );
 
     if (!queryResult.success) throw new Error(queryResult.error);
@@ -547,22 +595,26 @@ export class UpdateSfDataEnv
 
     const dataEnvDiff = this.#getDataEnvDiff(queryResult.value);
 
-    await this.#addResourcesToAdd(dataEnvDiff.addedMatIds, dbName);
-    await this.#addResourcesToDelete(dataEnvDiff.matToDeleteRefs);
-    await this.#addResourcesToModify(dataEnvDiff.modifiedMatIds, dbName);
+    await this.#addResourcesToAdd(dataEnvDiff.matAddedRelationNames, dbName);
+    await this.#addResourcesToDelete({
+      matToDeleteIds: dataEnvDiff.matDeletedIds,
+    });
+    await this.#addResourcesToModify(dataEnvDiff.matModifiedDiffs, dbName);
   };
 
-  #addRemovedDbToRemove = async (dbName: string): Promise<void> => {
-    if (!this.#auth || !this.#connPool)
+  #addRemovedDbToDelete = async (dbName: string): Promise<void> => {
+    if (!this.auth || !this.connPool)
       throw new Error('Missing auth or connPool');
 
-    const matsToRemove = await this.#materializationRepo.findBy(
+    const matsToDelete = await this.#materializationRepo.findBy(
       { databaseName: dbName },
-      this.#auth,
-      this.#connPool
+      this.auth,
+      this.connPool
     );
 
-    await this.#addResourcesToDelete(matsToRemove.map((el) => el.id));
+    const matIds = matsToDelete.map((el) => el.id);
+
+    await this.#addResourcesToDelete({ matToDeleteIds: matIds, matsToDelete });
   };
 
   /* Checks Snowflake resources for changes and returns partial data env to merge with existing snapshot */
@@ -572,8 +624,8 @@ export class UpdateSfDataEnv
     connPool: IConnectionPool
   ): Promise<UpdateSfDataEnvResponse> {
     try {
-      this.#auth = auth;
-      this.#connPool = connPool;
+      this.auth = auth;
+      this.connPool = connPool;
 
       const dbRepresentations = await this.getDbRepresentations(connPool, auth);
 
@@ -584,7 +636,7 @@ export class UpdateSfDataEnv
 
       await Promise.all(
         dbRemovedNames.map(async (el) => {
-          await this.#addRemovedDbToRemove(el);
+          await this.#addRemovedDbToDelete(el);
         })
       );
 
@@ -598,13 +650,26 @@ export class UpdateSfDataEnv
         dataEnv: {
           matsToCreate: this.#matsToCreate,
           matsToReplace: this.#matsToReplace,
-          matsToDelete: this.#matToDeleteRefs,
+          matToDeleteRefs: this.#matToDeleteRefs.map((el) => ({
+            id: el.id,
+            name: el.name,
+            schemaName: el.schemaName,
+            dbName: el.dbName,
+          })),
           columnsToCreate: this.#columnsToCreate,
           columnsToReplace: this.#columnsToReplace,
-          columnsToDelete: this.#columnToDeleteRefs,
+          columnToDeleteRefs: this.#columnToDeleteRefs.map((el) => ({
+            id: el.id,
+            name: el.name,
+            relationName: el.relationName,
+            matId: el.matId,
+          })),
           logicsToCreate: this.#logicsToCreate,
           logicsToReplace: this.#logicsToReplace,
-          logicsToDelete: this.#logicToDeleteRefs,
+          logicToDeleteRefs: this.#logicToDeleteRefs.map((el) => ({
+            id: el.id,
+            relationName: el.relationName,
+          })),
         },
         catalog: this.catalog,
         dbCoveredNames: dbRepresentations.map((el) => el.name),

@@ -30,10 +30,12 @@ export default class ReadLogicsController extends BaseController {
   }
 
   #buildRequestDto = (httpRequest: Request): ReadLogicsRequestDto => {
-    const { relationName, targetOrgId } = httpRequest.query;
+    const { relationNames, targetOrgId } = httpRequest.query;
+
+    const isStringArray = (obj: unknown): obj is string[] => !!obj && Array.isArray(obj) && obj.every(el => typeof el === 'string');
 
     return {
-      relationName: typeof relationName === 'string' ? relationName : undefined,
+      relationNames: isStringArray(relationNames)? relationNames : undefined,
       targetOrgId: typeof targetOrgId === 'string' ? targetOrgId : undefined,
     };
   };

@@ -99,19 +99,10 @@ export default class LogicRepo
     const binds: (string | number)[] = [];
     let whereClause = '';
 
-    if (dto.relationName) {
-      binds.push(dto.relationName);
-      const whereCondition = 'and relation_name = ? ';
-
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
-    }
-
-    if (dto.materializationIds && dto.materializationIds.length) {
-      binds.push(...dto.materializationIds);
+    if (dto.relationNames && dto.relationNames.length) {
+      binds.push(...dto.relationNames);
       const whereCondition = 
-        `and array_contains(materializationId::variant, array_construct(${dto.materializationIds
+        `array_contains(relation_name::variant, array_construct(${dto.relationNames
           .map(() => '?')
           .join(',')}))`
       ;
@@ -122,7 +113,7 @@ export default class LogicRepo
     }
 
     const text = `select * from cito.lineage.${this.matName}
-  where ${whereClause};`;
+  ${whereClause ? 'where': ''} ${whereClause};`;
 
     return { text, binds };
   }

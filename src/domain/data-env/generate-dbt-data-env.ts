@@ -683,6 +683,12 @@ export class GenerateDbtDataEnv
           matsToCreate: this.#materializations,
           columnsToCreate: this.#columns,
           logicsToCreate: this.#logics,
+          columnsToReplace: [],
+          columnToDeleteRefs: [],
+          logicsToReplace: [],
+          logicToDeleteRefs: [],
+          matsToReplace: [],
+          matToDeleteRefs: [],
         },
         catalog: this.#catalog,
         // todo - needs to be updated. Not retrieved

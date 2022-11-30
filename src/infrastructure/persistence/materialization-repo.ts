@@ -112,20 +112,18 @@ export default class MaterializationRepo
     let whereClause = '';
 
     if (dto.ids && dto.ids.length) {
-      binds.push(
-        dto.ids.length === 1
-          ? dto.ids[0]
-          : dto.ids.map((el) => `'${el}'`).join(', ')
-      );
+      binds.push(...dto.ids);
       const whereCondition =
-        'and array_contains(id::variant, array_construct(?))';
+        `array_contains(id::variant, array_construct(${dto.ids
+          .map(() => '?')
+          .join(',')}))`;
       whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
+        ? whereClause.concat(`${whereCondition} `)
         : whereCondition;
     }
     if (dto.relationName) {
       binds.push(dto.relationName);
-      const whereCondition = 'and relation_name = ?';
+      const whereCondition = 'relation_name = ?';
 
       whereClause = whereClause
         ? whereClause.concat(`and ${whereCondition} `)
@@ -133,27 +131,25 @@ export default class MaterializationRepo
     }
     if (dto.type) {
       binds.push(dto.type);
-      const whereCondition = 'and type = ?';
+      const whereCondition = 'type = ?';
 
       whereClause = whereClause
         ? whereClause.concat(`and ${whereCondition} `)
         : whereCondition;
     }
     if (dto.names && dto.names.length) {
-      binds.push(
-        dto.names.length === 1
-          ? dto.names[0]
-          : dto.names.map((el) => `'${el}'`).join(', ')
-      );
+      binds.push(...dto.names);
       const whereCondition =
-        'and array_contains(name::variant, array_construct(?))';
+        `array_contains(name::variant, array_construct(${dto.names
+          .map(() => '?')
+          .join(',')}))`;
       whereClause = whereClause
         ? whereClause.concat(`and ${whereCondition} `)
         : whereCondition;
     }
     if (dto.schemaName) {
       binds.push(dto.schemaName);
-      const whereCondition = 'and schema_name = ?';
+      const whereCondition = 'schema_name = ?';
 
       whereClause = whereClause
         ? whereClause.concat(`and ${whereCondition} `)
@@ -161,7 +157,7 @@ export default class MaterializationRepo
     }
     if (dto.databaseName) {
       binds.push(dto.databaseName);
-      const whereCondition = 'and database_name = ?';
+      const whereCondition = 'database_name = ?';
 
       whereClause = whereClause
         ? whereClause.concat(`and ${whereCondition} `)
@@ -169,7 +165,7 @@ export default class MaterializationRepo
     }
     if (dto.logicId) {
       binds.push(dto.logicId);
-      const whereCondition = 'and logic_id = ?';
+      const whereCondition = 'logic_id = ?';
 
       whereClause = whereClause
         ? whereClause.concat(`and ${whereCondition} `)
@@ -177,7 +173,7 @@ export default class MaterializationRepo
     }
 
     const text = `select * from cito.lineage.${this.matName}
-    where  ${whereClause};`;
+    ${whereClause ? 'where': ''}  ${whereClause};`;
 
     return { text, binds };
   }

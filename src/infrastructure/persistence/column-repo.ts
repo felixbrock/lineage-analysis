@@ -142,7 +142,7 @@ export default class ColumnRepo
     if (dto.materializationIds && dto.materializationIds.length) {
       binds.push(...dto.materializationIds);
 
-      const whereCondition = `array_contains(materializationId::variant, array_construct(${dto.materializationIds
+      const whereCondition = `array_contains(materialization_id::variant, array_construct(${dto.materializationIds
         .map(() => '?')
         .join(',')}))`;
 
@@ -152,7 +152,7 @@ export default class ColumnRepo
     }
 
     const text = `select * from cito.lineage.${this.matName}
-        where  ${whereClause};`;
+        ${whereClause ? 'where': ''}  ${whereClause};`;
 
     return { binds, text };
   }
