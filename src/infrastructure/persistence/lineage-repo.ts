@@ -37,16 +37,16 @@ export default class LineageRepo
       ID: id,
       COMPLETED: completed,
       CREATED_AT: createdAt,
-      DIFF: diff,
       DB_COVERED_NAMES: dbCoveredNames,
+      DIFF: diff,
     } = sfEntity;
 
     if (
       typeof id !== 'string' ||
       typeof completed !== 'boolean' ||
       !(createdAt instanceof Date) ||
-      !LineageRepo.isOptionalOfType<string>(diff, 'string') ||
-      !LineageRepo.isStringArray(dbCoveredNames)
+      !LineageRepo.isStringArray(dbCoveredNames) ||
+      !LineageRepo.isOptionalOfType<string>(diff, 'string')
     )
       throw new Error(
         'Retrieved unexpected lineage field types from persistence'
@@ -56,8 +56,8 @@ export default class LineageRepo
       id,
       completed,
       createdAt: createdAt.toISOString(),
-      diff,
       dbCoveredNames,
+      diff,
     };
   };
 
@@ -124,14 +124,15 @@ export default class LineageRepo
       binds.push(dto.completed.toString());
     }
 
+    if (dto.dbCoveredNames)
+      colDefinitions.push(this.getDefinition('db_covered_names'));
+    binds.push(JSON.stringify(dto.dbCoveredNames));
+    
     if (dto.diff) {
       colDefinitions.push(this.getDefinition('diff'));
       binds.push(dto.diff);
     }
 
-    if (dto.dbCoveredNames)
-      colDefinitions.push(this.getDefinition('db_covered_names'));
-    binds.push(JSON.stringify(dto.dbCoveredNames));
 
     const text = this.getUpdateQueryText(this.matName, colDefinitions, [
       `(${binds.map(() => '?').join(', ')})`,

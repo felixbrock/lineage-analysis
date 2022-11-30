@@ -8,8 +8,8 @@ export interface LineagePrototype {
 export interface LineageProps extends Omit<LineagePrototype, 'createdAt'> {
   createdAt: string;
   completed: boolean;
-  diff?: string;
   dbCoveredNames: string[];
+  diff?: string;
 }
 
 type LineageDto = LineageProps;
@@ -20,10 +20,11 @@ export class Lineage {
   #createdAt: string;
 
   #completed: boolean;
+  
+  #dbCoveredNames: string[];
 
   #diff?: string;
 
-  #dbCoveredNames: string[];
 
   get id(): string {
     return this.#id;
@@ -37,13 +38,14 @@ export class Lineage {
     return this.#completed;
   }
 
+  get dbCoveredNames(): string[] {
+    return this.#dbCoveredNames;
+  }
+
   get diff(): string | undefined {
     return this.#diff;
   }
 
-  get dbCoveredNames(): string[] {
-    return this.#dbCoveredNames;
-  }
 
   private constructor(props: LineageProps) {
     this.#id = props.id;
@@ -60,8 +62,8 @@ export class Lineage {
       ...prototype,
       createdAt: prototype.createdAt || new Date().toISOString(),
       completed: false,
-      diff: prototype.diff,
       dbCoveredNames: prototype.dbCoveredNames || [],
+      diff: prototype.diff,
     });
 
     return lineage;
@@ -72,15 +74,15 @@ export class Lineage {
       id: props.id,
       createdAt: props.createdAt,
       completed: props.completed,
-      diff: props.diff,
       dbCoveredNames: props.dbCoveredNames,
+      diff: props.diff,
     });
 
   toDto = (): LineageDto => ({
     id: this.#id,
     createdAt: this.#createdAt,
     completed: this.#completed,
-    diff: this.#diff,
     dbCoveredNames: this.#dbCoveredNames,
+    diff: this.#diff,
   });
 }
