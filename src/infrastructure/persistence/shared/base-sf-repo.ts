@@ -324,19 +324,8 @@ export default abstract class BaseSfRepo<
     try {
       const query = this.buildUpdateQuery(id, updateDto);
 
-      if (!query.colDefinitions)
-        throw new Error(
-          'No column definitions found. Cannot perform update operation'
-        );
-
-      const queryText = this.getUpdateQueryText(
-        this.matName,
-        query.colDefinitions,
-        [`(${query.binds.map(() => '?').join(', ')})`]
-      );
-
       const result = await this.querySnowflake.execute(
-        { queryText, binds: query.binds },
+        { queryText: query.text, binds: query.binds },
         auth,
         connPool
       );
