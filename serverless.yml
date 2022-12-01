@@ -11,6 +11,7 @@ provider:
 functions:
   app:
     handler: dist/lambda.handler
+    url: true
     events:
       - http:
           path: /
