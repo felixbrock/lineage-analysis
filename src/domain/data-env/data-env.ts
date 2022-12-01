@@ -21,32 +21,10 @@ export interface LogicToDeleteRef {
   relationName: string;
 }
 
-
-interface DataEnvDtoMat {
-  dbName: string;
-  schemaName:string;
-  name: string;
-}
-
-interface DataEnvDtoCol {
-  relationName: string;
-  name: string
-}
-
-interface DataEnvDtoLogic {
-  relationName: string;
-}
-
 export interface DataEnvDto {
-  matToCreateRelationNames: DataEnvDtoMat[];
-  matToReplaceRelationNames: DataEnvDtoMat[];
-  matToDeleteRelationNames: DataEnvDtoMat[];
-  colToCreateRelationNames: DataEnvDtoCol[];
-  colToReplaceRelationNames: DataEnvDtoCol[];
-  colToDeleteRelationNames: DataEnvDtoCol[];
-  logicToCreateRelationNames: DataEnvDtoLogic[];
-  logicToReplaceRelationNames: DataEnvDtoLogic[];
-  logicToDeleteRelationNames: DataEnvDtoLogic[];
+  matToCreateRelationNames: string[];
+  matToReplaceRelationNames: string[];
+  matToDeleteRelationNames: string[];
 }
 
 export interface DataEnv {

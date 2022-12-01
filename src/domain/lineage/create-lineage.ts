@@ -446,42 +446,15 @@ export class CreateLineage
       let dataEnvDto: DataEnvDto | undefined;
       if (dataEnvOperation === 'update')
         dataEnvDto = {
-          colToCreateRelationNames: dataEnv.columnsToCreate.map((el) => ({
-            name: el.name,
-            relationName: el.relationName,
-          })),
-          colToDeleteRelationNames: dataEnv.columnToDeleteRefs.map((el) => ({
-            name: el.name,
-            relationName: el.relationName,
-          })),
-          colToReplaceRelationNames: dataEnv.columnsToReplace.map((el) => ({
-            name: el.name,
-            relationName: el.relationName,
-          })),
-          logicToCreateRelationNames: dataEnv.logicsToCreate.map((el) => ({
-            relationName: el.relationName,
-          })),
-          logicToDeleteRelationNames: dataEnv.logicToDeleteRefs.map((el) => ({
-            relationName: el.relationName,
-          })),
-          logicToReplaceRelationNames: dataEnv.logicsToReplace.map((el) => ({
-            relationName: el.relationName,
-          })),
-          matToCreateRelationNames: dataEnv.matsToCreate.map((el) => ({
-            name: el.name,
-            schemaName: el.schemaName,
-            dbName: el.databaseName,
-          })),
-          matToDeleteRelationNames: dataEnv.matToDeleteRefs.map((el) => ({
-            name: el.name,
-            schemaName: el.schemaName,
-            dbName: el.dbName,
-          })),
-          matToReplaceRelationNames: dataEnv.matsToReplace.map((el) => ({
-            name: el.name,
-            schemaName: el.schemaName,
-            dbName: el.databaseName,
-          })),
+          matToCreateRelationNames: dataEnv.matsToCreate.map(
+            (el) => `${el.databaseName}.${el.schemaName}.${el.name}`
+          ),
+          matToDeleteRelationNames: dataEnv.matToDeleteRefs.map(
+            (el) => `${el.dbName}.${el.schemaName}.${el.name}`
+          ),
+          matToReplaceRelationNames: dataEnv.matsToReplace.map(
+            (el) => `${el.databaseName}.${el.schemaName}.${el.name}`
+          ),
         };
 
       console.log('...setting lineage complete state to true');
