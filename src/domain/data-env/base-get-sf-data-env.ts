@@ -122,7 +122,7 @@ export default abstract class BaseGetSfDataEnv {
         );
 
       return {
-        name: name.toLowerCase(),
+        name,
         ownerId,
         isTransient: isTransient.toLowerCase() !== 'no',
         comment: comment || undefined,
@@ -188,15 +188,11 @@ export default abstract class BaseGetSfDataEnv {
             'Received mat representation field value in unexpected format'
           );
 
-        const dbNameFormatted = databaseName.toLowerCase();
-        const schemaNameFormatted = schemaName.toLowerCase();
-        const nameFormatted = name.toLowerCase();
-
         return {
-          databaseName: dbNameFormatted,
-          schemaName: schemaNameFormatted,
-          name: nameFormatted,
-          relationName: `${dbNameFormatted}.${schemaNameFormatted}.${nameFormatted}`,
+          databaseName,
+          schemaName,
+          name,
+          relationName: `${databaseName}.${schemaName}.${name}`.toLowerCase(),
           type: parseMaterializationType(type.toLowerCase()),
           ownerId: ownerId || undefined,
           isTransient: isTransient
@@ -270,8 +266,8 @@ export default abstract class BaseGetSfDataEnv {
         );
 
       return {
-        relationName: `${databaseName.toLowerCase()}.${schemaName.toLowerCase()}.${matName.toLowerCase()}`,
-        name: name.toLowerCase(),
+        relationName: `${databaseName}.${schemaName}.${matName}`.toLowerCase(),
+        name,
         index: index.toString(),
         dataType: parseColumnDataType(dataType),
         isIdentity: isIdentity ? isIdentity.toLowerCase() !== 'no' : undefined,
