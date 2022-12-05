@@ -564,13 +564,13 @@ export class UpdateSfDataEnv
 
     const queryText = `select t2.id as mat_deleted_id, lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) as mat_added_relation_name, t1.table_name is not null and t2.relation_name is not null as altered
     from cito.lineage.materializations as t2
-    full join ${dbName}.information_schema.tables as t1 
+    full join "${dbName}".information_schema.tables as t1 
     on lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) = t2.relation_name
     where 
     (
-        array_contains(lower(t2.database_name)::variant, array_construct(:1, null))
+        array_contains(t2.database_name::variant, array_construct(:1, null))
         and
-        array_contains(lower(t1.table_catalog)::variant, array_construct(:1, null))
+        array_contains(t1.table_catalog::variant, array_construct(:1, null))
     ) 
     and 
     (

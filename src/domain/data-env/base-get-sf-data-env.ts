@@ -82,11 +82,9 @@ export default abstract class BaseGetSfDataEnv {
     auth: BaseAuth
   ): Promise<DatabaseRepresentation[]> => {
 
-    const sfDbName = 'snowflake';
-    const sfSampleDataDb = 'snowflake_sample_data';
-    const citoDbName = 'cito';
+    const dbsToIgnore = ['snowflake', 'snowflake_sample_data', 'cito'];
 
-    const queryText = `select database_name, database_owner, is_transient, comment from cito.information_schema.databases where not array_contains(lower(database_name)::variant, array_construct('${sfDbName.toLowerCase()}', '${sfSampleDataDb.toLowerCase()}', '${citoDbName.toLowerCase()}'))`;
+    const queryText = `select database_name, database_owner, is_transient, comment from cito.information_schema.databases where not array_contains(lower(database_name)::variant, array_construct(${dbsToIgnore.map(el => `'${el}'`).join(', ')}))`;
     const queryResult = await this.querySnowflake.execute(
       { queryText, binds: [] },
       auth,
@@ -141,7 +139,7 @@ export default abstract class BaseGetSfDataEnv {
     if (!this.connPool || !this.auth)
       throw new Error('Missing properties for generating sf data env');
 
-    const queryText = `select table_catalog, table_schema, table_name, table_owner, table_type, is_transient, comment  from ${targetDbName}.information_schema.tables ${whereCondition ? 'where': ''} ${whereCondition};`;
+    const queryText = `select table_catalog, table_schema, table_name, table_owner, table_type, is_transient, comment  from "${targetDbName}".information_schema.tables ${whereCondition ? 'where': ''} ${whereCondition};`;
     const queryResult = await this.querySnowflake.execute(
       { queryText, binds },
       this.auth,
@@ -215,7 +213,7 @@ export default abstract class BaseGetSfDataEnv {
     if (!this.connPool || !this.auth)
       throw new Error('Missing properties for generating sf data env');
 
-    const queryText = `select table_catalog, table_schema, table_name, column_name, ordinal_position, is_nullable, data_type, is_identity, comment from ${targetDbName}.information_schema.columns ${whereCondition ? 'where': ''} ${whereCondition}`;
+    const queryText = `select table_catalog, table_schema, table_name, column_name, ordinal_position, is_nullable, data_type, is_identity, comment from "${targetDbName}".information_schema.columns ${whereCondition ? 'where': ''} ${whereCondition}`;
     const queryResult = await this.querySnowflake.execute(
       { queryText, binds },
       this.auth,
