@@ -39,30 +39,16 @@ export default class ReadColumnsController extends BaseController {
       targetOrgId,
     } = httpRequest.query;
 
-    const isStringArray = (obj: unknown): obj is string[] =>
-      Array.isArray(obj) && obj.every((el) => typeof el === 'string');
-
-    if (
-      relationNames &&
-      typeof relationNames !== 'string' &&
-      !isStringArray(relationNames)
-    )
-      throw new Error('relationNames format not accepted');
-    if (names && !isStringArray(names))
-      throw new Error('names format not accepted');
-    if (materializationIds && !isStringArray(materializationIds))
-      throw new Error('materializationIds format not accepted');
-
     return {
       relationNames:
-        typeof relationNames === 'string' ? [relationNames] : relationNames,
-      names: typeof names === 'string' ? [names] : names,
+        typeof relationNames === 'string' ? relationNames.replaceAll(/\s/g, '').split(',') : [],
+      names: typeof names === 'string' ? names.replaceAll(/\s/g, '').split(',') : [],
       index: typeof index === 'string' ? index : undefined,
       type: typeof type === 'string' ? type : undefined,
       materializationIds:
         typeof materializationIds === 'string'
-          ? [materializationIds]
-          : materializationIds,
+          ? materializationIds.replaceAll(/\s/g, '').split(',')
+          : [],
       targetOrgId: typeof targetOrgId === 'string' ? targetOrgId : undefined,
     };
   };
