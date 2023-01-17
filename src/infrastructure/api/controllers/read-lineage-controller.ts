@@ -103,7 +103,7 @@ export default class ReadLineageController extends BaseController {
 
       return ReadLineageController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
-      if (error instanceof Error ) console.error(error.stack);
+      if (error instanceof Error) console.error(error.stack);
       else if (error) console.trace(error);
       return ReadLineageController.fail(
         res,

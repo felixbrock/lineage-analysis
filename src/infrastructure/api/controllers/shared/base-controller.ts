@@ -35,7 +35,10 @@ export abstract class BaseController {
 
   readonly #getAccounts: GetAccounts;
 
-  constructor(getAccounts: GetAccounts, getSnowflakeProfile: GetSnowflakeProfile) {
+  constructor(
+    getAccounts: GetAccounts,
+    getSnowflakeProfile: GetSnowflakeProfile
+  ) {
     this.#getAccounts = getAccounts;
     this.#getSnowflakeProfile = getSnowflakeProfile;
   }
@@ -95,7 +98,7 @@ export abstract class BaseController {
   };
 
   protected async getUserAccountInfo(
-    jwt: string,
+    jwt: string
   ): Promise<Result<UserAccountInfo>> {
     if (!jwt) return Result.fail('Unauthorized');
 
@@ -163,7 +166,7 @@ export abstract class BaseController {
         isSystemInternal,
       });
     } catch (error: unknown) {
-      if (error instanceof Error ) console.error(error.stack);
+      if (error instanceof Error) console.error(error.stack);
       else if (error) console.trace(error);
       return Result.fail('');
     }

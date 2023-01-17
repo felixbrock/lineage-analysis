@@ -47,7 +47,7 @@ export class QuerySnowflake
 
       return Result.ok(queryResult);
     } catch (error: unknown) {
-      if (error instanceof Error ) console.error(error.stack);
+      if (error instanceof Error) console.error(error.stack);
       else if (error) console.trace(error);
       return Result.fail('');
     }
