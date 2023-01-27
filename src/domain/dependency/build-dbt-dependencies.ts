@@ -39,7 +39,7 @@ export interface BuildResult {
   dependencies: Dependency[];
 }
 
-export interface BuildDependenciesRequestDto {
+export interface BuildDbtDependenciesRequestDto {
   targetOrgId?: string;
   logics: Logic[];
   mats: Materialization[];
@@ -48,16 +48,16 @@ export interface BuildDependenciesRequestDto {
   biToolType?: BiToolType;
 }
 
-export type BuildDependenciesAuthDto = BaseAuth;
+export type BuildDbtDependenciesAuthDto = BaseAuth;
 
-export type BuildDependenciesResponse = Result<BuildResult>;
+export type BuildDbtDependenciesResponse = Result<BuildResult>;
 
-export class BuildDependencies
+export class BuildDbtDependencies
   implements
     IUseCase<
-      BuildDependenciesRequestDto,
-      BuildDependenciesResponse,
-      BuildDependenciesAuthDto,
+      BuildDbtDependenciesRequestDto,
+      BuildDbtDependenciesResponse,
+      BuildDbtDependenciesAuthDto,
       IConnectionPool
     >
 {
@@ -185,12 +185,12 @@ export class BuildDependencies
         index ===
         self.findIndex(
           (ref) =>
-            BuildDependencies.#insensitiveEquality(ref.name, value.name) &&
-            BuildDependencies.#insensitiveEquality(
+            BuildDbtDependencies.#insensitiveEquality(ref.name, value.name) &&
+            BuildDbtDependencies.#insensitiveEquality(
               ref.context.path,
               value.context.path
             ) &&
-            BuildDependencies.#insensitiveEquality(
+            BuildDbtDependencies.#insensitiveEquality(
               ref.materializationName,
               value.materializationName
             )
@@ -413,7 +413,7 @@ export class BuildDependencies
       throw new Error('Connection pool or catalog missing');
 
     const catalogMatches = this.#catalog.filter((catalogEl) => {
-      const nameIsEqual = BuildDependencies.#insensitiveEquality(
+      const nameIsEqual = BuildDbtDependencies.#insensitiveEquality(
         dependencyRef.materializationName,
         catalogEl.materializationName
       );
@@ -422,7 +422,7 @@ export class BuildDependencies
         !dependencyRef.schemaName ||
         (typeof dependencyRef.schemaName === 'string' &&
         typeof catalogEl.schemaName === 'string'
-          ? BuildDependencies.#insensitiveEquality(
+          ? BuildDbtDependencies.#insensitiveEquality(
               dependencyRef.schemaName,
               catalogEl.schemaName
             )
@@ -432,7 +432,7 @@ export class BuildDependencies
         !dependencyRef.databaseName ||
         (typeof dependencyRef.databaseName === 'string' &&
         typeof catalogEl.databaseName === 'string'
-          ? BuildDependencies.#insensitiveEquality(
+          ? BuildDbtDependencies.#insensitiveEquality(
               dependencyRef.databaseName,
               catalogEl.databaseName
             )
@@ -481,10 +481,10 @@ export class BuildDependencies
 
   /* Creates all dependencies that exist between DWH resources */
   async execute(
-    req: BuildDependenciesRequestDto,
-    auth: BuildDependenciesAuthDto,
+    req: BuildDbtDependenciesRequestDto,
+    auth: BuildDbtDependenciesAuthDto,
     connPool: IConnectionPool
-  ): Promise<BuildDependenciesResponse> {
+  ): Promise<BuildDbtDependenciesResponse> {
     try {
       this.#connPool = connPool;
       this.#auth = auth;
@@ -495,11 +495,11 @@ export class BuildDependencies
       this.#targetOrgId = req.targetOrgId;
 
       // todo - needs to updated (due to sf only env)
-      if(auth)
-      return Result.ok({
-        dashboards: this.#dashboards,
-        dependencies: this.#dependencies,
-      });
+      if (auth)
+        return Result.ok({
+          dashboards: this.#dashboards,
+          dependencies: this.#dependencies,
+        });
 
       const querySfQueryHistory: SnowflakeQueryResult | undefined =
         req.biToolType
@@ -509,7 +509,7 @@ export class BuildDependencies
       await Promise.all(
         this.#logics.map(async (logic) => {
           const colDataDependencyRefs =
-            BuildDependencies.#getColDataDependencyRefs(logic.statementRefs);
+            BuildDbtDependencies.#getColDataDependencyRefs(logic.statementRefs);
           await Promise.all(
             colDataDependencyRefs.map(async (dependencyRef) =>
               this.#buildColumnRefDependency(
@@ -523,7 +523,7 @@ export class BuildDependencies
           );
 
           const wildcardDataDependencyRefs =
-            BuildDependencies.#getWildcardDataDependencyRefs(
+            BuildDbtDependencies.#getWildcardDataDependencyRefs(
               logic.statementRefs
             );
 
@@ -541,7 +541,7 @@ export class BuildDependencies
 
           if (req.biToolType && querySfQueryHistory) {
             const dashboardDataDependencyRefs =
-              await BuildDependencies.#getDashboardDataDependencyRefs(
+              await BuildDbtDependencies.#getDashboardDataDependencyRefs(
                 logic.statementRefs,
                 querySfQueryHistory,
                 req.biToolType
@@ -553,16 +553,16 @@ export class BuildDependencies
                 self.findIndex((dashboard) =>
                   typeof dashboard.name === 'string' &&
                   typeof value.name === 'string'
-                    ? BuildDependencies.#insensitiveEquality(
+                    ? BuildDbtDependencies.#insensitiveEquality(
                         dashboard.name,
                         value.name
                       )
                     : dashboard.name === value.name &&
-                      BuildDependencies.#insensitiveEquality(
+                      BuildDbtDependencies.#insensitiveEquality(
                         dashboard.columnName,
                         value.columnName
                       ) &&
-                      BuildDependencies.#insensitiveEquality(
+                      BuildDbtDependencies.#insensitiveEquality(
                         dashboard.materializationName,
                         value.materializationName
                       )

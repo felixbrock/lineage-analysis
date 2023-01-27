@@ -21,7 +21,7 @@ import { UpdateSfDataEnv } from '../data-env/update-sf-data-env';
 import {
   BuildDependencies,
   BuildResult,
-} from '../dependency/build-dependencies';
+} from '../dependency/build-dbt-dependencies';
 import { ModelRepresentation } from '../entities/logic';
 
 export interface CreateLineageRequestDto {

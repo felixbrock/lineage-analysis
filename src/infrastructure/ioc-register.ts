@@ -33,7 +33,7 @@ import { GetSnowflakeProfile } from '../domain/integration-api/get-snowflake-pro
 import { GenerateSfDataEnv } from '../domain/data-env/generate-sf-data-env';
 import { GenerateDbtDataEnv } from '../domain/data-env/generate-dbt-data-env';
 import { UpdateSfDataEnv } from '../domain/data-env/update-sf-data-env';
-import { BuildDependencies } from '../domain/dependency/build-dependencies';
+import { BuildDependencies } from '../domain/dependency/build-dbt-dependencies';
 
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
