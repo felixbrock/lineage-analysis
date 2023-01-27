@@ -185,15 +185,9 @@ export class BuildDependencies
         index ===
         self.findIndex(
           (ref) =>
-            BuildDependencies.#insensitiveEquality(ref.name, value.name) &&
-            BuildDependencies.#insensitiveEquality(
-              ref.context.path,
-              value.context.path
-            ) &&
-            BuildDependencies.#insensitiveEquality(
-              ref.materializationName,
-              value.materializationName
-            )
+            ref.name === value.name &&
+            ref.context.path === value.context.path &&
+            ref.materializationName === value.materializationName
         )
     );
 
@@ -413,29 +407,20 @@ export class BuildDependencies
       throw new Error('Connection pool or catalog missing');
 
     const catalogMatches = this.#catalog.filter((catalogEl) => {
-      const nameIsEqual = BuildDependencies.#insensitiveEquality(
-        dependencyRef.materializationName,
-        catalogEl.materializationName
-      );
-
+      const nameIsEqual =
+        dependencyRef.materializationName === catalogEl.materializationName;
       const schemaNameIsEqual =
         !dependencyRef.schemaName ||
         (typeof dependencyRef.schemaName === 'string' &&
         typeof catalogEl.schemaName === 'string'
-          ? BuildDependencies.#insensitiveEquality(
-              dependencyRef.schemaName,
-              catalogEl.schemaName
-            )
+          ? dependencyRef.schemaName === catalogEl.schemaName
           : dependencyRef.schemaName === catalogEl.schemaName);
 
       const databaseNameIsEqual =
         !dependencyRef.databaseName ||
         (typeof dependencyRef.databaseName === 'string' &&
         typeof catalogEl.databaseName === 'string'
-          ? BuildDependencies.#insensitiveEquality(
-              dependencyRef.databaseName,
-              catalogEl.databaseName
-            )
+          ? dependencyRef.databaseName === catalogEl.databaseName
           : dependencyRef.databaseName === catalogEl.databaseName);
 
       return nameIsEqual && schemaNameIsEqual && databaseNameIsEqual;
@@ -476,9 +461,6 @@ export class BuildDependencies
     return dependencies;
   };
 
-  static #insensitiveEquality = (str1: string, str2: string): boolean =>
-    str1.toLowerCase() === str2.toLowerCase();
-
   /* Creates all dependencies that exist between DWH resources */
   async execute(
     req: BuildDependenciesRequestDto,
@@ -495,11 +477,11 @@ export class BuildDependencies
       this.#targetOrgId = req.targetOrgId;
 
       // todo - needs to updated (due to sf only env)
-      if(auth)
-      return Result.ok({
-        dashboards: this.#dashboards,
-        dependencies: this.#dependencies,
-      });
+      if (auth)
+        return Result.ok({
+          dashboards: this.#dashboards,
+          dependencies: this.#dependencies,
+        });
 
       const querySfQueryHistory: SnowflakeQueryResult | undefined =
         req.biToolType
@@ -553,19 +535,11 @@ export class BuildDependencies
                 self.findIndex((dashboard) =>
                   typeof dashboard.name === 'string' &&
                   typeof value.name === 'string'
-                    ? BuildDependencies.#insensitiveEquality(
-                        dashboard.name,
-                        value.name
-                      )
+                    ? dashboard.name === value.name
                     : dashboard.name === value.name &&
-                      BuildDependencies.#insensitiveEquality(
-                        dashboard.columnName,
-                        value.columnName
-                      ) &&
-                      BuildDependencies.#insensitiveEquality(
-                        dashboard.materializationName,
+                      dashboard.columnName === value.columnName &&
+                      dashboard.materializationName ===
                         value.materializationName
-                      )
                 )
             );
 

@@ -289,10 +289,10 @@ export class UpdateSfDataEnv
   ): Promise<void> => {
     if (!relationNames.length) return;
 
-    const whereCondition = `array_contains(lower(concat(table_catalog, '.', table_schema, '.', table_name))::variant, array_construct(${relationNames
+    const whereCondition = `array_contains(concat(table_catalog, '.', table_schema, '.', table_name)::variant, array_construct(${relationNames
       .map(() => `?`)
       .join(', ')}))`;
-    const binds = relationNames.map((el) => el.toLowerCase());
+    const binds = relationNames;
     const matRepresentations = await this.getMatRepresentations(
       dbName,
       whereCondition,
@@ -402,10 +402,10 @@ export class UpdateSfDataEnv
       this.connPool
     );
 
-    const whereCondition = `array_contains(lower(concat(table_catalog, '.', table_schema, '.', table_name))::variant, array_construct(${relationNames
+    const whereCondition = `array_contains(concat(table_catalog, '.', table_schema, '.', table_name)::variant, array_construct(${relationNames
       .map(() => `?`)
       .join(', ')}))`;
-    const binds = relationNames.map((el) => el.toLowerCase());
+    const binds = relationNames;
     const newMatReps = await this.getMatRepresentations(
       dbName,
       whereCondition,
@@ -562,10 +562,10 @@ export class UpdateSfDataEnv
 
     const binds = [dbName, lastLineageCompletedAt];
 
-    const queryText = `select t2.id as mat_deleted_id, lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) as mat_added_relation_name, t1.table_name is not null and t2.relation_name is not null as altered
+    const queryText = `select t2.id as mat_deleted_id, concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name) as mat_added_relation_name, t1.table_name is not null and t2.relation_name is not null as altered
     from cito.lineage.materializations as t2
     full join "${dbName}".information_schema.tables as t1 
-    on lower(concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name)) = t2.relation_name
+    on concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name) = t2.relation_name
     where 
     (
         array_contains(t2.database_name::variant, array_construct(:1, null))

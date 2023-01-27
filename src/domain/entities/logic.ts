@@ -1567,12 +1567,12 @@ export class Logic {
           if (!compoundValueRefs.length) return column;
 
           const columnMatName = column.materializationName
-            ? column.materializationName.toLowerCase()
+            ? column.materializationName
             : undefined;
 
           const matchingCompoundValueRefs = compoundValueRefs.filter((ref) => {
-            const refAlias = ref.alias ? ref.alias.toLowerCase() : undefined;
-            const refName = ref.name ? ref.name.toLowerCase() : undefined;
+            const refAlias = ref.alias ? ref.alias : undefined;
+            const refName = ref.name ? ref.name : undefined;
 
             return columnMatName === refAlias || columnMatName === refName;
           });
@@ -1755,11 +1755,9 @@ export class Logic {
 
         const potentiallyMissingRelationName = `${ref.databaseName}.${ref.schemaName}.${ref.name}`;
 
-        const matchingDefinitions = dbtDependencyDefinitions.filter((el) =>
-          this.#insensitiveEquality(
-            el.relationName.replace(/"/g, ''),
-            potentiallyMissingRelationName
-          )
+        const matchingDefinitions = dbtDependencyDefinitions.filter(
+          (el) =>
+            el.relationName.replace(/"/g, '') === potentiallyMissingRelationName
         );
 
         if (matchingDefinitions.length) return undefined;
@@ -1799,7 +1797,7 @@ export class Logic {
 
     const dwDependencyDefinitions = this.#getDwDependencyDefinitions(
       statementRefs.materializations,
-      dbtProps? dbtProps.dbtDependentOn : []
+      dbtProps ? dbtProps.dbtDependentOn : []
     );
 
     const dependentOn: DependentOn = {
@@ -1839,7 +1837,4 @@ export class Logic {
     parsedLogic: this.#parsedLogic,
     statementRefs: this.#statementRefs,
   });
-
-  static #insensitiveEquality = (str1: string, str2: string): boolean =>
-    str1.toLowerCase() === str2.toLowerCase();
 }

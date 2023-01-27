@@ -280,22 +280,13 @@ export class GenerateDbtDataEnv
           (el) =>
             (typeof def.databaseName === 'string' &&
             typeof el.databaseName === 'string'
-              ? GenerateDbtDataEnv.#insensitiveEquality(
-                  el.databaseName,
-                  def.databaseName
-                )
+              ? el.databaseName === def.databaseName
               : def.databaseName === el.databaseName) &&
             (typeof def.schemaName === 'string' &&
             typeof el.schemaName === 'string'
-              ? GenerateDbtDataEnv.#insensitiveEquality(
-                  el.schemaName,
-                  def.schemaName
-                )
+              ? el.schemaName === def.schemaName
               : def.schemaName === el.schemaName) &&
-            GenerateDbtDataEnv.#insensitiveEquality(
-              el.name,
-              def.materializationName
-            )
+            el.name === def.materializationName
         );
 
         if (matchingMaterializations.length === 0) return;
@@ -348,22 +339,13 @@ export class GenerateDbtDataEnv
             'Creating external resources -> Materialization obj not found'
           );
 
-        const relevantColumnRefs = statementRefs.columns.filter((col) =>
-          GenerateDbtDataEnv.#insensitiveEquality(
-            finalMat.name,
-            col.materializationName
-          )
+        const relevantColumnRefs = statementRefs.columns.filter(
+          (col) => finalMat.name === col.materializationName
         );
 
         const uniqueRelevantColumnRefs = relevantColumnRefs.filter(
           (column1, index, self) =>
-            index ===
-            self.findIndex((column2) =>
-              GenerateDbtDataEnv.#insensitiveEquality(
-                column1.name,
-                column2.name
-              )
-            )
+            index === self.findIndex((column2) => column1.name === column2.name)
         );
 
         const isColumn = (column: Column | undefined): column is Column =>
@@ -540,11 +522,6 @@ export class GenerateDbtDataEnv
     }
   };
 
-  /* Runs through dbt nodes and creates objects like logic, materializations and columns */
-
-  static #insensitiveEquality = (str1: string, str2: string): boolean =>
-    str1.toLowerCase() === str2.toLowerCase();
-
   /* Runs through snowflake and creates objects like logic, materializations and columns */
   async execute(
     req: GenerateDbtDataEnvRequestDto,
@@ -692,7 +669,7 @@ export class GenerateDbtDataEnv
         },
         catalog: this.#catalog,
         // todo - needs to be updated. Not retrieved
-        dbCoveredNames: []
+        dbCoveredNames: [],
       });
     } catch (error: unknown) {
       if (error instanceof Error) console.error(error.stack);
