@@ -55,10 +55,9 @@ export const appConfig = {
     region: 'eu-central-1',
   },
   snowflake: {
-    applicationName:
-      process.env.SNOWFLAKE_APPLICATION_NAME || 'snowflake-connector',
+    applicationName: process.env.SNOWFLAKE_APPLICATION_NAME || 'Cito_CitoApp',
     schemaName: 'lineage',
-    databaseName: 'cito'
+    databaseName: 'cito',
   },
   baseUrl: getBaseUrlConfig(),
 };
