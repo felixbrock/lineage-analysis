@@ -23,6 +23,7 @@ import {
   BuildResult,
 } from '../dependency/build-dependencies';
 import { ModelRepresentation } from '../entities/logic';
+import { IObservabilityApiRepo } from '../observability-api/i-observability-api-repo';
 
 export interface CreateLineageRequestDto {
   targetOrgId?: string;
@@ -58,6 +59,8 @@ export class CreateLineage
 
   readonly #dashboardRepo: IDashboardRepo;
 
+  readonly #observabilityRepo: IObservabilityApiRepo;
+
   readonly #generateSfDataEnv: GenerateSfDataEnv;
 
   readonly #generateDbtDataEnv: GenerateDbtDataEnv;
@@ -79,6 +82,7 @@ export class CreateLineage
     columnRepo: IColumnRepo,
     dependencyRepo: IDependencyRepo,
     dashboardRepo: IDashboardRepo,
+    observabilityRepo: IObservabilityApiRepo,
     generateSfDataEnv: GenerateSfDataEnv,
     generateDbtDataEnv: GenerateDbtDataEnv,
     updateSfDataEnv: UpdateSfDataEnv,
@@ -90,6 +94,7 @@ export class CreateLineage
     this.#columnRepo = columnRepo;
     this.#dependencyRepo = dependencyRepo;
     this.#dashboardRepo = dashboardRepo;
+    this.#observabilityRepo = observabilityRepo;
     this.#generateSfDataEnv = generateSfDataEnv;
     this.#generateDbtDataEnv = generateDbtDataEnv;
     this.#updateSfDataEnv = updateSfDataEnv;
@@ -154,19 +159,39 @@ export class CreateLineage
         this.#connPool
       );
 
-    if (dataEnv.matToDeleteRefs && dataEnv.matToDeleteRefs.length)
+    const targetResourceIds: string[] = [];
+    if (dataEnv.matToDeleteRefs && dataEnv.matToDeleteRefs.length) {
       await this.#materializationRepo.deleteMany(
         dataEnv.matToDeleteRefs.map((el) => el.id),
         this.#auth,
         this.#connPool
       );
 
-    if (dataEnv.columnToDeleteRefs && dataEnv.columnToDeleteRefs.length)
+      targetResourceIds.push(...dataEnv.matToDeleteRefs.map((el) => el.id));
+    }
+
+    if (dataEnv.columnToDeleteRefs && dataEnv.columnToDeleteRefs.length) {
       await this.#columnRepo.deleteMany(
         dataEnv.columnToDeleteRefs.map((el) => el.id),
         this.#auth,
         this.#connPool
       );
+
+      targetResourceIds.push(...dataEnv.columnToDeleteRefs.map((el) => el.id));
+    }
+
+    if (targetResourceIds.length) {
+      await this.#observabilityRepo.deleteQuantTestSuites(
+        this.#auth.jwt,
+        targetResourceIds,
+        'soft'
+      );
+      await this.#observabilityRepo.deleteQualTestSuites(
+        this.#auth.jwt,
+        targetResourceIds,
+        'soft'
+      );
+    }
   };
 
   #writeDashboardsToPersistence = async (
