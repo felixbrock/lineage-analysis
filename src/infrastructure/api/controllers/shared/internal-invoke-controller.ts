@@ -58,7 +58,10 @@ export abstract class InternalInvokeController<R> {
 
   #getAccounts: GetAccounts;
 
-  constructor(getAccounts: GetAccounts, getSnowflakeProfile: GetSnowflakeProfile) {
+  constructor(
+    getAccounts: GetAccounts,
+    getSnowflakeProfile: GetSnowflakeProfile
+  ) {
     this.#getAccounts = getAccounts;
     this.#getSnowflakeProfile = getSnowflakeProfile;
   }
@@ -110,6 +113,7 @@ export abstract class InternalInvokeController<R> {
       password: profile.password,
       username: profile.username,
       warehouse: profile.warehouseName,
+      application: appConfig.snowflake.applicationName,
     };
 
     return createPool(options, {
@@ -119,7 +123,7 @@ export abstract class InternalInvokeController<R> {
   };
 
   protected async getUserAccountInfo(
-    jwt: string,
+    jwt: string
   ): Promise<Result<UserAccountInfo>> {
     if (!jwt) return Result.fail('Unauthorized');
 
@@ -187,7 +191,7 @@ export abstract class InternalInvokeController<R> {
         isSystemInternal,
       });
     } catch (error: unknown) {
-      if (error instanceof Error ) console.error(error.stack);
+      if (error instanceof Error) console.error(error.stack);
       else if (error) console.trace(error);
       return Result.fail('');
     }
