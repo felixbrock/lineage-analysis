@@ -1,5 +1,5 @@
 import { Pool } from 'generic-pool';
-import { Connection, Statement } from 'snowflake-sdk';
+import Snowflake, { Connection, Statement } from 'snowflake-sdk';
 import {
   Binds,
   ISnowflakeApiRepo,
@@ -55,18 +55,18 @@ export default class SnowflakeApiRepo implements ISnowflakeApiRepo {
         });
         stream.on('end', exit);
       };
-      try {
-        connectionPool.use(async (clientConnection: any) => {
+      connectionPool.use(async (clientConnection: Snowflake.Connection) => {
+        try {
           await clientConnection.execute({
             sqlText: queryText,
             binds,
             complete,
           });
-        });
-      } catch (error: unknown) {
-        if (error instanceof Error) reject(error);
-        if (typeof error === 'string') reject(new Error(error));
-        throw new Error('Sf query not properly handled');
-      }
+        } catch (error: unknown) {
+          if (error instanceof Error) reject(error);
+          if (typeof error === 'string') reject(new Error(error));
+          throw new Error('Sf query not properly handled');
+        }
+      });
     });
 }

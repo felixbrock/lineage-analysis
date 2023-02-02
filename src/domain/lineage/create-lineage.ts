@@ -59,7 +59,7 @@ export class CreateLineage
 
   readonly #dashboardRepo: IDashboardRepo;
 
-  readonly #observabilityRepo: IObservabilityApiRepo;
+  readonly #observabilityApiRepo: IObservabilityApiRepo;
 
   readonly #generateSfDataEnv: GenerateSfDataEnv;
 
@@ -82,7 +82,7 @@ export class CreateLineage
     columnRepo: IColumnRepo,
     dependencyRepo: IDependencyRepo,
     dashboardRepo: IDashboardRepo,
-    observabilityRepo: IObservabilityApiRepo,
+    observabilityApiRepo: IObservabilityApiRepo,
     generateSfDataEnv: GenerateSfDataEnv,
     generateDbtDataEnv: GenerateDbtDataEnv,
     updateSfDataEnv: UpdateSfDataEnv,
@@ -94,7 +94,7 @@ export class CreateLineage
     this.#columnRepo = columnRepo;
     this.#dependencyRepo = dependencyRepo;
     this.#dashboardRepo = dashboardRepo;
-    this.#observabilityRepo = observabilityRepo;
+    this.#observabilityApiRepo = observabilityApiRepo;
     this.#generateSfDataEnv = generateSfDataEnv;
     this.#generateDbtDataEnv = generateDbtDataEnv;
     this.#updateSfDataEnv = updateSfDataEnv;
@@ -181,12 +181,12 @@ export class CreateLineage
     }
 
     if (targetResourceIds.length) {
-      await this.#observabilityRepo.deleteQuantTestSuites(
+      await this.#observabilityApiRepo.deleteQuantTestSuites(
         this.#auth.jwt,
         targetResourceIds,
         'soft'
       );
-      await this.#observabilityRepo.deleteQualTestSuites(
+      await this.#observabilityApiRepo.deleteQualTestSuites(
         this.#auth.jwt,
         targetResourceIds,
         'soft'
