@@ -185,15 +185,9 @@ export class BuildDbtDependencies
         index ===
         self.findIndex(
           (ref) =>
-            BuildDbtDependencies.#insensitiveEquality(ref.name, value.name) &&
-            BuildDbtDependencies.#insensitiveEquality(
-              ref.context.path,
-              value.context.path
-            ) &&
-            BuildDbtDependencies.#insensitiveEquality(
-              ref.materializationName,
-              value.materializationName
-            )
+            ref.name === value.name &&
+            ref.context.path === value.context.path &&
+            ref.materializationName === value.materializationName
         )
     );
 
@@ -413,30 +407,15 @@ export class BuildDbtDependencies
       throw new Error('Connection pool or catalog missing');
 
     const catalogMatches = this.#catalog.filter((catalogEl) => {
-      const nameIsEqual = BuildDbtDependencies.#insensitiveEquality(
-        dependencyRef.materializationName,
-        catalogEl.materializationName
-      );
-
+      const nameIsEqual =
+        dependencyRef.materializationName === catalogEl.materializationName;
       const schemaNameIsEqual =
         !dependencyRef.schemaName ||
-        (typeof dependencyRef.schemaName === 'string' &&
-        typeof catalogEl.schemaName === 'string'
-          ? BuildDbtDependencies.#insensitiveEquality(
-              dependencyRef.schemaName,
-              catalogEl.schemaName
-            )
-          : dependencyRef.schemaName === catalogEl.schemaName);
+        dependencyRef.schemaName === catalogEl.schemaName;
 
       const databaseNameIsEqual =
         !dependencyRef.databaseName ||
-        (typeof dependencyRef.databaseName === 'string' &&
-        typeof catalogEl.databaseName === 'string'
-          ? BuildDbtDependencies.#insensitiveEquality(
-              dependencyRef.databaseName,
-              catalogEl.databaseName
-            )
-          : dependencyRef.databaseName === catalogEl.databaseName);
+        dependencyRef.databaseName === catalogEl.databaseName;
 
       return nameIsEqual && schemaNameIsEqual && databaseNameIsEqual;
     });
@@ -475,9 +454,6 @@ export class BuildDbtDependencies
 
     return dependencies;
   };
-
-  static #insensitiveEquality = (str1: string, str2: string): boolean =>
-    str1.toLowerCase() === str2.toLowerCase();
 
   /* Creates all dependencies that exist between DWH resources */
   async execute(
@@ -553,19 +529,11 @@ export class BuildDbtDependencies
                 self.findIndex((dashboard) =>
                   typeof dashboard.name === 'string' &&
                   typeof value.name === 'string'
-                    ? BuildDbtDependencies.#insensitiveEquality(
-                        dashboard.name,
-                        value.name
-                      )
+                    ? dashboard.name === value.name
                     : dashboard.name === value.name &&
-                      BuildDbtDependencies.#insensitiveEquality(
-                        dashboard.columnName,
-                        value.columnName
-                      ) &&
-                      BuildDbtDependencies.#insensitiveEquality(
-                        dashboard.materializationName,
+                      dashboard.columnName === value.columnName &&
+                      dashboard.materializationName ===
                         value.materializationName
-                      )
                 )
             );
 

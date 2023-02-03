@@ -1,7 +1,15 @@
 import { CreateColumn } from '../column/create-column';
-import { Column, ColumnDataType, parseColumnDataType } from '../entities/column';
+import {
+  Column,
+  ColumnDataType,
+  parseColumnDataType,
+} from '../entities/column';
 import { Logic, ModelRepresentation } from '../entities/logic';
-import { Materialization, MaterializationType, parseMaterializationType } from '../entities/materialization';
+import {
+  Materialization,
+  MaterializationType,
+  parseMaterializationType,
+} from '../entities/materialization';
 import { CreateLogic } from '../logic/create-logic';
 import { CreateMaterialization } from '../materialization/create-materialization';
 import BaseAuth from '../services/base-auth';
@@ -81,10 +89,11 @@ export default abstract class BaseGetSfDataEnv {
     connPool: IConnectionPool,
     auth: BaseAuth
   ): Promise<DatabaseRepresentation[]> => {
-
     const dbsToIgnore = ['snowflake', 'snowflake_sample_data', 'cito'];
 
-    const queryText = `select database_name, database_owner, is_transient, comment from cito.information_schema.databases where not array_contains(lower(database_name)::variant, array_construct(${dbsToIgnore.map(el => `'${el}'`).join(', ')}))`;
+    const queryText = `select database_name, database_owner, is_transient, comment from cito.information_schema.databases where not array_contains(lower(database_name)::variant, array_construct(${dbsToIgnore
+      .map((el) => `'${el}'`)
+      .join(', ')}))`;
     const queryResult = await this.querySnowflake.execute(
       { queryText, binds: [] },
       auth,
@@ -139,7 +148,9 @@ export default abstract class BaseGetSfDataEnv {
     if (!this.connPool || !this.auth)
       throw new Error('Missing properties for generating sf data env');
 
-    const queryText = `select table_catalog, table_schema, table_name, table_owner, table_type, is_transient, comment  from "${targetDbName}".information_schema.tables ${whereCondition ? 'where': ''} ${whereCondition};`;
+    const queryText = `select table_catalog, table_schema, table_name, table_owner, table_type, is_transient, comment  from "${targetDbName}".information_schema.tables ${
+      whereCondition ? 'where' : ''
+    } ${whereCondition};`;
     const queryResult = await this.querySnowflake.execute(
       { queryText, binds },
       this.auth,
@@ -190,7 +201,7 @@ export default abstract class BaseGetSfDataEnv {
           databaseName,
           schemaName,
           name,
-          relationName: `${databaseName}.${schemaName}.${name}`.toLowerCase(),
+          relationName: `${databaseName}.${schemaName}.${name}`,
           type: parseMaterializationType(type.toLowerCase()),
           ownerId: ownerId || undefined,
           isTransient: isTransient
@@ -213,7 +224,9 @@ export default abstract class BaseGetSfDataEnv {
     if (!this.connPool || !this.auth)
       throw new Error('Missing properties for generating sf data env');
 
-    const queryText = `select table_catalog, table_schema, table_name, column_name, ordinal_position, is_nullable, data_type, is_identity, comment from "${targetDbName}".information_schema.columns ${whereCondition ? 'where': ''} ${whereCondition}`;
+    const queryText = `select table_catalog, table_schema, table_name, column_name, ordinal_position, is_nullable, data_type, is_identity, comment from "${targetDbName}".information_schema.columns ${
+      whereCondition ? 'where' : ''
+    } ${whereCondition}`;
     const queryResult = await this.querySnowflake.execute(
       { queryText, binds },
       this.auth,
@@ -264,7 +277,7 @@ export default abstract class BaseGetSfDataEnv {
         );
 
       return {
-        relationName: `${databaseName}.${schemaName}.${matName}`.toLowerCase(),
+        relationName: `${databaseName}.${schemaName}.${matName}`,
         name,
         index: index.toString(),
         dataType: parseColumnDataType(dataType),
@@ -426,7 +439,11 @@ export default abstract class BaseGetSfDataEnv {
       relationName: string;
     },
     options: { writeToPersistence: boolean }
-  ): Promise<{matToCreate: Materialization, colsToCreate: Column[], logicToCreate: Logic}> => {
+  ): Promise<{
+    matToCreate: Materialization;
+    colsToCreate: Column[];
+    logicToCreate: Logic;
+  }> => {
     if (!this.connPool || !this.auth)
       throw new Error('Missing properties for generating sf data env');
 
@@ -466,7 +483,7 @@ export default abstract class BaseGetSfDataEnv {
     return {
       matToCreate: materialization,
       colsToCreate: generatedColumns,
-      logicToCreate: logic
+      logicToCreate: logic,
     };
   };
 
@@ -483,5 +500,4 @@ export default abstract class BaseGetSfDataEnv {
     localAcc[key].push(element);
     return localAcc;
   };
-
 }

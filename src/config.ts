@@ -30,17 +30,29 @@ export interface BaseUrlConfig {
   sqlParser: string;
   integrationService: string;
   accountService: string;
+  observabilityService: string;
 }
 
 const getBaseUrlConfig = (): BaseUrlConfig => {
   const sqlParser = process.env.BASE_URL_SQL_PARSER;
   const integrationService = process.env.BASE_URL_INTEGRATION_SERVICE;
   const accountService = process.env.BASE_URL_ACCOUNT_SERVICE;
+  const observabilityService = process.env.BASE_URL_OBSERVABILITY;
 
-  if (!sqlParser || !integrationService || !accountService)
+  if (
+    !sqlParser ||
+    !integrationService ||
+    !accountService ||
+    !observabilityService
+  )
     throw new Error('Missing Base url env values');
 
-  return { sqlParser, integrationService, accountService };
+  return {
+    sqlParser,
+    integrationService,
+    accountService,
+    observabilityService,
+  };
 };
 
 export const appConfig = {
@@ -55,10 +67,9 @@ export const appConfig = {
     region: 'eu-central-1',
   },
   snowflake: {
-    applicationName:
-      process.env.SNOWFLAKE_APPLICATION_NAME || 'snowflake-connector',
+    applicationName: process.env.SNOWFLAKE_APPLICATION_NAME || 'Cito_CitoApp',
     schemaName: 'lineage',
-    databaseName: 'cito'
+    databaseName: 'cito',
   },
   baseUrl: getBaseUrlConfig(),
 };
