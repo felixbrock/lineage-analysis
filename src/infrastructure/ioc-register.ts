@@ -33,8 +33,9 @@ import { GetSnowflakeProfile } from '../domain/integration-api/get-snowflake-pro
 import { GenerateSfDataEnv } from '../domain/data-env/generate-sf-data-env';
 import { GenerateDbtDataEnv } from '../domain/data-env/generate-dbt-data-env';
 import { UpdateSfDataEnv } from '../domain/data-env/update-sf-data-env';
-import { BuildDependencies } from '../domain/dependency/build-dependencies';
 import ObservabilityApiRepo from './persistence/observability-api-repo';
+import { BuildDbtDependencies } from '../domain/dependency/build-dbt-dependencies';
+import { BuildSfDependencies } from '../domain/dependency/build-sf-dependencies';
 
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
@@ -60,7 +61,8 @@ iocRegister.register({
   generateSfDataEnv: asClass(GenerateSfDataEnv),
   generateDbtDataEnv: asClass(GenerateDbtDataEnv),
   updateSfDataEnv: asClass(UpdateSfDataEnv),
-  buildDependencies: asClass(BuildDependencies),
+  buildDbtDependencies: asClass(BuildDbtDependencies),
+  buildSfDependencies: asClass(BuildSfDependencies),
 
   parseSQL: asClass(ParseSQL),
   querySnowflake: asClass(QuerySnowflake),

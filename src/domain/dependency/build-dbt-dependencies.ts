@@ -470,13 +470,6 @@ export class BuildDbtDependencies
       this.#catalog = req.catalog;
       this.#targetOrgId = req.targetOrgId;
 
-      // todo - needs to updated (due to sf only env)
-      if (auth)
-        return Result.ok({
-          dashboards: this.#dashboards,
-          dependencies: this.#dependencies,
-        });
-
       const querySfQueryHistory: SnowflakeQueryResult | undefined =
         req.biToolType
           ? await this.#retrieveQuerySfQueryHistory(req.biToolType)

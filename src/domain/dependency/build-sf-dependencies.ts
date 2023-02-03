@@ -23,7 +23,6 @@ import {
   QuerySfQueryHistoryResponseDto,
 } from '../snowflake-api/query-snowflake-history';
 import { BiToolType } from '../value-types/bi-tool';
-import SQLElement from '../value-types/sql-element';
 import {
   IConnectionPool,
   SnowflakeQueryResult,
@@ -31,6 +30,7 @@ import {
 import BaseAuth from '../services/base-auth';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
+import { QuerySnowflake } from '../snowflake-api/query-snowflake';
 
 export type Auth = BaseAuth;
 
@@ -46,6 +46,20 @@ export interface BuildSfDependenciesRequestDto {
   columns: Column[];
   catalog: ModelRepresentation[];
   biToolType?: BiToolType;
+}
+
+interface SfObjectRef 
+{
+  id:string,
+  databaseName: string, 
+  schemaName: string,
+  matName:string, 
+  type: 'TABLE' | 'VIEW'
+}
+interface SfObjectDependency {
+  head: SfObjectRef 
+  tail: SfObjectRef 
+  type: 'BY_NAME' | 'BY_ID' | 'BY_NAME_AND_ID'
 }
 
 export type BuildSfDependenciesAuthDto = BaseAuth;
@@ -67,21 +81,17 @@ export class BuildSfDependencies
 
   readonly #createExternalDependency: CreateExternalDependency;
 
-  readonly #readColumns: ReadColumns;
-
   readonly #querySfQueryHistory: QuerySfQueryHistory;
+
+  readonly #querySnowflake: QuerySnowflake;
 
   #auth?: Auth;
 
   #targetOrgId?: string;
 
-  #logics?: Logic[];
-
   #mats?: Materialization[];
 
   #columns?: Column[];
-
-  #catalog?: ModelRepresentation[];
 
   #dependencies: Dependency[] = [];
 
@@ -93,14 +103,14 @@ export class BuildSfDependencies
     createDashboard: CreateDashboard,
     createDependency: CreateDependency,
     createExternalDependency: CreateExternalDependency,
-    readColumns: ReadColumns,
-    querySfQueryHistory: QuerySfQueryHistory
+    querySfQueryHistory: QuerySfQueryHistory,
+    querySnowflake: QuerySnowflake
   ) {
     this.#createDashboard = createDashboard;
     this.#createDependency = createDependency;
     this.#createExternalDependency = createExternalDependency;
-    this.#readColumns = readColumns;
     this.#querySfQueryHistory = querySfQueryHistory;
+    this.#querySnowflake = querySnowflake;
   }
 
   #retrieveQuerySfQueryHistory = async (
@@ -164,58 +174,6 @@ export class BuildSfDependencies
     return dependentDashboards;
   };
 
-  /* Get all relevant wildcard statement references that are data dependency to self materialization */
-  static #getWildcardDataDependencyRefs = (statementRefs: Refs): ColumnRef[] =>
-    statementRefs.wildcards.filter(
-      (wildcard) => wildcard.dependencyType === 'data'
-    );
-
-  /* Get all relevant column statement references that are data dependency to self materialization */
-  static #getColDataDependencyRefs = (statementRefs: Refs): ColumnRef[] => {
-    let dataDependencyRefs = statementRefs.columns.filter(
-      (column) => column.dependencyType === 'data' && !column.isCompoundValueRef
-    );
-
-    const setColumnRefs = dataDependencyRefs.filter((ref) =>
-      ref.context.path.includes(SQLElement.SET_EXPRESSION)
-    );
-
-    const uniqueSetColumnRefs = setColumnRefs.filter(
-      (value, index, self) =>
-        index ===
-        self.findIndex(
-          (ref) =>
-            BuildSfDependencies.#insensitiveEquality(ref.name, value.name) &&
-            BuildSfDependencies.#insensitiveEquality(
-              ref.context.path,
-              value.context.path
-            ) &&
-            BuildSfDependencies.#insensitiveEquality(
-              ref.materializationName,
-              value.materializationName
-            )
-        )
-    );
-
-    const columnRefs = dataDependencyRefs.filter(
-      (ref) => !ref.context.path.includes(SQLElement.SET_EXPRESSION)
-    );
-
-    dataDependencyRefs = uniqueSetColumnRefs.concat(columnRefs);
-
-    // const withColumnRefs = dataDependencyRefs.filter(
-    //   (ref) =>
-    //     ref.context.path.includes(SQLElement.WITH_COMPOUND_STATEMENT) &&
-    //     !ref.context.path.includes(SQLElement.COMMON_TABLE_EXPRESSION)
-    // );
-    // columnRefs = dataDependencyRefs.filter(
-    //   (ref) => !ref.context.path.includes(SQLElement.WITH_COMPOUND_STATEMENT)
-    // );
-
-    // dataDependencyRefs = withColumnRefs.concat(columnRefs);
-
-    return dataDependencyRefs;
-  };
 
   #buildDashboardRefDependency = async (
     dashboardRef: DashboardRef,
@@ -294,190 +252,86 @@ export class BuildSfDependencies
     this.#dependencies.push(dependency);
   };
 
-  /* Creates dependency for specific wildcard ref */
-  #buildWildcardRefDependency = async (
-    dependencyRef: ColumnRef,
-    relationName: string,
-    parentRelationNames: string[]
-  ): Promise<void> => {
-    const connPool = this.#connPool;
-    const auth = this.#auth;
+  #getSfObjectDependencies = async (
+  ): Promise<Dependency[]> => {
+    if (!this.#connPool || !this.#auth)
+      throw new Error('Missing properties for generating sf data env');
 
-    if (!connPool || !auth) throw new Error('Connection pool or auth missing');
-
-    const relationNameElements = relationName.split('.');
-    if (relationNameElements.length !== 3)
-      throw new RangeError('Unexpected number of sf model id elements');
-
-    const columnDependencyRefs = await this.#getDependenciesForWildcard(
-      dependencyRef
+    const queryText = `select * from snowflake.account_usage.object_dependencies;`;
+    const queryResult = await this.#querySnowflake.execute(
+      { queryText, binds:[] },
+      this.#auth,
+      this.#connPool
     );
+    if (!queryResult.success) {
+      throw new Error(queryResult.error);
+    }
+    if (!queryResult.value) throw new Error('Query did not return a value');
 
-    // const isCreateDependencyResponse = (
-    //   item: CreateDependencyResponse | null
-    // ): item is CreateDependencyResponse => !!item;
+    const results = queryResult.value;
 
-    const createDependencyResults = await Promise.all(
-      columnDependencyRefs.map(
-        async (dependency): Promise<CreateDependencyResponse> => {
-          // if (this.#columnRefIsEqual(dependency, this.#lastQueryDependency))
-          //   return null;
+    const dependencies: SfObjectDependency[] = results.map(
+      (el) => {
+        const {
+          REFERENCED_DATABASE: headDbName,
+          REFERENCED_SCHEMA:headSchemaName,
+          REFERENCED_OBJECT_NAME:headMatName,
+          REFERENCED_OBJECT_ID:headObjId,
+          REFERENCED_OBJECT_DOMAIN:headObjType,
+          REFERENCING_DATABASE:headDbName,
+          REFERENCING_SCHEMA:headSchemaName,
+          REFERENCING_OBJECT_NAME:headMatName,
+          REFERENCING_OBJECT_ID:headObjId,
+          REFERENCING_OBJECT_DOMAIN:headObjType,
+          DEPENDENCY_TYPE:objDependencyType,
+        } = el;
 
-          // if (dependency.dependencyType === DependencyType.QUERY)
-          //   this.#lastQueryDependency = dependency;
+        if (
+          typeof headDbName === 'string' || 
+          typeof headSchemaName === 'string' || 
+          typeof headMatName === 'string' || 
+          typeof headObjId === 'number' || 
+        )
 
-          const createDependencyResult = await this.#createDependency.execute(
-            {
-              dependencyRef: dependency,
-              selfRelationName: relationName,
-              parentRelationNames,
-              targetOrgId: this.#targetOrgId,
-              writeToPersistence: false,
-            },
-            auth,
-            connPool
+        const isComment = (val: unknown): val is string | undefined =>
+          !val || typeof val === 'string';
+        const isOwnerId = (val: unknown): val is string | undefined =>
+          !val || typeof val === 'string';
+        const isIsTransientVal = (val: unknown): val is string | undefined =>
+          !val ||
+          (typeof val === 'string' &&
+            ['yes', 'no'].includes(val.toLowerCase()));
+
+        if (
+          typeof databaseName !== 'string' ||
+          typeof schemaName !== 'string' ||
+          typeof name !== 'string' ||
+          typeof type !== 'string' ||
+          !isIsTransientVal(isTransient) ||
+          !isComment(comment) ||
+          !isOwnerId(ownerId)
+        )
+          throw new Error(
+            'Received mat representation field value in unexpected format'
           );
 
-          return createDependencyResult;
-        }
-      )
+        return {
+          databaseName,
+          schemaName,
+          name,
+          relationName: `${databaseName}.${schemaName}.${name}`,
+          type: parseMaterializationType(type.toLowerCase()),
+          ownerId: ownerId || undefined,
+          isTransient: isTransient
+            ? isTransient.toLowerCase() !== 'no'
+            : undefined,
+          comment: comment || undefined,
+        };
+      }
     );
 
-    // const onlyCreateDependencyResults = createDependencyResults.filter(
-    //   isCreateDependencyResponse
-    // );
-
-    if (createDependencyResults.some((result) => !result.success)) {
-      const errorResults = createDependencyResults.filter(
-        (result) => result.error
-      );
-      throw new Error(errorResults[0].error);
-    }
-
-    if (createDependencyResults.some((result) => !result.value))
-      console.warn(`Fix. Creation of dependencies failed. Skipped for now.`);
-    // throw new SyntaxError(`Creation of dependencies failed`);
-
-    const isValue = (item: Dependency | undefined): item is Dependency =>
-      !!item;
-
-    const values = createDependencyResults
-      .map((result) => result.value)
-      .filter(isValue);
-
-    this.#dependencies.push(...values);
+    return matRepresentations;
   };
-
-  /* Creates dependency for specific column ref */
-  #buildColumnRefDependency = async (
-    dependencyRef: ColumnRef,
-    relationName: string,
-    parentRelationNames: string[]
-  ): Promise<void> => {
-    if (!this.#connPool || !this.#auth)
-      throw new Error('Connection pool or auth missing');
-
-    const relationNameElements = relationName.split('.');
-    if (relationNameElements.length !== 3)
-      throw new RangeError('Unexpected number of sf model id elements');
-
-    const createDependencyResult = await this.#createDependency.execute(
-      {
-        dependencyRef,
-        selfRelationName: relationName,
-        parentRelationNames,
-        targetOrgId: this.#targetOrgId,
-        writeToPersistence: false,
-      },
-      this.#auth,
-      this.#connPool
-    );
-
-    if (!createDependencyResult.success)
-      throw new Error(createDependencyResult.error);
-    if (!createDependencyResult.value) {
-      console.warn(`Creating dependency failed`);
-      return;
-    }
-    // throw new ReferenceError(`Creating dependency failed`);
-
-    const dependency = createDependencyResult.value;
-
-    this.#dependencies.push(dependency);
-  };
-
-  #getDependenciesForWildcard = async (
-    dependencyRef: ColumnRef
-  ): Promise<ColumnRef[]> => {
-    if (!this.#connPool || !this.#catalog || !this.#auth)
-      throw new Error('Connection pool or catalog missing');
-
-    const catalogMatches = this.#catalog.filter((catalogEl) => {
-      const nameIsEqual = BuildSfDependencies.#insensitiveEquality(
-        dependencyRef.materializationName,
-        catalogEl.materializationName
-      );
-
-      const schemaNameIsEqual =
-        !dependencyRef.schemaName ||
-        (typeof dependencyRef.schemaName === 'string' &&
-        typeof catalogEl.schemaName === 'string'
-          ? BuildSfDependencies.#insensitiveEquality(
-              dependencyRef.schemaName,
-              catalogEl.schemaName
-            )
-          : dependencyRef.schemaName === catalogEl.schemaName);
-
-      const databaseNameIsEqual =
-        !dependencyRef.databaseName ||
-        (typeof dependencyRef.databaseName === 'string' &&
-        typeof catalogEl.databaseName === 'string'
-          ? BuildSfDependencies.#insensitiveEquality(
-              dependencyRef.databaseName,
-              catalogEl.databaseName
-            )
-          : dependencyRef.databaseName === catalogEl.databaseName);
-
-      return nameIsEqual && schemaNameIsEqual && databaseNameIsEqual;
-    });
-
-    if (catalogMatches.length !== 1) {
-      console.warn(
-        'todo - fix. Error in wildcard dependency generation. Skipped for now'
-      );
-      return [];
-      //   throw new RangeError(
-      //   'Inconsistencies in materialization dependency catalog'
-      // );
-    }
-
-    const { relationName } = catalogMatches[0];
-
-    const readColumnsResult = await this.#readColumns.execute(
-      {
-        relationNames: [relationName],
-        targetOrgId: this.#targetOrgId,
-      },
-      this.#auth,
-      this.#connPool
-    );
-
-    if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
-    if (!readColumnsResult.value)
-      throw new ReferenceError(`Reading of columns failed`);
-
-    const colsFromWildcard = readColumnsResult.value;
-
-    const dependencies = colsFromWildcard.map((column) => ({
-      ...dependencyRef,
-      name: column.name,
-    }));
-
-    return dependencies;
-  };
-
-  static #insensitiveEquality = (str1: string, str2: string): boolean =>
-    str1.toLowerCase() === str2.toLowerCase();
 
   /* Creates all dependencies that exist between DWH resources */
   async execute(
@@ -490,62 +344,21 @@ export class BuildSfDependencies
       this.#auth = auth;
       this.#mats = req.mats;
       this.#columns = req.columns;
-      this.#logics = req.logics;
-      this.#catalog = req.catalog;
       this.#targetOrgId = req.targetOrgId;
-
-      // todo - needs to updated (due to sf only env)
-      if (auth)
-        return Result.ok({
-          dashboards: this.#dashboards,
-          dependencies: this.#dependencies,
-        });
 
       const querySfQueryHistory: SnowflakeQueryResult | undefined =
         req.biToolType
           ? await this.#retrieveQuerySfQueryHistory(req.biToolType)
           : undefined;
 
-      await Promise.all(
-        this.#logics.map(async (logic) => {
-          const colDataDependencyRefs =
-            BuildSfDependencies.#getColDataDependencyRefs(logic.statementRefs);
           await Promise.all(
-            colDataDependencyRefs.map(async (dependencyRef) =>
-              this.#buildColumnRefDependency(
-                dependencyRef,
-                logic.relationName,
-                logic.dependentOn.dbtDependencyDefinitions
-                  .concat(logic.dependentOn.dwDependencyDefinitions)
-                  .map((element) => element.relationName)
-              )
-            )
-          );
-
-          const wildcardDataDependencyRefs =
-            BuildSfDependencies.#getWildcardDataDependencyRefs(
-              logic.statementRefs
+            if (req.biToolType && querySfQueryHistory) {
+          const dashboardDataDependencyRefs =
+            await BuildSfDependencies.#getDashboardDataDependencyRefs(
+              logic.statementRefs,
+              querySfQueryHistory,
+              req.biToolType
             );
-
-          await Promise.all(
-            wildcardDataDependencyRefs.map(async (dependencyRef) =>
-              this.#buildWildcardRefDependency(
-                dependencyRef,
-                logic.relationName,
-                logic.dependentOn.dbtDependencyDefinitions
-                  .concat(logic.dependentOn.dwDependencyDefinitions)
-                  .map((element) => element.relationName)
-              )
-            )
-          );
-
-          if (req.biToolType && querySfQueryHistory) {
-            const dashboardDataDependencyRefs =
-              await BuildSfDependencies.#getDashboardDataDependencyRefs(
-                logic.statementRefs,
-                querySfQueryHistory,
-                req.biToolType
-              );
 
             const uniqueDashboardRefs = dashboardDataDependencyRefs.filter(
               (value, index, self) =>
@@ -553,19 +366,17 @@ export class BuildSfDependencies
                 self.findIndex((dashboard) =>
                   typeof dashboard.name === 'string' &&
                   typeof value.name === 'string'
-                    ? BuildSfDependencies.#insensitiveEquality(
-                        dashboard.name,
+                    ? 
+                        dashboard.name ===
                         value.name
-                      )
+                      
                     : dashboard.name === value.name &&
-                      BuildSfDependencies.#insensitiveEquality(
-                        dashboard.columnName,
+                      
+                        dashboard.columnName ===
                         value.columnName
-                      ) &&
-                      BuildSfDependencies.#insensitiveEquality(
-                        dashboard.materializationName,
+                      &&
+                        dashboard.materializationName ===
                         value.materializationName
-                      )
                 )
             );
 
