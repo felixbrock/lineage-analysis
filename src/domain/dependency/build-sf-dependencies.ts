@@ -24,6 +24,7 @@ import {
 } from '../snowflake-api/query-snowflake-history';
 import { BiToolType } from '../value-types/bi-tool';
 import {
+  Binds,
   IConnectionPool,
   SnowflakeQueryResult,
 } from '../snowflake-api/i-snowflake-api-repo';
@@ -48,18 +49,55 @@ export interface BuildSfDependenciesRequestDto {
   biToolType?: BiToolType;
 }
 
+export const sfObjRefTypes = ['TABLE' ,'VIEW'] as const;
+export type SfObjRefType = typeof sfObjRefTypes[number];
+
+export const parseSfObjRefType = (
+  type: unknown
+): SfObjRefType => {
+  if(typeof type !== 'string')
+    throw new Error('Provision of type in non-string format');
+
+  const identifiedElement = sfObjRefTypes.find(
+    (element) => element.toLowerCase() === type.toLowerCase()
+  );
+  if (identifiedElement) return identifiedElement;
+  throw new Error('Provision of invalid type');
+};
+
+
+
 interface SfObjectRef 
 {
-  id:string,
-  databaseName: string, 
+  id:number,
+  dbName: string, 
   schemaName: string,
   matName:string, 
-  type: 'TABLE' | 'VIEW'
+  type: SfObjRefType
 }
+
+
+export const sfObjDependencyTypes = ['BY_NAME' , 'BY_ID' , 'BY_NAME_AND_ID'] as const;
+export type SfObjDependencyType = typeof sfObjDependencyTypes[number];
+
+export const parseSfObjDependencyType = (
+  type: unknown
+): SfObjDependencyType => {
+  if(typeof type !== 'string')
+  throw new Error('Provision of type in non-string format');
+
+  const identifiedElement = sfObjDependencyTypes.find(
+    (element) => element.toLowerCase() === type.toLowerCase()
+  );
+  if (identifiedElement) return identifiedElement;
+  throw new Error('Provision of invalid type');
+};
+
+
 interface SfObjectDependency {
   head: SfObjectRef 
   tail: SfObjectRef 
-  type: 'BY_NAME' | 'BY_ID' | 'BY_NAME_AND_ID'
+  type: SfObjDependencyType
 }
 
 export type BuildSfDependenciesAuthDto = BaseAuth;
@@ -252,8 +290,83 @@ export class BuildSfDependencies
     this.#dependencies.push(dependency);
   };
 
+  #getDisinctMatIds = (sfObjDependencies: SfObjectDependency[]): {id:string, relationName: string} [] => {
+    if (!this.#connPool || !this.#auth)
+    throw new Error('Missing properties for generating sf data env');
+
+    const distinctRefs = sfObjDependencies.reduce((accumulation: string [], val: SfObjectDependency) => {
+      const localAcc = accumulation;
+      
+      const refNameHead = `${val.head.dbName}.${val.head.schemaName}.${val.head.matName}`
+      const refNameTail = `${val.tail.dbName}.${val.tail.schemaName}.${val.tail.matName}`
+
+      if(localAcc.includes(refNameHead))
+      localAcc.push(refNameHead)
+
+      if(localAcc.includes(refNameTail))
+      localAcc.push(refNameTail)
+
+      return localAcc;
+    }, []);
+
+  const binds: Binds = [...distinctRefs] 
+
+  const queryText = `select id, relation_name * from cito.lineage.materializations where relation_name = ?;`;
+  const queryResult = await this.#querySnowflake.execute(
+    { queryText, binds},
+    this.#auth,
+    this.#connPool
+  );
+  if (!queryResult.success) {
+    throw new Error(queryResult.error);
+  }
+  if (!queryResult.value) throw new Error('Query did not return a value');
+
+  const mats = queryResult.value;
+
+  return mats.map((el): {id:string, relationName:string}  => {
+    const {ID: id, RELATION_NAME: relationName} = el;
+
+    if(
+      typeof id !== 'string' || typeof relationName !== 'string'
+
+    )
+    throw new Error('Received unexpected mat representation from Snowflake')
+
+    return   {id, relationName}
+
+  })
+
+  } 
+  
+  #getDependencies = async (sfObjDependencies: SfObjectDependency[]
+    ): Promise<Dependency[]> => {
+
+      const distinctMatIds = await this.#getDisinctMatIds(sfObjDependencies);
+      
+    const dependencies =  sfObjDependencies.map((el): Dependency => { 
+      
+      const headRelationName = `${el.head.dbName}.${el.head.schemaName}.${el.head.matName}`
+      const headMat = distinctMatIds.find(el => el.relationName === headRelationName)
+      if(! headMat) throw new Error('Mat representation for head not found ')
+      
+      const tailRelationName = `${el.tail.dbName}.${el.tail.schemaName}.${el.tail.matName}`
+      const tailMat = distinctMatIds.find(el => el.relationName === tailRelationName)
+      if(! tailMat) throw new Error('Mat representation for tail not found ')
+       
+      return Dependency.create({
+          id: uuidv4(),
+          headId: headMat.id,
+          tailId: tailMat.id,
+          type: 'data'
+        })
+    })
+
+return dependencies;
+    };
+  
   #getSfObjectDependencies = async (
-  ): Promise<Dependency[]> => {
+  ): Promise<SfObjectDependency[]> => {
     if (!this.#connPool || !this.#auth)
       throw new Error('Missing properties for generating sf data env');
 
@@ -278,59 +391,39 @@ export class BuildSfDependencies
           REFERENCED_OBJECT_NAME:headMatName,
           REFERENCED_OBJECT_ID:headObjId,
           REFERENCED_OBJECT_DOMAIN:headObjType,
-          REFERENCING_DATABASE:headDbName,
-          REFERENCING_SCHEMA:headSchemaName,
-          REFERENCING_OBJECT_NAME:headMatName,
-          REFERENCING_OBJECT_ID:headObjId,
-          REFERENCING_OBJECT_DOMAIN:headObjType,
+          REFERENCING_DATABASE:tailDbName,
+          REFERENCING_SCHEMA:tailSchemaName,
+          REFERENCING_OBJECT_NAME:tailMatName,
+          REFERENCING_OBJECT_ID:tailObjId,
+          REFERENCING_OBJECT_DOMAIN:tailObjType,
           DEPENDENCY_TYPE:objDependencyType,
         } = el;
 
         if (
-          typeof headDbName === 'string' || 
-          typeof headSchemaName === 'string' || 
-          typeof headMatName === 'string' || 
-          typeof headObjId === 'number' || 
-        )
-
-        const isComment = (val: unknown): val is string | undefined =>
-          !val || typeof val === 'string';
-        const isOwnerId = (val: unknown): val is string | undefined =>
-          !val || typeof val === 'string';
-        const isIsTransientVal = (val: unknown): val is string | undefined =>
-          !val ||
-          (typeof val === 'string' &&
-            ['yes', 'no'].includes(val.toLowerCase()));
-
-        if (
-          typeof databaseName !== 'string' ||
-          typeof schemaName !== 'string' ||
-          typeof name !== 'string' ||
-          typeof type !== 'string' ||
-          !isIsTransientVal(isTransient) ||
-          !isComment(comment) ||
-          !isOwnerId(ownerId)
+          typeof headDbName !== 'string' || 
+          typeof headSchemaName !== 'string' || 
+          typeof headMatName !== 'string' || 
+          typeof headObjId !== 'number' || 
+          typeof tailDbName !== 'string' || 
+          typeof tailSchemaName !== 'string' || 
+          typeof tailMatName !== 'string' || 
+          typeof tailObjId !== 'number' 
         )
           throw new Error(
-            'Received mat representation field value in unexpected format'
+            'Received sf obj representation in unexpected format'
           );
 
+const head: SfObjectRef = { id: headObjId, type: parseSfObjRefType(headObjType) , dbName: headDbName, schemaName:headSchemaName, matName:headMatName} 
+const tail: SfObjectRef = { id: tailObjId, type: parseSfObjRefType(tailObjType) , dbName: tailDbName, schemaName:tailSchemaName, matName:tailMatName} 
+
         return {
-          databaseName,
-          schemaName,
-          name,
-          relationName: `${databaseName}.${schemaName}.${name}`,
-          type: parseMaterializationType(type.toLowerCase()),
-          ownerId: ownerId || undefined,
-          isTransient: isTransient
-            ? isTransient.toLowerCase() !== 'no'
-            : undefined,
-          comment: comment || undefined,
+head, tail, type: parseSfObjDependencyType(objDependencyType)
         };
       }
     );
 
-    return matRepresentations;
+
+    return dependencies;
   };
 
   /* Creates all dependencies that exist between DWH resources */
@@ -345,6 +438,10 @@ export class BuildSfDependencies
       this.#mats = req.mats;
       this.#columns = req.columns;
       this.#targetOrgId = req.targetOrgId;
+
+const sfObjDependencies = await this.#getSfObjectDependencies();
+
+const dependencies = await this.#getDependencies(sfObjDependencies);
 
       const querySfQueryHistory: SnowflakeQueryResult | undefined =
         req.biToolType
