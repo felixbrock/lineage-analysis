@@ -372,14 +372,14 @@ export class BuildDbtDependencies
   //   );
 
   //   // const isCreateDependenciesResponse = (
-  //   //   item: CreateDependenciesResponse | null
+  //   //   item: CreateDependenciesResponse | undefined
   //   // ): item is CreateDependenciesResponse => !!item;
 
   //   const createDependenciesResults = await Promise.all(
   //     columnDependencyRefs.map(
   //       async (dependency): Promise<CreateDependenciesResponse> => {
   //         // if (this.#columnRefIsEqual(dependency, this.#lastQueryDependency))
-  //         //   return null;
+  //         //   return undefined;
 
   //         // if (dependency.dependencyType === DependencyType.QUERY)
   //         //   this.#lastQueryDependency = dependency;

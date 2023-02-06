@@ -21,7 +21,8 @@ export class QuerySfQueryHistory
     IUseCase<
       QuerySfQueryHistoryRequestDto,
       QuerySfQueryHistoryResponseDto,
-      QuerySfQueryHistoryAuthDto,IConnectionPool
+      QuerySfQueryHistoryAuthDto,
+      IConnectionPool
     >
 {
   readonly #querySnowflake: QuerySnowflake;
@@ -55,7 +56,7 @@ export class QuerySfQueryHistory
         AND REGEXP_COUNT(QUERY_TEXT,'${regex} AS') > 0
         AND CHARINDEX('WHERE 1 <> 1 LIMIT 0', QUERY_TEXT) = 0
         AND CHARINDEX('source', QUERY_TEXT) = 0
-        AND WAREHOUSE_ID IS NOT NULL
+        AND WAREHOUSE_ID IS NOT UNDEFINED
         limit ?`;
         break;
       }
@@ -97,7 +98,7 @@ export class QuerySfQueryHistory
 
       return Result.ok(queryResult.value);
     } catch (error: unknown) {
-      if (error instanceof Error ) console.error(error.stack);
+      if (error instanceof Error) console.error(error.stack);
       else if (error) console.trace(error);
       return Result.fail('');
     }

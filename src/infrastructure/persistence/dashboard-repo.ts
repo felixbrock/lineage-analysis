@@ -77,8 +77,8 @@ export default class DashboardRepo
 
   getBinds = (entity: Dashboard): Bind[] => [
     entity.id,
-    entity.name || 'null',
-    entity.url || 'null',
+    entity.name || 'undefined',
+    entity.url || 'undefined',
   ];
 
   buildFindByQuery(dto: DashboardQueryDto): Query {

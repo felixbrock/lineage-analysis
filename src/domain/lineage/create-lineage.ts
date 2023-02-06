@@ -276,7 +276,7 @@ export class CreateLineage
       throw new Error('Sf based lineage creation has to be invoked by user');
 
     const result = await this.#generateSfDataEnv.execute(
-      null,
+      undefined,
       { ...this.#auth, callerOrgId },
       this.#connPool
     );
@@ -355,18 +355,13 @@ export class CreateLineage
     return result;
   };
 
-  #getNewDataEnv = async (): Promise<
-    DataEnvProps & { operation: DataEnvOperation }
-  > => {
+  #getNewDataEnv = async (
+    latestLineage?: Lineage
+  ): Promise<DataEnvProps & { operation: DataEnvOperation }> => {
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
-    const latestLineage = await this.#lineageRepo.findLatest(
-      { tolerateIncomplete: false },
-      this.#auth,
-      this.#connPool,
-      this.#req.targetOrgId
-    );
+    console.log('...building new data env');
 
     let generateDataEnvResult: DataEnvProps;
     if (!latestLineage) generateDataEnvResult = await this.#generateEnv();
@@ -382,14 +377,28 @@ export class CreateLineage
     };
   };
 
-  #buildDeps = async (
+  getNewExternalDataEnv = async (
     dataEnv: DataEnv,
-    catalog: ModelRepresentation[]
+    catalog: ModelRepresentation[],
+    latestLineage?: Lineage
   ): Promise<{ dashboards: Dashboard[]; dependencies: Dependency[] }> => {
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing field values');
 
-    console.log('...building dependencies');
+    console.log('...building new external data env');
+
+    let generateDataEnvResult: DataEnvProps;
+    if (!latestLineage) generateDataEnvResult = await this.#generateEnv();
+    else
+      generateDataEnvResult = await this.#updateEnv(
+        latestLineage.createdAt,
+        latestLineage.dbCoveredNames
+      );
+
+    return {
+      ...generateDataEnvResult,
+      operation: !latestLineage ? 'create' : 'update',
+    };
 
     /* 
       todo-fix potential bug since resources that were deleted are not taken into account. 
@@ -460,19 +469,27 @@ export class CreateLineage
       console.log('...writing lineage to persistence');
       await this.#writeLineageToPersistence(lineage);
 
+      const latestLineage = await this.#lineageRepo.findLatest(
+        { tolerateIncomplete: false },
+        this.#auth,
+        this.#connPool,
+        this.#req.targetOrgId
+      );
+
       const {
         dataEnv,
         operation: dataEnvOperation,
         catalog,
         dbCoveredNames,
-      } = await this.#getNewDataEnv();
+      } = await this.#getNewDataEnv(latestLineage);
 
       console.log('...writing dw resources to persistence');
       await this.#writeWhResourcesToPersistence(dataEnv);
 
-      const { dashboards, dependencies } = await this.#buildDeps(
+      const { dashboards, dependencies } = await this.getNewExternalDataEnv(
         dataEnv,
-        catalog
+        catalog,
+        latestLineage
       );
 
       console.log('...writing dashboards to persistence');

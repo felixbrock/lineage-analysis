@@ -65,7 +65,7 @@ export default class LineageRepo
     filter: { tolerateIncomplete: boolean; minuteTolerance?: number },
     auth: BaseAuth,
     connPool: IConnectionPool
-  ): Promise<Lineage | null> => {
+  ): Promise<Lineage | undefined> => {
     const minuteTolerance: number = filter.minuteTolerance || 10;
 
     const queryText = `select * from cito.lineage.${this.matName} 
@@ -92,7 +92,7 @@ export default class LineageRepo
         throw new Error(`Multiple lineage entities with id found`);
 
       return !result.value.length
-        ? null
+        ? undefined
         : this.toEntity(this.buildEntityProps(result.value[0]));
     } catch (error: unknown) {
       if (error instanceof Error) console.error(error.stack);
@@ -106,7 +106,7 @@ export default class LineageRepo
     entity.createdAt,
     entity.completed.toString(),
     JSON.stringify(entity.dbCoveredNames),
-    entity.diff || 'null'
+    entity.diff || 'undefined',
   ];
 
   buildFindByQuery(dto: undefined): Query {
@@ -127,12 +127,11 @@ export default class LineageRepo
     if (dto.dbCoveredNames)
       colDefinitions.push(this.getDefinition('db_covered_names'));
     binds.push(JSON.stringify(dto.dbCoveredNames));
-    
+
     if (dto.diff) {
       colDefinitions.push(this.getDefinition('diff'));
       binds.push(dto.diff);
     }
-
 
     const text = this.getUpdateQueryText(this.matName, colDefinitions, [
       `(${binds.map(() => '?').join(', ')})`,

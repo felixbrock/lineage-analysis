@@ -2,9 +2,11 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import BaseAuth from '../services/base-auth';
-import { DataEnvProps } from './data-env';
+import { ExternalDataEnvProps } from './external-data-env';
 import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
-import BaseGetSfDataEnv, { ColumnRepresentation } from './base-get-sf-data-env';
+import BaseGetSfExternalDataEnv, {
+  ColumnRepresentation,
+} from './base-get-sf-external-data-env';
 import { Materialization } from '../entities/materialization';
 import { Column } from '../entities/column';
 import { Logic } from '../entities/logic';
@@ -14,22 +16,21 @@ import { CreateColumn } from '../column/create-column';
 import { CreateLogic } from '../logic/create-logic';
 import { ParseSQL } from '../sql-parser-api/parse-sql';
 
-export type GenerateSfDataEnvRequestDto = undefined;
+export type GenerateSfExternalDataEnvRequestDto = undefined;
 
-export interface GenerateSfDataEnvAuthDto
-  extends Omit<BaseAuth, 'callerOrgId'> {
+interface Auth extends Omit<BaseAuth, 'callerOrgId'> {
   callerOrgId: string;
 }
 
-export type GenerateSfDataEnvResponse = Result<DataEnvProps>;
+export type GenerateSfExternalDataEnvResponse = Result<ExternalDataEnvProps>;
 
-export class GenerateSfDataEnv
-  extends BaseGetSfDataEnv
+export class GenerateSfExternalDataEnv
+  extends BaseGetSfExternalDataEnv
   implements
     IUseCase<
-      GenerateSfDataEnvRequestDto,
-      GenerateSfDataEnvResponse,
-      GenerateSfDataEnvAuthDto,
+      GenerateSfExternalDataEnvRequestDto,
+      GenerateSfExternalDataEnvResponse,
+      GenerateSfExternalDataEnvAuthDto,
       IConnectionPool
     >
 {
@@ -108,10 +109,10 @@ export class GenerateSfDataEnv
 
   /* Runs through snowflake and creates objects like logic, materializations and columns */
   async execute(
-    req: GenerateSfDataEnvRequestDto,
-    auth: GenerateSfDataEnvAuthDto,
+    req: GenerateSfExternalDataEnvRequestDto,
+    auth: GenerateSfExternalDataEnvAuthDto,
     connPool: IConnectionPool
-  ): Promise<GenerateSfDataEnvResponse> {
+  ): Promise<GenerateSfExternalDataEnvResponse> {
     try {
       this.connPool = connPool;
       this.auth = auth;

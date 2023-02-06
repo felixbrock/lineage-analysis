@@ -101,10 +101,10 @@ export default class MaterializationRepo
     el.databaseName,
     el.relationName,
     el.type,
-    el.isTransient !== undefined ? el.isTransient.toString() : 'null',
-    el.logicId || 'null',
-    el.ownerId || 'null',
-    el.comment || 'null',
+    el.isTransient !== undefined ? el.isTransient.toString() : 'undefined',
+    el.logicId || 'undefined',
+    el.ownerId || 'undefined',
+    el.comment || 'undefined',
   ];
 
   buildFindByQuery(dto: MaterializationQueryDto): Query {
@@ -113,10 +113,9 @@ export default class MaterializationRepo
 
     if (dto.ids && dto.ids.length) {
       binds.push(...dto.ids);
-      const whereCondition =
-        `array_contains(id::variant, array_construct(${dto.ids
-          .map(() => '?')
-          .join(',')}))`;
+      const whereCondition = `array_contains(id::variant, array_construct(${dto.ids
+        .map(() => '?')
+        .join(',')}))`;
       whereClause = whereClause
         ? whereClause.concat(`${whereCondition} `)
         : whereCondition;
@@ -139,10 +138,9 @@ export default class MaterializationRepo
     }
     if (dto.names && dto.names.length) {
       binds.push(...dto.names);
-      const whereCondition =
-        `array_contains(name::variant, array_construct(${dto.names
-          .map(() => '?')
-          .join(',')}))`;
+      const whereCondition = `array_contains(name::variant, array_construct(${dto.names
+        .map(() => '?')
+        .join(',')}))`;
       whereClause = whereClause
         ? whereClause.concat(`and ${whereCondition} `)
         : whereCondition;
@@ -173,7 +171,7 @@ export default class MaterializationRepo
     }
 
     const text = `select * from cito.lineage.${this.matName}
-    ${whereClause ? 'where': ''}  ${whereClause};`;
+    ${whereClause ? 'where' : ''}  ${whereClause};`;
 
     return { text, binds };
   }

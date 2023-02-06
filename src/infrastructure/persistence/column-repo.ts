@@ -92,10 +92,14 @@ export default class ColumnRepo
     entity.relationName,
     entity.index,
     entity.dataType,
-    entity.isIdentity !== undefined ? entity.isIdentity.toString() : 'null',
-    entity.isNullable !== undefined ? entity.isNullable.toString() : 'null',
+    entity.isIdentity !== undefined
+      ? entity.isIdentity.toString()
+      : 'undefined',
+    entity.isNullable !== undefined
+      ? entity.isNullable.toString()
+      : 'undefined',
     entity.materializationId,
-    entity.comment || 'null',
+    entity.comment || 'undefined',
   ];
 
   buildFindByQuery(dto: ColumnQueryDto): Query {
@@ -152,7 +156,7 @@ export default class ColumnRepo
     }
 
     const text = `select * from cito.lineage.${this.matName}
-        ${whereClause ? 'where': ''}  ${whereClause};`;
+        ${whereClause ? 'where' : ''}  ${whereClause};`;
 
     return { binds, text };
   }

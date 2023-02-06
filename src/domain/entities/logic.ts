@@ -272,9 +272,9 @@ export class Logic {
   ambiguous use cases */
   static #getPotentialAmbiguityType = (
     columnName: string
-  ): AmbiguityType | null => {
+  ): AmbiguityType | undefined => {
     if (columnName === 'value') return 'potential-compound-val-ref';
-    return null;
+    return undefined;
   };
 
   /* Handles any column ref found in the parsed SQL logic */
@@ -697,7 +697,7 @@ export class Logic {
     input: ExtractRefProperties,
     elementIndex: number
   ): HandlerReturn => {
-    if (input.recursionLevel === null)
+    if (input.recursionLevel === undefined)
       throw new ReferenceError('Recursion level should not be undefined');
 
     let newPrototype = input.refsPrototype;

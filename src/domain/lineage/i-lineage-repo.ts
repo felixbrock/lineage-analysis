@@ -17,5 +17,5 @@ export interface ILineageRepo
     auth: IAuth,
     connPool: IConnectionPool,
     targetOrgId?: string
-  ): Promise<Lineage | null>;
+  ): Promise<Lineage | undefined>;
 }

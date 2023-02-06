@@ -1,12 +1,16 @@
-import { Column } from "../entities/column";
-import { Logic, ModelRepresentation} from "../entities/logic";
-import { Materialization } from "../entities/materialization";
+import { Column } from '../entities/column';
+import { Logic, ModelRepresentation } from '../entities/logic';
+import { Materialization } from '../entities/materialization';
 
 export interface MatToDeleteRef {
   id: string;
   name: string;
   schemaName: string;
   dbName: string;
+}
+
+export interface DependencyToDeleteRef {
+  targetId: string;
 }
 
 export interface ColToDeleteRef {
@@ -28,19 +32,15 @@ export interface DataEnvDto {
 }
 
 export interface DataEnv {
-  matsToCreate: Materialization[];
-  matsToReplace: Materialization[];
-  matToDeleteRefs: MatToDeleteRef[];
-  columnsToCreate: Column[];
-  columnsToReplace: Column[];
-  columnToDeleteRefs: ColToDeleteRef[];
-  logicsToCreate: Logic[];
-  logicsToReplace: Logic[];
-  logicToDeleteRefs: LogicToDeleteRef[];
+  dashboardsToCreate: Dashboard[];
+  dashboardsToReplace: Dashboard[];
+  dashboardToDeleteRefs: Dashboard[];
+  dependenciesToCreate: Dependency[];
+  dependencyToDeleteRefs: DependencyToDeleteRef[];
 }
 
-export interface DataEnvProps{
+export interface DataEnvProps {
   dataEnv: DataEnv;
   catalog: ModelRepresentation[];
-  dbCoveredNames: string[]
+  dbCoveredNames: string[];
 }

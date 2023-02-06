@@ -9,7 +9,7 @@ export interface ParseSQLRequestDto {
   sql: string;
 }
 
-export type ParseSQLAuthDto = null;
+export type ParseSQLAuthDto = undefined;
 
 export type ParseSQLResponseDto = Result<ParsedSQLDto>;
 
@@ -39,7 +39,8 @@ export class ParseSQL
 
       return Result.ok(parseSQLResponse);
     } catch (error: unknown) {
-      if(error instanceof Error ) console.error(error.stack); else if (error) console.trace(error);
+      if (error instanceof Error) console.error(error.stack);
+      else if (error) console.trace(error);
       return Result.fail('');
     }
   }

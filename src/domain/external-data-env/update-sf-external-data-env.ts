@@ -3,10 +3,10 @@ import IUseCase from '../services/use-case';
 import BaseAuth from '../services/base-auth';
 import {
   ColToDeleteRef,
-  DataEnvProps,
+  ExternalDataEnvProps,
   LogicToDeleteRef,
   MatToDeleteRef,
-} from './data-env';
+} from './external-data-env';
 import { Column } from '../entities/column';
 import { Materialization } from '../entities/materialization';
 import { Logic } from '../entities/logic';
@@ -18,25 +18,28 @@ import { ILineageRepo } from '../lineage/i-lineage-repo';
 import { IMaterializationRepo } from '../materialization/i-materialization-repo';
 import { IColumnRepo } from '../column/i-column-repo';
 import { ILogicRepo } from '../logic/i-logic-repo';
-import BaseGetSfDataEnv, { ColumnRepresentation } from './base-get-sf-data-env';
+import BaseGetSfExternalDataEnv, {
+  ColumnRepresentation,
+} from './base-get-sf-external-data-env';
 import { QuerySnowflake } from '../snowflake-api/query-snowflake';
 import { CreateMaterialization } from '../materialization/create-materialization';
 import { CreateColumn } from '../column/create-column';
 import { CreateLogic } from '../logic/create-logic';
 import { ParseSQL } from '../sql-parser-api/parse-sql';
 
-export interface UpdateSfDataEnvRequestDto {
+export interface UpdateSfExternalDataEnvRequestDto {
   latestLineage: {
     completedAt: string;
     dbCoveredNames: string[];
   };
 }
 
-export interface UpdateSfDataEnvAuthDto extends Omit<BaseAuth, 'callerOrgId'> {
+export interface UpdateSfExternalDataEnvAuthDto
+  extends Omit<BaseAuth, 'callerOrgId'> {
   callerOrgId: string;
 }
 
-export type UpdateSfDataEnvResponse = Result<DataEnvProps>;
+export type UpdateSfExternalDataEnvResponse = Result<ExternalDataEnvProps>;
 
 interface MatModifiedDiff {
   oldMatId: string;
@@ -49,13 +52,13 @@ interface DataEnvDiff {
   matModifiedDiffs: MatModifiedDiff[];
 }
 
-export class UpdateSfDataEnv
-  extends BaseGetSfDataEnv
+export class UpdateSfExternalDataEnv
+  extends BaseGetSfExternalDataEnv
   implements
     IUseCase<
-      UpdateSfDataEnvRequestDto,
-      UpdateSfDataEnvResponse,
-      UpdateSfDataEnvAuthDto,
+      UpdateSfExternalDataEnvRequestDto,
+      UpdateSfExternalDataEnvResponse,
+      UpdateSfExternalDataEnvAuthDto,
       IConnectionPool
     >
 {
@@ -619,10 +622,10 @@ export class UpdateSfDataEnv
 
   /* Checks Snowflake resources for changes and returns partial data env to merge with existing snapshot */
   async execute(
-    req: UpdateSfDataEnvRequestDto,
-    auth: UpdateSfDataEnvAuthDto,
+    req: UpdateSfExternalDataEnvRequestDto,
+    auth: UpdateSfExternalDataEnvAuthDto,
     connPool: IConnectionPool
-  ): Promise<UpdateSfDataEnvResponse> {
+  ): Promise<UpdateSfExternalDataEnvResponse> {
     try {
       this.auth = auth;
       this.connPool = connPool;

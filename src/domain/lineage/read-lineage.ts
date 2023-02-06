@@ -8,24 +8,27 @@ import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 export interface ReadLineageRequestDto {
   id?: string;
   targetOrgId?: string;
-  
+
   tolerateIncomplete: boolean;
   minuteTolerance?: number;
 }
 
 export type ReadLineageAuthDto = BaseAuth;
 
-export type ReadLineageResponseDto = Result<Lineage | null>;
+export type ReadLineageResponseDto = Result<Lineage | undefined>;
 
 export class ReadLineage
   implements
-    IUseCase<ReadLineageRequestDto, ReadLineageResponseDto, ReadLineageAuthDto,IConnectionPool>
+    IUseCase<
+      ReadLineageRequestDto,
+      ReadLineageResponseDto,
+      ReadLineageAuthDto,
+      IConnectionPool
+    >
 {
   readonly #lineageRepo: ILineageRepo;
 
-  constructor(
-    lineageRepo: ILineageRepo,
-  ) {
+  constructor(lineageRepo: ILineageRepo) {
     this.#lineageRepo = lineageRepo;
   }
 
@@ -36,11 +39,7 @@ export class ReadLineage
   ): Promise<ReadLineageResponseDto> {
     try {
       const lineage = req.id
-        ? await this.#lineageRepo.findOne(
-            req.id,
-            auth,
-            connPool,
-          )
+        ? await this.#lineageRepo.findOne(req.id, auth, connPool)
         : await this.#lineageRepo.findLatest(
             {
               tolerateIncomplete: req.tolerateIncomplete,
@@ -57,7 +56,7 @@ export class ReadLineage
 
       return Result.ok(lineage);
     } catch (error: unknown) {
-      if (error instanceof Error ) console.error(error.stack);
+      if (error instanceof Error) console.error(error.stack);
       else if (error) console.trace(error);
       return Result.fail('');
     }

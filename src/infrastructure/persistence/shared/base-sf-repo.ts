@@ -55,7 +55,9 @@ export default abstract class BaseSfRepo<
             const value = el.selectType
               ? `${el.selectType}($${index + 1})`
               : `$${index + 1}`;
-            return el.nullable ? `nullif(${value}::string, 'null')` : value;
+            return el.nullable
+              ? `nullif(${value}::string, 'undefined')`
+              : value;
           })
           .join(', ')}
         from values ${rows.join(', ')};
@@ -74,7 +76,7 @@ export default abstract class BaseSfRepo<
                 ? `${el.selectType}($${index + 1})`
                 : `$${index + 1}`;
               return el.nullable
-                ? `nullif(${value}::string, 'null') as ${el.name}`
+                ? `nullif(${value}::string, 'undefined') as ${el.name}`
                 : `${value} as ${el.name}`;
             })
             .join(', ')}
@@ -89,7 +91,7 @@ export default abstract class BaseSfRepo<
     id: string,
     auth: BaseAuth,
     connPool: IConnectionPool
-  ): Promise<Entity | null> => {
+  ): Promise<Entity | undefined> => {
     try {
       const queryText = `select * from ${this.#relationPath}.${this.matName}
        where id = ?;`;
@@ -108,7 +110,7 @@ export default abstract class BaseSfRepo<
         throw new Error(`Multiple customtestsuite entities with id found`);
 
       return !result.value.length
-        ? null
+        ? undefined
         : this.toEntity(this.buildEntityProps(result.value[0]));
     } catch (error: unknown) {
       if (error instanceof Error) console.error(error.stack);
@@ -139,7 +141,9 @@ export default abstract class BaseSfRepo<
       if (!result.success) throw new Error(result.error);
       if (!result.value) throw new Error('Missing sf query value');
 
-      const entities = result.value.map((el) => this.toEntity(this.buildEntityProps(el)));
+      const entities = result.value.map((el) =>
+        this.toEntity(this.buildEntityProps(el))
+      );
 
       return entities;
     } catch (error: unknown) {
@@ -440,7 +444,7 @@ export default abstract class BaseSfRepo<
       | 'undefined'
       | 'object'
       | 'function'
-  ): val is T => val === null || typeof val === targetType;
+  ): val is T => val === undefined || typeof val === targetType;
 
   protected static isStringArray = (value: unknown): value is string[] =>
     Array.isArray(value) && value.every((el) => typeof el === 'string');

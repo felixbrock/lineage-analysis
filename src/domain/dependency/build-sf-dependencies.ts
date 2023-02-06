@@ -18,13 +18,7 @@ import BaseAuth from '../services/base-auth';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { QuerySnowflake } from '../snowflake-api/query-snowflake';
-
-export type Auth = BaseAuth;
-
-export interface SfBuildResult {
-  dashboards: Dashboard[];
-  dependencies: Dependency[];
-}
+import { DependencyToDeleteRef } from '../data-env/data-env';
 
 export interface BuildSfDependenciesRequestDto {
   targetOrgId?: string;
@@ -448,10 +442,7 @@ export class BuildSfDependencies
       if (req.biToolType)
         await this.#buildBiDependencies(req.biToolType, matReps);
 
-      return Result.ok({
-        dashboards: this.#dashboards,
-        dependencies: this.#dependencies,
-      });
+      return Result.ok({});
     } catch (error: unknown) {
       if (error instanceof Error) console.error(error.stack);
       else if (error) console.trace(error);
