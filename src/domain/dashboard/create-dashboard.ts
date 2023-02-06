@@ -9,17 +9,16 @@ export interface CreateDashboardRequestDto {
   url?: string;
   materializationName: string;
   materializationId: string;
-  columnName: string;
-  columnId: string;
+  columnName?: string;
+  columnId?: string;
   targetOrgId?: string;
   writeToPersistence: boolean;
-  
 }
 
 export interface CreateDashboardAuthDto {
   isSystemInternal: boolean;
   callerOrgId?: string;
-  jwt:string
+  jwt: string;
 }
 
 export type CreateDashboardResponseDto = Result<Dashboard>;
@@ -29,8 +28,8 @@ export class CreateDashboard
     IUseCase<
       CreateDashboardRequestDto,
       CreateDashboardResponseDto,
-      CreateDashboardAuthDto
-      ,IConnectionPool
+      CreateDashboardAuthDto,
+      IConnectionPool
     >
 {
   readonly #dashboardRepo: IDashboardRepo;
@@ -51,7 +50,7 @@ export class CreateDashboard
         throw new Error('Caller organization id missing');
       if (!req.targetOrgId && !auth.callerOrgId)
         throw new Error('No organization Id instance provided');
-        if (req.targetOrgId && auth.callerOrgId)
+      if (req.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
       const dashboard = Dashboard.create({
@@ -70,7 +69,8 @@ export class CreateDashboard
 
       return Result.ok(dashboard);
     } catch (error: unknown) {
-      if(error instanceof Error ) console.error(error.stack); else if (error) console.trace(error);
+      if (error instanceof Error) console.error(error.stack);
+      else if (error) console.trace(error);
       return Result.fail('');
     }
   }

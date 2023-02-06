@@ -151,7 +151,9 @@ export interface DashboardRef {
   url?: string;
   name?: string;
   materializationName: string;
-  columnName: string;
+  materializationId: string;
+  columnName?: string;
+  columnId?: string;
 }
 
 export class Logic {

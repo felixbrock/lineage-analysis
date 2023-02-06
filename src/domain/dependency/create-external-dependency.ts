@@ -24,15 +24,13 @@ export class CreateExternalDependency
     IUseCase<
       CreateExternalDependencyRequestDto,
       CreateExternalDependencyResponse,
-      CreateExternalDependencyAuthDto,IConnectionPool
+      CreateExternalDependencyAuthDto,
+      IConnectionPool
     >
 {
-
   readonly #dependencyRepo: IDependencyRepo;
 
-  constructor(
-    dependencyRepo: IDependencyRepo
-  ) {
+  constructor(dependencyRepo: IDependencyRepo) {
     this.#dependencyRepo = dependencyRepo;
   }
 
@@ -59,15 +57,11 @@ export class CreateExternalDependency
       });
 
       if (req.writeToPersistence)
-        await this.#dependencyRepo.insertOne(
-          dependency,
-          auth,
-          connPool,
-        );
+        await this.#dependencyRepo.insertOne(dependency, auth, connPool);
 
       return Result.ok(dependency);
     } catch (error: unknown) {
-      if (error instanceof Error ) console.error(error.stack);
+      if (error instanceof Error) console.error(error.stack);
       else if (error) console.trace(error);
       return Result.fail('');
     }

@@ -3,8 +3,8 @@ export interface DashboardProps {
   url?: string;
   name?: string;
   materializationName: string;
-  columnName: string;
-  columnId: string;
+  columnName?: string;
+  columnId?: string;
   materializationId: string;
 }
 
@@ -13,8 +13,8 @@ export interface DashboardPrototype {
   url?: string;
   name?: string;
   materializationName: string;
-  columnName: string;
-  columnId: string;
+  columnName?: string;
+  columnId?: string;
   materializationId: string;
 }
 
@@ -29,9 +29,9 @@ export class Dashboard {
 
   #materializationId: string;
 
-  #columnName: string;
+  #columnName?: string;
 
-  #columnId: string;
+  #columnId?: string;
 
   #id: string;
 
@@ -47,7 +47,7 @@ export class Dashboard {
     return this.#materializationName;
   }
 
-  get columnName(): string {
+  get columnName(): string | undefined {
     return this.#columnName;
   }
 
@@ -55,14 +55,13 @@ export class Dashboard {
     return this.#id;
   }
 
-  get columnId(): string {
+  get columnId(): string | undefined {
     return this.#columnId;
   }
 
   get materializationId(): string {
     return this.#materializationId;
   }
-
 
   private constructor(properties: DashboardProps) {
     this.#url = properties.url;
