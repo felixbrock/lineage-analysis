@@ -1,30 +1,16 @@
 // todo clean architecture violation
 import { v4 as uuidv4 } from 'uuid';
-import { ReadColumns } from '../column/read-columns';
-import { CreateDashboard } from '../dashboard/create-dashboard';
-import {
-  CreateDependency,
-  CreateDependencyResponse,
-} from './create-dependency';
-import { CreateExternalDependency } from './create-external-dependency';
-import { Column } from '../entities/column';
+import { CreateDashboards } from '../dashboard/create-dashboards';
+import { CreateDependencies } from './create-dependencies';
 import { Dashboard } from '../entities/dashboard';
-import { Dependency } from '../entities/dependency';
-import {
-  ColumnRef,
-  DashboardRef,
-  Logic,
-  ModelRepresentation,
-  Refs,
-} from '../entities/logic';
-import { Materialization } from '../entities/materialization';
+import { Dependency, DependencyType } from '../entities/dependency';
+import { DashboardRef } from '../entities/logic';
 import {
   QuerySfQueryHistory,
   QuerySfQueryHistoryResponseDto,
 } from '../snowflake-api/query-snowflake-history';
 import { BiToolType } from '../value-types/bi-tool';
 import {
-  Binds,
   IConnectionPool,
   SnowflakeQueryResult,
 } from '../snowflake-api/i-snowflake-api-repo';
@@ -35,17 +21,13 @@ import { QuerySnowflake } from '../snowflake-api/query-snowflake';
 
 export type Auth = BaseAuth;
 
-export interface BuildResult {
+export interface SfBuildResult {
   dashboards: Dashboard[];
   dependencies: Dependency[];
 }
 
 export interface BuildSfDependenciesRequestDto {
   targetOrgId?: string;
-  logics: Logic[];
-  mats: Materialization[];
-  columns: Column[];
-  catalog: ModelRepresentation[];
   biToolType?: BiToolType;
 }
 
@@ -104,7 +86,7 @@ interface MatRepresentation {
 
 export type BuildSfDependenciesAuthDto = BaseAuth;
 
-export type BuildSfDependenciesResponse = Result<BuildResult>;
+export type BuildSfDependenciesResponse = Result<SfBuildResult>;
 
 export class BuildSfDependencies
   implements
@@ -115,11 +97,9 @@ export class BuildSfDependencies
       IConnectionPool
     >
 {
-  readonly #createDashboard: CreateDashboard;
+  readonly #createDashboards: CreateDashboards;
 
-  readonly #createDependency: CreateDependency;
-
-  readonly #createExternalDependency: CreateExternalDependency;
+  readonly #createDependencies: CreateDependencies;
 
   readonly #querySfQueryHistory: QuerySfQueryHistory;
 
@@ -136,15 +116,13 @@ export class BuildSfDependencies
   #connPool?: IConnectionPool;
 
   constructor(
-    createDashboard: CreateDashboard,
-    createDependency: CreateDependency,
-    createExternalDependency: CreateExternalDependency,
+    createDashboards: CreateDashboards,
+    createDependencies: CreateDependencies,
     querySfQueryHistory: QuerySfQueryHistory,
     querySnowflake: QuerySnowflake
   ) {
-    this.#createDashboard = createDashboard;
-    this.#createDependency = createDependency;
-    this.#createExternalDependency = createExternalDependency;
+    this.#createDashboards = createDashboards;
+    this.#createDependencies = createDependencies;
     this.#querySfQueryHistory = querySfQueryHistory;
     this.#querySnowflake = querySnowflake;
   }
@@ -175,7 +153,7 @@ export class BuildSfDependencies
   };
 
   /* Get all relevant dashboards that are data dependency to self materialization */
-  static #getDashboardDataDependencyRefs = async (
+  static #readDashboardRefs = async (
     matRepresentations: MatRepresentation[],
     querySfQueryHistoryResult: SnowflakeQueryResult,
     biTool: BiToolType
@@ -208,36 +186,22 @@ export class BuildSfDependencies
     return dependentDashboards;
   };
 
-  #buildDashboardRefDependency = async (
-    dashboardRef: DashboardRef,
-    relationName: string,
-    parentRelationNames: string[]
+  #buildDashboardRefDependencies = async (
+    dashboardRefs: DashboardRef[]
   ): Promise<void> => {
     if (!this.#connPool || !this.#auth)
       throw new Error('Build dependency field values missing');
 
-    const relationNameElements = relationName.split('.');
-    if (relationNameElements.length !== 3)
-      throw new RangeError('Unexpected number of sf model id elements');
-
-    const materialization = this.#mats.find(
-      (el) =>
-        el.name === dashboardRef.materializationName &&
-        el.relationName === parentRelationNames[0]
+    const uniqueDashboardRefs = dashboardRefs.filter(
+      (dashboardRef, i, self) =>
+        i === self.findIndex((el) => el.url === dashboardRef.url)
     );
 
-    if (!materialization)
-      throw new Error(
-        'Dashboard ref dependency built failed; Error: Materialization not found'
-      );
-
-    const createDashboardResult = await this.#createDashboard.execute(
+    const createDashboardResult = await this.#createDashboards.execute(
       {
-        columnId: column.id,
-        columnName: dashboardRef.columnName,
-        materializationId: materialization.id,
-        materializationName: dashboardRef.materializationName,
-        url: dashboardRef.url,
+        toCreate: uniqueDashboardRefs.map((dashboardRef) => ({
+          url: dashboardRef.url,
+        })),
         targetOrgId: this.#targetOrgId,
         writeToPersistence: false,
       },
@@ -250,28 +214,43 @@ export class BuildSfDependencies
     if (!createDashboardResult.value)
       throw new Error('Creating dashboard failed');
 
-    const dashboard = createDashboardResult.value;
+    const dashboards = createDashboardResult.value;
 
-    this.#dashboards.push(dashboard);
+    this.#dashboards.push(...dashboards);
 
-    const createExternalDependencyResult =
-      await this.#createExternalDependency.execute(
-        {
-          dashboard,
-          targetOrgId: this.#targetOrgId,
-          writeToPersistence: false,
-        },
-        this.#auth,
-        this.#connPool
-      );
+    const toCreate = dashboardRefs.map(
+      (
+        dashboardRef
+      ): { headId: string; tailId: string; type: DependencyType } => {
+        const dashboard = dashboards.find((el) => el.url === dashboardRef.url);
 
-    if (!createExternalDependencyResult.success)
-      throw new Error(createExternalDependencyResult.error);
-    if (!createExternalDependencyResult.value)
+        if (!dashboard) throw new Error('Dashboard not found');
+
+        return {
+          headId: dashboard.id,
+          tailId: dashboardRef.materializationId,
+          type: 'external',
+        };
+      }
+    );
+
+    const createDependeciesResult = await this.#createDependencies.execute(
+      {
+        toCreate,
+        targetOrgId: this.#targetOrgId,
+        writeToPersistence: false,
+      },
+      this.#auth,
+      this.#connPool
+    );
+
+    if (!createDependeciesResult.success)
+      throw new Error(createDependeciesResult.error);
+    if (!createDependeciesResult.value)
       throw new ReferenceError(`Creating external dependency failed`);
 
-    const dependency = createExternalDependencyResult.value;
-    this.#dependencies.push(dependency);
+    const dependencies = createDependeciesResult.value;
+    this.#dependencies.push(...dependencies);
   };
 
   #buildBiDependencies = async (
@@ -282,67 +261,22 @@ export class BuildSfDependencies
       biToolType
     );
 
-    const dashboardDataDependencyRefs =
-      await BuildSfDependencies.#getDashboardDataDependencyRefs(
-        matReps,
-        querySfQueryHistory,
-        biToolType
-      );
-
-    const uniqueDashboardRefs = dashboardDataDependencyRefs.filter(
-      (val, i, self) =>
-        i ===
-        self.findIndex((dashboard) =>
-          typeof dashboard.name === 'string' && typeof val.name === 'string'
-            ? dashboard.name === val.name
-            : dashboard.name === val.name &&
-              dashboard.columnName === val.columnName &&
-              dashboard.columnId === val.columnId &&
-              dashboard.materializationName === val.materializationName &&
-              dashboard.materializationId === val.materializationId
-        )
+    const dashboardRefs = await BuildSfDependencies.#readDashboardRefs(
+      matReps,
+      querySfQueryHistory,
+      biToolType
     );
 
-    await Promise.all(
-      uniqueDashboardRefs.map(async (dashboardRef) =>
-        this.#buildDashboardRefDependency(
-          dashboardRef,
-          logic.relationName,
-          logic.dependentOn.dbtDependencyDefinitions.map(
-            (element) => element.relationName
-          )
-        )
-      )
-    );
+    await this.#buildDashboardRefDependencies(dashboardRefs);
   };
 
-  #getReferencedMatRepresentations = async (
-    sfObjDependencies: SfObjectDependency[]
-  ): Promise<MatRepresentation[]> => {
+  #getAllMatReps = async (): Promise<MatRepresentation[]> => {
     if (!this.#connPool || !this.#auth)
       throw new Error('Missing properties for generating sf data env');
 
-    const distinctRelationNames = sfObjDependencies.reduce(
-      (accumulation: string[], val: SfObjectDependency) => {
-        const localAcc = accumulation;
-
-        const refNameHead = `${val.head.dbName}.${val.head.schemaName}.${val.head.matName}`;
-        const refNameTail = `${val.tail.dbName}.${val.tail.schemaName}.${val.tail.matName}`;
-
-        if (localAcc.includes(refNameHead)) localAcc.push(refNameHead);
-
-        if (localAcc.includes(refNameTail)) localAcc.push(refNameTail);
-
-        return localAcc;
-      },
-      []
-    );
-
-    const binds: Binds = [...distinctRelationNames];
-
-    const queryText = `select id, relation_name * from cito.lineage.materializations where relation_name = ?;`;
+    const queryText = `select id, relation_name * from cito.lineage.materializations;`;
     const queryResult = await this.#querySnowflake.execute(
-      { queryText, binds },
+      { queryText, binds: [] },
       this.#auth,
       this.#connPool
     );
@@ -365,19 +299,51 @@ export class BuildSfDependencies
     });
   };
 
+  #getReferencedMatRepresentations = async (
+    sfObjDependencies: SfObjectDependency[],
+    matReps: MatRepresentation[]
+  ): Promise<MatRepresentation[]> => {
+    const distinctRelationNames = sfObjDependencies.reduce(
+      (accumulation: string[], val: SfObjectDependency) => {
+        const localAcc = accumulation;
+
+        const refNameHead = `${val.head.dbName}.${val.head.schemaName}.${val.head.matName}`;
+        const refNameTail = `${val.tail.dbName}.${val.tail.schemaName}.${val.tail.matName}`;
+
+        if (localAcc.includes(refNameHead)) localAcc.push(refNameHead);
+
+        if (localAcc.includes(refNameTail)) localAcc.push(refNameTail);
+
+        return localAcc;
+      },
+      []
+    );
+
+    const referencedMats = matReps.filter((el) =>
+      distinctRelationNames.includes(el.relationName)
+    );
+
+    return referencedMats;
+  };
+
   #buildDataDependencies = async (
     sfObjDependencies: SfObjectDependency[],
     matReps: MatRepresentation[]
   ): Promise<void> => {
+    const referencedMatReps = await this.#getReferencedMatRepresentations(
+      sfObjDependencies,
+      matReps
+    );
+
     const dependencies = sfObjDependencies.map((el): Dependency => {
       const headRelationName = `${el.head.dbName}.${el.head.schemaName}.${el.head.matName}`;
-      const headMat = matReps.find(
+      const headMat = referencedMatReps.find(
         (entry) => entry.relationName === headRelationName
       );
       if (!headMat) throw new Error('Mat representation for head not found ');
 
       const tailRelationName = `${el.tail.dbName}.${el.tail.schemaName}.${el.tail.matName}`;
-      const tailMat = matReps.find(
+      const tailMat = referencedMatReps.find(
         (entry) => entry.relationName === tailRelationName
       );
       if (!tailMat) throw new Error('Mat representation for tail not found ');
@@ -475,14 +441,12 @@ export class BuildSfDependencies
 
       const sfObjDependencies = await this.#getSfObjectDependencies();
 
-      const referencedMatReps = await this.#getReferencedMatRepresentations(
-        sfObjDependencies
-      );
+      const matReps = await this.#getAllMatReps();
 
-      await this.#buildDataDependencies(sfObjDependencies, referencedMatReps);
+      await this.#buildDataDependencies(sfObjDependencies, matReps);
 
       if (req.biToolType)
-        await this.#buildBiDependencies(req.biToolType, referencedMatReps);
+        await this.#buildBiDependencies(req.biToolType, matReps);
 
       return Result.ok({
         dashboards: this.#dashboards,

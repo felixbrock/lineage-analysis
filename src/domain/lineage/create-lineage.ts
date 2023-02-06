@@ -18,12 +18,10 @@ import { DataEnv, DataEnvDto, DataEnvProps } from '../data-env/data-env';
 import { GenerateDbtDataEnv } from '../data-env/generate-dbt-data-env';
 import { GenerateSfDataEnv } from '../data-env/generate-sf-data-env';
 import { UpdateSfDataEnv } from '../data-env/update-sf-data-env';
-import {
-  BuildDependencies,
-  BuildResult,
-} from '../dependency/build-dbt-dependencies';
+import { BuildDbtDependencies } from '../dependency/build-dbt-dependencies';
 import { ModelRepresentation } from '../entities/logic';
 import { IObservabilityApiRepo } from '../observability-api/i-observability-api-repo';
+import { BuildSfDependencies } from '../dependency/build-sf-dependencies';
 
 export interface CreateLineageRequestDto {
   targetOrgId?: string;
@@ -67,7 +65,9 @@ export class CreateLineage
 
   readonly #updateSfDataEnv: UpdateSfDataEnv;
 
-  readonly #buildDependencies: BuildDependencies;
+  readonly #buildDbtDependencies: BuildDbtDependencies;
+
+  readonly #buildSfDependencies: BuildSfDependencies;
 
   #auth?: CreateLineageAuthDto;
 
@@ -86,7 +86,8 @@ export class CreateLineage
     generateSfDataEnv: GenerateSfDataEnv,
     generateDbtDataEnv: GenerateDbtDataEnv,
     updateSfDataEnv: UpdateSfDataEnv,
-    buildDependencies: BuildDependencies
+    buildDbtDependencies: BuildDbtDependencies,
+    buildSfDependencies: BuildSfDependencies
   ) {
     this.#lineageRepo = lineageRepo;
     this.#logicRepo = logicRepo;
@@ -98,7 +99,8 @@ export class CreateLineage
     this.#generateSfDataEnv = generateSfDataEnv;
     this.#generateDbtDataEnv = generateDbtDataEnv;
     this.#updateSfDataEnv = updateSfDataEnv;
-    this.#buildDependencies = buildDependencies;
+    this.#buildDbtDependencies = buildDbtDependencies;
+    this.#buildSfDependencies = buildSfDependencies;
   }
 
   #writeLineageToPersistence = async (lineage: Lineage): Promise<void> => {
@@ -383,39 +385,50 @@ export class CreateLineage
   #buildDeps = async (
     dataEnv: DataEnv,
     catalog: ModelRepresentation[]
-  ): Promise<BuildResult> => {
+  ): Promise<{ dashboards: Dashboard[]; dependencies: Dependency[] }> => {
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing field values');
 
     console.log('...building dependencies');
 
     /* 
-    todo-fix potential bug since resources that were deleted are not taken into account. 
-    Also in case of data env update only a fraction of resources is available to build up dependencies 
-    */
-    const buildDependenciesResult = await this.#buildDependencies.execute(
-      {
-        logics: (dataEnv.logicsToCreate || []).concat(
-          dataEnv.logicsToReplace || []
-        ),
-        mats: (dataEnv.matsToCreate || []).concat(dataEnv.matsToReplace || []),
-        columns: (dataEnv.columnsToCreate || []).concat(
-          dataEnv.columnsToReplace || []
-        ),
-        catalog,
-        targetOrgId: this.#req.targetOrgId,
-        biToolType: this.#req.biTool,
-      },
-      this.#auth,
-      this.#connPool
-    );
+      todo-fix potential bug since resources that were deleted are not taken into account. 
+      Also in case of data env update only a fraction of resources is available to build up dependencies 
+      */
+    const res =
+      this.#req.dbtCatalog && this.#req.dbtManifest
+        ? await this.#buildDbtDependencies.execute(
+            {
+              logics: (dataEnv.logicsToCreate || []).concat(
+                dataEnv.logicsToReplace || []
+              ),
+              mats: (dataEnv.matsToCreate || []).concat(
+                dataEnv.matsToReplace || []
+              ),
+              columns: (dataEnv.columnsToCreate || []).concat(
+                dataEnv.columnsToReplace || []
+              ),
+              catalog,
+              targetOrgId: this.#req.targetOrgId,
+              biToolType: this.#req.biTool,
+            },
+            this.#auth,
+            this.#connPool
+          )
+        : await this.#buildSfDependencies.execute(
+            {
+              targetOrgId: this.#req.targetOrgId,
+              biToolType: this.#req.biTool,
+            },
+            this.#auth,
+            this.#connPool
+          );
 
-    if (!buildDependenciesResult.success)
-      throw new Error(buildDependenciesResult.error);
-    if (!buildDependenciesResult.value)
+    if (!res.success) throw new Error(res.error);
+    if (!res.value)
       throw new Error('build dependencies usecase did not return val obj');
 
-    return buildDependenciesResult.value;
+    return res.value;
   };
 
   async execute(

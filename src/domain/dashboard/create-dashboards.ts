@@ -5,30 +5,26 @@ import { Dashboard } from '../entities/dashboard';
 import { IDashboardRepo } from './i-dashboard-repo';
 import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 
-export interface CreateDashboardRequestDto {
-  url?: string;
-  materializationName: string;
-  materializationId: string;
-  columnName?: string;
-  columnId?: string;
+export interface CreateDashboardsRequestDto {
+  toCreate: { url: string; name?: string }[];
   targetOrgId?: string;
   writeToPersistence: boolean;
 }
 
-export interface CreateDashboardAuthDto {
+export interface CreateDashboardsAuthDto {
   isSystemInternal: boolean;
   callerOrgId?: string;
   jwt: string;
 }
 
-export type CreateDashboardResponseDto = Result<Dashboard>;
+export type CreateDashboardsResponseDto = Result<Dashboard[]>;
 
-export class CreateDashboard
+export class CreateDashboards
   implements
     IUseCase<
-      CreateDashboardRequestDto,
-      CreateDashboardResponseDto,
-      CreateDashboardAuthDto,
+      CreateDashboardsRequestDto,
+      CreateDashboardsResponseDto,
+      CreateDashboardsAuthDto,
       IConnectionPool
     >
 {
@@ -39,10 +35,10 @@ export class CreateDashboard
   }
 
   async execute(
-    req: CreateDashboardRequestDto,
-    auth: CreateDashboardAuthDto,
+    req: CreateDashboardsRequestDto,
+    auth: CreateDashboardsAuthDto,
     connPool: IConnectionPool
-  ): Promise<CreateDashboardResponseDto> {
+  ): Promise<CreateDashboardsResponseDto> {
     try {
       if (auth.isSystemInternal && !req.targetOrgId)
         throw new Error('Target organization id missing');
@@ -53,21 +49,18 @@ export class CreateDashboard
       if (req.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
-      const dashboard = Dashboard.create({
-        id: uuidv4(),
-        url: req.url,
-        materializationName: req.materializationName,
-        columnName: req.columnName,
-        columnId: req.columnId,
-        materializationId: req.materializationId,
-      });
-
-      if (!req.url) return Result.ok(dashboard);
+      const dashboards = req.toCreate.map((el) =>
+        Dashboard.create({
+          id: uuidv4(),
+          url: el.url,
+          name: el.name,
+        })
+      );
 
       if (req.writeToPersistence)
-        await this.#dashboardRepo.insertOne(dashboard, auth, connPool);
+        await this.#dashboardRepo.insertMany(dashboards, auth, connPool);
 
-      return Result.ok(dashboard);
+      return Result.ok(dashboards);
     } catch (error: unknown) {
       if (error instanceof Error) console.error(error.stack);
       else if (error) console.trace(error);

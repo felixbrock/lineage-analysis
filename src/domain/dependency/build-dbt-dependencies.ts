@@ -1,22 +1,11 @@
 // todo clean architecture violation
-import { v4 as uuidv4 } from 'uuid';
 import { ReadColumns } from '../column/read-columns';
-import { CreateDashboard } from '../dashboard/create-dashboard';
-import {
-  CreateDependency,
-  CreateDependencyResponse,
-} from './create-dependency';
-import { CreateExternalDependency } from './create-external-dependency';
+import { CreateDashboards } from '../dashboard/create-dashboards';
+import { CreateDependencies } from './create-dependencies';
 import { Column } from '../entities/column';
 import { Dashboard } from '../entities/dashboard';
 import { Dependency } from '../entities/dependency';
-import {
-  ColumnRef,
-  DashboardRef,
-  Logic,
-  ModelRepresentation,
-  Refs,
-} from '../entities/logic';
+import { ColumnRef, Logic, ModelRepresentation, Refs } from '../entities/logic';
 import { Materialization } from '../entities/materialization';
 import {
   QuerySfQueryHistory,
@@ -34,7 +23,7 @@ import IUseCase from '../services/use-case';
 
 export type Auth = BaseAuth;
 
-export interface BuildResult {
+export interface DbtBuildResult {
   dashboards: Dashboard[];
   dependencies: Dependency[];
 }
@@ -50,7 +39,7 @@ export interface BuildDbtDependenciesRequestDto {
 
 export type BuildDbtDependenciesAuthDto = BaseAuth;
 
-export type BuildDbtDependenciesResponse = Result<BuildResult>;
+export type BuildDbtDependenciesResponse = Result<DbtBuildResult>;
 
 export class BuildDbtDependencies
   implements
@@ -61,11 +50,9 @@ export class BuildDbtDependencies
       IConnectionPool
     >
 {
-  readonly #createDashboard: CreateDashboard;
+  readonly #createDashboards: CreateDashboards;
 
-  readonly #createDependency: CreateDependency;
-
-  readonly #createExternalDependency: CreateExternalDependency;
+  readonly #createDependencies: CreateDependencies;
 
   readonly #readColumns: ReadColumns;
 
@@ -90,15 +77,13 @@ export class BuildDbtDependencies
   #connPool?: IConnectionPool;
 
   constructor(
-    createDashboard: CreateDashboard,
-    createDependency: CreateDependency,
-    createExternalDependency: CreateExternalDependency,
+    createDashboards: CreateDashboards,
+    createDependencies: CreateDependencies,
     readColumns: ReadColumns,
     querySfQueryHistory: QuerySfQueryHistory
   ) {
-    this.#createDashboard = createDashboard;
-    this.#createDependency = createDependency;
-    this.#createExternalDependency = createExternalDependency;
+    this.#createDashboards = createDashboards;
+    this.#createDependencies = createDependencies;
     this.#readColumns = readColumns;
     this.#querySfQueryHistory = querySfQueryHistory;
   }
@@ -129,40 +114,41 @@ export class BuildDbtDependencies
   };
 
   /* Get all relevant dashboards that are data dependency to self materialization */
-  static #getDashboardDataDependencyRefs = async (
-    statementRefs: Refs,
-    querySfQueryHistoryResult: SnowflakeQueryResult,
-    biTool: BiToolType
-  ): Promise<DashboardRef[]> => {
-    const dependentDashboards: DashboardRef[] = [];
+  // static #getDashboardDataDependencyRefs = async (
+  //   statementRefs: Refs,
+  //   querySfQueryHistoryResult: SnowflakeQueryResult,
+  //   biTool: BiToolType
+  // ): Promise<DashboardRef[]> => {
+  //   const dependentDashboards: DashboardRef[] = [];
 
-    statementRefs.columns.forEach((column) => {
-      querySfQueryHistoryResult.forEach((entry) => {
-        const queryText = entry.QUERY_TEXT;
-        if (typeof queryText !== 'string')
-          throw new Error('Retrieved bi layer query text not in string format');
+  //   statementRefs.columns.forEach((column) => {
+  //     querySfQueryHistoryResult.forEach((entry) => {
+  //       const queryText = entry.QUERY_TEXT;
+  //       if (typeof queryText !== 'string')
+  //         throw new Error('Retrieved bi layer query text not in string format');
 
-        const testUrl = queryText.match(/"(https?:[^\s]+),/);
-        const dashboardUrl = testUrl
-          ? testUrl[1]
-          : `${biTool} dashboard: ${uuidv4()}`;
+  //       const testUrl = queryText.match(/"(https?:[^\s]+),/);
+  //       const dashboardUrl = testUrl
+  //         ? testUrl[1]
+  //         : `${biTool} dashboard: ${uuidv4()}`;
 
-        const matName = column.materializationName.toUpperCase();
-        const colName = column.alias
-          ? column.alias.toUpperCase()
-          : column.name.toUpperCase();
+  //       const matName = column.materializationName.toUpperCase();
+  //       const colName = column.alias
+  //         ? column.alias.toUpperCase()
+  //         : column.name.toUpperCase();
 
-        if (queryText.includes(matName) && queryText.includes(colName)) {
-          dependentDashboards.push({
-            url: dashboardUrl,
-            materializationName: matName,
-            columnName: colName,
-          });
-        }
-      });
-    });
-    return dependentDashboards;
-  };
+  //       if (queryText.includes(matName) && queryText.includes(colName)) {
+  //         dependentDashboards.push({
+  //           url: dashboardUrl,
+  //           materializationName: matName,
+  //           materializationId: column.materializationId,
+  //           columnName: colName,
+  //         });
+  //       }
+  //     });
+  //   });
+  //   return dependentDashboards;
+  // };
 
   /* Get all relevant wildcard statement references that are data dependency to self materialization */
   static #getWildcardDataDependencyRefs = (statementRefs: Refs): ColumnRef[] =>
@@ -211,249 +197,338 @@ export class BuildDbtDependencies
     return dataDependencyRefs;
   };
 
-  #buildDashboardRefDependency = async (
-    dashboardRef: DashboardRef,
-    relationName: string,
-    parentRelationNames: string[]
-  ): Promise<void> => {
-    if (!this.#connPool || !this.#mats || !this.#columns || !this.#auth)
-      throw new Error('Build dependency field values missing');
+  // #buildDashboardRefDependency = async (
+  //   dashboardRef: DashboardRef,
+  //   relationName: string,
+  //   parentRelationNames: string[]
+  // ): Promise<void> => {
+  //   if (!this.#connPool || !this.#mats || !this.#columns || !this.#auth)
+  //     throw new Error('Build dependency field values missing');
 
-    const relationNameElements = relationName.split('.');
-    if (relationNameElements.length !== 3)
-      throw new RangeError('Unexpected number of dbt model id elements');
+  //   const relationNameElements = relationName.split('.');
+  //   if (relationNameElements.length !== 3)
+  //     throw new RangeError('Unexpected number of dbt model id elements');
 
-    const materialization = this.#mats.find(
-      (el) =>
-        el.name === dashboardRef.materializationName &&
-        el.relationName === parentRelationNames[0]
-    );
+  //   const materialization = this.#mats.find(
+  //     (el) =>
+  //       el.name === dashboardRef.materializationName &&
+  //       el.relationName === parentRelationNames[0]
+  //   );
 
-    if (!materialization)
-      throw new Error(
-        'Dashboard ref dependency built failed; Error: Materialization not found'
-      );
+  //   if (!materialization)
+  //     throw new Error(
+  //       'Dashboard ref dependency built failed; Error: Materialization not found'
+  //     );
 
-    const column = this.#columns.find(
-      (el) =>
-        el.name === dashboardRef.columnName &&
-        el.materializationId === materialization.id
-    );
+  //   const column = this.#columns.find(
+  //     (el) =>
+  //       el.name === dashboardRef.columnName &&
+  //       el.materializationId === materialization.id
+  //   );
 
-    if (!column)
-      throw new Error(
-        'Dashboard ref dependency built failed; Error: Column not found'
-      );
+  //   if (!column)
+  //     throw new Error(
+  //       'Dashboard ref dependency built failed; Error: Column not found'
+  //     );
 
-    const createDashboardResult = await this.#createDashboard.execute(
-      {
-        columnId: column.id,
-        columnName: dashboardRef.columnName,
-        materializationId: materialization.id,
-        materializationName: dashboardRef.materializationName,
-        url: dashboardRef.url,
-        targetOrgId: this.#targetOrgId,
-        writeToPersistence: false,
-      },
-      this.#auth,
-      this.#connPool
-    );
+  //   const createDashboardResult = await this.#createDashboards.execute(
+  //     {
+  //       toCreate: [{ url: dashboardRef.url }],
+  //       targetOrgId: this.#targetOrgId,
+  //       writeToPersistence: false,
+  //     },
+  //     this.#auth,
+  //     this.#connPool
+  //   );
 
-    if (!createDashboardResult.success)
-      throw new Error(createDashboardResult.error);
-    if (!createDashboardResult.value)
-      throw new Error('Creating dashboard failed');
+  //   if (!createDashboardResult.success)
+  //     throw new Error(createDashboardResult.error);
+  //   if (!createDashboardResult.value)
+  //     throw new Error('Creating dashboard failed');
 
-    const dashboard = createDashboardResult.value;
+  //   const dashboards = createDashboardResult.value;
 
-    this.#dashboards.push(dashboard);
+  //   this.#dashboards.push(...dashboards);
 
-    const createExternalDependencyResult =
-      await this.#createExternalDependency.execute(
-        {
-          dashboard,
-          targetOrgId: this.#targetOrgId,
-          writeToPersistence: false,
-        },
-        this.#auth,
-        this.#connPool
-      );
+  //   const createExternalDependencyResult =
+  //     await this.#createDependencies.execute(
+  //       {
+  //         toCreate:
+  //         dashboards.map,
+  //         targetOrgId: this.#targetOrgId,
+  //         writeToPersistence: false,
+  //       },
+  //       this.#auth,
+  //       this.#connPool
+  //     );
 
-    if (!createExternalDependencyResult.success)
-      throw new Error(createExternalDependencyResult.error);
-    if (!createExternalDependencyResult.value)
-      throw new ReferenceError(`Creating external dependency failed`);
+  //   if (!createExternalDependencyResult.success)
+  //     throw new Error(createExternalDependencyResult.error);
+  //   if (!createExternalDependencyResult.value)
+  //     throw new ReferenceError(`Creating external dependency failed`);
 
-    const dependency = createExternalDependencyResult.value;
-    this.#dependencies.push(dependency);
-  };
+  //   const dependency = createExternalDependencyResult.value;
+  //   this.#dependencies.push(dependency);
+  // };
+
+  // #getSelfColumn = async (
+  //   selfRelationName: string,
+  //   dependencyRef: ColumnRef
+  // ): Promise<Column> => {
+  //   if (!this.#auth || !this.#connPool)
+  //     throw new Error('auth or connection pool missing');
+
+  //   const readSelfColumnResult = await this.#readColumns.execute(
+  //     {
+  //       relationNames: [selfRelationName],
+  //       names: [dependencyRef.alias || dependencyRef.name],
+  //       targetOrgId: this.#targetOrgId,
+  //     },
+  //     this.#auth,
+  //     this.#connPool
+  //   );
+
+  //   if (!readSelfColumnResult.success)
+  //     throw new Error(readSelfColumnResult.error);
+  //   if (!readSelfColumnResult.value)
+  //     throw new ReferenceError(`Reading of dependency columns failed`);
+
+  //   const selfColumnMatches = readSelfColumnResult.value;
+
+  //   if (!selfColumnMatches.length) throw new RangeError('No self column found');
+
+  //   if (selfColumnMatches.length === 1) return selfColumnMatches[0];
+
+  //   throw new RangeError('0 or more than 1 selfColumns found');
+
+  //   // const parentName: string = parentRef.name.includes('$')
+  //   //   ? parentRef.name
+  //   //   : parentRef.alias || parentRef.name;
+
+  //   // const filterResult = readSelfColumnResult.value.filter(
+  //   //   (column) => column.name === parentName
+  //   // );
+
+  //   // if (filterResult.length !== 1)
+  //   //   throw new RangeError('0 or more than 1 selfColumns found');
+
+  //   // return filterResult[0];
+  // };
+
+  // #getParentId = async (
+  //   dependencyRef: ColumnRef,
+  //   parentRelationNames: string[]
+  // ): Promise<string> => {
+  //   if (!this.#auth || !this.#connPool)
+  //     throw new Error('auth or connection pool missing');
+
+  //   const readColumnsResult = await this.#readColumns.execute(
+  //     {
+  //       relationNames: parentRelationNames,
+  //       names: [dependencyRef.name],
+  //       targetOrgId: this.#targetOrgId,
+  //     },
+  //     this.#auth,
+  //     this.#connPool
+  //   );
+
+  //   if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
+  //   if (!readColumnsResult.value)
+  //     throw new ReferenceError(`Reading of parent columns failed`);
+
+  //   let potentialParents = readColumnsResult.value;
+
+  //   if (!potentialParents.length)
+  //     throw new ReferenceError('No parent found that matches reference');
+
+  //   if (potentialParents.length > 1) {
+  //     potentialParents = potentialParents.filter((parent) =>
+  //       parent.relationName.includes(dependencyRef.materializationName)
+  //     );
+  //   }
+  //   if (potentialParents.length !== 1)
+  //     throw new ReferenceError('More than one matching parent');
+
+  //   return potentialParents[0].id;
+  // };
 
   /* Creates dependency for specific wildcard ref */
-  #buildWildcardRefDependency = async (
-    dependencyRef: ColumnRef,
-    relationName: string,
-    parentRelationNames: string[]
-  ): Promise<void> => {
-    const connPool = this.#connPool;
-    const auth = this.#auth;
+  // #buildWildcardRefDependency = async (
+  //   dependencyRef: ColumnRef,
+  //   relationName: string,
+  //   parentRelationNames: string[]
+  // ): Promise<void> => {
+  //   const connPool = this.#connPool;
+  //   const auth = this.#auth;
 
-    if (!connPool || !auth) throw new Error('Connection pool or auth missing');
+  //   if (!connPool || !auth) throw new Error('Connection pool or auth missing');
 
-    const relationNameElements = relationName.split('.');
-    if (relationNameElements.length !== 3)
-      throw new RangeError('Unexpected number of dbt model id elements');
+  //   const relationNameElements = relationName.split('.');
+  //   if (relationNameElements.length !== 3)
+  //     throw new RangeError('Unexpected number of dbt model id elements');
 
-    const columnDependencyRefs = await this.#getDependenciesForWildcard(
-      dependencyRef
-    );
+  //   const columnDependencyRefs = await this.#getDependenciesForWildcard(
+  //     dependencyRef
+  //   );
 
-    // const isCreateDependencyResponse = (
-    //   item: CreateDependencyResponse | null
-    // ): item is CreateDependencyResponse => !!item;
+  //   // const isCreateDependenciesResponse = (
+  //   //   item: CreateDependenciesResponse | null
+  //   // ): item is CreateDependenciesResponse => !!item;
 
-    const createDependencyResults = await Promise.all(
-      columnDependencyRefs.map(
-        async (dependency): Promise<CreateDependencyResponse> => {
-          // if (this.#columnRefIsEqual(dependency, this.#lastQueryDependency))
-          //   return null;
+  //   const createDependenciesResults = await Promise.all(
+  //     columnDependencyRefs.map(
+  //       async (dependency): Promise<CreateDependenciesResponse> => {
+  //         // if (this.#columnRefIsEqual(dependency, this.#lastQueryDependency))
+  //         //   return null;
 
-          // if (dependency.dependencyType === DependencyType.QUERY)
-          //   this.#lastQueryDependency = dependency;
+  //         // if (dependency.dependencyType === DependencyType.QUERY)
+  //         //   this.#lastQueryDependency = dependency;
 
-          const createDependencyResult = await this.#createDependency.execute(
-            {
-              dependencyRef: dependency,
-              selfRelationName: relationName,
-              parentRelationNames,
-              targetOrgId: this.#targetOrgId,
-              writeToPersistence: false,
-            },
-            auth,
-            connPool
-          );
+  //         const headColumn = await this.#getSelfColumn(
+  //           req.selfRelationName,
+  //           req.dependencyRef
+  //         );
 
-          return createDependencyResult;
-        }
-      )
-    );
+  //         const parentId = await this.#getParentId(
+  //           req.dependencyRef,
+  //           req.parentRelationNames
+  //         );
 
-    // const onlyCreateDependencyResults = createDependencyResults.filter(
-    //   isCreateDependencyResponse
-    // );
+  //         const createDependenciesResult =
+  //           await this.#createDependencies.execute(
+  //             {
+  //               dependencyRef: dependency,
+  //               selfRelationName: relationName,
+  //               parentRelationNames,
+  //               targetOrgId: this.#targetOrgId,
+  //               writeToPersistence: false,
+  //             },
+  //             auth,
+  //             connPool
+  //           );
 
-    if (createDependencyResults.some((result) => !result.success)) {
-      const errorResults = createDependencyResults.filter(
-        (result) => result.error
-      );
-      throw new Error(errorResults[0].error);
-    }
+  //         return createDependenciesResult;
+  //       }
+  //     )
+  //   );
 
-    if (createDependencyResults.some((result) => !result.value))
-      console.warn(`Fix. Creation of dependencies failed. Skipped for now.`);
-    // throw new SyntaxError(`Creation of dependencies failed`);
+  //   // const onlyCreateDependenciesResults = createDependenciesResults.filter(
+  //   //   isCreateDependenciesResponse
+  //   // );
 
-    const isValue = (item: Dependency | undefined): item is Dependency =>
-      !!item;
+  //   if (createDependenciesResults.some((result) => !result.success)) {
+  //     const errorResults = createDependenciesResults.filter(
+  //       (result) => result.error
+  //     );
+  //     throw new Error(errorResults[0].error);
+  //   }
 
-    const values = createDependencyResults
-      .map((result) => result.value)
-      .filter(isValue);
+  //   if (createDependenciesResults.some((result) => !result.value))
+  //     console.warn(`Fix. Creation of dependencies failed. Skipped for now.`);
+  //   // throw new SyntaxError(`Creation of dependencies failed`);
 
-    this.#dependencies.push(...values);
-  };
+  //   const isValue = (item: Dependency | undefined): item is Dependency =>
+  //     !!item;
+
+  //   const values = createDependenciesResults
+  //     .map((result) => result.value)
+  //     .filter(isValue);
+
+  //   this.#dependencies.push(...values);
+  // };
 
   /* Creates dependency for specific column ref */
-  #buildColumnRefDependency = async (
-    dependencyRef: ColumnRef,
-    relationName: string,
-    parentRelationNames: string[]
-  ): Promise<void> => {
-    if (!this.#connPool || !this.#auth)
-      throw new Error('Connection pool or auth missing');
+  // #buildColumnRefDependency = async (
+  //   dependencyRef: ColumnRef,
+  //   relationName: string,
+  //   parentRelationNames: string[]
+  // ): Promise<void> => {
+  //   if (!this.#connPool || !this.#auth)
+  //     throw new Error('Connection pool or auth missing');
 
-    const relationNameElements = relationName.split('.');
-    if (relationNameElements.length !== 3)
-      throw new RangeError('Unexpected number of dbt model id elements');
+  //   const relationNameElements = relationName.split('.');
+  //   if (relationNameElements.length !== 3)
+  //     throw new RangeError('Unexpected number of dbt model id elements');
 
-    const createDependencyResult = await this.#createDependency.execute(
-      {
-        dependencyRef,
-        selfRelationName: relationName,
-        parentRelationNames,
-        targetOrgId: this.#targetOrgId,
-        writeToPersistence: false,
-      },
-      this.#auth,
-      this.#connPool
-    );
+  //   const createDependenciesResult = await this.#createDependencies.execute(
+  //     {
+  //       dependencyRef,
+  //       selfRelationName: relationName,
+  //       parentRelationNames,
+  //       targetOrgId: this.#targetOrgId,
+  //       writeToPersistence: false,
+  //     },
+  //     this.#auth,
+  //     this.#connPool
+  //   );
 
-    if (!createDependencyResult.success)
-      throw new Error(createDependencyResult.error);
-    if (!createDependencyResult.value) {
-      console.warn(`Creating dependency failed`);
-      return;
-    }
-    // throw new ReferenceError(`Creating dependency failed`);
+  //   if (!createDependenciesResult.success)
+  //     throw new Error(createDependenciesResult.error);
+  //   if (!createDependenciesResult.value) {
+  //     console.warn(`Creating dependency failed`);
+  //     return;
+  //   }
+  //   // throw new ReferenceError(`Creating dependency failed`);
 
-    const dependency = createDependencyResult.value;
+  //   const dependency = createDependenciesResult.value;
 
-    this.#dependencies.push(dependency);
-  };
+  //   this.#dependencies.push(dependency);
+  // };
 
-  #getDependenciesForWildcard = async (
-    dependencyRef: ColumnRef
-  ): Promise<ColumnRef[]> => {
-    if (!this.#connPool || !this.#catalog || !this.#auth)
-      throw new Error('Connection pool or catalog missing');
+  // #getDependenciesForWildcard = async (
+  //   dependencyRef: ColumnRef
+  // ): Promise<ColumnRef[]> => {
+  //   if (!this.#connPool || !this.#catalog || !this.#auth)
+  //     throw new Error('Connection pool or catalog missing');
 
-    const catalogMatches = this.#catalog.filter((catalogEl) => {
-      const nameIsEqual =
-        dependencyRef.materializationName === catalogEl.materializationName;
-      const schemaNameIsEqual =
-        !dependencyRef.schemaName ||
-        dependencyRef.schemaName === catalogEl.schemaName;
+  //   const catalogMatches = this.#catalog.filter((catalogEl) => {
+  //     const nameIsEqual =
+  //       dependencyRef.materializationName === catalogEl.materializationName;
+  //     const schemaNameIsEqual =
+  //       !dependencyRef.schemaName ||
+  //       dependencyRef.schemaName === catalogEl.schemaName;
 
-      const databaseNameIsEqual =
-        !dependencyRef.databaseName ||
-        dependencyRef.databaseName === catalogEl.databaseName;
+  //     const databaseNameIsEqual =
+  //       !dependencyRef.databaseName ||
+  //       dependencyRef.databaseName === catalogEl.databaseName;
 
-      return nameIsEqual && schemaNameIsEqual && databaseNameIsEqual;
-    });
+  //     return nameIsEqual && schemaNameIsEqual && databaseNameIsEqual;
+  //   });
 
-    if (catalogMatches.length !== 1) {
-      console.warn(
-        'todo - fix. Error in wildcard dependency generation. Skipped for now'
-      );
-      return [];
-      //   throw new RangeError(
-      //   'Inconsistencies in materialization dependency catalog'
-      // );
-    }
+  //   if (catalogMatches.length !== 1) {
+  //     console.warn(
+  //       'todo - fix. Error in wildcard dependency generation. Skipped for now'
+  //     );
+  //     return [];
+  //     //   throw new RangeError(
+  //     //   'Inconsistencies in materialization dependency catalog'
+  //     // );
+  //   }
 
-    const { relationName } = catalogMatches[0];
+  //   const { relationName } = catalogMatches[0];
 
-    const readColumnsResult = await this.#readColumns.execute(
-      {
-        relationNames: [relationName],
-        targetOrgId: this.#targetOrgId,
-      },
-      this.#auth,
-      this.#connPool
-    );
+  //   const readColumnsResult = await this.#readColumns.execute(
+  //     {
+  //       relationNames: [relationName],
+  //       targetOrgId: this.#targetOrgId,
+  //     },
+  //     this.#auth,
+  //     this.#connPool
+  //   );
 
-    if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
-    if (!readColumnsResult.value)
-      throw new ReferenceError(`Reading of columns failed`);
+  //   if (!readColumnsResult.success) throw new Error(readColumnsResult.error);
+  //   if (!readColumnsResult.value)
+  //     throw new ReferenceError(`Reading of columns failed`);
 
-    const colsFromWildcard = readColumnsResult.value;
+  //   const colsFromWildcard = readColumnsResult.value;
 
-    const dependencies = colsFromWildcard.map((column) => ({
-      ...dependencyRef,
-      name: column.name,
-    }));
+  //   const dependencies = colsFromWildcard.map((column) => ({
+  //     ...dependencyRef,
+  //     name: column.name,
+  //   }));
 
-    return dependencies;
-  };
+  //   return dependencies;
+  // };
 
   /* Creates all dependencies that exist between DWH resources */
   async execute(
@@ -462,93 +537,98 @@ export class BuildDbtDependencies
     connPool: IConnectionPool
   ): Promise<BuildDbtDependenciesResponse> {
     try {
-      this.#connPool = connPool;
-      this.#auth = auth;
-      this.#mats = req.mats;
-      this.#columns = req.columns;
-      this.#logics = req.logics;
-      this.#catalog = req.catalog;
-      this.#targetOrgId = req.targetOrgId;
+      console.log(req.constructor.name);
+      console.log(auth.constructor.name);
+      console.log(connPool.constructor.name);
 
-      const querySfQueryHistory: SnowflakeQueryResult | undefined =
-        req.biToolType
-          ? await this.#retrieveQuerySfQueryHistory(req.biToolType)
-          : undefined;
+      throw new Error('not implemented');
+      //   this.#connPool = connPool;
+      //   this.#auth = auth;
+      //   this.#mats = req.mats;
+      //   this.#columns = req.columns;
+      //   this.#logics = req.logics;
+      //   this.#catalog = req.catalog;
+      //   this.#targetOrgId = req.targetOrgId;
 
-      await Promise.all(
-        this.#logics.map(async (logic) => {
-          const colDataDependencyRefs =
-            BuildDbtDependencies.#getColDataDependencyRefs(logic.statementRefs);
-          await Promise.all(
-            colDataDependencyRefs.map(async (dependencyRef) =>
-              this.#buildColumnRefDependency(
-                dependencyRef,
-                logic.relationName,
-                logic.dependentOn.dbtDependencyDefinitions
-                  .concat(logic.dependentOn.dwDependencyDefinitions)
-                  .map((element) => element.relationName)
-              )
-            )
-          );
+      //   const querySfQueryHistory: SnowflakeQueryResult | undefined =
+      //     req.biToolType
+      //       ? await this.#retrieveQuerySfQueryHistory(req.biToolType)
+      //       : undefined;
 
-          const wildcardDataDependencyRefs =
-            BuildDbtDependencies.#getWildcardDataDependencyRefs(
-              logic.statementRefs
-            );
+      //   await Promise.all(
+      //     this.#logics.map(async (logic) => {
+      //       const colDataDependencyRefs =
+      //         BuildDbtDependencies.#getColDataDependencyRefs(logic.statementRefs);
+      //       await Promise.all(
+      //         colDataDependencyRefs.map(async (dependencyRef) =>
+      //           this.#buildColumnRefDependency(
+      //             dependencyRef,
+      //             logic.relationName,
+      //             logic.dependentOn.dbtDependencyDefinitions
+      //               .concat(logic.dependentOn.dwDependencyDefinitions)
+      //               .map((element) => element.relationName)
+      //           )
+      //         )
+      //       );
 
-          await Promise.all(
-            wildcardDataDependencyRefs.map(async (dependencyRef) =>
-              this.#buildWildcardRefDependency(
-                dependencyRef,
-                logic.relationName,
-                logic.dependentOn.dbtDependencyDefinitions
-                  .concat(logic.dependentOn.dwDependencyDefinitions)
-                  .map((element) => element.relationName)
-              )
-            )
-          );
+      //       const wildcardDataDependencyRefs =
+      //         BuildDbtDependencies.#getWildcardDataDependencyRefs(
+      //           logic.statementRefs
+      //         );
 
-          if (req.biToolType && querySfQueryHistory) {
-            const dashboardDataDependencyRefs =
-              await BuildDbtDependencies.#getDashboardDataDependencyRefs(
-                logic.statementRefs,
-                querySfQueryHistory,
-                req.biToolType
-              );
+      //       await Promise.all(
+      //         wildcardDataDependencyRefs.map(async (dependencyRef) =>
+      //           this.#buildWildcardRefDependency(
+      //             dependencyRef,
+      //             logic.relationName,
+      //             logic.dependentOn.dbtDependencyDefinitions
+      //               .concat(logic.dependentOn.dwDependencyDefinitions)
+      //               .map((element) => element.relationName)
+      //           )
+      //         )
+      //       );
 
-            const uniqueDashboardRefs = dashboardDataDependencyRefs.filter(
-              (value, index, self) =>
-                index ===
-                self.findIndex((dashboard) =>
-                  typeof dashboard.name === 'string' &&
-                  typeof value.name === 'string'
-                    ? dashboard.name === value.name
-                    : dashboard.name === value.name &&
-                      dashboard.columnName === value.columnName &&
-                      dashboard.materializationName ===
-                        value.materializationName
-                )
-            );
+      //       if (req.biToolType && querySfQueryHistory) {
+      //         const dashboardDataDependencyRefs =
+      //           await BuildDbtDependencies.#getDashboardDataDependencyRefs(
+      //             logic.statementRefs,
+      //             querySfQueryHistory,
+      //             req.biToolType
+      //           );
 
-            await Promise.all(
-              uniqueDashboardRefs.map(async (dashboardRef) =>
-                this.#buildDashboardRefDependency(
-                  dashboardRef,
-                  logic.relationName,
-                  logic.dependentOn.dbtDependencyDefinitions.map(
-                    (element) => element.relationName
-                  )
-                )
-              )
-            );
-          }
-        })
-      );
+      //         const uniqueDashboardRefs = dashboardDataDependencyRefs.filter(
+      //           (value, index, self) =>
+      //             index ===
+      //             self.findIndex((dashboard) =>
+      //               typeof dashboard.name === 'string' &&
+      //               typeof value.name === 'string'
+      //                 ? dashboard.name === value.name
+      //                 : dashboard.name === value.name &&
+      //                   dashboard.columnName === value.columnName &&
+      //                   dashboard.materializationName ===
+      //                     value.materializationName
+      //             )
+      //         );
 
-      return Result.ok({
-        dashboards: this.#dashboards,
-        dependencies: this.#dependencies,
-      });
+      //         await Promise.all(
+      //           uniqueDashboardRefs.map(async (dashboardRef) =>
+      //             this.#buildDashboardRefDependency(
+      //               dashboardRef,
+      //               logic.relationName,
+      //               logic.dependentOn.dbtDependencyDefinitions.map(
+      //                 (element) => element.relationName
+      //               )
+      //             )
+      //           )
+      //         );
+      //       }
+      //     })
+      //   );
+
+      //   return Result.ok({
+      //     dashboards: this.#dashboards,
+      //     dependencies: this.#dependencies,
+      //   });
     } catch (error: unknown) {
       if (error instanceof Error) console.error(error.stack);
       else if (error) console.trace(error);

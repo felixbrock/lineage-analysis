@@ -148,7 +148,7 @@ interface HandlerReturn {
 }
 
 export interface DashboardRef {
-  url?: string;
+  url: string;
   name?: string;
   materializationName: string;
   materializationId: string;

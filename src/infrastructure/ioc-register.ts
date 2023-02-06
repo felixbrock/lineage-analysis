@@ -18,14 +18,13 @@ import { ReadMaterialization } from '../domain/materialization/read-materializat
 import LineageRepo from './persistence/lineage-repo';
 import { ReadDependencies } from '../domain/dependency/read-dependencies';
 import DependencyRepo from './persistence/dependency-repo';
-import { CreateDependency } from '../domain/dependency/create-dependency';
+import { CreateDependencies } from '../domain/dependency/create-dependencies';
 import { ReadLineage } from '../domain/lineage/read-lineage';
 import { ReadLogic } from '../domain/logic/read-logic';
 import { QuerySfQueryHistory } from '../domain/snowflake-api/query-snowflake-history';
-import { CreateExternalDependency } from '../domain/dependency/create-external-dependency';
 import DashboardRepo from './persistence/dashboard-repo';
 import { ReadDashboards } from '../domain/dashboard/read-dashboards';
-import { CreateDashboard } from '../domain/dashboard/create-dashboard';
+import { CreateDashboards } from '../domain/dashboard/create-dashboards';
 import SnowflakeApiRepo from './persistence/snowflake-api-repo';
 import IntegrationApiRepo from './persistence/integration-api-repo';
 import { QuerySnowflake } from '../domain/snowflake-api/query-snowflake';
@@ -44,9 +43,8 @@ iocRegister.register({
   createLogic: asClass(CreateLogic),
   createMaterialization: asClass(CreateMaterialization),
   createColumn: asClass(CreateColumn),
-  createDependency: asClass(CreateDependency),
-  createExternalDependency: asClass(CreateExternalDependency),
-  createDashboard: asClass(CreateDashboard),
+  CreateDependencies: asClass(CreateDependencies),
+  createDashboards: asClass(CreateDashboards),
 
   readMaterialization: asClass(ReadMaterialization),
   readLineage: asClass(ReadLineage),

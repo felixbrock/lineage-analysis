@@ -72,10 +72,6 @@ export default class DashboardRepo
       id,
       name,
       url,
-      materializationName,
-      materializationId,
-      columnName,
-      columnId,
     };
   };
 
@@ -83,10 +79,6 @@ export default class DashboardRepo
     entity.id,
     entity.name || 'null',
     entity.url || 'null',
-    entity.materializationName,
-    entity.materializationId,
-    entity.columnName,
-    entity.columnId,
   ];
 
   buildFindByQuery(dto: DashboardQueryDto): Query {
