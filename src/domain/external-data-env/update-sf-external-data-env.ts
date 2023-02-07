@@ -2,7 +2,6 @@ import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import BaseAuth from '../services/base-auth';
 import {
-  ColToDeleteRef,
   ExternalDataEnvProps,
   LogicToDeleteRef,
   MatToDeleteRef,
@@ -32,6 +31,7 @@ export interface UpdateSfExternalDataEnvRequestDto {
     completedAt: string;
     dbCoveredNames: string[];
   };
+  targetOrgId?: string;
 }
 
 export interface UpdateSfExternalDataEnvAuthDto
@@ -627,6 +627,34 @@ export class UpdateSfExternalDataEnv
     connPool: IConnectionPool
   ): Promise<UpdateSfExternalDataEnvResponse> {
     try {
+      /* 
+1. Get all dashboards from sf
+2. Delete all external dependencies in sf
+3. Generate new dashboards and dependencies
+identify dashboards to replace and dashboards to delete
+*/
+      this.connPool = connPool;
+      this.auth = auth;
+      this.targetOrgId = req.targetOrgId;
+
+      const sfObjDependencies = await this.getSfObjectDependencies();
+
+      const matReps = await this.getAllCitoMatReps();
+
+      await this.buildDataDependencies(sfObjDependencies, matReps);
+
+      if (req.biToolType) await this.buildBiResources(req.biToolType, matReps);
+
+      return Result.ok({
+        dataEnv: {
+          dashboardsToCreate: this.dashboards,
+          dashboardsToReplace: [],
+          dashboardToDeleteRefs: [],
+          dependenciesToCreate: this.dependencies,
+          dependencyToDeleteRefs: [],
+        },
+      });
+
       this.auth = auth;
       this.connPool = connPool;
 

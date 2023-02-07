@@ -1,447 +1,243 @@
-import { CreateColumn } from '../column/create-column';
-import {
-  Column,
-  ColumnDataType,
-  parseColumnDataType,
-} from '../entities/column';
-import { Logic, ModelRepresentation } from '../entities/logic';
-import {
-  Materialization,
-  MaterializationType,
-  parseMaterializationType,
-} from '../entities/materialization';
-import { CreateLogic } from '../logic/create-logic';
-import { CreateMaterialization } from '../materialization/create-materialization';
+import { v4 as uuidv4 } from 'uuid';
+import { CreateDashboards } from '../dashboard/create-dashboards';
+import { CreateDependencies } from '../dependency/create-dependencies';
+import { Dashboard } from '../entities/dashboard';
+import { Dependency, DependencyType } from '../entities/dependency';
 import BaseAuth from '../services/base-auth';
-import { Binds, IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
+import {
+  IConnectionPool,
+  SnowflakeQueryResult,
+} from '../snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../snowflake-api/query-snowflake';
-import { ParseSQL } from '../sql-parser-api/parse-sql';
+import {
+  QuerySfQueryHistory,
+  QuerySfQueryHistoryResponseDto,
+} from '../snowflake-api/query-snowflake-history';
+import { BiToolType } from '../value-types/bi-tool';
+
+export type GenerateSfExternalDataEnvRequestDto = {
+  targetOrgId?: string;
+  biToolType?: BiToolType;
+};
+
+interface CitoMatRepresentation {
+  id: string;
+  relationName: string;
+}
+
+export interface DashboardRef {
+  url: string;
+  name?: string;
+  materializationName: string;
+  materializationId: string;
+  columnName?: string;
+  columnId?: string;
+}
+
+export type Auth = BaseAuth;
+
+type BuildBiResourcesResult = {
+  dashboards: Dashboard[];
+  dependencies: Dependency[];
+};
 
 export default abstract class BaseGetSfExternalDataEnv {
-  readonly querySnowflake: QuerySnowflake;
+  readonly #createDashboards: CreateDashboards;
 
-  protected connPool?: IConnectionPool;
+  readonly #createDependencies: CreateDependencies;
+
+  readonly #querySfQueryHistory: QuerySfQueryHistory;
+
+  protected readonly querySnowflake: QuerySnowflake;
 
   protected auth?: Auth;
 
-  constructor(querySnowflake: QuerySnowflake) {
+  protected targetOrgId?: string;
+
+  protected connPool?: IConnectionPool;
+
+  constructor(
+    querySnowflake: QuerySnowflake,
+    querySfQueryHistory: QuerySfQueryHistory,
+    createDashboards: CreateDashboards,
+    createDependencies: CreateDependencies
+  ) {
     this.querySnowflake = querySnowflake;
+    this.#querySfQueryHistory = querySfQueryHistory;
+    this.#createDashboards = createDashboards;
+    this.#createDependencies = createDependencies;
   }
 
-  /* Get database representations from snowflake */
-  protected getDbRepresentations = async (
-    connPool: IConnectionPool,
-    auth: BaseAuth
-  ): Promise<DatabaseRepresentation[]> => {
-    const dbsToIgnore = ['snowflake', 'snowflake_sample_data', 'cito'];
+  protected retrieveQuerySfQueryHistory = async (
+    biType: BiToolType
+  ): Promise<SnowflakeQueryResult> => {
+    if (!this.connPool || !this.auth)
+      throw new Error('connection pool or auth missing');
 
-    const queryText = `select database_name, database_owner, is_transient, comment from cito.information_schema.databases where not array_contains(lower(database_name)::variant, array_construct(${dbsToIgnore
-      .map((el) => `'${el}'`)
-      .join(', ')}))`;
-    const queryResult = await this.querySnowflake.execute(
-      { queryText, binds: [] },
-      auth,
-      connPool
-    );
-    if (!queryResult.success) {
-      throw new Error(queryResult.error);
-    }
-    if (!queryResult.value) throw new Error('Query did not return a value');
+    const querySfQueryHistoryResult: QuerySfQueryHistoryResponseDto =
+      await this.#querySfQueryHistory.execute(
+        {
+          biType,
+          limit: 10,
+          targetOrgId: this.targetOrgId,
+        },
+        this.auth,
+        this.connPool
+      );
 
-    const results = queryResult.value;
+    if (!querySfQueryHistoryResult.success)
+      throw new Error(querySfQueryHistoryResult.error);
+    if (!querySfQueryHistoryResult.value)
+      throw new SyntaxError(`Retrival of query history failed`);
 
-    const dbRepresentations: DatabaseRepresentation[] = results.map((el) => {
-      const {
-        DATABASE_NAME: name,
-        DATABASE_OWNER: ownerId,
-        IS_TRANSIENT: isTransient,
-        COMMENT: comment,
-      } = el;
-
-      const isComment = (val: unknown): val is string | undefined =>
-        !val || typeof val === 'string';
-
-      if (
-        typeof name !== 'string' ||
-        typeof ownerId !== 'string' ||
-        typeof isTransient !== 'string' ||
-        !['yes', 'no'].includes(isTransient.toLowerCase()) ||
-        !isComment(comment)
-      )
-        throw new Error(
-          'Received mat representation field value in unexpected format'
-        );
-
-      return {
-        name,
-        ownerId,
-        isTransient: isTransient.toLowerCase() !== 'no',
-        comment: comment || undefined,
-      };
-    });
-
-    return dbRepresentations;
+    return querySfQueryHistoryResult.value;
   };
 
-  /* Get materialization representations from snowflake */
-  protected getMatRepresentations = async (
-    targetDbName: string,
-    whereCondition: string,
-    binds: Binds
-  ): Promise<MaterializationRepresentation[]> => {
-    if (!this.connPool || !this.auth)
-      throw new Error('Missing properties for generating sf data env');
+  /* Get all relevant dashboards that are data dependency to self materialization */
+  protected readDashboardRefs = async (
+    matRepresentations: CitoMatRepresentation[],
+    querySfQueryHistoryResult: SnowflakeQueryResult,
+    biTool: BiToolType
+  ): Promise<DashboardRef[]> => {
+    const dependentDashboards: DashboardRef[] = [];
 
-    const queryText = `select table_catalog, table_schema, table_name, table_owner, table_type, is_transient, comment  from "${targetDbName}".information_schema.tables ${
-      whereCondition ? 'where' : ''
-    } ${whereCondition};`;
-    const queryResult = await this.querySnowflake.execute(
-      { queryText, binds },
-      this.auth,
-      this.connPool
-    );
-    if (!queryResult.success) {
-      throw new Error(queryResult.error);
-    }
-    if (!queryResult.value) throw new Error('Query did not return a value');
+    matRepresentations.forEach((matRep) => {
+      querySfQueryHistoryResult.forEach((entry) => {
+        const queryText = entry.QUERY_TEXT;
+        if (typeof queryText !== 'string')
+          throw new Error('Retrieved bi layer query text not in string format');
 
-    const results = queryResult.value;
-
-    const matRepresentations: MaterializationRepresentation[] = results.map(
-      (el) => {
-        const {
-          TABLE_CATALOG: databaseName,
-          TABLE_SCHEMA: schemaName,
-          TABLE_NAME: name,
-          TABLE_OWNER: ownerId,
-          TABLE_TYPE: type,
-          IS_TRANSIENT: isTransient,
-          COMMENT: comment,
-        } = el;
-
-        const isComment = (val: unknown): val is string | undefined =>
-          !val || typeof val === 'string';
-        const isOwnerId = (val: unknown): val is string | undefined =>
-          !val || typeof val === 'string';
-        const isIsTransientVal = (val: unknown): val is string | undefined =>
-          !val ||
-          (typeof val === 'string' &&
-            ['yes', 'no'].includes(val.toLowerCase()));
+        const testUrl = queryText.match(/"(https?:[^\s]+),/);
+        const dashboardUrl = testUrl
+          ? testUrl[1]
+          : `${biTool} dashboard: ${uuidv4()}`;
 
         if (
-          typeof databaseName !== 'string' ||
-          typeof schemaName !== 'string' ||
-          typeof name !== 'string' ||
-          typeof type !== 'string' ||
-          !isIsTransientVal(isTransient) ||
-          !isComment(comment) ||
-          !isOwnerId(ownerId)
+          queryText.includes(matRep.relationName) ||
+          (matRep.relationName.toLowerCase() === matRep.relationName &&
+            queryText.includes(matRep.relationName.toUpperCase()))
         )
-          throw new Error(
-            'Received mat representation field value in unexpected format'
-          );
-
-        return {
-          databaseName,
-          schemaName,
-          name,
-          relationName: `${databaseName}.${schemaName}.${name}`,
-          type: parseMaterializationType(type.toLowerCase()),
-          ownerId: ownerId || undefined,
-          isTransient: isTransient
-            ? isTransient.toLowerCase() !== 'no'
-            : undefined,
-          comment: comment || undefined,
-        };
-      }
-    );
-
-    return matRepresentations;
-  };
-
-  /* Get column representations from snowflake */
-  protected getColumnRepresentations = async (
-    targetDbName: string,
-    whereCondition: string,
-    binds: Binds
-  ): Promise<ColumnRepresentation[]> => {
-    if (!this.connPool || !this.auth)
-      throw new Error('Missing properties for generating sf data env');
-
-    const queryText = `select table_catalog, table_schema, table_name, column_name, ordinal_position, is_nullable, data_type, is_identity, comment from "${targetDbName}".information_schema.columns ${
-      whereCondition ? 'where' : ''
-    } ${whereCondition}`;
-    const queryResult = await this.querySnowflake.execute(
-      { queryText, binds },
-      this.auth,
-      this.connPool
-    );
-    if (!queryResult.success) {
-      throw new Error(queryResult.error);
-    }
-    if (!queryResult.value) throw new Error('Query did not return a value');
-
-    const results = queryResult.value;
-
-    const columnRepresentations: ColumnRepresentation[] = results.map((el) => {
-      const {
-        TABLE_CATALOG: databaseName,
-        TABLE_SCHEMA: schemaName,
-        TABLE_NAME: matName,
-        COLUMN_NAME: name,
-        ORDINAL_POSITION: index,
-        IS_NULLABLE: isNullable,
-        DATA_TYPE: dataType,
-        IS_IDENTITY: isIdentity,
-        COMMENT: comment,
-      } = el;
-
-      const isIsIdentityVal = (val: unknown): val is string | undefined =>
-        !val ||
-        (typeof val === 'string' && ['yes', 'no'].includes(val.toLowerCase()));
-      const isIsNullableVal = (val: unknown): val is string | undefined =>
-        !val ||
-        (typeof val === 'string' && ['yes', 'no'].includes(val.toLowerCase()));
-      const isComment = (val: unknown): val is string | undefined =>
-        !val || typeof val === 'string';
-
-      if (
-        typeof databaseName !== 'string' ||
-        typeof schemaName !== 'string' ||
-        typeof matName !== 'string' ||
-        typeof name !== 'string' ||
-        typeof index !== 'number' ||
-        typeof dataType !== 'string' ||
-        !isIsNullableVal(isNullable) ||
-        !isIsIdentityVal(isIdentity) ||
-        !isComment(comment)
-      )
-        throw new Error(
-          'Received column representation field value in unexpected format'
-        );
-
-      return {
-        relationName: `${databaseName}.${schemaName}.${matName}`,
-        name,
-        index: index.toString(),
-        dataType: parseColumnDataType(dataType),
-        isIdentity: isIdentity ? isIdentity.toLowerCase() !== 'no' : undefined,
-        isNullable: isNullable ? isNullable.toLowerCase() !== 'no' : undefined,
-        comment: comment || undefined,
-      };
+          dependentDashboards.push({
+            url: dashboardUrl,
+            materializationName: matRep.relationName,
+            materializationId: matRep.id,
+          });
+      });
     });
-
-    return columnRepresentations;
+    return dependentDashboards;
   };
 
-  #generateColumn = async (
-    columnRepresentation: ColumnRepresentation,
-    matId: string
-  ): Promise<Column> => {
+  protected buildDashboardRefDependencies = async (
+    dashboardRefs: DashboardRef[]
+  ): Promise<BuildBiResourcesResult> => {
     if (!this.connPool || !this.auth)
-      throw new Error('Missing properties for generating sf data env');
+      throw new Error('Build dependency field values missing');
 
-    const createColumnResult = await this.#createColumn.execute(
+    const uniqueDashboardRefs = dashboardRefs.filter(
+      (dashboardRef, i, self) =>
+        i === self.findIndex((el) => el.url === dashboardRef.url)
+    );
+
+    const createDashboardResult = await this.#createDashboards.execute(
       {
-        relationName: columnRepresentation.relationName,
-        name: columnRepresentation.name,
-        index: columnRepresentation.index,
-        dataType: columnRepresentation.dataType,
-        materializationId: matId,
-        isIdentity: columnRepresentation.isIdentity,
-        isNullable: columnRepresentation.isNullable,
-        comment: columnRepresentation.comment,
+        toCreate: uniqueDashboardRefs.map((dashboardRef) => ({
+          url: dashboardRef.url,
+        })),
+        targetOrgId: this.targetOrgId,
         writeToPersistence: false,
       },
       this.auth,
       this.connPool
     );
 
-    if (!createColumnResult.success) throw new Error(createColumnResult.error);
-    if (!createColumnResult.value)
-      throw new SyntaxError(`Creation of column failed`);
+    if (!createDashboardResult.success)
+      throw new Error(createDashboardResult.error);
+    if (!createDashboardResult.value)
+      throw new Error('Creating dashboard failed');
 
-    return createColumnResult.value;
-  };
+    const dashboards = createDashboardResult.value;
 
-  /* Get logic representations from Snowflake */
-  protected getLogicRepresentation = async (
-    ddlObjectType: 'table' | 'view',
-    matName: string,
-    schemaName: string,
-    dbName: string
-  ): Promise<LogicRepresentation> => {
-    const foo = 'Lineage';
-    return {
-      sql: `${foo} SQL model placeholder for ${ddlObjectType} ${dbName}.${schemaName}.${matName}`,
-    };
+    const toCreate = dashboardRefs.map(
+      (
+        dashboardRef
+      ): { headId: string; tailId: string; type: DependencyType } => {
+        const dashboard = dashboards.find((el) => el.url === dashboardRef.url);
 
-    // const binds = [ddlObjectType, `${dbName}.${schemaName}.${matName}`];
-    // const queryText = `select get_ddl(?, ?, true) as sql`;
-    // const queryResult = await this.querySnowflake.execute(
-    //   { queryText, binds, profile: this.#profile },
-    //   this.#auth
-    // );
-    // if (!queryResult.success) {
-    //   throw new Error(queryResult.error);
-    // }
-    // if (!queryResult.value) throw new Error('Query did not return a value');
+        if (!dashboard) throw new Error('Dashboard not found');
 
-    // const results = queryResult.value;
+        return {
+          headId: dashboard.id,
+          tailId: dashboardRef.materializationId,
+          type: 'external',
+        };
+      }
+    );
 
-    // if (results.length !== 1)
-    //   throw new Error('No or multiple sql logic instances returned for mat');
-
-    // const { SQL: sql } = results[0];
-
-    // if (typeof sql !== 'string')
-    //   throw new Error(
-    //     'Received mat representation field value in unexpected format'
-    //   );
-
-    // return { sql };
-  };
-
-  /* Sends sql to parse SQL microservices and receives parsed SQL logic back */
-  // #parseLogic = async (sql: string): Promise<string> => {
-  //   const parseSQLResult: ParseSQLResponseDto = await this.#parseSQL.execute({
-  //     dialect: 'snowflake',
-  //     sql,
-  //   });
-
-  //   if (!parseSQLResult.success) throw new Error(parseSQLResult.error);
-  //   if (!parseSQLResult.value)
-  //     throw new SyntaxError(`Parsing of SQL logic failed`);
-
-  //   return JSON.stringify(parseSQLResult.value);
-  // };
-
-  #generateLogic = async (
-    logicRepresentation: LogicRepresentation,
-    relationName: string
-  ): Promise<Logic> => {
-    if (!this.connPool || !this.auth)
-      throw new Error('Missing properties for generating sf data env');
-
-    // const parsedLogic = logicRepresentation.sql
-    //   ? await this.#parseLogic(logicRepresentation.sql)
-    //   : '';
-
-    const parsedLogic = JSON.stringify({ file: [{}, {}] });
-
-    const createLogicResult = await this.#createLogic.execute(
+    const createDependeciesResult = await this.#createDependencies.execute(
       {
-        props: {
-          generalProps: {
-            relationName,
-            sql: logicRepresentation.sql,
-            parsedLogic,
-            catalog: this.catalog,
-          },
-        },
-        options: {
-          writeToPersistence: false,
-        },
+        toCreate,
+        targetOrgId: this.targetOrgId,
+        writeToPersistence: false,
       },
       this.auth,
       this.connPool
     );
 
-    if (!createLogicResult.success) throw new Error(createLogicResult.error);
-    if (!createLogicResult.value)
-      throw new SyntaxError(`Creation of logic failed`);
+    if (!createDependeciesResult.success)
+      throw new Error(createDependeciesResult.error);
+    if (!createDependeciesResult.value)
+      throw new ReferenceError(`Creating external dependency failed`);
 
-    const logic = createLogicResult.value;
-
-    return logic;
+    const dependencies = createDependeciesResult.value;
+    return { dashboards, dependencies };
   };
 
-  protected generateCatalog = (
-    matRepresentations: MaterializationRepresentation[],
-    colRepresentationsByRelationName: {
-      [key: string]: ColumnRepresentation[];
-    }
-  ): ModelRepresentation[] =>
-    matRepresentations.map(
-      (el): ModelRepresentation => ({
-        relationName: el.relationName,
-        materializationName: el.name,
-        schemaName: el.schemaName,
-        databaseName: el.databaseName,
-        columnNames: colRepresentationsByRelationName[el.relationName].map(
-          (colRep) => colRep.name
-        ),
-      })
+  protected buildBiResources = async (
+    biToolType: BiToolType
+  ): Promise<BuildBiResourcesResult> => {
+    const querySfQueryHistory = await this.retrieveQuerySfQueryHistory(
+      biToolType
     );
 
-  /* Creates materialization object and its column objects */
-  protected generateDWResource = async (
-    resourceProps: {
-      matRepresentation: MaterializationRepresentation;
-      logicRepresentation: LogicRepresentation;
-      columnRepresentations: ColumnRepresentation[];
-      relationName: string;
-    },
-    options: { writeToPersistence: boolean }
-  ): Promise<{
-    matToCreate: Materialization;
-    colsToCreate: Column[];
-    logicToCreate: Logic;
-  }> => {
+    const matReps = await this.getAllCitoMatReps();
+
+    const dashboardRefs = await this.readDashboardRefs(
+      matReps,
+      querySfQueryHistory,
+      biToolType
+    );
+
+    const result = await this.buildDashboardRefDependencies(dashboardRefs);
+
+    return result;
+  };
+
+  protected getAllCitoMatReps = async (): Promise<CitoMatRepresentation[]> => {
     if (!this.connPool || !this.auth)
       throw new Error('Missing properties for generating sf data env');
 
-    const { matRepresentation, columnRepresentations, logicRepresentation } =
-      resourceProps;
-
-    const logic = await this.#generateLogic(
-      logicRepresentation,
-      resourceProps.relationName
+    const queryText = `select id, relation_name * from cito.lineage.materializations;`;
+    const queryResult = await this.querySnowflake.execute(
+      { queryText, binds: [] },
+      this.auth,
+      this.connPool
     );
-
-    const createMaterializationResult =
-      await this.#createMaterialization.execute(
-        {
-          ...matRepresentation,
-          relationName: resourceProps.relationName,
-          writeToPersistence: options.writeToPersistence,
-          logicId: logic.id,
-        },
-        this.auth,
-        this.connPool
-      );
-
-    if (!createMaterializationResult.success)
-      throw new Error(createMaterializationResult.error);
-    if (!createMaterializationResult.value)
-      throw new SyntaxError(`Creation of materialization failed`);
-
-    const materialization = createMaterializationResult.value;
-
-    const generatedColumns = await Promise.all(
-      columnRepresentations.map(async (el) =>
-        this.#generateColumn(el, materialization.id)
-      )
-    );
-
-    return {
-      matToCreate: materialization,
-      colsToCreate: generatedColumns,
-      logicToCreate: logic,
-    };
-  };
-
-  protected groupByRelationName = <T extends { relationName: string }>(
-    accumulation: { [key: string]: T[] },
-    element: T
-  ): { [key: string]: T[] } => {
-    const localAcc = accumulation;
-
-    const key = element.relationName;
-    if (!(key in accumulation)) {
-      localAcc[key] = [];
+    if (!queryResult.success) {
+      throw new Error(queryResult.error);
     }
-    localAcc[key].push(element);
-    return localAcc;
+    if (!queryResult.value) throw new Error('Query did not return a value');
+
+    const mats = queryResult.value;
+
+    return mats.map((el): CitoMatRepresentation => {
+      const { ID: id, RELATION_NAME: relationName } = el;
+
+      if (typeof id !== 'string' || typeof relationName !== 'string')
+        throw new Error(
+          'Received unexpected mat representation from Snowflake'
+        );
+
+      return { id, relationName };
+    });
   };
 }

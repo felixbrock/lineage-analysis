@@ -1,4 +1,5 @@
 import { Column } from '../entities/column';
+import { Dependency } from '../entities/dependency';
 import { Logic, ModelRepresentation } from '../entities/logic';
 import { Materialization } from '../entities/materialization';
 
@@ -32,11 +33,17 @@ export interface DataEnvDto {
 }
 
 export interface DataEnv {
-  dashboardsToCreate: Dashboard[];
-  dashboardsToReplace: Dashboard[];
-  dashboardToDeleteRefs: Dashboard[];
+  matsToCreate: Materialization[];
+  matsToReplace: Materialization[];
+  matToDeleteRefs: MatToDeleteRef[];
+  columnsToCreate: Column[];
+  columnsToReplace: Column[];
+  columnToDeleteRefs: ColToDeleteRef[];
+  logicsToCreate: Logic[];
+  logicsToReplace: Logic[];
+  logicToDeleteRefs: LogicToDeleteRef[];
   dependenciesToCreate: Dependency[];
-  dependencyToDeleteRefs: DependencyToDeleteRef[];
+  deleteAllOldDependencies: boolean;
 }
 
 export interface DataEnvProps {

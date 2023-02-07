@@ -147,15 +147,6 @@ interface HandlerReturn {
   newPrototype: RefsPrototype;
 }
 
-export interface DashboardRef {
-  url: string;
-  name?: string;
-  materializationName: string;
-  materializationId: string;
-  columnName?: string;
-  columnId?: string;
-}
-
 export class Logic {
   #id: string;
 

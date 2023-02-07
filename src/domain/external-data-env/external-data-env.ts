@@ -1,16 +1,16 @@
 import { Dashboard } from '../entities/dashboard';
 import { Dependency } from '../entities/dependency';
 
-export interface ExternalDependencyToDeleteRef {
-  targetId: string;
+export interface DashboardToDeleteRef {
+  id: string;
 }
 
 export interface ExternalDataEnv {
   dashboardsToCreate: Dashboard[];
   dashboardsToReplace: Dashboard[];
-  dashboardToDeleteRefs: Dashboard[];
+  dashboardToDeleteRefs: DashboardToDeleteRef[];
   dependenciesToCreate: Dependency[];
-  dependencyToDeleteRefs: ExternalDependencyToDeleteRef[];
+  deleteAllOldDependencies: boolean;
 }
 
 export interface ExternalDataEnvProps {

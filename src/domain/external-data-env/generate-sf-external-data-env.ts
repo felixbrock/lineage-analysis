@@ -4,23 +4,19 @@ import IUseCase from '../services/use-case';
 import BaseAuth from '../services/base-auth';
 import { ExternalDataEnvProps } from './external-data-env';
 import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
-import BaseGetSfExternalDataEnv, {
-  ColumnRepresentation,
-} from './base-get-sf-external-data-env';
-import { Materialization } from '../entities/materialization';
-import { Column } from '../entities/column';
-import { Logic } from '../entities/logic';
+import BaseGetSfExternalDataEnv from './base-get-sf-external-data-env';
 import { QuerySnowflake } from '../snowflake-api/query-snowflake';
-import { CreateMaterialization } from '../materialization/create-materialization';
-import { CreateColumn } from '../column/create-column';
-import { CreateLogic } from '../logic/create-logic';
-import { ParseSQL } from '../sql-parser-api/parse-sql';
+import { BiToolType } from '../value-types/bi-tool';
+import { CreateDashboards } from '../dashboard/create-dashboards';
+import { CreateDependencies } from '../dependency/create-dependencies';
+import { QuerySfQueryHistory } from '../snowflake-api/query-snowflake-history';
 
-export type GenerateSfExternalDataEnvRequestDto = undefined;
+export type GenerateSfExternalDataEnvRequestDto = {
+  targetOrgId?: string;
+  biToolType: BiToolType;
+};
 
-interface Auth extends Omit<BaseAuth, 'callerOrgId'> {
-  callerOrgId: string;
-}
+export type GenerateSfExternalDataEnvAuthDto = BaseAuth;
 
 export type GenerateSfExternalDataEnvResponse = Result<ExternalDataEnvProps>;
 
@@ -34,78 +30,19 @@ export class GenerateSfExternalDataEnv
       IConnectionPool
     >
 {
-  readonly #mats: Materialization[] = [];
-
-  readonly #cols: Column[] = [];
-
-  readonly #logics: Logic[] = [];
-
   constructor(
-    querySnowflake: QuerySnowflake,
-    createMaterialization: CreateMaterialization,
-    createColumn: CreateColumn,
-    createLogic: CreateLogic,
-    parseSQL: ParseSQL
+    createDashboards: CreateDashboards,
+    createDependencies: CreateDependencies,
+    querySfQueryHistory: QuerySfQueryHistory,
+    querySnowflake: QuerySnowflake
   ) {
     super(
-      createMaterialization,
-      createColumn,
-      createLogic,
       querySnowflake,
-      parseSQL
+      querySfQueryHistory,
+      createDashboards,
+      createDependencies
     );
   }
-
-  #generateDbResources = async (dbName: string): Promise<void> => {
-    const binds = ['information_schema'];
-    const whereCondition = `table_schema not ilike ?`;
-    const matRepresentations = await this.getMatRepresentations(
-      dbName,
-      whereCondition,
-      binds
-    );
-    const columnRepresentations = await this.getColumnRepresentations(
-      dbName,
-      whereCondition,
-      binds
-    );
-
-    const colRepresentationsByRelationName: {
-      [key: string]: ColumnRepresentation[];
-    } = columnRepresentations.reduce(this.groupByRelationName, {});
-
-    this.generateCatalog(matRepresentations, colRepresentationsByRelationName);
-
-    await Promise.all(
-      matRepresentations.map(async (el) => {
-        const options = {
-          writeToPersistence: false,
-        };
-
-        const logicRepresentation = await this.getLogicRepresentation(
-          el.type === 'view' ? 'view' : 'table',
-          el.name,
-          el.schemaName,
-          el.databaseName
-        );
-
-        const resource = await this.generateDWResource(
-          {
-            matRepresentation: el,
-            logicRepresentation,
-            columnRepresentations:
-              colRepresentationsByRelationName[el.relationName],
-            relationName: el.relationName,
-          },
-          options
-        );
-
-        this.#mats.push(resource.matToCreate);
-        this.#cols.push(...resource.colsToCreate);
-        this.#logics.push(resource.logicToCreate);
-      })
-    );
-  };
 
   /* Runs through snowflake and creates objects like logic, materializations and columns */
   async execute(
@@ -116,29 +53,19 @@ export class GenerateSfExternalDataEnv
     try {
       this.connPool = connPool;
       this.auth = auth;
+      this.targetOrgId = req.targetOrgId;
 
-      const dbRepresentations = await this.getDbRepresentations(connPool, auth);
-
-      await Promise.all(
-        dbRepresentations.map(async (el) => {
-          await this.#generateDbResources(el.name);
-        })
-      );
+      const result = await this.buildBiResources(req.biToolType);
 
       return Result.ok({
         dataEnv: {
-          matsToCreate: this.#mats,
-          columnsToCreate: this.#cols,
-          logicsToCreate: this.#logics,
-          columnsToReplace: [],
-          columnToDeleteRefs: [],
-          logicsToReplace: [],
-          logicToDeleteRefs: [],
-          matsToReplace: [],
-          matToDeleteRefs: [],
+          dashboardsToCreate: result.dashboards,
+          dashboardsToReplace: [],
+          dashboardToDeleteRefs: [],
+          dependenciesToCreate: result.dependencies,
+          dependencyToDeleteRefs: [],
+          deleteAllOldDependencies: false,
         },
-        catalog: this.catalog,
-        dbCoveredNames: dbRepresentations.map((el) => el.name),
       });
     } catch (error: unknown) {
       if (error instanceof Error) console.error(error.stack);
