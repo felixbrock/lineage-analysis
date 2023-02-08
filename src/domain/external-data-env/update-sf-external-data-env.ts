@@ -2,35 +2,25 @@ import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import BaseAuth from '../services/base-auth';
 import {
+  DashboardDataEnv,
+  DashboardToDeleteRef,
   ExternalDataEnvProps,
-  LogicToDeleteRef,
-  MatToDeleteRef,
 } from './external-data-env';
-import { Column } from '../entities/column';
-import { Materialization } from '../entities/materialization';
-import { Logic } from '../entities/logic';
-import {
-  IConnectionPool,
-  SnowflakeEntity,
-} from '../snowflake-api/i-snowflake-api-repo';
-import { ILineageRepo } from '../lineage/i-lineage-repo';
-import { IMaterializationRepo } from '../materialization/i-materialization-repo';
-import { IColumnRepo } from '../column/i-column-repo';
-import { ILogicRepo } from '../logic/i-logic-repo';
-import BaseGetSfExternalDataEnv, {
-  ColumnRepresentation,
-} from './base-get-sf-external-data-env';
+import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
+import BaseGetSfExternalDataEnv from './base-get-sf-external-data-env';
 import { QuerySnowflake } from '../snowflake-api/query-snowflake';
-import { CreateMaterialization } from '../materialization/create-materialization';
-import { CreateColumn } from '../column/create-column';
-import { CreateLogic } from '../logic/create-logic';
-import { ParseSQL } from '../sql-parser-api/parse-sql';
+import { BiToolType } from '../value-types/bi-tool';
+import { Dashboard, DashboardProps } from '../entities/dashboard';
+import { QuerySfQueryHistory } from '../snowflake-api/query-snowflake-history';
+import { CreateDashboards } from '../dashboard/create-dashboards';
+import { CreateDependencies } from '../dependency/create-dependencies';
+import { IDashboardRepo } from '../dashboard/i-dashboard-repo';
 
 export interface UpdateSfExternalDataEnvRequestDto {
   latestLineage: {
     completedAt: string;
-    dbCoveredNames: string[];
   };
+  biToolType: BiToolType;
   targetOrgId?: string;
 }
 
@@ -40,17 +30,6 @@ export interface UpdateSfExternalDataEnvAuthDto
 }
 
 export type UpdateSfExternalDataEnvResponse = Result<ExternalDataEnvProps>;
-
-interface MatModifiedDiff {
-  oldMatId: string;
-  relationName: string;
-}
-
-interface DataEnvDiff {
-  matAddedRelationNames: string[];
-  matDeletedIds: string[];
-  matModifiedDiffs: MatModifiedDiff[];
-}
 
 export class UpdateSfExternalDataEnv
   extends BaseGetSfExternalDataEnv
@@ -62,562 +41,74 @@ export class UpdateSfExternalDataEnv
       IConnectionPool
     >
 {
-  readonly #lineageRepo: ILineageRepo;
-
-  readonly #materializationRepo: IMaterializationRepo;
-
-  readonly #columnRepo: IColumnRepo;
-
-  readonly #logicRepo: ILogicRepo;
-
-  readonly #logicsToReplace: Logic[] = [];
-
-  readonly #logicsToCreate: Logic[] = [];
-
-  readonly #logicToDeleteRefs: LogicToDeleteRef[] = [];
-
-  readonly #matsToReplace: Materialization[] = [];
-
-  readonly #matsToCreate: Materialization[] = [];
-
-  readonly #matToDeleteRefs: MatToDeleteRef[] = [];
-
-  readonly #columnsToReplace: Column[] = [];
-
-  readonly #columnsToCreate: Column[] = [];
-
-  readonly #columnToDeleteRefs: ColToDeleteRef[] = [];
+  readonly #dasboardRepo: IDashboardRepo;
 
   constructor(
-    lineageRepo: ILineageRepo,
-    materializationRepo: IMaterializationRepo,
-    columnRepo: IColumnRepo,
-    logicRepo: ILogicRepo,
     querySnowflake: QuerySnowflake,
-    createMaterialization: CreateMaterialization,
-    createColumn: CreateColumn,
-    createLogic: CreateLogic,
-    parseSQL: ParseSQL
+    querySfQueryHistory: QuerySfQueryHistory,
+    createDasboards: CreateDashboards,
+    createDependencies: CreateDependencies,
+    dashboardRepo: IDashboardRepo
   ) {
     super(
-      createMaterialization,
-      createColumn,
-      createLogic,
       querySnowflake,
-      parseSQL
+      querySfQueryHistory,
+      createDasboards,
+      createDependencies
     );
-    this.#lineageRepo = lineageRepo;
-    this.#materializationRepo = materializationRepo;
-    this.#columnRepo = columnRepo;
-    this.#logicRepo = logicRepo;
+    this.#dasboardRepo = dashboardRepo;
   }
 
-  #buildLogicToReplace = (
-    oldLogicProps: { id: string },
-    logicToHandle: Logic
-  ): Logic =>
-    Logic.build({
-      ...logicToHandle.toDto(),
-      id: oldLogicProps.id,
+  #buildDashboardToReplace = (
+    oldProps: { id: string },
+    newProps: DashboardProps
+  ): Dashboard =>
+    Dashboard.build({
+      ...newProps,
+      id: oldProps.id,
     });
 
-  #buildColumnToReplace = (
-    oldColumnProps: {
-      id: string;
-      name: string;
-      materializationId: string;
-    },
-    columnToHandle: Column
-  ): Column => {
-    const column = Column.build({
-      ...columnToHandle.toDto(),
-      id: oldColumnProps.id,
-      name: oldColumnProps.name,
-      materializationId: oldColumnProps.materializationId,
-    });
+  // compare dashboards and return dashboards to replace, dashboards to delete and dashboards to create
 
-    return column;
-  };
+  #compareDashboards = async (
+    newDashboards: Dashboard[]
+  ): Promise<DashboardDataEnv> => {
+    if (!this.auth || !this.connPool)
+      throw new Error('Auth or connPool not set');
 
-  #buildMatToReplace = (
-    oldMatProps: {
-      id: string;
-      relationName: string;
-      logicId?: string;
-    },
-    matToHandle: Materialization
-  ): Materialization => {
-    const mat = Materialization.build({
-      ...matToHandle.toDto(),
-      id: oldMatProps.id,
-      relationName: oldMatProps.relationName,
-      logicId: oldMatProps.logicId || matToHandle.logicId,
-    });
-
-    return mat;
-  };
-
-  #mergeMatColumns = async (
-    newCols: Column[],
-    oldCols: Column[]
-  ): Promise<{
-    columnsToReplace: Column[];
-    columnsToCreate: Column[];
-    columnToDeleteRefs: ColToDeleteRef[];
-  }> => {
-    const columnsToReplace: Column[] = [];
-    const columnsToCreate: Column[] = [];
-
-    await Promise.all(
-      newCols.map(async (columnToHandle) => {
-        const matchingColumn = oldCols.find(
-          (oldColumn) => oldColumn.name === columnToHandle.name
-        );
-
-        if (matchingColumn) {
-          const updatedColumn = await this.#buildColumnToReplace(
-            {
-              id: matchingColumn.id,
-              name: matchingColumn.name,
-              materializationId: matchingColumn.materializationId,
-            },
-            columnToHandle
-          );
-
-          columnsToReplace.push(updatedColumn);
-        } else columnsToCreate.push(columnToHandle);
-      })
+    const oldDashboards = await this.#dasboardRepo.all(
+      this.auth,
+      this.connPool
     );
 
-    const isString = (obj: unknown): obj is ColToDeleteRef =>
-      !!obj && typeof obj === 'object' && 'relationName' in obj;
+    const dashboardsToReplace: Dashboard[] = [];
+    const dashboardsToCreate: Dashboard[] = [];
+    const dashboardToDeleteRefs: DashboardToDeleteRef[] = [];
 
-    const colToDeleteRefs = oldCols
-      .map((oldCol): ColToDeleteRef | undefined => {
-        const matchingColumn = newCols.find(
-          (newCol) => newCol.name === oldCol.name
-        );
-
-        if (!matchingColumn)
-          return {
-            id: oldCol.id,
-            matId: oldCol.materializationId,
-            name: oldCol.name,
-            relationName: oldCol.relationName,
-          };
-        return undefined;
-      })
-      .filter(isString);
-
-    return {
-      columnsToCreate,
-      columnsToReplace,
-      columnToDeleteRefs: colToDeleteRefs,
-    };
-  };
-
-  #mergeMatLogic = async (newLogic: Logic, oldLogic: Logic): Promise<Logic> => {
-    const updatedLogic = this.#buildLogicToReplace(
-      {
-        id: oldLogic.id,
-      },
-      newLogic
-    );
-
-    return updatedLogic;
-  };
-
-  #getDataEnvDiff = (values: SnowflakeEntity[]): DataEnvDiff => {
-    const isOptionalOfType = <T>(
-      val: unknown,
-      targetType:
-        | 'string'
-        | 'number'
-        | 'bigint'
-        | 'boolean'
-        | 'symbol'
-        | 'undefined'
-        | 'object'
-        | 'function'
-    ): val is T => val === undefined || typeof val === targetType;
-
-    const dataEnvDiff = values.reduce(
-      (accumulation: DataEnvDiff, el: SnowflakeEntity): DataEnvDiff => {
-        const localAcc = accumulation;
-
-        const {
-          MAT_DELETED_ID: matDeletedId,
-          MAT_ADDED_RELATION_NAME: matAddedRelationName,
-          ALTERED: altered,
-        } = el;
-
-        if (typeof altered !== 'boolean')
-          throw new Error('Unexpected altered value');
-        if (!isOptionalOfType<string>(matDeletedId, 'string'))
-          throw new Error('Unexpected deletedMatId value');
-        if (!isOptionalOfType<string>(matAddedRelationName, 'string'))
-          throw new Error('Unexpected addedMatId value');
-
-        if (altered) {
-          if (
-            typeof matAddedRelationName !== 'string' ||
-            typeof matDeletedId !== 'string'
-          )
-            throw new Error('Unexpected altered column input');
-          localAcc.matModifiedDiffs.push({
-            oldMatId: matDeletedId,
-            relationName: matAddedRelationName,
-          });
-        } else if (matAddedRelationName)
-          localAcc.matAddedRelationNames.push(matAddedRelationName);
-        else if (matDeletedId) localAcc.matDeletedIds.push(matDeletedId);
-        else throw new Error('Unhandled use case returned');
-
-        return localAcc;
-      },
-
-      {
-        matDeletedIds: [],
-        matAddedRelationNames: [],
-        matModifiedDiffs: [],
+    oldDashboards.forEach((oldDashboard) => {
+      const newDashboardIndex = newDashboards.findIndex(
+        (newDashboard) => newDashboard.url === oldDashboard.url
+      );
+      if (newDashboardIndex === -1) {
+        dashboardToDeleteRefs.push({ id: oldDashboard.id });
+        return;
       }
-    );
+      const newDashboard = newDashboards[newDashboardIndex];
 
-    return dataEnvDiff;
-  };
-
-  #addResourcesToAdd = async (
-    relationNames: string[],
-    dbName: string
-  ): Promise<void> => {
-    if (!relationNames.length) return;
-
-    const whereCondition = `array_contains(concat(table_catalog, '.', table_schema, '.', table_name)::variant, array_construct(${relationNames
-      .map(() => `?`)
-      .join(', ')}))`;
-    const binds = relationNames;
-    const matRepresentations = await this.getMatRepresentations(
-      dbName,
-      whereCondition,
-      binds
-    );
-    const columnRepresentations = await this.getColumnRepresentations(
-      dbName,
-      whereCondition,
-      binds
-    );
-
-    const colRepresentationsByRelationName: {
-      [key: string]: ColumnRepresentation[];
-    } = columnRepresentations.reduce(this.groupByRelationName, {});
-
-    this.generateCatalog(matRepresentations, colRepresentationsByRelationName);
-
-    await Promise.all(
-      matRepresentations.map(async (el) => {
-        const options = {
-          writeToPersistence: false,
-        };
-
-        const logicRepresentation = await this.getLogicRepresentation(
-          el.type === 'view' ? 'view' : 'table',
-          el.name,
-          el.schemaName,
-          el.databaseName
+      if (oldDashboard.name !== newDashboard.name) {
+        dashboardsToReplace.push(
+          this.#buildDashboardToReplace(
+            { id: oldDashboard.id },
+            newDashboard.toDto()
+          )
         );
+        return;
+      }
 
-        const resourcesToCreate = await this.generateDWResource(
-          {
-            matRepresentation: el,
-            logicRepresentation,
-            columnRepresentations:
-              colRepresentationsByRelationName[el.relationName],
-            relationName: el.relationName,
-          },
-          options
-        );
-
-        this.#matsToCreate.push(resourcesToCreate.matToCreate);
-        this.#columnsToCreate.push(...resourcesToCreate.colsToCreate);
-        this.#logicsToCreate.push(resourcesToCreate.logicToCreate);
-      })
-    );
-  };
-
-  #groupByMatId = <T extends { materializationId: string }>(
-    accumulation: { [key: string]: T[] },
-    element: T
-  ): { [key: string]: T[] } => {
-    const localAcc = accumulation;
-
-    const key = element.materializationId;
-    if (!(key in accumulation)) {
-      localAcc[key] = [];
-    }
-    localAcc[key].push(element);
-    return localAcc;
-  };
-
-  #addResourcesToModify = async (
-    modifiedMatDiffs: MatModifiedDiff[],
-    dbName: string
-  ): Promise<void> => {
-    if (!this.auth || !this.connPool)
-      throw new Error('auth or connPool missing');
-
-    if (!modifiedMatDiffs.length) return;
-
-    const { ids, relationNames } = modifiedMatDiffs.reduce(
-      (
-        accumulation: { relationNames: string[]; ids: string[] },
-        el: MatModifiedDiff
-      ): { relationNames: string[]; ids: string[] } => {
-        const localAcc = accumulation;
-
-        localAcc.ids.push(el.oldMatId);
-        localAcc.relationNames.push(el.relationName);
-
-        return localAcc;
-      },
-      { relationNames: [], ids: [] }
-    );
-
-    const oldMats = await this.#materializationRepo.findBy(
-      { ids },
-      this.auth,
-      this.connPool
-    );
-
-    const oldCols = await this.#columnRepo.findBy(
-      { materializationIds: ids },
-      this.auth,
-      this.connPool
-    );
-
-    const oldColsByMatId: { [key: string]: Column[] } = oldCols.reduce(
-      this.#groupByMatId,
-      {}
-    );
-
-    const oldLogics = await this.#logicRepo.findBy(
-      { relationNames },
-      this.auth,
-      this.connPool
-    );
-
-    const whereCondition = `array_contains(concat(table_catalog, '.', table_schema, '.', table_name)::variant, array_construct(${relationNames
-      .map(() => `?`)
-      .join(', ')}))`;
-    const binds = relationNames;
-    const newMatReps = await this.getMatRepresentations(
-      dbName,
-      whereCondition,
-      binds
-    );
-    const newColReps = await this.getColumnRepresentations(
-      dbName,
-      whereCondition,
-      binds
-    );
-
-    const colRepresentationsByRelationName: {
-      [key: string]: ColumnRepresentation[];
-    } = newColReps.reduce(this.groupByRelationName, {});
-
-    await Promise.all(
-      newMatReps.map(async (el) => {
-        const options = {
-          writeToPersistence: false,
-        };
-
-        const newLogicRep = await this.getLogicRepresentation(
-          el.type === 'view' ? 'view' : 'table',
-          el.name,
-          el.schemaName,
-          el.databaseName
-        );
-
-        const {
-          matToCreate: matToHandle,
-          colsToCreate: colsToHandle,
-          logicToCreate: logicToHandle,
-        } = await this.generateDWResource(
-          {
-            matRepresentation: el,
-            logicRepresentation: newLogicRep,
-            columnRepresentations:
-              colRepresentationsByRelationName[el.relationName],
-            relationName: el.relationName,
-          },
-          options
-        );
-
-        const matchingMat = oldMats.find(
-          (oldMat) => matToHandle.relationName === oldMat.relationName
-        );
-
-        if (!matchingMat) throw new Error('No mat to modify found');
-
-        const updatedMat = await this.#buildMatToReplace(
-          {
-            id: matchingMat.id,
-            logicId:
-              matToHandle.logicId && !matchingMat.logicId
-                ? matToHandle.logicId
-                : matchingMat.logicId,
-            relationName: matchingMat.relationName,
-          },
-          matToHandle
-        );
-        this.#matsToReplace.push(updatedMat);
-
-        const { columnsToCreate, columnsToReplace, columnToDeleteRefs } =
-          await this.#mergeMatColumns(
-            colsToHandle,
-            oldColsByMatId[matchingMat.id]
-          );
-
-        this.#columnsToCreate.push(...columnsToCreate);
-        this.#columnsToReplace.push(...columnsToReplace);
-        this.#columnToDeleteRefs.push(...columnToDeleteRefs);
-
-        const oldLogic = oldLogics.find(
-          (element) => element.id === matchingMat.logicId
-        );
-        if (!oldLogic) throw new Error('Old logic not found');
-
-        if (matToHandle.logicId && matchingMat.logicId) {
-          const logic = await this.#mergeMatLogic(logicToHandle, oldLogic);
-
-          this.#logicsToReplace.push(logic);
-        } else if (!matToHandle.logicId && matchingMat.logicId)
-          console.warn(
-            `Mat to handle ${matToHandle.id} that is matching old mat ${matchingMat.id} with logic id ${matchingMat.logicId} is missing logic id`
-          );
-      })
-    );
-  };
-
-  #addResourcesToDelete = async (props: {
-    matToDeleteIds: string[];
-    matsToDelete?: Materialization[];
-  }): Promise<void> => {
-    if (!this.auth || !this.connPool)
-      throw new Error('auth or connPool missing');
-
-    if (!props.matToDeleteIds.length) return;
-
-    const mats =
-      props.matsToDelete ||
-      (await this.#materializationRepo.findBy(
-        { ids: props.matToDeleteIds },
-        this.auth,
-        this.connPool
-      ));
-
-    if (!mats.length) throw new Error('Desired mats not found');
-
-    const cols = await this.#columnRepo.findBy(
-      { materializationIds: props.matToDeleteIds },
-      this.auth,
-      this.connPool
-    );
-
-    const logics = await this.#logicRepo.findBy(
-      { relationNames: mats.map((el) => el.relationName) },
-      this.auth,
-      this.connPool
-    );
-
-    this.#matToDeleteRefs.push(
-      ...mats.map(
-        (el): MatToDeleteRef => ({
-          id: el.id,
-          name: el.name,
-          dbName: el.databaseName,
-          schemaName: el.schemaName,
-        })
-      )
-    );
-    this.#columnToDeleteRefs.push(
-      ...cols.map(
-        (el): ColToDeleteRef => ({
-          id: el.id,
-          matId: el.materializationId,
-          name: el.name,
-          relationName: el.relationName,
-        })
-      )
-    );
-    this.#logicToDeleteRefs.push(
-      ...logics.map(
-        (el): LogicToDeleteRef => ({ id: el.id, relationName: el.relationName })
-      )
-    );
-  };
-
-  #updateDbDataEnv = async (
-    dbName: string,
-    lastLineageCompletedAt: string
-  ): Promise<void> => {
-    if (!this.auth || !this.connPool)
-      throw new Error('Missing auth or connPool');
-
-    const binds = [dbName, lastLineageCompletedAt];
-
-    const queryText = `select t2.id as mat_deleted_id, concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name) as mat_added_relation_name, t1.table_name is not undefined and t2.relation_name is not undefined as altered
-    from cito.lineage.materializations as t2
-    full join "${dbName}".information_schema.tables as t1 
-    on concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name) = t2.relation_name
-    where 
-    (
-        array_contains(t2.database_name::variant, array_construct(:1, undefined))
-        and
-        array_contains(t1.table_catalog::variant, array_construct(:1, undefined))
-    ) 
-    and 
-    (
-        (
-            t1.table_name is undefined 
-            or 
-            (t2.relation_name is undefined and t1.table_schema != 'INFORMATION_SCHEMA')
-        )
-        or 
-        timediff(minute, :2::timestamp_ntz, convert_timezone('UTC', last_altered)::timestamp_ntz) > 0
-    );`;
-
-    const queryResult = await this.querySnowflake.execute(
-      { queryText, binds },
-      this.auth,
-      this.connPool
-    );
-
-    if (!queryResult.success) throw new Error(queryResult.error);
-    if (!queryResult.value)
-      throw new Error('Query result is missing value field');
-
-    const dataEnvDiff = this.#getDataEnvDiff(queryResult.value);
-
-    await this.#addResourcesToAdd(dataEnvDiff.matAddedRelationNames, dbName);
-    await this.#addResourcesToDelete({
-      matToDeleteIds: dataEnvDiff.matDeletedIds,
+      dashboardsToCreate.push(newDashboard);
     });
-    await this.#addResourcesToModify(dataEnvDiff.matModifiedDiffs, dbName);
-  };
 
-  #addRemovedDbToDelete = async (dbName: string): Promise<void> => {
-    if (!this.auth || !this.connPool)
-      throw new Error('Missing auth or connPool');
-
-    const matsToDelete = await this.#materializationRepo.findBy(
-      { databaseName: dbName },
-      this.auth,
-      this.connPool
-    );
-
-    const matIds = matsToDelete.map((el) => el.id);
-
-    await this.#addResourcesToDelete({ matToDeleteIds: matIds, matsToDelete });
+    return { dashboardsToCreate, dashboardsToReplace, dashboardToDeleteRefs };
   };
 
   /* Checks Snowflake resources for changes and returns partial data env to merge with existing snapshot */
@@ -628,82 +119,29 @@ export class UpdateSfExternalDataEnv
   ): Promise<UpdateSfExternalDataEnvResponse> {
     try {
       /* 
-1. Get all dashboards from sf
-2. Delete all external dependencies in sf
-3. Generate new dashboards and dependencies
-identify dashboards to replace and dashboards to delete
+        1. Get all dashboards from sf
+        2. Delete all external dependencies in sf
+        3. Generate new dashboards and dependencies
+        identify dashboards to replace and dashboards to delete
 */
       this.connPool = connPool;
       this.auth = auth;
       this.targetOrgId = req.targetOrgId;
 
-      const sfObjDependencies = await this.getSfObjectDependencies();
-
-      const matReps = await this.getAllCitoMatReps();
-
-      await this.buildDataDependencies(sfObjDependencies, matReps);
-
-      if (req.biToolType) await this.buildBiResources(req.biToolType, matReps);
-
-      return Result.ok({
-        dataEnv: {
-          dashboardsToCreate: this.dashboards,
-          dashboardsToReplace: [],
-          dashboardToDeleteRefs: [],
-          dependenciesToCreate: this.dependencies,
-          dependencyToDeleteRefs: [],
-        },
-      });
-
-      this.auth = auth;
-      this.connPool = connPool;
-
-      const dbRepresentations = await this.getDbRepresentations(connPool, auth);
-
-      const dbToCoverNames = dbRepresentations.map((el) => el.name);
-      const dbRemovedNames = req.latestLineage.dbCoveredNames.filter(
-        (dbOldName) => !dbToCoverNames.includes(dbOldName)
+      const buildBiResourcesResult = await this.buildBiResources(
+        req.biToolType
       );
 
-      await Promise.all(
-        dbRemovedNames.map(async (el) => {
-          await this.#addRemovedDbToDelete(el);
-        })
-      );
-
-      await Promise.all(
-        dbRepresentations.map(async (el) => {
-          await this.#updateDbDataEnv(el.name, req.latestLineage.completedAt);
-        })
+      const compareDashboardsResult = await this.#compareDashboards(
+        buildBiResourcesResult.dashboards
       );
 
       return Result.ok({
         dataEnv: {
-          matsToCreate: this.#matsToCreate,
-          matsToReplace: this.#matsToReplace,
-          matToDeleteRefs: this.#matToDeleteRefs.map((el) => ({
-            id: el.id,
-            name: el.name,
-            schemaName: el.schemaName,
-            dbName: el.dbName,
-          })),
-          columnsToCreate: this.#columnsToCreate,
-          columnsToReplace: this.#columnsToReplace,
-          columnToDeleteRefs: this.#columnToDeleteRefs.map((el) => ({
-            id: el.id,
-            name: el.name,
-            relationName: el.relationName,
-            matId: el.matId,
-          })),
-          logicsToCreate: this.#logicsToCreate,
-          logicsToReplace: this.#logicsToReplace,
-          logicToDeleteRefs: this.#logicToDeleteRefs.map((el) => ({
-            id: el.id,
-            relationName: el.relationName,
-          })),
+          ...compareDashboardsResult,
+          dependenciesToCreate: buildBiResourcesResult.dependencies,
+          deleteAllOldDependencies: true,
         },
-        catalog: this.catalog,
-        dbCoveredNames: dbRepresentations.map((el) => el.name),
       });
     } catch (error: unknown) {
       if (error instanceof Error) console.error(error.stack);

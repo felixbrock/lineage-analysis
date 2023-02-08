@@ -5,10 +5,13 @@ export interface DashboardToDeleteRef {
   id: string;
 }
 
-export interface ExternalDataEnv {
+export interface DashboardDataEnv {
   dashboardsToCreate: Dashboard[];
   dashboardsToReplace: Dashboard[];
   dashboardToDeleteRefs: DashboardToDeleteRef[];
+}
+
+export interface ExternalDataEnv extends DashboardDataEnv {
   dependenciesToCreate: Dependency[];
   deleteAllOldDependencies: boolean;
 }

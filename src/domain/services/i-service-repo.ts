@@ -51,4 +51,5 @@ export interface IServiceRepo<Entity, QueryDto, UpdateDto> {
     auth: IAuth,
     connPool: IConnectionPool
   ): Promise<number>;
+  deleteAll(auth: IAuth, connPool: IConnectionPool): Promise<void>;
 }

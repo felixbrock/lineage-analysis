@@ -388,6 +388,27 @@ export default abstract class BaseSfRepo<
     }
   };
 
+  deleteAll = async (
+    auth: BaseAuth,
+    connPool: IConnectionPool
+  ): Promise<void> => {
+    try {
+      const queryText = `delete from ${this.#relationPath}.${this.matName} ;`;
+
+      const res = await this.querySnowflake.execute(
+        { queryText, binds: [] },
+        auth,
+        connPool
+      );
+
+      if (!res.success) throw new Error(res.error);
+      if (!res.value) throw new Error('Missing sf query value');
+    } catch (error: unknown) {
+      if (error instanceof Error) console.error(error.stack);
+      else if (error) console.trace(error);
+    }
+  };
+
   deleteMany = async (
     ids: string[],
     auth: BaseAuth,
@@ -444,7 +465,7 @@ export default abstract class BaseSfRepo<
       | 'undefined'
       | 'object'
       | 'function'
-  ): val is T => val === undefined || typeof val === targetType;
+  ): val is T => val === null || typeof val === targetType;
 
   protected static isStringArray = (value: unknown): value is string[] =>
     Array.isArray(value) && value.every((el) => typeof el === 'string');

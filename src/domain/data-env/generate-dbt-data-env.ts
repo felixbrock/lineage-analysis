@@ -529,6 +529,8 @@ export class GenerateDbtDataEnv
     connPool: IConnectionPool
   ): Promise<GenerateDbtDataEnvResponse> {
     try {
+      throw new Error('Needs to be updated to new logic');
+
       this.#connPool = connPool;
       this.#req = req;
       this.#auth = auth;
@@ -655,22 +657,22 @@ export class GenerateDbtDataEnv
         })
       );
 
-      return Result.ok({
-        dataEnv: {
-          matsToCreate: this.#materializations,
-          columnsToCreate: this.#columns,
-          logicsToCreate: this.#logics,
-          columnsToReplace: [],
-          columnToDeleteRefs: [],
-          logicsToReplace: [],
-          logicToDeleteRefs: [],
-          matsToReplace: [],
-          matToDeleteRefs: [],
-        },
-        catalog: this.#catalog,
-        // todo - needs to be updated. Not retrieved
-        dbCoveredNames: [],
-      });
+      // return Result.ok({
+      //   dataEnv: {
+      //     matsToCreate: this.#materializations,
+      //     columnsToCreate: this.#columns,
+      //     logicsToCreate: this.#logics,
+      //     columnsToReplace: [],
+      //     columnToDeleteRefs: [],
+      //     logicsToReplace: [],
+      //     logicToDeleteRefs: [],
+      //     matsToReplace: [],
+      //     matToDeleteRefs: [],
+      //   },
+      //   catalog: this.#catalog,
+      //   // todo - needs to be updated. Not retrieved
+      //   dbCoveredNames: [],
+      // });
     } catch (error: unknown) {
       if (error instanceof Error) console.error(error.stack);
       else if (error) console.trace(error);

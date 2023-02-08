@@ -14,14 +14,28 @@ import { IColumnRepo } from '../column/i-column-repo';
 import IUseCase from '../services/use-case';
 import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 import BaseAuth from '../services/base-auth';
-import { DataEnv, DataEnvDto, DataEnvProps } from '../data-env/data-env';
+import {
+  ColToDeleteRef,
+  DataEnv,
+  DataEnvDto,
+  DataEnvProps,
+  LogicToDeleteRef,
+  MatToDeleteRef,
+} from '../data-env/data-env';
 import { GenerateDbtDataEnv } from '../data-env/generate-dbt-data-env';
 import { GenerateSfDataEnv } from '../data-env/generate-sf-data-env';
 import { UpdateSfDataEnv } from '../data-env/update-sf-data-env';
-import { BuildDbtDependencies } from '../dependency/build-dbt-dependencies';
-import { ModelRepresentation } from '../entities/logic';
+import { Logic } from '../entities/logic';
 import { IObservabilityApiRepo } from '../observability-api/i-observability-api-repo';
-import { BuildSfDependencies } from '../dependency/build-sf-dependencies';
+import {
+  DashboardToDeleteRef,
+  ExternalDataEnv,
+  ExternalDataEnvProps,
+} from '../external-data-env/external-data-env';
+import { UpdateSfExternalDataEnv } from '../external-data-env/update-sf-external-data-env';
+import { GenerateSfExternalDataEnv } from '../external-data-env/generate-sf-external-data-env';
+import { Materialization } from '../entities/materialization';
+import { Column } from '../entities/column';
 
 export interface CreateLineageRequestDto {
   targetOrgId?: string;
@@ -61,13 +75,13 @@ export class CreateLineage
 
   readonly #generateSfDataEnv: GenerateSfDataEnv;
 
+  readonly #generateSfExternalDataEnv: GenerateSfExternalDataEnv;
+
   readonly #generateDbtDataEnv: GenerateDbtDataEnv;
 
   readonly #updateSfDataEnv: UpdateSfDataEnv;
 
-  readonly #buildDbtDependencies: BuildDbtDependencies;
-
-  readonly #buildSfDependencies: BuildSfDependencies;
+  readonly #updateSfExternalDataEnv: UpdateSfExternalDataEnv;
 
   #auth?: CreateLineageAuthDto;
 
@@ -84,10 +98,10 @@ export class CreateLineage
     dashboardRepo: IDashboardRepo,
     observabilityApiRepo: IObservabilityApiRepo,
     generateSfDataEnv: GenerateSfDataEnv,
+    generateSfExternalDataEnv: GenerateSfExternalDataEnv,
     generateDbtDataEnv: GenerateDbtDataEnv,
     updateSfDataEnv: UpdateSfDataEnv,
-    buildDbtDependencies: BuildDbtDependencies,
-    buildSfDependencies: BuildSfDependencies
+    updateSfExternalDataEnv: UpdateSfExternalDataEnv
   ) {
     this.#lineageRepo = lineageRepo;
     this.#logicRepo = logicRepo;
@@ -97,10 +111,10 @@ export class CreateLineage
     this.#dashboardRepo = dashboardRepo;
     this.#observabilityApiRepo = observabilityApiRepo;
     this.#generateSfDataEnv = generateSfDataEnv;
+    this.#generateSfExternalDataEnv = generateSfExternalDataEnv;
     this.#generateDbtDataEnv = generateDbtDataEnv;
     this.#updateSfDataEnv = updateSfDataEnv;
-    this.#buildDbtDependencies = buildDbtDependencies;
-    this.#buildSfDependencies = buildSfDependencies;
+    this.#updateSfExternalDataEnv = updateSfExternalDataEnv;
   }
 
   #writeLineageToPersistence = async (lineage: Lineage): Promise<void> => {
@@ -110,94 +124,145 @@ export class CreateLineage
     await this.#lineageRepo.insertOne(lineage, this.#auth, this.#connPool);
   };
 
-  #writeWhResourcesToPersistence = async (dataEnv: DataEnv): Promise<void> => {
+  #createWhResourcesInPersistence = async (
+    logics: Logic[],
+    mats: Materialization[],
+    cols: Column[],
+    dependencies: Dependency[]
+  ): Promise<void> => {
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
-    if (dataEnv.logicsToReplace && dataEnv.logicsToReplace.length)
-      await this.#logicRepo.replaceMany(
-        dataEnv.logicsToReplace,
-        this.#auth,
-        this.#connPool
-      );
-    if (dataEnv.matsToReplace && dataEnv.matsToReplace.length)
-      await this.#materializationRepo.replaceMany(
-        dataEnv.matsToReplace,
-        this.#auth,
-        this.#connPool
-      );
-    if (dataEnv.columnsToReplace && dataEnv.columnsToReplace.length)
-      await this.#columnRepo.replaceMany(
-        dataEnv.columnsToReplace,
-        this.#auth,
-        this.#connPool
-      );
+    if (logics.length)
+      await this.#logicRepo.insertMany(logics, this.#auth, this.#connPool);
 
-    if (dataEnv.logicsToCreate && dataEnv.logicsToCreate.length)
-      await this.#logicRepo.insertMany(
-        dataEnv.logicsToCreate,
-        this.#auth,
-        this.#connPool
-      );
-
-    if (dataEnv.matsToCreate && dataEnv.matsToCreate.length)
+    if (mats.length)
       await this.#materializationRepo.insertMany(
-        dataEnv.matsToCreate,
+        mats,
         this.#auth,
         this.#connPool
       );
 
-    if (dataEnv.columnsToCreate && dataEnv.columnsToCreate.length)
-      await this.#columnRepo.insertMany(
-        dataEnv.columnsToCreate,
+    if (cols.length)
+      await this.#columnRepo.insertMany(cols, this.#auth, this.#connPool);
+
+    if (dependencies.length)
+      await this.#dependencyRepo.insertMany(
+        dependencies,
         this.#auth,
         this.#connPool
       );
+  };
 
-    if (dataEnv.logicToDeleteRefs && dataEnv.logicToDeleteRefs.length)
+  #replaceWhResourcesInPersistence = async (
+    logics: Logic[],
+    mats: Materialization[],
+    cols: Column[]
+  ): Promise<void> => {
+    if (!this.#auth || !this.#connPool || !this.#req)
+      throw new Error('Missing properties detected when creating lineage');
+
+    if (logics.length)
+      await this.#logicRepo.replaceMany(logics, this.#auth, this.#connPool);
+    if (mats.length)
+      await this.#materializationRepo.replaceMany(
+        mats,
+        this.#auth,
+        this.#connPool
+      );
+    if (cols.length)
+      await this.#columnRepo.replaceMany(cols, this.#auth, this.#connPool);
+  };
+
+  #deleteTestSuites = async (
+    targetResourceIds: string[],
+    jwt: string
+  ): Promise<void> => {
+    await this.#observabilityApiRepo.deleteQuantTestSuites(
+      jwt,
+      targetResourceIds,
+      'soft'
+    );
+    await this.#observabilityApiRepo.deleteQualTestSuites(
+      jwt,
+      targetResourceIds,
+      'soft'
+    );
+  };
+
+  #deleteWhResourcesFromPersistence = async (
+    logicRefs: LogicToDeleteRef[],
+    matRefs: MatToDeleteRef[],
+    colRefs: ColToDeleteRef[],
+    deleteAllDependencies: boolean
+  ): Promise<void> => {
+    if (!this.#auth || !this.#connPool || !this.#req)
+      throw new Error('Missing properties detected when creating lineage');
+
+    if (deleteAllDependencies) {
+      await this.#dependencyRepo.deleteAll(this.#auth, this.#connPool);
+    }
+
+    if (logicRefs.length)
       await this.#logicRepo.deleteMany(
-        dataEnv.logicToDeleteRefs.map((el) => el.id),
+        logicRefs.map((el) => el.id),
         this.#auth,
         this.#connPool
       );
 
     const targetResourceIds: string[] = [];
-    if (dataEnv.matToDeleteRefs && dataEnv.matToDeleteRefs.length) {
+    if (matRefs.length) {
       await this.#materializationRepo.deleteMany(
-        dataEnv.matToDeleteRefs.map((el) => el.id),
+        matRefs.map((el) => el.id),
         this.#auth,
         this.#connPool
       );
 
-      targetResourceIds.push(...dataEnv.matToDeleteRefs.map((el) => el.id));
+      targetResourceIds.push(...matRefs.map((el) => el.id));
     }
 
-    if (dataEnv.columnToDeleteRefs && dataEnv.columnToDeleteRefs.length) {
+    if (colRefs.length) {
       await this.#columnRepo.deleteMany(
-        dataEnv.columnToDeleteRefs.map((el) => el.id),
+        colRefs.map((el) => el.id),
         this.#auth,
         this.#connPool
       );
 
-      targetResourceIds.push(...dataEnv.columnToDeleteRefs.map((el) => el.id));
+      targetResourceIds.push(...colRefs.map((el) => el.id));
     }
 
-    if (targetResourceIds.length) {
-      await this.#observabilityApiRepo.deleteQuantTestSuites(
-        this.#auth.jwt,
-        targetResourceIds,
-        'soft'
-      );
-      await this.#observabilityApiRepo.deleteQualTestSuites(
-        this.#auth.jwt,
-        targetResourceIds,
-        'soft'
-      );
-    }
+    if (targetResourceIds.length)
+      await this.#deleteTestSuites(targetResourceIds, this.#auth.jwt);
   };
 
-  #writeDashboardsToPersistence = async (
-    dashboards: Dashboard[]
+  #writeWhResourcesToPersistence = async (dataEnv: DataEnv): Promise<void> => {
+    if (!this.#auth || !this.#connPool || !this.#req)
+      throw new Error('Missing properties detected when creating lineage');
+
+    await this.#deleteWhResourcesFromPersistence(
+      dataEnv.logicToDeleteRefs,
+      dataEnv.matToDeleteRefs,
+      dataEnv.columnToDeleteRefs,
+      dataEnv.deleteAllOldDependencies
+    );
+
+    await this.#replaceWhResourcesInPersistence(
+      dataEnv.logicsToReplace,
+      dataEnv.matsToReplace,
+      dataEnv.columnsToReplace
+    );
+
+    await this.#createWhResourcesInPersistence(
+      dataEnv.logicsToCreate,
+      dataEnv.matsToCreate,
+      dataEnv.columnsToCreate,
+      dataEnv.dependenciesToCreate
+    );
+  };
+
+  #createExternalResourcesInPersistence = async (
+    dashboards: Dashboard[],
+    dependencies: Dependency[]
   ): Promise<void> => {
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
@@ -208,13 +273,6 @@ export class CreateLineage
         this.#auth,
         this.#connPool
       );
-  };
-
-  #writeDependenciesToPersistence = async (
-    dependencies: Dependency[]
-  ): Promise<void> => {
-    if (!this.#auth || !this.#connPool || !this.#req)
-      throw new Error('Missing properties detected when creating lineage');
 
     if (dependencies.length)
       await this.#dependencyRepo.insertMany(
@@ -222,6 +280,60 @@ export class CreateLineage
         this.#auth,
         this.#connPool
       );
+  };
+
+  #replaceExternalResourcesInPersistence = async (
+    dashboards: Dashboard[]
+  ): Promise<void> => {
+    if (!this.#auth || !this.#connPool || !this.#req)
+      throw new Error('Missing properties detected when creating lineage');
+
+    if (dashboards.length)
+      await this.#dashboardRepo.replaceMany(
+        dashboards,
+        this.#auth,
+        this.#connPool
+      );
+  };
+
+  #deleteExternalResourcesFromPersistence = async (
+    dashboardToDeleteRefs: DashboardToDeleteRef[],
+    deleteAllDependencies: boolean
+  ): Promise<void> => {
+    if (!this.#auth || !this.#connPool || !this.#req)
+      throw new Error('Missing properties detected when creating lineage');
+
+    if (deleteAllDependencies) {
+      await this.#dependencyRepo.deleteAll(this.#auth, this.#connPool);
+    }
+
+    if (dashboardToDeleteRefs.length)
+      await this.#dashboardRepo.deleteMany(
+        dashboardToDeleteRefs.map((el) => el.id),
+        this.#auth,
+        this.#connPool
+      );
+  };
+
+  #writeExternalResourcesToPersistence = async (
+    dataEnv: ExternalDataEnv
+  ): Promise<void> => {
+    if (!this.#auth || !this.#connPool || !this.#req)
+      throw new Error('Missing properties detected when creating lineage');
+
+    await this.#deleteExternalResourcesFromPersistence(
+      dataEnv.dashboardToDeleteRefs,
+      dataEnv.deleteAllOldDependencies
+    );
+
+    await this.#replaceExternalResourcesInPersistence(
+      dataEnv.dashboardsToReplace
+    );
+
+    await this.#createExternalResourcesInPersistence(
+      dataEnv.dashboardsToCreate,
+      dataEnv.dependenciesToCreate
+    );
   };
 
   #updateLineage = async (
@@ -237,6 +349,10 @@ export class CreateLineage
       this.#auth,
       this.#connPool
     );
+  };
+
+  #genDbtExternalDataEnv = async (): Promise<ExternalDataEnvProps> => {
+    throw new Error('Not implemented');
   };
 
   #genDbtDataEnv = async (): Promise<DataEnvProps> => {
@@ -288,6 +404,45 @@ export class CreateLineage
     return result.value;
   };
 
+  #genSfExternalDataEnv = async (
+    biToolType: BiToolType
+  ): Promise<ExternalDataEnvProps> => {
+    if (!this.#auth || !this.#connPool || !this.#req)
+      throw new Error('Missing properties detected when creating lineage');
+
+    const { callerOrgId } = this.#auth;
+    if (!callerOrgId)
+      throw new Error('Sf based lineage creation has to be invoked by user');
+
+    const result = await this.#generateSfExternalDataEnv.execute(
+      { biToolType },
+      { ...this.#auth, callerOrgId },
+      this.#connPool
+    );
+
+    if (!result.success) throw new Error(result.error);
+    if (!result.value)
+      throw new Error('Missing value obj after generating dbt data env');
+
+    return result.value;
+  };
+
+  #generateExternalEnv = async (
+    biToolType: BiToolType
+  ): Promise<ExternalDataEnvProps> => {
+    if (!this.#req)
+      throw new Error('Missing properties detected when creating lineage');
+
+    console.log('...generating external data environment');
+
+    const res =
+      this.#req.dbtCatalog && this.#req.dbtManifest
+        ? await this.#genDbtExternalDataEnv()
+        : await this.#genSfExternalDataEnv(biToolType);
+
+    return res;
+  };
+
   #generateEnv = async (): Promise<DataEnvProps> => {
     if (!this.#req)
       throw new Error('Missing properties detected when creating lineage');
@@ -300,6 +455,35 @@ export class CreateLineage
         : await this.#genSfDataEnv();
 
     return res;
+  };
+
+  #updSfExternalDataEnv = async (
+    latestLineageCompletedAt: string,
+    biToolType: BiToolType
+  ): Promise<ExternalDataEnvProps> => {
+    if (!this.#auth || !this.#connPool || !this.#req)
+      throw new Error('Missing properties detected when creating lineage');
+
+    const { callerOrgId } = this.#auth;
+    if (!callerOrgId)
+      throw new Error('Caller Org Id required to update Sf data env');
+
+    const result = await this.#updateSfExternalDataEnv.execute(
+      {
+        latestLineage: {
+          completedAt: latestLineageCompletedAt,
+        },
+        biToolType,
+      },
+      { ...this.#auth, callerOrgId },
+      this.#connPool
+    );
+
+    if (!result.success) throw new Error(result.error);
+    if (!result.value)
+      throw new Error('Missing value obj after generating dbt data env');
+
+    return result.value;
   };
 
   #updSfDataEnv = async (
@@ -333,6 +517,30 @@ export class CreateLineage
 
   #updDbtDataEnv = async (): Promise<DataEnvProps> => {
     throw new Error('Not implemented');
+  };
+
+  #updDbtExternalDataEnv = async (): Promise<ExternalDataEnvProps> => {
+    throw new Error('Not implemented');
+  };
+
+  #updateExternalEnv = async (
+    latestLineageCompletedAt: string,
+    biToolType: BiToolType
+  ): Promise<ExternalDataEnvProps> => {
+    if (!this.#req)
+      throw new Error('Missing properties detected when creating lineage');
+
+    console.log('...updating external data env');
+
+    const result =
+      this.#req.dbtCatalog && this.#req.dbtManifest
+        ? await this.#updDbtExternalDataEnv()
+        : await this.#updSfExternalDataEnv(
+            latestLineageCompletedAt,
+            biToolType
+          );
+
+    return result;
   };
 
   #updateEnv = async (
@@ -377,67 +585,28 @@ export class CreateLineage
     };
   };
 
-  getNewExternalDataEnv = async (
-    dataEnv: DataEnv,
-    catalog: ModelRepresentation[],
+  #getNewExternalDataEnv = async (
+    biToolType: BiToolType,
     latestLineage?: Lineage
-  ): Promise<{ dashboards: Dashboard[]; dependencies: Dependency[] }> => {
+  ): Promise<ExternalDataEnvProps & { operation: DataEnvOperation }> => {
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing field values');
 
     console.log('...building new external data env');
 
-    let generateDataEnvResult: DataEnvProps;
-    if (!latestLineage) generateDataEnvResult = await this.#generateEnv();
+    let getExternalDataEnv: ExternalDataEnvProps;
+    if (!latestLineage)
+      getExternalDataEnv = await this.#generateExternalEnv(biToolType);
     else
-      generateDataEnvResult = await this.#updateEnv(
+      getExternalDataEnv = await this.#updateExternalEnv(
         latestLineage.createdAt,
-        latestLineage.dbCoveredNames
+        biToolType
       );
 
     return {
-      ...generateDataEnvResult,
+      ...getExternalDataEnv,
       operation: !latestLineage ? 'create' : 'update',
     };
-
-    /* 
-      todo-fix potential bug since resources that were deleted are not taken into account. 
-      Also in case of data env update only a fraction of resources is available to build up dependencies 
-      */
-    const res =
-      this.#req.dbtCatalog && this.#req.dbtManifest
-        ? await this.#buildDbtDependencies.execute(
-            {
-              logics: (dataEnv.logicsToCreate || []).concat(
-                dataEnv.logicsToReplace || []
-              ),
-              mats: (dataEnv.matsToCreate || []).concat(
-                dataEnv.matsToReplace || []
-              ),
-              columns: (dataEnv.columnsToCreate || []).concat(
-                dataEnv.columnsToReplace || []
-              ),
-              catalog,
-              targetOrgId: this.#req.targetOrgId,
-              biToolType: this.#req.biTool,
-            },
-            this.#auth,
-            this.#connPool
-          )
-        : await this.#buildSfDependencies.execute(
-            {
-              targetOrgId: this.#req.targetOrgId,
-              biToolType: this.#req.biTool,
-            },
-            this.#auth,
-            this.#connPool
-          );
-
-    if (!res.success) throw new Error(res.error);
-    if (!res.value)
-      throw new Error('build dependencies usecase did not return val obj');
-
-    return res.value;
   };
 
   async execute(
@@ -479,24 +648,21 @@ export class CreateLineage
       const {
         dataEnv,
         operation: dataEnvOperation,
-        catalog,
         dbCoveredNames,
       } = await this.#getNewDataEnv(latestLineage);
 
       console.log('...writing dw resources to persistence');
       await this.#writeWhResourcesToPersistence(dataEnv);
 
-      const { dashboards, dependencies } = await this.getNewExternalDataEnv(
-        dataEnv,
-        catalog,
-        latestLineage
-      );
+      if (req.biTool) {
+        const { dataEnv: externalDataEnv } = await this.#getNewExternalDataEnv(
+          req.biTool,
+          latestLineage
+        );
 
-      console.log('...writing dashboards to persistence');
-      await this.#writeDashboardsToPersistence(dashboards);
-
-      console.log('...writing dependencies to persistence');
-      await this.#writeDependenciesToPersistence(dependencies);
+        console.log('...writing external resources to persistence');
+        await this.#writeExternalResourcesToPersistence(externalDataEnv);
+      }
 
       let dataEnvDto: DataEnvDto | undefined;
       if (dataEnvOperation === 'update')
