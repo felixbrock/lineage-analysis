@@ -638,9 +638,9 @@ export default abstract class BaseGetSfDataEnv {
         const refNameHead = `${val.head.dbName}.${val.head.schemaName}.${val.head.matName}`;
         const refNameTail = `${val.tail.dbName}.${val.tail.schemaName}.${val.tail.matName}`;
 
-        if (localAcc.includes(refNameHead)) localAcc.push(refNameHead);
+        if (!localAcc.includes(refNameHead)) localAcc.push(refNameHead);
 
-        if (localAcc.includes(refNameTail)) localAcc.push(refNameTail);
+        if (!localAcc.includes(refNameTail)) localAcc.push(refNameTail);
 
         return localAcc;
       },

@@ -33,6 +33,8 @@ import { GenerateSfDataEnv } from '../domain/data-env/generate-sf-data-env';
 import { GenerateDbtDataEnv } from '../domain/data-env/generate-dbt-data-env';
 import { UpdateSfDataEnv } from '../domain/data-env/update-sf-data-env';
 import ObservabilityApiRepo from './persistence/observability-api-repo';
+import { GenerateSfExternalDataEnv } from '../domain/external-data-env/generate-sf-external-data-env';
+import { UpdateSfExternalDataEnv } from '../domain/external-data-env/update-sf-external-data-env';
 
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
@@ -41,7 +43,7 @@ iocRegister.register({
   createLogic: asClass(CreateLogic),
   createMaterialization: asClass(CreateMaterialization),
   createColumn: asClass(CreateColumn),
-  CreateDependencies: asClass(CreateDependencies),
+  createDependencies: asClass(CreateDependencies),
   createDashboards: asClass(CreateDashboards),
 
   readMaterialization: asClass(ReadMaterialization),
@@ -55,8 +57,10 @@ iocRegister.register({
   readDashboards: asClass(ReadDashboards),
 
   generateSfDataEnv: asClass(GenerateSfDataEnv),
+  generateSfExternalDataEnv: asClass(GenerateSfExternalDataEnv),
   generateDbtDataEnv: asClass(GenerateDbtDataEnv),
   updateSfDataEnv: asClass(UpdateSfDataEnv),
+  updateSfExternalDataEnv: asClass(UpdateSfExternalDataEnv),
 
   parseSQL: asClass(ParseSQL),
   querySnowflake: asClass(QuerySnowflake),

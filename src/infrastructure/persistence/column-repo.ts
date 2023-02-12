@@ -92,14 +92,10 @@ export default class ColumnRepo
     entity.relationName,
     entity.index,
     entity.dataType,
-    entity.isIdentity !== undefined
-      ? entity.isIdentity.toString()
-      : 'undefined',
-    entity.isNullable !== undefined
-      ? entity.isNullable.toString()
-      : 'undefined',
+    entity.isIdentity !== undefined ? entity.isIdentity.toString() : 'null',
+    entity.isNullable !== undefined ? entity.isNullable.toString() : 'null',
     entity.materializationId,
-    entity.comment || 'undefined',
+    entity.comment || 'null',
   ];
 
   buildFindByQuery(dto: ColumnQueryDto): Query {

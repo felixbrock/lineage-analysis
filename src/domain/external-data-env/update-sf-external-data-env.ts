@@ -46,14 +46,14 @@ export class UpdateSfExternalDataEnv
   constructor(
     querySnowflake: QuerySnowflake,
     querySfQueryHistory: QuerySfQueryHistory,
-    createDasboards: CreateDashboards,
+    createDashboards: CreateDashboards,
     createDependencies: CreateDependencies,
     dashboardRepo: IDashboardRepo
   ) {
     super(
       querySnowflake,
       querySfQueryHistory,
-      createDasboards,
+      createDashboards,
       createDependencies
     );
     this.#dasboardRepo = dashboardRepo;

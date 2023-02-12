@@ -60,10 +60,10 @@ export default class ReadMaterializationsController extends BaseController {
         );
     }
 
-      const isStringArray = (obj: unknown): obj is string[] =>
+    const isStringArray = (obj: unknown): obj is string[] =>
       Array.isArray(obj) && obj.every((el) => typeof el === 'string');
 
-      if(names && !isStringArray(names))
+    if (names && !isStringArray(names))
       throw new Error('names format not accepted');
 
     return {
@@ -131,7 +131,7 @@ export default class ReadMaterializationsController extends BaseController {
 
       return ReadMaterializationsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {
-      if (error instanceof Error ) console.error(error.stack);
+      if (error instanceof Error) console.error(error.stack);
       else if (error) console.trace(error);
       return ReadMaterializationsController.fail(
         res,

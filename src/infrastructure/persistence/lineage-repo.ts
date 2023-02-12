@@ -106,7 +106,7 @@ export default class LineageRepo
     entity.createdAt,
     entity.completed.toString(),
     JSON.stringify(entity.dbCoveredNames),
-    entity.diff || 'undefined',
+    entity.diff || 'null',
   ];
 
   buildFindByQuery(dto: undefined): Query {

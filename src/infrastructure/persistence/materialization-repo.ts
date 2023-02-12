@@ -101,10 +101,10 @@ export default class MaterializationRepo
     el.databaseName,
     el.relationName,
     el.type,
-    el.isTransient !== undefined ? el.isTransient.toString() : 'undefined',
-    el.logicId || 'undefined',
-    el.ownerId || 'undefined',
-    el.comment || 'undefined',
+    el.isTransient !== undefined ? el.isTransient.toString() : 'null',
+    el.logicId || 'null',
+    el.ownerId || 'null',
+    el.comment || 'null',
   ];
 
   buildFindByQuery(dto: MaterializationQueryDto): Query {

@@ -56,7 +56,7 @@ export class QuerySfQueryHistory
         AND REGEXP_COUNT(QUERY_TEXT,'${regex} AS') > 0
         AND CHARINDEX('WHERE 1 <> 1 LIMIT 0', QUERY_TEXT) = 0
         AND CHARINDEX('source', QUERY_TEXT) = 0
-        AND WAREHOUSE_ID IS NOT UNDEFINED
+        AND WAREHOUSE_ID IS NOT null
         limit ?`;
         break;
       }

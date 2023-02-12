@@ -236,7 +236,7 @@ export class UpdateSfDataEnv
         | 'undefined'
         | 'object'
         | 'function'
-    ): val is T => val === undefined || typeof val === targetType;
+    ): val is T => val === null || typeof val === targetType;
 
     const dataEnvDiff = values.reduce(
       (accumulation: DataEnvDiff, el: SnowflakeEntity): DataEnvDiff => {
@@ -562,22 +562,22 @@ export class UpdateSfDataEnv
 
     const binds = [dbName, lastLineageCompletedAt];
 
-    const queryText = `select t2.id as mat_deleted_id, concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name) as mat_added_relation_name, t1.table_name is not undefined and t2.relation_name is not undefined as altered
+    const queryText = `select t2.id as mat_deleted_id, concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name) as mat_added_relation_name, t1.table_name is not null and t2.relation_name is not null as altered
     from cito.lineage.materializations as t2
     full join "${dbName}".information_schema.tables as t1 
     on concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name) = t2.relation_name
     where 
     (
-        array_contains(t2.database_name::variant, array_construct(:1, undefined))
+        array_contains(t2.database_name::variant, array_construct(:1, null))
         and
-        array_contains(t1.table_catalog::variant, array_construct(:1, undefined))
+        array_contains(t1.table_catalog::variant, array_construct(:1, null))
     ) 
     and 
     (
         (
-            t1.table_name is undefined 
+            t1.table_name is null 
             or 
-            (t2.relation_name is undefined and t1.table_schema != 'INFORMATION_SCHEMA')
+            (t2.relation_name is null and t1.table_schema != 'INFORMATION_SCHEMA')
         )
         or 
         timediff(minute, :2::timestamp_ntz, convert_timezone('UTC', last_altered)::timestamp_ntz) > 0
@@ -646,9 +646,12 @@ export class UpdateSfDataEnv
         })
       );
 
-      const dependenciesToCreate = await this.generateDependencies(
-        this.#matsToCreate.concat(this.#matsToReplace)
-      );
+      const dependenciesToCreate =
+        this.#matsToCreate.length || this.#matsToReplace.length
+          ? await this.generateDependencies(
+              this.#matsToCreate.concat(this.#matsToReplace)
+            )
+          : [];
 
       return Result.ok({
         dataEnv: {

@@ -55,9 +55,7 @@ export default abstract class BaseSfRepo<
             const value = el.selectType
               ? `${el.selectType}($${index + 1})`
               : `$${index + 1}`;
-            return el.nullable
-              ? `nullif(${value}::string, 'undefined')`
-              : value;
+            return el.nullable ? `nullif(${value}::string, 'null')` : value;
           })
           .join(', ')}
         from values ${rows.join(', ')};
@@ -76,7 +74,7 @@ export default abstract class BaseSfRepo<
                 ? `${el.selectType}($${index + 1})`
                 : `$${index + 1}`;
               return el.nullable
-                ? `nullif(${value}::string, 'undefined') as ${el.name}`
+                ? `nullif(${value}::string, 'null') as ${el.name}`
                 : `${value} as ${el.name}`;
             })
             .join(', ')}
