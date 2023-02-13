@@ -60,11 +60,16 @@ export default class CreateLineageController extends BaseController {
   #buildAuthDto = (
     jwt: string,
     userAccountInfo: UserAccountInfo
-  ): CreateLineageAuthDto => ({
-    jwt,
-    isSystemInternal: userAccountInfo.isSystemInternal,
-    callerOrgId: userAccountInfo.callerOrgId,
-  });
+  ): CreateLineageAuthDto => {
+    if (!userAccountInfo.callerOrgId)
+      throw new ReferenceError('Authorization failed - callerOrgId is missing');
+
+    return {
+      jwt,
+      isSystemInternal: userAccountInfo.isSystemInternal,
+      callerOrgId: userAccountInfo.callerOrgId,
+    };
+  };
 
   protected async executeImpl(req: Request, res: Response): Promise<Response> {
     try {

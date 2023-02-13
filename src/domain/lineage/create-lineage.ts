@@ -24,6 +24,7 @@ import {
 } from '../data-env/data-env';
 import { GenerateDbtDataEnv } from '../data-env/generate-dbt-data-env';
 import { GenerateSfDataEnv } from '../data-env/generate-sf-data-env';
+import { GenerateSfEnvLineage } from '../data-env/generate-sf-env-lineage';
 import { UpdateSfDataEnv } from '../data-env/update-sf-data-env';
 import { Logic } from '../entities/logic';
 import { IObservabilityApiRepo } from '../observability-api/i-observability-api-repo';
@@ -36,6 +37,7 @@ import { UpdateSfExternalDataEnv } from '../external-data-env/update-sf-external
 import { GenerateSfExternalDataEnv } from '../external-data-env/generate-sf-external-data-env';
 import { Materialization } from '../entities/materialization';
 import { Column } from '../entities/column';
+import { EnvLineage } from '../data-env/env-lineage';
 
 export interface CreateLineageRequestDto {
   targetOrgId?: string;
@@ -44,8 +46,9 @@ export interface CreateLineageRequestDto {
   biTool?: BiToolType;
 }
 
-export type CreateLineageAuthDto = BaseAuth;
-
+export interface CreateLineageAuthDto extends Omit<BaseAuth, 'callerOrgId'> {
+  callerOrgId: string;
+}
 export type CreateLineageResponseDto = Result<Lineage>;
 
 type DataEnvOperation = 'create' | 'update';
@@ -83,6 +86,8 @@ export class CreateLineage
 
   readonly #updateSfExternalDataEnv: UpdateSfExternalDataEnv;
 
+  readonly #generateSfEnvLineage: GenerateSfEnvLineage;
+
   #auth?: CreateLineageAuthDto;
 
   #connPool?: IConnectionPool;
@@ -100,6 +105,7 @@ export class CreateLineage
     generateSfDataEnv: GenerateSfDataEnv,
     generateSfExternalDataEnv: GenerateSfExternalDataEnv,
     generateDbtDataEnv: GenerateDbtDataEnv,
+    generateSfEnvLineage: GenerateSfEnvLineage,
     updateSfDataEnv: UpdateSfDataEnv,
     updateSfExternalDataEnv: UpdateSfExternalDataEnv
   ) {
@@ -113,6 +119,7 @@ export class CreateLineage
     this.#generateSfDataEnv = generateSfDataEnv;
     this.#generateSfExternalDataEnv = generateSfExternalDataEnv;
     this.#generateDbtDataEnv = generateDbtDataEnv;
+    this.#generateSfEnvLineage = generateSfEnvLineage;
     this.#updateSfDataEnv = updateSfDataEnv;
     this.#updateSfExternalDataEnv = updateSfExternalDataEnv;
   }
@@ -127,8 +134,7 @@ export class CreateLineage
   #createWhResourcesInPersistence = async (
     logics: Logic[],
     mats: Materialization[],
-    cols: Column[],
-    dependencies: Dependency[]
+    cols: Column[]
   ): Promise<void> => {
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
@@ -145,13 +151,6 @@ export class CreateLineage
 
     if (cols.length)
       await this.#columnRepo.insertMany(cols, this.#auth, this.#connPool);
-
-    if (dependencies.length)
-      await this.#dependencyRepo.insertMany(
-        dependencies,
-        this.#auth,
-        this.#connPool
-      );
   };
 
   #replaceWhResourcesInPersistence = async (
@@ -193,15 +192,10 @@ export class CreateLineage
   #deleteWhResourcesFromPersistence = async (
     logicRefs: LogicToDeleteRef[],
     matRefs: MatToDeleteRef[],
-    colRefs: ColToDeleteRef[],
-    deleteAllDependencies: boolean
+    colRefs: ColToDeleteRef[]
   ): Promise<void> => {
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
-
-    if (deleteAllDependencies) {
-      await this.#dependencyRepo.deleteAll(this.#auth, this.#connPool);
-    }
 
     if (logicRefs.length)
       await this.#logicRepo.deleteMany(
@@ -242,8 +236,7 @@ export class CreateLineage
     await this.#deleteWhResourcesFromPersistence(
       dataEnv.logicToDeleteRefs,
       dataEnv.matToDeleteRefs,
-      dataEnv.columnToDeleteRefs,
-      dataEnv.deleteAllOldDependencies
+      dataEnv.columnToDeleteRefs
     );
 
     await this.#replaceWhResourcesInPersistence(
@@ -255,8 +248,7 @@ export class CreateLineage
     await this.#createWhResourcesInPersistence(
       dataEnv.logicsToCreate,
       dataEnv.matsToCreate,
-      dataEnv.columnsToCreate,
-      dataEnv.dependenciesToCreate
+      dataEnv.columnsToCreate
     );
   };
 
@@ -457,6 +449,41 @@ export class CreateLineage
     return res;
   };
 
+  #writeSfEnvLineageToPersistence = async (
+    dependencies: Dependency[]
+  ): Promise<void> => {
+    if (!this.#auth || !this.#connPool)
+      throw new Error('Missing properties detected when creating lineage');
+
+    await this.#dependencyRepo.deleteAll(this.#auth, this.#connPool);
+
+    await this.#dependencyRepo.insertMany(
+      dependencies,
+      this.#auth,
+      this.#connPool
+    );
+  };
+
+  #genSfEnvLineage = async (): Promise<EnvLineage> => {
+    if (!this.#auth || !this.#connPool)
+      throw new Error('Missing properties detected when creating lineage');
+
+    const generateSfEnvLineageResult = await this.#generateSfEnvLineage.execute(
+      undefined,
+      this.#auth,
+      this.#connPool
+    );
+
+    if (!generateSfEnvLineageResult.success)
+      throw new Error(generateSfEnvLineageResult.error);
+    if (!generateSfEnvLineageResult.value)
+      throw new Error('Missing value obj after generating sf env lineage');
+
+    const sfEnvLineage = generateSfEnvLineageResult.value;
+
+    return sfEnvLineage;
+  };
+
   #updSfExternalDataEnv = async (
     latestLineageCompletedAt: string,
     biToolType: BiToolType
@@ -653,6 +680,14 @@ export class CreateLineage
 
       console.log('...writing dw resources to persistence');
       await this.#writeWhResourcesToPersistence(dataEnv);
+
+      console.log('...generating new sf lineage');
+      const envLineage = await this.#genSfEnvLineage();
+
+      console.log('...writing new sf lineage to persistence');
+      await this.#writeSfEnvLineageToPersistence(
+        envLineage.dependenciesToCreate
+      );
 
       if (req.biTool) {
         const { dataEnv: externalDataEnv } = await this.#getNewExternalDataEnv(

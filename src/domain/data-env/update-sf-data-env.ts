@@ -646,13 +646,6 @@ export class UpdateSfDataEnv
         })
       );
 
-      const dependenciesToCreate =
-        this.#matsToCreate.length || this.#matsToReplace.length
-          ? await this.generateDependencies(
-              this.#matsToCreate.concat(this.#matsToReplace)
-            )
-          : [];
-
       return Result.ok({
         dataEnv: {
           matsToCreate: this.#matsToCreate,
@@ -677,8 +670,6 @@ export class UpdateSfDataEnv
             id: el.id,
             relationName: el.relationName,
           })),
-          dependenciesToCreate,
-          deleteAllOldDependencies: true,
         },
         catalog: this.catalog,
         dbCoveredNames: dbRepresentations.map((el) => el.name),

@@ -124,15 +124,11 @@ export class GenerateSfDataEnv
         })
       );
 
-      const dependenciesToCreate = await this.generateDependencies(this.#mats);
-
       return Result.ok({
         dataEnv: {
           matsToCreate: this.#mats,
           columnsToCreate: this.#cols,
           logicsToCreate: this.#logics,
-          dependenciesToCreate,
-          deleteAllOldDependencies: false,
           columnsToReplace: [],
           columnToDeleteRefs: [],
           logicsToReplace: [],

@@ -1,11 +1,9 @@
-import { v4 as uuidv4 } from 'uuid';
 import { CreateColumn } from '../column/create-column';
 import {
   Column,
   ColumnDataType,
   parseColumnDataType,
 } from '../entities/column';
-import { Dependency } from '../entities/dependency';
 import { Logic, ModelRepresentation } from '../entities/logic';
 import {
   Materialization,
@@ -65,11 +63,6 @@ interface SfObjectDependency {
   head: SfObjectRef;
   tail: SfObjectRef;
   type: SfObjDependencyType;
-}
-
-export interface CitoMatRepresentation {
-  id: string;
-  relationName: string;
 }
 
 export interface DatabaseRepresentation {
@@ -623,86 +616,6 @@ export default abstract class BaseGetSfDataEnv {
         type: parseSfObjDependencyType(objDependencyType),
       };
     });
-
-    return dependencies;
-  };
-
-  protected getReferencedMatRepresentations = async (
-    sfObjDependencies: SfObjectDependency[],
-    matReps: CitoMatRepresentation[]
-  ): Promise<CitoMatRepresentation[]> => {
-    const distinctRelationNames = sfObjDependencies.reduce(
-      (accumulation: string[], val: SfObjectDependency) => {
-        const localAcc = accumulation;
-
-        const refNameHead = `${val.head.dbName}.${val.head.schemaName}.${val.head.matName}`;
-        const refNameTail = `${val.tail.dbName}.${val.tail.schemaName}.${val.tail.matName}`;
-
-        if (!localAcc.includes(refNameHead)) localAcc.push(refNameHead);
-
-        if (!localAcc.includes(refNameTail)) localAcc.push(refNameTail);
-
-        return localAcc;
-      },
-      []
-    );
-
-    const referencedMats = matReps.filter((el) =>
-      distinctRelationNames.includes(el.relationName)
-    );
-
-    return referencedMats;
-  };
-
-  protected buildDataDependencies = async (
-    sfObjDependencies: SfObjectDependency[],
-    matReps: CitoMatRepresentation[]
-  ): Promise<Dependency[]> => {
-    const referencedMatReps = await this.getReferencedMatRepresentations(
-      sfObjDependencies,
-      matReps
-    );
-
-    const dependencies = sfObjDependencies.map((el): Dependency => {
-      const headRelationName = `${el.head.dbName}.${el.head.schemaName}.${el.head.matName}`;
-      const headMat = referencedMatReps.find(
-        (entry) => entry.relationName === headRelationName
-      );
-      if (!headMat) throw new Error('Mat representation for head not found ');
-
-      const tailRelationName = `${el.tail.dbName}.${el.tail.schemaName}.${el.tail.matName}`;
-      const tailMat = referencedMatReps.find(
-        (entry) => entry.relationName === tailRelationName
-      );
-      if (!tailMat) throw new Error('Mat representation for tail not found ');
-
-      return Dependency.create({
-        id: uuidv4(),
-        headId: headMat.id,
-        tailId: tailMat.id,
-        type: 'data',
-      });
-    });
-
-    return dependencies;
-  };
-
-  protected generateDependencies = async (
-    mats: Materialization[]
-  ): Promise<Dependency[]> => {
-    const sfObjDependencies = await this.getSfObjectDependencies();
-
-    const matReps = mats.map(
-      (el): CitoMatRepresentation => ({
-        id: el.id,
-        relationName: el.relationName,
-      })
-    );
-
-    const dependencies = await this.buildDataDependencies(
-      sfObjDependencies,
-      matReps
-    );
 
     return dependencies;
   };
