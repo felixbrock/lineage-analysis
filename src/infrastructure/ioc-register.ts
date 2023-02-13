@@ -35,6 +35,7 @@ import { UpdateSfDataEnv } from '../domain/data-env/update-sf-data-env';
 import ObservabilityApiRepo from './persistence/observability-api-repo';
 import { GenerateSfExternalDataEnv } from '../domain/external-data-env/generate-sf-external-data-env';
 import { UpdateSfExternalDataEnv } from '../domain/external-data-env/update-sf-external-data-env';
+import { GenerateSfEnvLineage } from '../domain/data-env/generate-sf-env-lineage';
 
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
@@ -59,6 +60,7 @@ iocRegister.register({
   generateSfDataEnv: asClass(GenerateSfDataEnv),
   generateSfExternalDataEnv: asClass(GenerateSfExternalDataEnv),
   generateDbtDataEnv: asClass(GenerateDbtDataEnv),
+  generateSfEnvLineage: asClass(GenerateSfEnvLineage),
   updateSfDataEnv: asClass(UpdateSfDataEnv),
   updateSfExternalDataEnv: asClass(UpdateSfExternalDataEnv),
 

@@ -100,7 +100,7 @@ export default abstract class BaseGetSfEnvLineage {
     if (!this.connPool || !this.auth)
       throw new Error('Missing properties for generating sf data env');
 
-    const queryText = `select * from cito.lineage.materializations where array_contains((database_name ||'.' ||  schema_name ||'.' ||  name)::variant, array_construct(${relationNames
+    const queryText = `select id, relation_name from cito.lineage.materializations where array_contains((database_name ||'.' ||  schema_name ||'.' ||  name)::variant, array_construct(${relationNames
       .map((el) => `'${el}'`)
       .join(', ')}
     ));`;
@@ -118,22 +118,12 @@ export default abstract class BaseGetSfEnvLineage {
     const results = queryResult.value;
 
     const citoMatRepresentations = results.map((el): CitoMatRepresentation => {
-      const {
-        ID: id,
-        DB_NAME: dbName,
-        SCHEMA_NAME: schemaName,
-        NAME: name,
-      } = el;
+      const { ID: id, RELATION_NAME: relationName } = el;
 
-      if (
-        typeof id !== 'string' ||
-        typeof dbName !== 'string' ||
-        typeof schemaName !== 'string' ||
-        typeof name !== 'string'
-      )
-        throw new Error('Received sf obj representation in unexpected format');
+      if (typeof id !== 'string' || typeof relationName !== 'string')
+        throw new Error('Received cito mat in unexpected format');
 
-      return { id, relationName: `${dbName}.${schemaName}.${name}` };
+      return { id, relationName };
     });
 
     return citoMatRepresentations;
