@@ -4,26 +4,12 @@ import BaseAuth from '../services/base-auth';
 import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../snowflake-api/query-snowflake';
 
-export const sfObjRefTypes = ['TABLE', 'VIEW'] as const;
-export type SfObjRefType = typeof sfObjRefTypes[number];
-
-export const parseSfObjRefType = (type: unknown): SfObjRefType => {
-  if (typeof type !== 'string')
-    throw new Error('Provision of type in non-string format');
-
-  const identifiedElement = sfObjRefTypes.find(
-    (element) => element.toLowerCase() === type.toLowerCase()
-  );
-  if (identifiedElement) return identifiedElement;
-  throw new Error('Provision of invalid type');
-};
-
 interface SfObjectRef {
   id: number;
   dbName: string;
   schemaName: string;
   matName: string;
-  type: SfObjRefType;
+  type: string;
 }
 
 export const sfObjDependencyTypes = [
@@ -133,7 +119,7 @@ export default abstract class BaseGetSfEnvLineage {
     if (!this.connPool || !this.auth)
       throw new Error('Missing properties for generating sf data env');
 
-    const queryText = `select * from snowflake.account_usage.object_dependencies;`;
+    const queryText = `select * from snowflake.account_usage.object_dependencies where (REFERENCED_OBJECT_DOMAIN = 'TABLE' or REFERENCED_OBJECT_DOMAIN = 'VIEW') and (REFERENCING_OBJECT_DOMAIN = 'TABLE' or REFERENCING_OBJECT_DOMAIN = 'VIEW')  ;`;
     const queryResult = await this.querySnowflake.execute(
       { queryText, binds: [] },
       this.auth,
@@ -169,20 +155,22 @@ export default abstract class BaseGetSfEnvLineage {
         typeof tailDbName !== 'string' ||
         typeof tailSchemaName !== 'string' ||
         typeof tailMatName !== 'string' ||
-        typeof tailObjId !== 'number'
+        typeof tailObjId !== 'number' ||
+        typeof headObjType !== 'string' ||
+        typeof tailObjType !== 'string'
       )
         throw new Error('Received sf obj representation in unexpected format');
 
       const head: SfObjectRef = {
         id: headObjId,
-        type: parseSfObjRefType(headObjType),
+        type: headObjType,
         dbName: headDbName,
         schemaName: headSchemaName,
         matName: headMatName,
       };
       const tail: SfObjectRef = {
         id: tailObjId,
-        type: parseSfObjRefType(tailObjType),
+        type: tailObjType,
         dbName: tailDbName,
         schemaName: tailSchemaName,
         matName: tailMatName,
@@ -239,13 +227,17 @@ export default abstract class BaseGetSfEnvLineage {
       const headMat = referencedMatReps.find(
         (entry) => entry.relationName === headRelationName
       );
-      if (!headMat) throw new Error('Mat representation for head not found ');
+      if (!headMat) {
+        throw new Error('Mat representation for head not found ');
+      }
 
       const tailRelationName = `${el.tail.dbName}.${el.tail.schemaName}.${el.tail.matName}`;
       const tailMat = referencedMatReps.find(
         (entry) => entry.relationName === tailRelationName
       );
-      if (!tailMat) throw new Error('Mat representation for tail not found ');
+      if (!tailMat) {
+        throw new Error('Mat representation for tail not found ');
+      }
 
       return Dependency.create({
         id: uuidv4(),
