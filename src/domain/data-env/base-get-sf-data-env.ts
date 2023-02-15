@@ -31,14 +31,6 @@ export const parseSfObjRefType = (type: unknown): SfObjRefType => {
   throw new Error('Provision of invalid type');
 };
 
-interface SfObjectRef {
-  id: number;
-  dbName: string;
-  schemaName: string;
-  matName: string;
-  type: SfObjRefType;
-}
-
 export const sfObjDependencyTypes = [
   'BY_NAME',
   'BY_ID',
@@ -58,12 +50,6 @@ export const parseSfObjDependencyType = (
   if (identifiedElement) return identifiedElement;
   throw new Error('Provision of invalid type');
 };
-
-interface SfObjectDependency {
-  head: SfObjectRef;
-  tail: SfObjectRef;
-  type: SfObjDependencyType;
-}
 
 export interface DatabaseRepresentation {
   name: string;
@@ -547,76 +533,5 @@ export default abstract class BaseGetSfDataEnv {
     }
     localAcc[key].push(element);
     return localAcc;
-  };
-
-  protected getSfObjectDependencies = async (): Promise<
-    SfObjectDependency[]
-  > => {
-    if (!this.connPool || !this.auth)
-      throw new Error('Missing properties for generating sf data env');
-
-    const queryText = `select * from snowflake.account_usage.object_dependencies;`;
-    const queryResult = await this.querySnowflake.execute(
-      { queryText, binds: [] },
-      this.auth,
-      this.connPool
-    );
-    if (!queryResult.success) {
-      throw new Error(queryResult.error);
-    }
-    if (!queryResult.value) throw new Error('Query did not return a value');
-
-    const results = queryResult.value;
-
-    const dependencies: SfObjectDependency[] = results.map((el) => {
-      const {
-        REFERENCED_DATABASE: headDbName,
-        REFERENCED_SCHEMA: headSchemaName,
-        REFERENCED_OBJECT_NAME: headMatName,
-        REFERENCED_OBJECT_ID: headObjId,
-        REFERENCED_OBJECT_DOMAIN: headObjType,
-        REFERENCING_DATABASE: tailDbName,
-        REFERENCING_SCHEMA: tailSchemaName,
-        REFERENCING_OBJECT_NAME: tailMatName,
-        REFERENCING_OBJECT_ID: tailObjId,
-        REFERENCING_OBJECT_DOMAIN: tailObjType,
-        DEPENDENCY_TYPE: objDependencyType,
-      } = el;
-
-      if (
-        typeof headDbName !== 'string' ||
-        typeof headSchemaName !== 'string' ||
-        typeof headMatName !== 'string' ||
-        typeof headObjId !== 'number' ||
-        typeof tailDbName !== 'string' ||
-        typeof tailSchemaName !== 'string' ||
-        typeof tailMatName !== 'string' ||
-        typeof tailObjId !== 'number'
-      )
-        throw new Error('Received sf obj representation in unexpected format');
-
-      const head: SfObjectRef = {
-        id: headObjId,
-        type: parseSfObjRefType(headObjType),
-        dbName: headDbName,
-        schemaName: headSchemaName,
-        matName: headMatName,
-      };
-      const tail: SfObjectRef = {
-        id: tailObjId,
-        type: parseSfObjRefType(tailObjType),
-        dbName: tailDbName,
-        schemaName: tailSchemaName,
-        matName: tailMatName,
-      };
-
-      return {
-        head,
-        tail,
-        type: parseSfObjDependencyType(objDependencyType),
-      };
-    });
-
-    return dependencies;
   };
 }
