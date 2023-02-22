@@ -166,16 +166,16 @@ export class GenerateSfEnvLineage
 
     const dependencies: SfObjectDependency[] = results.map((el) => {
       const {
-        REFERENCED_DATABASE: headDbName,
-        REFERENCED_SCHEMA: headSchemaName,
-        REFERENCED_OBJECT_NAME: headMatName,
-        REFERENCED_OBJECT_ID: headObjId,
-        REFERENCED_OBJECT_DOMAIN: headObjType,
-        REFERENCING_DATABASE: tailDbName,
-        REFERENCING_SCHEMA: tailSchemaName,
-        REFERENCING_OBJECT_NAME: tailMatName,
-        REFERENCING_OBJECT_ID: tailObjId,
-        REFERENCING_OBJECT_DOMAIN: tailObjType,
+        REFERENCED_DATABASE: tailDbName,
+        REFERENCED_SCHEMA: tailSchemaName,
+        REFERENCED_OBJECT_NAME: tailMatName,
+        REFERENCED_OBJECT_ID: tailObjId,
+        REFERENCED_OBJECT_DOMAIN: tailObjType,
+        REFERENCING_DATABASE: headDbName,
+        REFERENCING_SCHEMA: headSchemaName,
+        REFERENCING_OBJECT_NAME: headMatName,
+        REFERENCING_OBJECT_ID: headObjId,
+        REFERENCING_OBJECT_DOMAIN: headObjType,
         DEPENDENCY_TYPE: objDependencyType,
       } = el;
 

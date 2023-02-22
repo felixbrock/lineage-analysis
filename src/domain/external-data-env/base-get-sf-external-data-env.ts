@@ -13,7 +13,7 @@ import {
   QuerySfQueryHistory,
   QuerySfQueryHistoryResponseDto,
 } from '../snowflake-api/query-snowflake-history';
-import { BiToolType } from '../value-types/bi-tool';
+import { BiToolType, biToolTypes } from '../value-types/bi-tool';
 
 export type GenerateSfExternalDataEnvRequestDto = {
   targetOrgId?: string;
@@ -23,6 +23,11 @@ export type GenerateSfExternalDataEnvRequestDto = {
 interface CitoMatRepresentation {
   id: string;
   relationName: string;
+}
+
+interface SfQueryHistoryResult {
+  type: BiToolType;
+  res: SnowflakeQueryResult;
 }
 
 export interface DashboardRef {
@@ -69,28 +74,47 @@ export default abstract class BaseGetSfExternalDataEnv {
   }
 
   protected retrieveQuerySfQueryHistory = async (
-    biType: BiToolType
-  ): Promise<SnowflakeQueryResult> => {
-    if (!this.connPool || !this.auth)
-      throw new Error('connection pool or auth missing');
+    biType?: BiToolType
+  ): Promise<SfQueryHistoryResult[]> => {
+    const { auth, connPool } = this;
 
-    const querySfQueryHistoryResult: QuerySfQueryHistoryResponseDto =
-      await this.#querySfQueryHistory.execute(
-        {
-          biType,
-          limit: 10,
-          targetOrgId: this.targetOrgId,
-        },
-        this.auth,
-        this.connPool
-      );
+    if (!connPool || !auth) throw new Error('connection pool or auth missing');
 
-    if (!querySfQueryHistoryResult.success)
-      throw new Error(querySfQueryHistoryResult.error);
-    if (!querySfQueryHistoryResult.value)
-      throw new SyntaxError(`Retrival of query history failed`);
+    const sfQuerHistoryResults = await Promise.all(
+      (biType ? [biType] : biToolTypes).map(
+        async (el): Promise<SfQueryHistoryResult | undefined> => {
+          const querySfQueryHistoryResult: QuerySfQueryHistoryResponseDto =
+            await this.#querySfQueryHistory.execute(
+              {
+                biType: el,
+                limit: 10,
+                targetOrgId: this.targetOrgId,
+              },
+              auth,
+              connPool
+            );
 
-    return querySfQueryHistoryResult.value;
+          if (!querySfQueryHistoryResult.success)
+            throw new Error(querySfQueryHistoryResult.error);
+          if (!querySfQueryHistoryResult.value)
+            throw new SyntaxError(`Retrival of query history failed`);
+
+          return querySfQueryHistoryResult.value
+            ? { type: el, res: querySfQueryHistoryResult.value }
+            : undefined;
+        }
+      )
+    );
+
+    const isSfQueryHistoryResult = (
+      obj: unknown
+    ): obj is SfQueryHistoryResult =>
+      !!obj && typeof obj === 'object' && 'type' in obj && 'res' in obj;
+
+    const referencingDashboards: SfQueryHistoryResult[] =
+      sfQuerHistoryResults.filter(isSfQueryHistoryResult);
+
+    return referencingDashboards;
   };
 
   /* Get all relevant dashboards that are data dependency to self materialization */
@@ -193,21 +217,28 @@ export default abstract class BaseGetSfExternalDataEnv {
   };
 
   protected buildBiResources = async (
-    biToolType: BiToolType
+    biToolType?: BiToolType
   ): Promise<BuildBiResourcesResult> => {
-    const querySfQueryHistory = await this.retrieveQuerySfQueryHistory(
+    const querySfQueryHistoryResults = await this.retrieveQuerySfQueryHistory(
       biToolType
     );
+
+    if (!querySfQueryHistoryResults.length)
+      return { dashboards: [], dependencies: [] };
 
     const matReps = await this.getAllCitoMatReps();
 
-    const dashboardRefs = await this.readDashboardRefs(
-      matReps,
-      querySfQueryHistory,
-      biToolType
+    const dashboardRefs = await Promise.all(
+      querySfQueryHistoryResults.map(async (el) => {
+        const res = await this.readDashboardRefs(matReps, el.res, el.type);
+
+        return res;
+      })
     );
 
-    const result = await this.buildDashboardRefDependencies(dashboardRefs);
+    const result = await this.buildDashboardRefDependencies(
+      dashboardRefs.flat()
+    );
 
     return result;
   };
@@ -216,7 +247,7 @@ export default abstract class BaseGetSfExternalDataEnv {
     if (!this.connPool || !this.auth)
       throw new Error('Missing properties for generating sf data env');
 
-    const queryText = `select id, relation_name * from cito.lineage.materializations;`;
+    const queryText = `select id, relation_name from cito.lineage.materializations;`;
     const queryResult = await this.querySnowflake.execute(
       { queryText, binds: [] },
       this.auth,

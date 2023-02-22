@@ -13,7 +13,7 @@ import { QuerySfQueryHistory } from '../snowflake-api/query-snowflake-history';
 
 export type GenerateSfExternalDataEnvRequestDto = {
   targetOrgId?: string;
-  biToolType: BiToolType;
+  biToolType?: BiToolType;
 };
 
 export type GenerateSfExternalDataEnvAuthDto = BaseAuth;

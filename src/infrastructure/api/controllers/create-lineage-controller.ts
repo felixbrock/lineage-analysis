@@ -106,9 +106,7 @@ export default class CreateLineageController extends BaseController {
         return CreateLineageController.badRequest(res);
       }
 
-      const resultValue = useCaseResult.value
-        ? useCaseResult.value.toDto()
-        : useCaseResult.value;
+      const resultValue = useCaseResult.value;
 
       return CreateLineageController.ok(res, resultValue, CodeHttp.CREATED);
 

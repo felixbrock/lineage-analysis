@@ -17,10 +17,10 @@ import { CreateDependencies } from '../dependency/create-dependencies';
 import { IDashboardRepo } from '../dashboard/i-dashboard-repo';
 
 export interface UpdateSfExternalDataEnvRequestDto {
-  latestLineage: {
+  latestCompletedLineage: {
     completedAt: string;
   };
-  biToolType: BiToolType;
+  biToolType?: BiToolType;
   targetOrgId?: string;
 }
 

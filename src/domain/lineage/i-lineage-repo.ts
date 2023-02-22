@@ -1,9 +1,9 @@
-import { Lineage } from '../entities/lineage';
+import { Lineage, LineageCreationState } from '../entities/lineage';
 import { IAuth, IServiceRepo } from '../services/i-service-repo';
 import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 
 export interface LineageUpdateDto {
-  completed?: boolean;
+  creationState?: LineageCreationState;
   dbCoveredNames?: string[];
   diff?: string;
 }

@@ -26,7 +26,7 @@ import { CreateLogic } from '../logic/create-logic';
 import { ParseSQL } from '../sql-parser-api/parse-sql';
 
 export interface UpdateSfDataEnvRequestDto {
-  latestLineage: {
+  latestCompletedLineage: {
     completedAt: string;
     dbCoveredNames: string[];
   };
@@ -630,7 +630,7 @@ export class UpdateSfDataEnv
       const dbRepresentations = await this.getDbRepresentations(connPool, auth);
 
       const dbToCoverNames = dbRepresentations.map((el) => el.name);
-      const dbRemovedNames = req.latestLineage.dbCoveredNames.filter(
+      const dbRemovedNames = req.latestCompletedLineage.dbCoveredNames.filter(
         (dbOldName) => !dbToCoverNames.includes(dbOldName)
       );
 
@@ -642,7 +642,10 @@ export class UpdateSfDataEnv
 
       await Promise.all(
         dbRepresentations.map(async (el) => {
-          await this.#updateDbDataEnv(el.name, req.latestLineage.completedAt);
+          await this.#updateDbDataEnv(
+            el.name,
+            req.latestCompletedLineage.completedAt
+          );
         })
       );
 

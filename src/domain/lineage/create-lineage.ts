@@ -49,7 +49,7 @@ export interface CreateLineageRequestDto {
 export interface CreateLineageAuthDto extends Omit<BaseAuth, 'callerOrgId'> {
   callerOrgId: string;
 }
-export type CreateLineageResponseDto = Result<Lineage>;
+export type CreateLineageResponseDto = Result<string>;
 
 type DataEnvOperation = 'create' | 'update';
 
@@ -397,7 +397,7 @@ export class CreateLineage
   };
 
   #genSfExternalDataEnv = async (
-    biToolType: BiToolType
+    biToolType?: BiToolType
   ): Promise<ExternalDataEnvProps> => {
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
@@ -420,7 +420,7 @@ export class CreateLineage
   };
 
   #generateExternalEnv = async (
-    biToolType: BiToolType
+    biToolType?: BiToolType
   ): Promise<ExternalDataEnvProps> => {
     if (!this.#req)
       throw new Error('Missing properties detected when creating lineage');
@@ -486,7 +486,7 @@ export class CreateLineage
 
   #updSfExternalDataEnv = async (
     latestLineageCompletedAt: string,
-    biToolType: BiToolType
+    biToolType?: BiToolType
   ): Promise<ExternalDataEnvProps> => {
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
@@ -497,7 +497,7 @@ export class CreateLineage
 
     const result = await this.#updateSfExternalDataEnv.execute(
       {
-        latestLineage: {
+        latestCompletedLineage: {
           completedAt: latestLineageCompletedAt,
         },
         biToolType,
@@ -526,7 +526,7 @@ export class CreateLineage
 
     const result = await this.#updateSfDataEnv.execute(
       {
-        latestLineage: {
+        latestCompletedLineage: {
           completedAt: latestLineageCompletedAt,
           dbCoveredNames: latestLineagedbCoveredNames,
         },
@@ -552,7 +552,7 @@ export class CreateLineage
 
   #updateExternalEnv = async (
     latestLineageCompletedAt: string,
-    biToolType: BiToolType
+    biToolType?: BiToolType
   ): Promise<ExternalDataEnvProps> => {
     if (!this.#req)
       throw new Error('Missing properties detected when creating lineage');
@@ -591,7 +591,7 @@ export class CreateLineage
   };
 
   #getNewDataEnv = async (
-    latestLineage?: Lineage
+    latestCompletedLineage?: Lineage
   ): Promise<DataEnvProps & { operation: DataEnvOperation }> => {
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
@@ -599,22 +599,23 @@ export class CreateLineage
     console.log('...building new data env');
 
     let generateDataEnvResult: DataEnvProps;
-    if (!latestLineage) generateDataEnvResult = await this.#generateEnv();
+    if (!latestCompletedLineage)
+      generateDataEnvResult = await this.#generateEnv();
     else
       generateDataEnvResult = await this.#updateEnv(
-        latestLineage.createdAt,
-        latestLineage.dbCoveredNames
+        latestCompletedLineage.createdAt,
+        latestCompletedLineage.dbCoveredNames
       );
 
     return {
       ...generateDataEnvResult,
-      operation: !latestLineage ? 'create' : 'update',
+      operation: !latestCompletedLineage ? 'create' : 'update',
     };
   };
 
   #getNewExternalDataEnv = async (
-    biToolType: BiToolType,
-    latestLineage?: Lineage
+    biToolType?: BiToolType,
+    latestCompletedLineage?: Lineage
   ): Promise<ExternalDataEnvProps & { operation: DataEnvOperation }> => {
     if (!this.#auth || !this.#connPool || !this.#req)
       throw new Error('Missing field values');
@@ -622,17 +623,17 @@ export class CreateLineage
     console.log('...building new external data env');
 
     let getExternalDataEnv: ExternalDataEnvProps;
-    if (!latestLineage)
+    if (!latestCompletedLineage)
       getExternalDataEnv = await this.#generateExternalEnv(biToolType);
     else
       getExternalDataEnv = await this.#updateExternalEnv(
-        latestLineage.createdAt,
+        latestCompletedLineage.createdAt,
         biToolType
       );
 
     return {
       ...getExternalDataEnv,
-      operation: !latestLineage ? 'create' : 'update',
+      operation: !latestCompletedLineage ? 'create' : 'update',
     };
   };
 
@@ -655,82 +656,102 @@ export class CreateLineage
       this.#auth = auth;
       this.#req = req;
 
-      console.log('starting lineage creation...');
-
-      console.log('...building lineage object');
-      const lineage = Lineage.create({
-        id: uuidv4(),
-      });
-
-      console.log('...writing lineage to persistence');
-      await this.#writeLineageToPersistence(lineage);
-
       const latestLineage = await this.#lineageRepo.findLatest(
-        { tolerateIncomplete: false },
+        { tolerateIncomplete: true },
         this.#auth,
         this.#connPool,
         this.#req.targetOrgId
       );
 
-      const {
-        dataEnv,
-        operation: dataEnvOperation,
-        dbCoveredNames,
-      } = await this.#getNewDataEnv(latestLineage);
+      const latestCompletedLineage =
+        latestLineage && latestLineage.creationState === 'completed'
+          ? latestLineage
+          : await this.#lineageRepo.findLatest(
+              { tolerateIncomplete: false },
+              this.#auth,
+              this.#connPool,
+              this.#req.targetOrgId
+            );
 
-      console.log('...writing dw resources to persistence');
-      await this.#writeWhResourcesToPersistence(dataEnv);
+      let lineage: Lineage;
+      if (!latestLineage || latestLineage.creationState === 'completed') {
+        console.log('starting lineage creation...');
 
-      console.log('...generating new sf lineage');
-      const envLineage = await this.#genSfEnvLineage();
+        console.log('...building lineage object');
+        lineage = Lineage.create({
+          id: uuidv4(),
+        });
 
-      console.log('...writing new sf lineage to persistence');
-      await this.#writeSfEnvLineageToPersistence(
-        envLineage.dependenciesToCreate
-      );
+        console.log('...writing lineage to persistence');
+        await this.#writeLineageToPersistence(lineage);
+      } else lineage = latestLineage;
 
-      if (req.biTool) {
-        const { dataEnv: externalDataEnv } = await this.#getNewExternalDataEnv(
-          req.biTool,
-          latestLineage
-        );
+      if (
+        lineage.creationState !== 'wh-resources-done' &&
+        lineage.creationState !== 'internal-lineage-done'
+      ) {
+        const {
+          dataEnv,
+          operation: dataEnvOperation,
+          dbCoveredNames,
+        } = await this.#getNewDataEnv(latestCompletedLineage);
 
-        console.log('...writing external resources to persistence');
-        await this.#writeExternalResourcesToPersistence(externalDataEnv);
+        console.log('...writing dw resources to persistence');
+        await this.#writeWhResourcesToPersistence(dataEnv);
+
+        let dataEnvDto: DataEnvDto | undefined;
+        if (dataEnvOperation === 'update')
+          dataEnvDto = {
+            matToCreateRelationNames: dataEnv.matsToCreate.map(
+              (el) => `${el.databaseName}.${el.schemaName}.${el.name}`
+            ),
+            matToDeleteRelationNames: dataEnv.matToDeleteRefs.map(
+              (el) => `${el.dbName}.${el.schemaName}.${el.name}`
+            ),
+            matToReplaceRelationNames: dataEnv.matsToReplace.map(
+              (el) => `${el.databaseName}.${el.schemaName}.${el.name}`
+            ),
+          };
+
+        console.log('...updating lineage creation state');
+        await this.#updateLineage(lineage.id, {
+          creationState: 'wh-resources-done',
+          dbCoveredNames,
+          diff: dataEnvDto ? JSON.stringify(dataEnvDto) : undefined,
+        });
       }
 
-      let dataEnvDto: DataEnvDto | undefined;
-      if (dataEnvOperation === 'update')
-        dataEnvDto = {
-          matToCreateRelationNames: dataEnv.matsToCreate.map(
-            (el) => `${el.databaseName}.${el.schemaName}.${el.name}`
-          ),
-          matToDeleteRelationNames: dataEnv.matToDeleteRefs.map(
-            (el) => `${el.dbName}.${el.schemaName}.${el.name}`
-          ),
-          matToReplaceRelationNames: dataEnv.matsToReplace.map(
-            (el) => `${el.databaseName}.${el.schemaName}.${el.name}`
-          ),
-        };
+      if (lineage.creationState !== 'internal-lineage-done') {
+        console.log('...generating new sf lineage');
+        const envLineage = await this.#genSfEnvLineage();
+
+        console.log('...writing new sf lineage to persistence');
+        await this.#writeSfEnvLineageToPersistence(
+          envLineage.dependenciesToCreate
+        );
+
+        console.log('...updating lineage creation state');
+        await this.#updateLineage(lineage.id, {
+          creationState: 'internal-lineage-done',
+        });
+      }
+
+      const { dataEnv: externalDataEnv } = await this.#getNewExternalDataEnv(
+        req.biTool,
+        latestCompletedLineage
+      );
+
+      console.log('...writing external resources to persistence');
+      await this.#writeExternalResourcesToPersistence(externalDataEnv);
 
       console.log('...setting lineage complete state to true');
       await this.#updateLineage(lineage.id, {
-        completed: true,
-        dbCoveredNames,
-        diff: dataEnvDto ? JSON.stringify(dataEnvDto) : undefined,
+        creationState: 'completed',
       });
 
       console.log('finished lineage creation.');
 
-      return Result.ok(
-        Lineage.build({
-          id: lineage.id,
-          createdAt: lineage.createdAt,
-          completed: true,
-          dbCoveredNames,
-          diff: dataEnvDto ? JSON.stringify(dataEnvDto) : undefined,
-        })
-      );
+      return Result.ok(lineage.id);
     } catch (error: unknown) {
       if (error instanceof Error) console.error(error.stack);
       else if (error) console.trace(error);

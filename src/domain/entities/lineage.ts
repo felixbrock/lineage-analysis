@@ -7,24 +7,43 @@ export interface LineagePrototype {
 
 export interface LineageProps extends Omit<LineagePrototype, 'createdAt'> {
   createdAt: string;
-  completed: boolean;
+  creationState: LineageCreationState;
   dbCoveredNames: string[];
   diff?: string;
 }
 
 type LineageDto = LineageProps;
 
+export const lineagecreationstateTypes = [
+  'pending',
+  'wh-resources-done',
+  'internal-lineage-done',
+  'completed',
+] as const;
+export type LineageCreationState = typeof lineagecreationstateTypes[number];
+
+export const parseLineageCreationState = (
+  creationState: unknown
+): LineageCreationState => {
+  if (typeof creationState !== 'string')
+    throw new Error('Provision of invalid type');
+  const identifiedElement = lineagecreationstateTypes.find(
+    (element) => element.toLowerCase() === creationState.toLowerCase()
+  );
+  if (identifiedElement) return identifiedElement;
+  throw new Error('Provision of invalid type');
+};
+
 export class Lineage {
   #id: string;
 
   #createdAt: string;
 
-  #completed: boolean;
-  
+  #creationState: LineageCreationState;
+
   #dbCoveredNames: string[];
 
   #diff?: string;
-
 
   get id(): string {
     return this.#id;
@@ -34,8 +53,8 @@ export class Lineage {
     return this.#createdAt;
   }
 
-  get completed(): boolean {
-    return this.#completed;
+  get creationState(): LineageCreationState {
+    return this.#creationState;
   }
 
   get dbCoveredNames(): string[] {
@@ -46,11 +65,10 @@ export class Lineage {
     return this.#diff;
   }
 
-
   private constructor(props: LineageProps) {
     this.#id = props.id;
     this.#createdAt = props.createdAt;
-    this.#completed = props.completed;
+    this.#creationState = props.creationState;
     this.#dbCoveredNames = props.dbCoveredNames;
     this.#diff = props.diff;
   }
@@ -61,7 +79,7 @@ export class Lineage {
     const lineage = Lineage.build({
       ...prototype,
       createdAt: prototype.createdAt || new Date().toISOString(),
-      completed: false,
+      creationState: 'pending',
       dbCoveredNames: prototype.dbCoveredNames || [],
       diff: prototype.diff,
     });
@@ -73,7 +91,7 @@ export class Lineage {
     new Lineage({
       id: props.id,
       createdAt: props.createdAt,
-      completed: props.completed,
+      creationState: props.creationState,
       dbCoveredNames: props.dbCoveredNames,
       diff: props.diff,
     });
@@ -81,7 +99,7 @@ export class Lineage {
   toDto = (): LineageDto => ({
     id: this.#id,
     createdAt: this.#createdAt,
-    completed: this.#completed,
+    creationState: this.#creationState,
     dbCoveredNames: this.#dbCoveredNames,
     diff: this.#diff,
   });

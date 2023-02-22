@@ -1,4 +1,8 @@
-import { Lineage, LineageProps } from '../../domain/entities/lineage';
+import {
+  Lineage,
+  LineageProps,
+  parseLineageCreationState,
+} from '../../domain/entities/lineage';
 import {
   Bind,
   IConnectionPool,
@@ -22,7 +26,7 @@ export default class LineageRepo
   readonly colDefinitions: ColumnDefinition[] = [
     { name: 'id', nullable: false },
     { name: 'created_at', nullable: false },
-    { name: 'completed', nullable: false },
+    { name: 'creation_state', nullable: false },
     { name: 'db_covered_names', selectType: 'parse_json', nullable: false },
     { name: 'diff', nullable: true },
   ];
@@ -35,7 +39,7 @@ export default class LineageRepo
   buildEntityProps = (sfEntity: SnowflakeEntity): LineageProps => {
     const {
       ID: id,
-      COMPLETED: completed,
+      CREATION_STATE: creationState,
       CREATED_AT: createdAt,
       DB_COVERED_NAMES: dbCoveredNames,
       DIFF: diff,
@@ -43,7 +47,6 @@ export default class LineageRepo
 
     if (
       typeof id !== 'string' ||
-      typeof completed !== 'boolean' ||
       !(createdAt instanceof Date) ||
       !LineageRepo.isStringArray(dbCoveredNames) ||
       !LineageRepo.isOptionalOfType<string>(diff, 'string')
@@ -54,7 +57,7 @@ export default class LineageRepo
 
     return {
       id,
-      completed,
+      creationState: parseLineageCreationState(creationState),
       createdAt: createdAt.toISOString(),
       dbCoveredNames,
       diff,
@@ -69,10 +72,10 @@ export default class LineageRepo
     const minuteTolerance: number = filter.minuteTolerance || 10;
 
     const queryText = `select * from cito.lineage.${this.matName} 
-    where completed = true 
+    where creation_state = 'completed' 
     ${
       filter.tolerateIncomplete
-        ? `or (completed = false and timediff(minute, created_at, sysdate()) < ?)`
+        ? `or (creation_state != 'completed' and timediff(minute, created_at, sysdate()) < ?)`
         : ''
     }
     order by created_at desc limit 1;`;
@@ -104,7 +107,7 @@ export default class LineageRepo
   getBinds = (entity: Lineage): Bind[] => [
     entity.id,
     entity.createdAt,
-    entity.completed.toString(),
+    entity.creationState,
     JSON.stringify(entity.dbCoveredNames),
     entity.diff || 'null',
   ];
@@ -119,9 +122,9 @@ export default class LineageRepo
     const colDefinitions: ColumnDefinition[] = [this.getDefinition('id')];
     const binds = [id];
 
-    if (dto.completed !== undefined) {
-      colDefinitions.push(this.getDefinition('completed'));
-      binds.push(dto.completed.toString());
+    if (dto.creationState) {
+      colDefinitions.push(this.getDefinition('creation_state'));
+      binds.push(dto.creationState.toString());
     }
 
     if (dto.dbCoveredNames)
