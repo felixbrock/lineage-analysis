@@ -26,9 +26,9 @@ export default class LineageRepo
   readonly colDefinitions: ColumnDefinition[] = [
     { name: 'id', nullable: false },
     { name: 'created_at', nullable: false },
-    { name: 'creation_state', nullable: false },
     { name: 'db_covered_names', selectType: 'parse_json', nullable: false },
     { name: 'diff', nullable: true },
+    { name: 'creation_state', nullable: false },
   ];
 
   // eslint-disable-next-line @typescript-eslint/no-useless-constructor
@@ -39,10 +39,10 @@ export default class LineageRepo
   buildEntityProps = (sfEntity: SnowflakeEntity): LineageProps => {
     const {
       ID: id,
-      CREATION_STATE: creationState,
       CREATED_AT: createdAt,
       DB_COVERED_NAMES: dbCoveredNames,
       DIFF: diff,
+      CREATION_STATE: creationState,
     } = sfEntity;
 
     if (
@@ -69,18 +69,23 @@ export default class LineageRepo
     auth: BaseAuth,
     connPool: IConnectionPool
   ): Promise<Lineage | undefined> => {
-    const minuteTolerance: number = filter.minuteTolerance || 10;
-
     const queryText = `select * from cito.lineage.${this.matName} 
     where creation_state = 'completed' 
     ${
       filter.tolerateIncomplete
-        ? `or (creation_state != 'completed' and timediff(minute, created_at, sysdate()) < ?)`
+        ? `or (creation_state != 'completed' ${
+            filter.minuteTolerance
+              ? `and timediff(minute, created_at, sysdate()) < ?`
+              : ''
+          })`
         : ''
     }
     order by created_at desc limit 1;`;
 
-    const binds = filter.tolerateIncomplete ? [minuteTolerance] : [];
+    const binds =
+      filter.tolerateIncomplete && filter.minuteTolerance
+        ? [filter.minuteTolerance]
+        : [];
 
     try {
       const result = await this.querySnowflake.execute(
@@ -107,9 +112,9 @@ export default class LineageRepo
   getBinds = (entity: Lineage): Bind[] => [
     entity.id,
     entity.createdAt,
-    entity.creationState,
     JSON.stringify(entity.dbCoveredNames),
     entity.diff || 'null',
+    entity.creationState,
   ];
 
   buildFindByQuery(dto: undefined): Query {
@@ -124,12 +129,13 @@ export default class LineageRepo
 
     if (dto.creationState) {
       colDefinitions.push(this.getDefinition('creation_state'));
-      binds.push(dto.creationState.toString());
+      binds.push(dto.creationState);
     }
 
-    if (dto.dbCoveredNames)
+    if (dto.dbCoveredNames) {
       colDefinitions.push(this.getDefinition('db_covered_names'));
-    binds.push(JSON.stringify(dto.dbCoveredNames));
+      binds.push(JSON.stringify(dto.dbCoveredNames));
+    }
 
     if (dto.diff) {
       colDefinitions.push(this.getDefinition('diff'));

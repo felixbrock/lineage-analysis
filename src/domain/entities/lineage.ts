@@ -39,18 +39,14 @@ export class Lineage {
 
   #createdAt: string;
 
-  #creationState: LineageCreationState;
-
   #dbCoveredNames: string[];
 
   #diff?: string;
 
+  #creationState: LineageCreationState;
+
   get id(): string {
     return this.#id;
-  }
-
-  get createdAt(): string {
-    return this.#createdAt;
   }
 
   get creationState(): LineageCreationState {
@@ -65,12 +61,16 @@ export class Lineage {
     return this.#diff;
   }
 
+  get createdAt(): string {
+    return this.#createdAt;
+  }
+
   private constructor(props: LineageProps) {
     this.#id = props.id;
     this.#createdAt = props.createdAt;
-    this.#creationState = props.creationState;
     this.#dbCoveredNames = props.dbCoveredNames;
     this.#diff = props.diff;
+    this.#creationState = props.creationState;
   }
 
   static create = (prototype: LineagePrototype): Lineage => {
@@ -79,9 +79,9 @@ export class Lineage {
     const lineage = Lineage.build({
       ...prototype,
       createdAt: prototype.createdAt || new Date().toISOString(),
-      creationState: 'pending',
       dbCoveredNames: prototype.dbCoveredNames || [],
       diff: prototype.diff,
+      creationState: 'pending',
     });
 
     return lineage;
@@ -91,16 +91,16 @@ export class Lineage {
     new Lineage({
       id: props.id,
       createdAt: props.createdAt,
-      creationState: props.creationState,
       dbCoveredNames: props.dbCoveredNames,
       diff: props.diff,
+      creationState: props.creationState,
     });
 
   toDto = (): LineageDto => ({
     id: this.#id,
     createdAt: this.#createdAt,
-    creationState: this.#creationState,
     dbCoveredNames: this.#dbCoveredNames,
     diff: this.#diff,
+    creationState: this.#creationState,
   });
 }

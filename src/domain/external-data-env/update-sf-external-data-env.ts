@@ -140,7 +140,7 @@ export class UpdateSfExternalDataEnv
         dataEnv: {
           ...compareDashboardsResult,
           dependenciesToCreate: buildBiResourcesResult.dependencies,
-          deleteAllOldDependencies: true,
+          deleteAllOldDependencies: false,
         },
       });
     } catch (error: unknown) {
