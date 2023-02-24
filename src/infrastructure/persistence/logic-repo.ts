@@ -52,7 +52,7 @@ export default class LogicRepo
       typeof sql !== 'string' ||
       typeof dependentOn !== 'object' ||
       typeof parsedLogic !== 'string' ||
-      typeof statementRefs !== 'object' 
+      typeof statementRefs !== 'object'
     )
       throw new Error(
         'Retrieved unexpected logic field types from persistence'
@@ -68,10 +68,7 @@ export default class LogicRepo
       'columns' in (el as Refs) &&
       'wildcards' in (el as Refs);
 
-    if (
-      !isDependentOnObj(dependentOn) ||
-      !isRefsObj(statementRefs) 
-    )
+    if (!isDependentOnObj(dependentOn) || !isRefsObj(statementRefs))
       throw new Error(
         'Type mismatch detected when reading logic from persistence'
       );
@@ -100,20 +97,16 @@ export default class LogicRepo
     let whereClause = '';
 
     if (dto.relationNames && dto.relationNames.length) {
-      binds.push(...dto.relationNames);
-      const whereCondition = 
-        `array_contains(relation_name::variant, array_construct(${dto.relationNames
-          .map(() => '?')
-          .join(',')}))`
-      ;
-
+      const whereCondition = `array_contains(relation_name::variant, array_construct(${dto.relationNames
+        .map((el) => `'${el}'`)
+        .join(',')}))`;
       whereClause = whereClause
         ? whereClause.concat(`and ${whereCondition} `)
         : whereCondition;
     }
 
     const text = `select * from cito.lineage.${this.matName}
-  ${whereClause ? 'where': ''} ${whereClause};`;
+  ${whereClause ? 'where' : ''} ${whereClause};`;
 
     return { text, binds };
   }

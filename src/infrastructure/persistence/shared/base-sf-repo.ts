@@ -233,6 +233,58 @@ export default abstract class BaseSfRepo<
     }
   };
 
+  #splitQuery = (
+    baseQueryText: string,
+    leadingConstantBinds: Bind[],
+    arrayBasedBinds: Bind[],
+    tailingConstantBinds: Bind[],
+    arrayBasedBindsPlaceholder: string
+  ): { queryText: string; binds: Bind[] }[] => {
+    const byteToMBDivisor = 1000000;
+    const querySizeOffset = 0.1;
+
+    const baseQueryTextMBSize =
+      new Blob([baseQueryText]).size / byteToMBDivisor;
+    const constantBindsMBSize =
+      new Blob([
+        JSON.stringify(leadingConstantBinds.concat(tailingConstantBinds)),
+      ]).size / byteToMBDivisor;
+
+    const bindsMBSize =
+      new Blob([JSON.stringify(arrayBasedBinds)]).size / byteToMBDivisor;
+    const bindingMBSize =
+      new Blob([arrayBasedBinds.map(() => '?, ').join(',')]).size /
+      byteToMBDivisor;
+
+    // in MB (subtracting offset)
+    const maxSize = 1 * (1 - querySizeOffset);
+    const maxBindingSequenceMBSize =
+      maxSize - baseQueryTextMBSize - constantBindsMBSize;
+
+    const numSequences = Math.ceil(
+      (bindsMBSize + bindingMBSize) / maxBindingSequenceMBSize
+    );
+    const numElementsPerSequence = Math.ceil(
+      arrayBasedBinds.length / numSequences
+    );
+
+    const queries: { queryText: string; binds: Bind[] }[] = [];
+    for (let i = 0; i < arrayBasedBinds.length; i += numElementsPerSequence) {
+      const chunk = arrayBasedBinds.slice(i, i + numElementsPerSequence);
+
+      const queryText = baseQueryText.replace(
+        arrayBasedBindsPlaceholder,
+        chunk.map(() => '?').join(',')
+      );
+
+      const binds = leadingConstantBinds.concat(chunk, tailingConstantBinds);
+
+      queries.push({ queryText, binds });
+    }
+
+    return queries;
+  };
+
   #splitBinds = (queryTextSize: number, binds: Binds): Binds[] => {
     // todo - Upload as file and then copy into table
     const byteToMBDivisor = 1000000;
@@ -413,28 +465,21 @@ export default abstract class BaseSfRepo<
     connPool: IConnectionPool
   ): Promise<number> => {
     try {
-      const binds = ids;
+      const placeholder = '#|!$';
 
-      const getQueryText = (bindSequence: Binds): string =>
-        `delete from ${this.#relationPath}.${
-          this.matName
-        } where array_contains(id::variant, array_construct(${bindSequence
-          .map(() => '?')
-          .join(', ')}));`;
+      const queryText = `delete from ${this.#relationPath}.${
+        this.matName
+      } where array_contains(id::variant, array_construct(${placeholder}));`;
 
-      const bindSequences = this.#splitBinds(
-        new Blob([getQueryText(binds)]).size,
-        binds
-      );
+      const queries = this.#splitQuery(queryText, [], ids, [], placeholder);
 
       const results = await Promise.all(
-        bindSequences.map(async (el) => {
+        queries.map(async (el) => {
           const res = await this.querySnowflake.execute(
-            { queryText: getQueryText(el), binds: el },
+            { queryText: el.queryText, binds: el.binds },
             auth,
             connPool
           );
-
           return res;
         })
       );

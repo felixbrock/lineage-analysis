@@ -99,13 +99,12 @@ export default class ColumnRepo
   ];
 
   buildFindByQuery(dto: ColumnQueryDto): Query {
-    const binds: (string | number)[] = [];
+    const binds: Bind[] = [];
     let whereClause = '';
 
     if (dto.relationNames && dto.relationNames.length) {
-      binds.push(...dto.relationNames);
       const whereCondition = `array_contains(relation_name::variant, array_construct(${dto.relationNames
-        .map(() => '?')
+        .map((el) => `'${el}'`)
         .join(',')}))`;
 
       whereClause = whereClause
@@ -113,10 +112,8 @@ export default class ColumnRepo
         : whereCondition;
     }
     if (dto.names && dto.names.length) {
-      binds.push(...dto.names);
-
       const whereCondition = `array_contains(name::variant, array_construct(${dto.names
-        .map(() => '?')
+        .map((el) => `'${el}'`)
         .join(',')}))`;
 
       whereClause = whereClause
@@ -140,10 +137,8 @@ export default class ColumnRepo
         : whereCondition;
     }
     if (dto.materializationIds && dto.materializationIds.length) {
-      binds.push(...dto.materializationIds);
-
       const whereCondition = `array_contains(materialization_id::variant, array_construct(${dto.materializationIds
-        .map(() => '?')
+        .map((el) => `'${el}'`)
         .join(',')}))`;
 
       whereClause = whereClause

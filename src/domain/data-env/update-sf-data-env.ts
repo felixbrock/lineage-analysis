@@ -11,6 +11,7 @@ import { Column } from '../entities/column';
 import { Materialization } from '../entities/materialization';
 import { Logic } from '../entities/logic';
 import {
+  Binds,
   IConnectionPool,
   SnowflakeEntity,
 } from '../snowflake-api/i-snowflake-api-repo';
@@ -290,9 +291,9 @@ export class UpdateSfDataEnv
     if (!relationNames.length) return;
 
     const whereCondition = `array_contains(concat(table_catalog, '.', table_schema, '.', table_name)::variant, array_construct(${relationNames
-      .map(() => `?`)
+      .map((el) => `'${el}'`)
       .join(', ')}))`;
-    const binds = relationNames;
+    const binds: Binds = [];
     const matRepresentations = await this.getMatRepresentations(
       dbName,
       whereCondition,
@@ -403,9 +404,9 @@ export class UpdateSfDataEnv
     );
 
     const whereCondition = `array_contains(concat(table_catalog, '.', table_schema, '.', table_name)::variant, array_construct(${relationNames
-      .map(() => `?`)
+      .map((el) => `'${el}'`)
       .join(', ')}))`;
-    const binds = relationNames;
+    const binds: Binds = [];
     const newMatReps = await this.getMatRepresentations(
       dbName,
       whereCondition,

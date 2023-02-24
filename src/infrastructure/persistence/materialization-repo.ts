@@ -108,13 +108,12 @@ export default class MaterializationRepo
   ];
 
   buildFindByQuery(dto: MaterializationQueryDto): Query {
-    const binds: (string | number)[] = [];
+    const binds: Bind[] = [];
     let whereClause = '';
 
     if (dto.ids && dto.ids.length) {
-      binds.push(...dto.ids);
       const whereCondition = `array_contains(id::variant, array_construct(${dto.ids
-        .map(() => '?')
+        .map((el) => `'${el}'`)
         .join(',')}))`;
       whereClause = whereClause
         ? whereClause.concat(`${whereCondition} `)
@@ -137,9 +136,8 @@ export default class MaterializationRepo
         : whereCondition;
     }
     if (dto.names && dto.names.length) {
-      binds.push(...dto.names);
       const whereCondition = `array_contains(name::variant, array_construct(${dto.names
-        .map(() => '?')
+        .map((el) => `'${el}'`)
         .join(',')}))`;
       whereClause = whereClause
         ? whereClause.concat(`and ${whereCondition} `)
