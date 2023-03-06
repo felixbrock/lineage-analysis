@@ -323,6 +323,8 @@ export default abstract class BaseSfRepo<
     connPool: IConnectionPool
   ): Promise<string[]> => {
     try {
+      if (entities.length === 0) return [];
+
       const binds = entities.map((entity) => this.getBinds(entity));
 
       const row = `(${this.colDefinitions.map(() => '?').join(', ')})`;
