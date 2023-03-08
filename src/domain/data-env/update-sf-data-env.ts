@@ -157,7 +157,8 @@ export class UpdateSfDataEnv
 
   #mergeMatColumns = async (
     newCols: Column[],
-    oldCols: Column[]
+    oldCols: Column[],
+    oldMatId: string
   ): Promise<{
     columnsToReplace: Column[];
     columnsToCreate: Column[];
@@ -177,13 +178,19 @@ export class UpdateSfDataEnv
             {
               id: matchingColumn.id,
               name: matchingColumn.name,
-              materializationId: matchingColumn.materializationId,
+              materializationId: oldMatId,
             },
             columnToHandle
           );
 
           columnsToReplace.push(updatedColumn);
-        } else columnsToCreate.push(columnToHandle);
+        } else
+          columnsToCreate.push(
+            Column.build({
+              ...columnToHandle.toDto(),
+              materializationId: oldMatId,
+            })
+          );
       })
     );
 
@@ -472,7 +479,8 @@ export class UpdateSfDataEnv
         const { columnsToCreate, columnsToReplace, columnToDeleteRefs } =
           await this.#mergeMatColumns(
             colsToHandle,
-            oldColsByMatId[matchingMat.id]
+            oldColsByMatId[matchingMat.id],
+            updatedMat.id
           );
 
         this.#columnsToCreate.push(...columnsToCreate);
