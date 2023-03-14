@@ -27,10 +27,6 @@ export default class DashboardRepo
     { name: 'id', nullable: false },
     { name: 'name', nullable: true },
     { name: 'url', nullable: true },
-    { name: 'materialization_name', nullable: false },
-    { name: 'materialization_id', nullable: false },
-    { name: 'column_name', nullable: false },
-    { name: 'column_id', nullable: false },
   ];
 
   // eslint-disable-next-line @typescript-eslint/no-useless-constructor
@@ -39,31 +35,14 @@ export default class DashboardRepo
   }
 
   buildEntityProps = (sfEntity: SnowflakeEntity): DashboardProps => {
-    const {
-      ID: id,
-      NAME: name,
-      URL: url,
-      MATERIALIZATION_NAME: materializationName,
-      MATERIALIZATION_ID: materializationId,
-      COLUMN_NAME: columnName,
-      COLUMN_ID: columnId,
-    } = sfEntity;
+    const { ID: id, NAME: name, URL: url } = sfEntity;
 
-    if (
-      typeof id !== 'string' ||
-      typeof materializationName !== 'string' ||
-      typeof materializationId !== 'string' ||
-      typeof columnName !== 'string' ||
-      typeof columnId !== 'string'
-    )
+    if (typeof id !== 'string' || typeof url !== 'string')
       throw new Error(
         'Retrieved unexpected dashboard field types from persistence'
       );
 
-    if (
-      !DashboardRepo.isOptionalOfType<string>(name, 'string') ||
-      !DashboardRepo.isOptionalOfType<string>(url, 'string')
-    )
+    if (!DashboardRepo.isOptionalOfType<string>(name, 'string'))
       throw new Error(
         'Type mismatch detected when reading dashboard from persistence'
       );
@@ -78,7 +57,7 @@ export default class DashboardRepo
   getBinds = (entity: Dashboard): Bind[] => [
     entity.id,
     entity.name || 'null',
-    entity.url || 'null',
+    entity.url,
   ];
 
   buildFindByQuery(dto: DashboardQueryDto): Query {
@@ -96,38 +75,6 @@ export default class DashboardRepo
     if (dto.name) {
       binds.push(dto.name);
       const whereCondition = 'name = ?';
-
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
-    }
-    if (dto.materializationName) {
-      binds.push(dto.materializationName);
-      const whereCondition = 'materialization_name = ?';
-
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
-    }
-    if (dto.materializationId) {
-      binds.push(dto.materializationId);
-      const whereCondition = 'materialization_id = ?';
-
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
-    }
-    if (dto.columnName) {
-      binds.push(dto.columnName);
-      const whereCondition = 'column_name = ?';
-
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
-    }
-    if (dto.columnId) {
-      binds.push(dto.columnId);
-      const whereCondition = 'column_id = ?';
 
       whereClause = whereClause
         ? whereClause.concat(`and ${whereCondition} `)

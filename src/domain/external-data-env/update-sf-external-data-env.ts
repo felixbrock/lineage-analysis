@@ -81,6 +81,13 @@ export class UpdateSfExternalDataEnv
       this.connPool
     );
 
+    if (!oldDashboards.length)
+      return {
+        dashboardsToCreate: newDashboards,
+        dashboardsToReplace: [],
+        dashboardToDeleteRefs: [],
+      };
+
     const dashboardsToReplace: Dashboard[] = [];
     const dashboardsToCreate: Dashboard[] = [];
     const dashboardToDeleteRefs: DashboardToDeleteRef[] = [];

@@ -33,40 +33,17 @@ export class QuerySfQueryHistory
 
   static #buildQuery = (biType: BiToolType): string => {
     let condition = '';
-    let regex = '';
     switch (biType) {
-      case 'Mode': {
-        // eslint-disable-next-line no-useless-escape
-        regex = 'https://modeanalytics.com[^s"]+';
-        condition = `REGEXP_COUNT(QUERY_TEXT,'${regex}') > 0
-        limit ?`;
-        break;
-      }
       case 'Tableau': {
-        // eslint-disable-next-line no-useless-escape
-        regex = '"TableauSQL"';
-        condition = `REGEXP_COUNT(QUERY_TEXT,'${regex}') > 0
-         limit ?`;
-        break;
-      }
-      case 'Metabase': {
-        // eslint-disable-next-line no-useless-escape
-        regex = '("[A-Za-z0-9_$]+".){2}("[A-Za-z0-9_$]+")';
-        condition = `REGEXP_COUNT(QUERY_TEXT,'FROM ${regex}') > 0
-        AND REGEXP_COUNT(QUERY_TEXT,'${regex} AS') > 0
-        AND CHARINDEX('WHERE 1 <> 1 LIMIT 0', QUERY_TEXT) = 0
-        AND CHARINDEX('source', QUERY_TEXT) = 0
-        AND WAREHOUSE_ID IS NOT null
-        limit ?`;
+        condition = `query_tag ilike '%tableau%'`;
         break;
       }
       default: {
-        condition = 'false';
-        break;
+        throw new Error('Invalid BI tool type');
       }
     }
 
-    return `select QUERY_TEXT from snowflake.account_usage.query_history
+    return `select QUERY_TEXT, query_tag from snowflake.account_usage.query_history
      where ${condition}`;
   };
 

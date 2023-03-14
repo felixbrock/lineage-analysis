@@ -1,25 +1,25 @@
 export interface DashboardProps {
   id: string;
-  url?: string;
+  url: string;
   name?: string;
 }
 
 export interface DashboardPrototype {
   id: string;
-  url?: string;
+  url: string;
   name?: string;
 }
 
 type DashboardDto = DashboardProps;
 
 export class Dashboard {
-  #url?: string;
+  #url: string;
 
   #name?: string;
 
   #id: string;
 
-  get url(): string | undefined {
+  get url(): string {
     return this.#url;
   }
 

@@ -1,9 +1,7 @@
-export const biToolTypes = ['Mode', 'Tableau', 'Metabase'] as const;
+export const biToolTypes = ['Tableau'] as const;
 export type BiToolType = typeof biToolTypes[number];
 
-export const parseBiToolType = (
-  biToolType: string
-): BiToolType => {
+export const parseBiToolType = (biToolType: string): BiToolType => {
   const identifiedElement = biToolTypes.find(
     (element) => element.toLowerCase() === biToolType.toLowerCase()
   );

@@ -14,10 +14,9 @@ export interface ReadDashboardsRequestDto {
   columnId?: string;
   materializationId?: string;
   targetOrgId?: string;
-  
 }
 
-export type ReadDashboardsAuthDto = BaseAuth
+export type ReadDashboardsAuthDto = BaseAuth;
 
 export type ReadDashboardsResponseDto = Result<Dashboard[]>;
 
@@ -26,16 +25,13 @@ export class ReadDashboards
     IUseCase<
       ReadDashboardsRequestDto,
       ReadDashboardsResponseDto,
-      ReadDashboardsAuthDto, 
+      ReadDashboardsAuthDto,
       IConnectionPool
     >
 {
   readonly #dashboardRepo: IDashboardRepo;
 
-
-  constructor(
-    dashboardRepo: IDashboardRepo,
-  ) {
+  constructor(dashboardRepo: IDashboardRepo) {
     this.#dashboardRepo = dashboardRepo;
   }
 
@@ -57,14 +53,14 @@ export class ReadDashboards
       const dashboards: Dashboard[] = await this.#dashboardRepo.findBy(
         this.#buildDashboardQueryDto(req),
         auth,
-        connPool,
+        connPool
       );
       if (!dashboards)
         throw new ReferenceError(`Queried dashboards do not exist`);
 
       return Result.ok(dashboards);
     } catch (error: unknown) {
-      if (error instanceof Error ) console.error(error.stack);
+      if (error instanceof Error) console.error(error.stack);
       else if (error) console.trace(error);
       return Result.fail('');
     }
@@ -73,18 +69,11 @@ export class ReadDashboards
   #buildDashboardQueryDto = (
     request: ReadDashboardsRequestDto
   ): DashboardQueryDto => {
-    const queryDto: DashboardQueryDto = {
-    };
+    const queryDto: DashboardQueryDto = {};
 
     if (request.url) queryDto.url = request.url;
     if (request.name) queryDto.name = request.name;
-    if (request.materializationName)
-      queryDto.materializationName = request.materializationName;
-    if (request.columnName) queryDto.columnName = request.columnName;
     if (request.id) queryDto.id = request.id;
-    if (request.columnId) queryDto.columnId = request.columnId;
-    if (request.materializationId)
-      queryDto.materializationId = request.materializationId;
 
     return queryDto;
   };

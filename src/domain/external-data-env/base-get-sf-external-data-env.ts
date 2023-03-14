@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import { CreateDashboards } from '../dashboard/create-dashboards';
 import { CreateDependencies } from '../dependency/create-dependencies';
 import { Dashboard } from '../entities/dashboard';
@@ -125,27 +124,60 @@ export default abstract class BaseGetSfExternalDataEnv {
   ): Promise<DashboardRef[]> => {
     const dependentDashboards: DashboardRef[] = [];
 
-    matRepresentations.forEach((matRep) => {
-      querySfQueryHistoryResult.forEach((entry) => {
-        const queryText = entry.QUERY_TEXT;
-        if (typeof queryText !== 'string')
-          throw new Error('Retrieved bi layer query text not in string format');
+    querySfQueryHistoryResult.forEach((entry) => {
+      const { QUERY_TEXT: text, QUERY_TAG: tag } = entry;
+      if (typeof text !== 'string' || typeof tag !== 'string')
+        throw new Error(
+          'Retrieved bi layer query text or tag not in string format'
+        );
 
-        const testUrl = queryText.match(/"(https?:[^\s]+),/);
-        const dashboardUrl = testUrl
-          ? testUrl[1]
-          : `${biTool} dashboard: ${uuidv4()}`;
+      const testUrl = text.match(/"(https?:[^\s]+),/);
+      const dashboardIdMatch = tag.match(/(?<=workbook-luid":\s")[\w-]+/);
 
-        if (
-          queryText.includes(matRep.relationName) ||
-          (matRep.relationName.toLowerCase() === matRep.relationName &&
-            queryText.includes(matRep.relationName.toUpperCase()))
-        )
-          dependentDashboards.push({
+      if (!dashboardIdMatch || dashboardIdMatch.length !== 1)
+        throw new Error(
+          `Dashboard id not found in tag: ${tag} or no or more than one match`
+        );
+
+      const dashboardUrl = testUrl
+        ? testUrl[1]
+        : `${biTool} workbook-id: ${dashboardIdMatch[0]}`;
+
+      const matchedRelationNames = text.match(/"?\S+"?\."?\S+"?\."?\S+"?/gm);
+
+      if (!matchedRelationNames || !matchedRelationNames.length) return;
+
+      const references = matchedRelationNames.map((relName) =>
+        relName
+          .split('.')
+          .map((el) =>
+            el.includes('"') ? el.replace(/"/g, '') : el.toUpperCase()
+          )
+          .join('.')
+      );
+
+      matRepresentations.forEach((matRep) => {
+        if (references.includes(matRep.relationName)) {
+          const newDashboard = {
             url: dashboardUrl,
+            name: dashboardIdMatch[0],
             materializationName: matRep.relationName,
             materializationId: matRep.id,
-          });
+          };
+
+          if (
+            dependentDashboards.some(
+              (el) =>
+                el.url === newDashboard.url &&
+                el.name === newDashboard.name &&
+                el.materializationName === newDashboard.materializationName &&
+                el.materializationId === newDashboard.materializationId
+            )
+          )
+            return;
+
+          dependentDashboards.push(newDashboard);
+        }
       });
     });
     return dependentDashboards;
@@ -166,6 +198,7 @@ export default abstract class BaseGetSfExternalDataEnv {
       {
         toCreate: uniqueDashboardRefs.map((dashboardRef) => ({
           url: dashboardRef.url,
+          name: dashboardRef.name,
         })),
         targetOrgId: this.targetOrgId,
         writeToPersistence: false,
@@ -230,9 +263,13 @@ export default abstract class BaseGetSfExternalDataEnv {
 
     const dashboardRefs = await Promise.all(
       querySfQueryHistoryResults.map(async (el) => {
-        const res = await this.readDashboardRefs(matReps, el.res, el.type);
+        const identifiedRefs = await this.readDashboardRefs(
+          matReps,
+          el.res,
+          el.type
+        );
 
-        return res;
+        return identifiedRefs;
       })
     );
 
