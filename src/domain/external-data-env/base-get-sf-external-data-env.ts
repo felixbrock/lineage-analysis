@@ -31,7 +31,7 @@ interface SfQueryHistoryResult {
 
 export interface DashboardRef {
   url: string;
-  name?: string;
+  name: string;
   materializationName: string;
   materializationId: string;
   columnName?: string;
@@ -139,9 +139,7 @@ export default abstract class BaseGetSfExternalDataEnv {
           `Dashboard id not found in tag: ${tag} or no or more than one match`
         );
 
-      const dashboardUrl = testUrl
-        ? testUrl[1]
-        : `${biTool} workbook-id: ${dashboardIdMatch[0]}`;
+      const dashboardUrl = testUrl ? testUrl[1] : `${biTool} Dashboard`;
 
       const matchedRelationNames = text.match(/"?\S+"?\."?\S+"?\."?\S+"?/gm);
 

@@ -1,13 +1,13 @@
 export interface DashboardProps {
   id: string;
   url: string;
-  name?: string;
+  name: string;
 }
 
 export interface DashboardPrototype {
   id: string;
   url: string;
-  name?: string;
+  name: string;
 }
 
 type DashboardDto = DashboardProps;
@@ -15,7 +15,7 @@ type DashboardDto = DashboardProps;
 export class Dashboard {
   #url: string;
 
-  #name?: string;
+  #name: string;
 
   #id: string;
 

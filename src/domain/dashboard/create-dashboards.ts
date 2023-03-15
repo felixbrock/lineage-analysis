@@ -6,7 +6,7 @@ import { IDashboardRepo } from './i-dashboard-repo';
 import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 
 export interface CreateDashboardsRequestDto {
-  toCreate: { url: string; name?: string }[];
+  toCreate: { url: string; name: string }[];
   targetOrgId?: string;
   writeToPersistence: boolean;
 }
