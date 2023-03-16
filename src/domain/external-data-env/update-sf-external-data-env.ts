@@ -2,8 +2,8 @@ import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import BaseAuth from '../services/base-auth';
 import {
-  DashboardDataEnv,
   DashboardToDeleteRef,
+  ExternalDataEnv,
   ExternalDataEnvProps,
 } from './external-data-env';
 import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
@@ -15,6 +15,7 @@ import { QuerySfQueryHistory } from '../snowflake-api/query-snowflake-history';
 import { CreateDashboards } from '../dashboard/create-dashboards';
 import { CreateDependencies } from '../dependency/create-dependencies';
 import { IDashboardRepo } from '../dashboard/i-dashboard-repo';
+import { Dependency } from '../entities/dependency';
 
 export interface UpdateSfExternalDataEnvRequestDto {
   latestCompletedLineage: {
@@ -59,7 +60,7 @@ export class UpdateSfExternalDataEnv
     this.#dasboardRepo = dashboardRepo;
   }
 
-  #buildDashboardToReplace = (
+  #buildDashboardReplacement = (
     oldProps: { id: string },
     newProps: DashboardProps
   ): Dashboard =>
@@ -70,9 +71,10 @@ export class UpdateSfExternalDataEnv
 
   // compare dashboards and return dashboards to replace, dashboards to delete and dashboards to create
 
-  #compareDashboards = async (
-    newDashboards: Dashboard[]
-  ): Promise<DashboardDataEnv> => {
+  #mergeExternalDataEnv = async (
+    newDashboards: Dashboard[],
+    dependencies: Dependency[]
+  ): Promise<ExternalDataEnv> => {
     if (!this.auth || !this.connPool)
       throw new Error('Auth or connPool not set');
 
@@ -86,36 +88,64 @@ export class UpdateSfExternalDataEnv
         dashboardsToCreate: newDashboards,
         dashboardsToReplace: [],
         dashboardToDeleteRefs: [],
+        dependenciesToCreate: [],
+        deleteAllOldDependencies: false,
       };
 
     const dashboardsToReplace: Dashboard[] = [];
     const dashboardsToCreate: Dashboard[] = [];
     const dashboardToDeleteRefs: DashboardToDeleteRef[] = [];
+    const dependenciesToCreate: Dependency[] = [];
 
-    oldDashboards.forEach((oldDashboard) => {
-      const newDashboardIndex = newDashboards.findIndex(
-        (newDashboard) => newDashboard.url === oldDashboard.url
+    newDashboards.forEach((newD) => {
+      const oldDashbIdx = oldDashboards.findIndex(
+        (oldD) => newD.name === oldD.name
       );
-      if (newDashboardIndex === -1) {
-        dashboardToDeleteRefs.push({ id: oldDashboard.id });
-        return;
-      }
-      const newDashboard = newDashboards[newDashboardIndex];
 
-      if (oldDashboard.name !== newDashboard.name) {
-        dashboardsToReplace.push(
-          this.#buildDashboardToReplace(
-            { id: oldDashboard.id },
-            newDashboard.toDto()
-          )
-        );
+      const relevantDeps = dependencies.filter(
+        (el) => el.headId === newD.id || el.tailId === newD.id
+      );
+
+      if (oldDashbIdx === -1) {
+        dashboardsToCreate.push(newD);
+        dependenciesToCreate.push(...relevantDeps);
         return;
       }
 
-      dashboardsToCreate.push(newDashboard);
+      dashboardsToReplace.push(
+        this.#buildDashboardReplacement(
+          { id: oldDashboards[oldDashbIdx].id },
+          newD.toDto()
+        )
+      );
+
+      dependenciesToCreate.push(
+        ...relevantDeps.map((el): Dependency => {
+          const headId =
+            el.headId === newD.id ? oldDashboards[oldDashbIdx].id : newD.id;
+          const tailId =
+            el.tailId === newD.id ? oldDashboards[oldDashbIdx].id : newD.id;
+
+          return Dependency.build({ ...el.toDto(), headId, tailId });
+        })
+      );
     });
 
-    return { dashboardsToCreate, dashboardsToReplace, dashboardToDeleteRefs };
+    oldDashboards.forEach((oldD) => {
+      const newDashbIdx = newDashboards.findIndex(
+        (newD) => oldD.name === newD.name
+      );
+
+      if (newDashbIdx === -1) dashboardToDeleteRefs.push({ id: oldD.id });
+    });
+
+    return {
+      dashboardsToCreate,
+      dashboardsToReplace,
+      dashboardToDeleteRefs,
+      dependenciesToCreate,
+      deleteAllOldDependencies: false,
+    };
   };
 
   /* Checks Snowflake resources for changes and returns partial data env to merge with existing snapshot */
@@ -139,16 +169,13 @@ export class UpdateSfExternalDataEnv
         req.biToolType
       );
 
-      const compareDashboardsResult = await this.#compareDashboards(
-        buildBiResourcesResult.dashboards
+      const mergedDataEnv = await this.#mergeExternalDataEnv(
+        buildBiResourcesResult.dashboards,
+        buildBiResourcesResult.dependencies
       );
 
       return Result.ok({
-        dataEnv: {
-          ...compareDashboardsResult,
-          dependenciesToCreate: buildBiResourcesResult.dependencies,
-          deleteAllOldDependencies: false,
-        },
+        dataEnv: mergedDataEnv,
       });
     } catch (error: unknown) {
       if (error instanceof Error) console.error(error.stack);

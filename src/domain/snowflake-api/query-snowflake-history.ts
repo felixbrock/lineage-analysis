@@ -1,13 +1,16 @@
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { BiToolType } from '../value-types/bi-tool';
-import { IConnectionPool, SnowflakeQueryResult } from './i-snowflake-api-repo';
+import {
+  Binds,
+  IConnectionPool,
+  SnowflakeQueryResult,
+} from './i-snowflake-api-repo';
 import { QuerySnowflake } from './query-snowflake';
 import BaseAuth from '../services/base-auth';
 
 export interface QuerySfQueryHistoryRequestDto {
   biType: BiToolType;
-  limit: number;
 
   targetOrgId?: string;
 }
@@ -43,8 +46,8 @@ export class QuerySfQueryHistory
       }
     }
 
-    return `select QUERY_TEXT, query_tag from snowflake.account_usage.query_history
-     where ${condition}`;
+    return `select query_text, query_tag from snowflake.account_usage.query_history
+     where ${condition} and start_time >= DATEADD(day, -30, CURRENT_TIMESTAMP())`;
   };
 
   async execute(
@@ -58,7 +61,7 @@ export class QuerySfQueryHistory
       throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
     try {
-      const binds = [request.limit];
+      const binds: Binds = [];
       const queryText = QuerySfQueryHistory.#buildQuery(request.biType);
 
       const queryResult = await this.#querySnowflake.execute(

@@ -254,13 +254,16 @@ export class GenerateSfEnvLineage
       matReps
     );
 
-    const dependencies = sfObjDependencies.map((el): Dependency => {
+    const dependencies = sfObjDependencies.map((el): Dependency | undefined => {
       const headRelationName = `${el.head.dbName}.${el.head.schemaName}.${el.head.matName}`;
       const headMat = referencedMatReps.find(
         (entry) => entry.relationName === headRelationName
       );
       if (!headMat) {
-        throw new Error('Mat representation for head not found ');
+        console.error(
+          `Mat representation for head not found - ${headRelationName} `
+        );
+        return undefined;
       }
 
       const tailRelationName = `${el.tail.dbName}.${el.tail.schemaName}.${el.tail.matName}`;
@@ -268,7 +271,10 @@ export class GenerateSfEnvLineage
         (entry) => entry.relationName === tailRelationName
       );
       if (!tailMat) {
-        throw new Error('Mat representation for tail not found ');
+        console.error(
+          `Mat representation for tail not found - ${tailRelationName} `
+        );
+        return undefined;
       }
 
       return Dependency.create({
@@ -279,7 +285,9 @@ export class GenerateSfEnvLineage
       });
     });
 
-    return dependencies;
+    const isDependency = (obj: Dependency | undefined): obj is Dependency =>
+      !!obj;
+    return dependencies.filter(isDependency);
   };
 
   #getDbRepresentations = async (): Promise<DatabaseRepresentation[]> => {

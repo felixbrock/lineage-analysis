@@ -14,10 +14,10 @@ export default class ObservabilityApiRepo implements IObservabilityApiRepo {
     try {
       const config: AxiosRequestConfig = {
         headers: { Authorization: `Bearer ${jwt}` },
-        params: new URLSearchParams({
-          targetResourceIds: targetResourceIds.join(','),
+        data: {
+          targetResourceIds,
           mode,
-        }),
+        },
       };
 
       const response = await axios.delete(
@@ -42,10 +42,10 @@ export default class ObservabilityApiRepo implements IObservabilityApiRepo {
     try {
       const config: AxiosRequestConfig = {
         headers: { Authorization: `Bearer ${jwt}` },
-        params: new URLSearchParams({
-          targetResourceIds: targetResourceIds.join(','),
+        data: {
+          targetResourceIds,
           mode,
-        }),
+        },
       };
 
       const response = await axios.delete(

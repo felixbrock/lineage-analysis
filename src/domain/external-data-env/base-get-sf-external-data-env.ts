@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid';
 import { CreateDashboards } from '../dashboard/create-dashboards';
 import { CreateDependencies } from '../dependency/create-dependencies';
 import { Dashboard } from '../entities/dashboard';
@@ -86,7 +87,6 @@ export default abstract class BaseGetSfExternalDataEnv {
             await this.#querySfQueryHistory.execute(
               {
                 biType: el,
-                limit: 10,
                 targetOrgId: this.targetOrgId,
               },
               auth,
@@ -132,12 +132,25 @@ export default abstract class BaseGetSfExternalDataEnv {
         );
 
       const testUrl = text.match(/"(https?:[^\s]+),/);
-      const dashboardIdMatch = tag.match(/(?<=workbook-luid":\s")[\w-]+/);
 
-      if (!dashboardIdMatch || dashboardIdMatch.length !== 1)
-        throw new Error(
-          `Dashboard id not found in tag: ${tag} or no or more than one match`
-        );
+      const dbMatch = tag.match(/(?<=dashboard-luid":\s")[\w-]+/);
+      const wbMatch = tag.match(/(?<=workbook-luid":\s")[\w-]+/);
+      const wsMatch = tag.match(/(?<=worksheet-luid":\s")[\w-]+/);
+
+      let id: string;
+      if (dbMatch && dbMatch.length) {
+        if (dbMatch.length > 1)
+          console.warn(`Multiple dashboard ids in ${tag} found`);
+        id = `Dashb. id: ${dbMatch[0]}`;
+      } else if (wbMatch && wbMatch.length) {
+        if (wbMatch.length > 1)
+          console.warn(`Multiple workbook ids in ${tag} found`);
+        id = `Workb. id: ${wbMatch[0]}`;
+      } else if (wsMatch && wsMatch.length) {
+        if (wsMatch.length > 1)
+          console.warn(`Multiple worksheet ids in ${tag} found`);
+        id = `Worksh. id: ${wsMatch[0]}`;
+      } else id = `unknown - random id: ${uuidv4()}`;
 
       const dashboardUrl = testUrl ? testUrl[1] : `${biTool} Dashboard`;
 
@@ -145,20 +158,24 @@ export default abstract class BaseGetSfExternalDataEnv {
 
       if (!matchedRelationNames || !matchedRelationNames.length) return;
 
-      const references = matchedRelationNames.map((relName) =>
-        relName
-          .split('.')
-          .map((el) =>
-            el.includes('"') ? el.replace(/"/g, '') : el.toUpperCase()
+      const references = [
+        ...new Set(
+          matchedRelationNames.map((relName) =>
+            relName
+              .split('.')
+              .map((el) =>
+                el.includes('"') ? el.replace(/"/g, '') : el.toUpperCase()
+              )
+              .join('.')
           )
-          .join('.')
-      );
+        ),
+      ];
 
       matRepresentations.forEach((matRep) => {
         if (references.includes(matRep.relationName)) {
           const newDashboard = {
             url: dashboardUrl,
-            name: dashboardIdMatch[0],
+            name: id,
             materializationName: matRep.relationName,
             materializationId: matRep.id,
           };
