@@ -88,7 +88,7 @@ export class UpdateSfExternalDataEnv
         dashboardsToCreate: newDashboards,
         dashboardsToReplace: [],
         dashboardToDeleteRefs: [],
-        dependenciesToCreate: [],
+        dependenciesToCreate: dependencies,
         deleteAllOldDependencies: false,
       };
 
@@ -97,17 +97,17 @@ export class UpdateSfExternalDataEnv
     const dashboardToDeleteRefs: DashboardToDeleteRef[] = [];
     const dependenciesToCreate: Dependency[] = [];
 
-    newDashboards.forEach((newD) => {
+    newDashboards.forEach((newDashb) => {
       const oldDashbIdx = oldDashboards.findIndex(
-        (oldD) => newD.name === oldD.name
+        (oldD) => newDashb.name === oldD.name
       );
 
       const relevantDeps = dependencies.filter(
-        (el) => el.headId === newD.id || el.tailId === newD.id
+        (el) => el.headId === newDashb.id || el.tailId === newDashb.id
       );
 
       if (oldDashbIdx === -1) {
-        dashboardsToCreate.push(newD);
+        dashboardsToCreate.push(newDashb);
         dependenciesToCreate.push(...relevantDeps);
         return;
       }
@@ -115,28 +115,32 @@ export class UpdateSfExternalDataEnv
       dashboardsToReplace.push(
         this.#buildDashboardReplacement(
           { id: oldDashboards[oldDashbIdx].id },
-          newD.toDto()
+          newDashb.toDto()
         )
       );
 
       dependenciesToCreate.push(
         ...relevantDeps.map((el): Dependency => {
           const headId =
-            el.headId === newD.id ? oldDashboards[oldDashbIdx].id : newD.id;
+            el.headId === newDashb.id
+              ? oldDashboards[oldDashbIdx].id
+              : el.headId;
           const tailId =
-            el.tailId === newD.id ? oldDashboards[oldDashbIdx].id : newD.id;
+            el.tailId === newDashb.id
+              ? oldDashboards[oldDashbIdx].id
+              : el.tailId;
 
           return Dependency.build({ ...el.toDto(), headId, tailId });
         })
       );
     });
 
-    oldDashboards.forEach((oldD) => {
+    oldDashboards.forEach((oldDashb) => {
       const newDashbIdx = newDashboards.findIndex(
-        (newD) => oldD.name === newD.name
+        (newD) => oldDashb.name === newD.name
       );
 
-      if (newDashbIdx === -1) dashboardToDeleteRefs.push({ id: oldD.id });
+      if (newDashbIdx === -1) dashboardToDeleteRefs.push({ id: oldDashb.id });
     });
 
     return {

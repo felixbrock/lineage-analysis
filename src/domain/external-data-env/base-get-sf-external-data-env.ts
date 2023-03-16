@@ -233,7 +233,9 @@ export default abstract class BaseGetSfExternalDataEnv {
       (
         dashboardRef
       ): { headId: string; tailId: string; type: DependencyType } => {
-        const dashboard = dashboards.find((el) => el.url === dashboardRef.url);
+        const dashboard = dashboards.find(
+          (el) => el.name === dashboardRef.name
+        );
 
         if (!dashboard) throw new Error('Dashboard not found');
 
