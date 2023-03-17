@@ -206,7 +206,7 @@ export default abstract class BaseGetSfExternalDataEnv {
 
     const uniqueDashboardRefs = dashboardRefs.filter(
       (dashboardRef, i, self) =>
-        i === self.findIndex((el) => el.url === dashboardRef.url)
+        i === self.findIndex((el) => el.name === dashboardRef.name)
     );
 
     const createDashboardResult = await this.#createDashboards.execute(
@@ -237,7 +237,9 @@ export default abstract class BaseGetSfExternalDataEnv {
           (el) => el.name === dashboardRef.name
         );
 
-        if (!dashboard) throw new Error('Dashboard not found');
+        if (!dashboard) {
+          throw new Error('Dashboard not found');
+        }
 
         return {
           headId: dashboard.id,
