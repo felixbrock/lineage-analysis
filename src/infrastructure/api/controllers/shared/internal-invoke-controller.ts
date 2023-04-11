@@ -117,7 +117,7 @@ export abstract class InternalInvokeController<R> {
     };
 
     return createPool(options, {
-      max: 10,
+      max: 1,
       min: 0,
     });
   };
