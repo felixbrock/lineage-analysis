@@ -11,7 +11,7 @@ import {
 import { ILogicRepo } from './i-logic-repo';
  
 import BaseAuth from '../services/base-auth';
-import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
+import { IDbConnection } from '../services/i-db';
 
 interface DbtRequestProps {
   dbtDependentOn: MaterializationDefinition[];
@@ -41,7 +41,7 @@ export type CreateLogicResponse = Result<Logic>;
 
 export class CreateLogic
   implements
-    IUseCase<CreateLogicRequestDto, CreateLogicResponse, CreateLogicAuthDto,IConnectionPool>
+    IUseCase<CreateLogicRequestDto, CreateLogicResponse, CreateLogicAuthDto, IDbConnection>
 {
   readonly #logicRepo: ILogicRepo;
 
@@ -52,7 +52,7 @@ export class CreateLogic
   async execute(
     req: CreateLogicRequestDto,
     auth: CreateLogicAuthDto,
-    connPool: IConnectionPool
+    dbConnection: IDbConnection
   ): Promise<CreateLogicResponse> {
     const { dbtProps, generalProps: commonProps } = req.props;
 
@@ -82,7 +82,7 @@ export class CreateLogic
         await this.#logicRepo.insertOne(
           logic,
           auth,
-          connPool,
+          dbConnection,
         );
 
       return Result.ok(logic);

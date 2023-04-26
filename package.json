@@ -63,6 +63,7 @@
     "helmet": "^5.1.0",
     "jsonwebtoken": "^8.5.1",
     "jwks-rsa": "^2.1.4",
+    "mongodb": "^5.2.0",
     "morgan": "^1.10.0",
     "snowflake-sdk": "^1.6.18",
     "uuid": "^9.0.0"

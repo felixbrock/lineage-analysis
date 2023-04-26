@@ -1,6 +1,6 @@
 import { Lineage, LineageCreationState } from '../entities/lineage';
 import { IAuth, IServiceRepo } from '../services/i-service-repo';
-import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
+import { IDbConnection } from '../services/i-db';
 
 export interface LineageUpdateDto {
   creationState?: LineageCreationState;
@@ -15,7 +15,7 @@ export interface ILineageRepo
   findLatest(
     filter: { tolerateIncomplete: boolean; minuteTolerance?: number },
     auth: IAuth,
-    connPool: IConnectionPool,
+    dbConnection: IDbConnection,
     targetOrgId?: string
   ): Promise<Lineage | undefined>;
 }

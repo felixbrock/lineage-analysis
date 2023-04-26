@@ -3,7 +3,7 @@ import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { Dashboard } from '../entities/dashboard';
 import { IDashboardRepo } from './i-dashboard-repo';
-import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
+import { IDbConnection } from '../services/i-db';
 
 export interface CreateDashboardsRequestDto {
   toCreate: { url: string; name: string }[];
@@ -25,7 +25,7 @@ export class CreateDashboards
       CreateDashboardsRequestDto,
       CreateDashboardsResponseDto,
       CreateDashboardsAuthDto,
-      IConnectionPool
+      IDbConnection
     >
 {
   readonly #dashboardRepo: IDashboardRepo;
@@ -37,7 +37,7 @@ export class CreateDashboards
   async execute(
     req: CreateDashboardsRequestDto,
     auth: CreateDashboardsAuthDto,
-    connPool: IConnectionPool
+    dbConnection: IDbConnection
   ): Promise<CreateDashboardsResponseDto> {
     try {
       if (auth.isSystemInternal && !req.targetOrgId)
@@ -58,7 +58,7 @@ export class CreateDashboards
       );
 
       if (req.writeToPersistence)
-        await this.#dashboardRepo.insertMany(dashboards, auth, connPool);
+        await this.#dashboardRepo.insertMany(dashboards, auth, dbConnection);
 
       return Result.ok(dashboards);
     } catch (error: unknown) {

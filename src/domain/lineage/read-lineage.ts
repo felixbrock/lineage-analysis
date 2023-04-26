@@ -3,7 +3,7 @@ import IUseCase from '../services/use-case';
 import { ILineageRepo } from './i-lineage-repo';
 import { Lineage } from '../entities/lineage';
 import BaseAuth from '../services/base-auth';
-import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
+import { IDbConnection } from '../services/i-db';
 
 export interface ReadLineageRequestDto {
   id?: string;
@@ -23,7 +23,7 @@ export class ReadLineage
       ReadLineageRequestDto,
       ReadLineageResponseDto,
       ReadLineageAuthDto,
-      IConnectionPool
+      IDbConnection
     >
 {
   readonly #lineageRepo: ILineageRepo;
@@ -35,18 +35,18 @@ export class ReadLineage
   async execute(
     req: ReadLineageRequestDto,
     auth: ReadLineageAuthDto,
-    connPool: IConnectionPool
+    dbConnection: IDbConnection
   ): Promise<ReadLineageResponseDto> {
     try {
       const lineage = req.id
-        ? await this.#lineageRepo.findOne(req.id, auth, connPool)
+        ? await this.#lineageRepo.findOne(req.id, auth, dbConnection)
         : await this.#lineageRepo.findLatest(
             {
               tolerateIncomplete: req.tolerateIncomplete,
               minuteTolerance: req.minuteTolerance,
             },
             auth,
-            connPool,
+            dbConnection,
             req.targetOrgId
           );
       if (req.id && !lineage)

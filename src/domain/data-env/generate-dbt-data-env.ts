@@ -18,6 +18,7 @@ import {
   CreateMaterializationRequestDto,
 } from '../materialization/create-materialization';
 import BaseAuth from '../services/base-auth';
+import { IDbConnection } from '../services/i-db';
 import IUseCase from '../services/use-case';
 import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 import { ParseSQL, ParseSQLResponseDto } from '../sql-parser-api/parse-sql';
@@ -135,6 +136,8 @@ export class GenerateDbtDataEnv
 
   #connPool?: IConnectionPool;
 
+  #dbConnection?: IDbConnection;
+
   constructor(
     createMaterialization: CreateMaterialization,
     createColumn: CreateColumn,
@@ -178,7 +181,7 @@ export class GenerateDbtDataEnv
     sourceRelationName: string,
     sourceId: string
   ): Promise<Column> => {
-    if (!this.#connPool || !this.#req || !this.#auth)
+    if (!this.#dbConnection || !this.#req || !this.#auth)
       throw new Error('Generating dbt based data env - Props missing');
 
     const createColumnResult = await this.#createColumn.execute(
@@ -192,7 +195,7 @@ export class GenerateDbtDataEnv
         targetOrgId: this.#req.targetOrgId,
       },
       this.#auth,
-      this.#connPool
+      this.#dbConnection
     );
 
     if (!createColumnResult.success) throw new Error(createColumnResult.error);
@@ -217,7 +220,7 @@ export class GenerateDbtDataEnv
     },
     options: { writeToPersistence: boolean }
   ): Promise<void> => {
-    if (!this.#connPool || !this.#req || !this.#auth)
+    if (!this.#dbConnection || !this.#req || !this.#auth)
       throw new Error('Generating dbt based data env - Props missing');
 
     const { columns, ...createMaterializationProps } = sourceProps;
@@ -231,7 +234,7 @@ export class GenerateDbtDataEnv
           targetOrgId: this.#req.targetOrgId,
         },
         this.#auth,
-        this.#connPool
+        this.#dbConnection
       );
 
     if (!createMaterializationResult.success)
@@ -303,7 +306,7 @@ export class GenerateDbtDataEnv
 
         let mat = existingMat;
         if (!existingMat) {
-          if (!this.#connPool || !this.#req || !this.#auth)
+          if (!this.#dbConnection || !this.#req || !this.#auth)
             throw new Error('Generating dbt based data env - Props missing');
 
           const createMaterializationResult =
@@ -320,7 +323,7 @@ export class GenerateDbtDataEnv
                 writeToPersistence: false,
               },
               this.#auth,
-              this.#connPool
+              this.#dbConnection
             );
 
           if (!createMaterializationResult.success)
@@ -373,14 +376,14 @@ export class GenerateDbtDataEnv
   #generateNodeMaterialization = async (
     req: CreateMaterializationRequestDto
   ): Promise<Materialization> => {
-    if (!this.#connPool || !this.#auth)
+    if (!this.#dbConnection || !this.#auth)
       throw new Error('Generating dbt based data env - Props missing');
 
     const createMaterializationResult =
       await this.#createMaterialization.execute(
         req,
         this.#auth,
-        this.#connPool
+        this.#dbConnection
       );
 
     if (!createMaterializationResult.success)
@@ -401,7 +404,7 @@ export class GenerateDbtDataEnv
     modelManifest: DbtManifestNode;
     dbtDependentOn: MaterializationDefinition[];
   }): Promise<void> => {
-    if (!this.#connPool || !this.#req || !this.#auth)
+    if (!this.#dbConnection || !this.#req || !this.#auth)
       throw new Error('Generating dbt based data env - Props missing');
 
     const sql = props.modelManifest.compiled_sql;
@@ -427,7 +430,7 @@ export class GenerateDbtDataEnv
         },
       },
       this.#auth,
-      this.#connPool
+      this.#dbConnection
     );
 
     if (!createLogicResult.success) throw new Error(createLogicResult.error);

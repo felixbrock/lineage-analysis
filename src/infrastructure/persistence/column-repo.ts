@@ -1,3 +1,4 @@
+import { Document } from 'mongodb';
 import {
   ColumnQueryDto,
   ColumnUpdateDto,
@@ -11,7 +12,6 @@ import {
 
 import {
   Bind,
-  SnowflakeEntity,
 } from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import BaseSfRepo, { ColumnDefinition, Query } from './shared/base-sf-repo';
@@ -39,18 +39,18 @@ export default class ColumnRepo
     super(querySnowflake);
   }
 
-  buildEntityProps = (sfEntity: SnowflakeEntity): ColumnProps => {
+  buildEntityProps = (document: Document): ColumnProps => {
     const {
-      ID: id,
-      NAME: name,
-      RELATION_NAME: relationName,
-      INDEX: index,
-      DATA_TYPE: dataType,
-      IS_IDENTITY: isIdentity,
-      IS_NULLABLE: isNullable,
-      MATERIALIZATION_ID: materializationId,
-      COMMENT: comment,
-    } = sfEntity;
+      id,
+      name,
+      relation_name: relationName,
+      index,
+      data_type: dataType,
+      is_identity: isIdentity,
+      is_nullable: isNullable,
+      materialization_id: materializationId,
+      comment,
+    } = document;
 
     if (
       typeof id !== 'string' ||
@@ -63,11 +63,18 @@ export default class ColumnRepo
       throw new Error(
         'Retrieved unexpected column field types from persistence'
       );
+     
+    const isIdentityValue = isIdentity !== undefined ? JSON.parse(isIdentity) : null;
+    
+    const isNullableValue = isNullable !== undefined ? JSON.parse(isNullable) : null;
+    
+    let commentValue = comment;
+    if (!comment) commentValue = null;
 
     if (
-      !ColumnRepo.isOptionalOfType<boolean>(isIdentity, 'boolean') ||
-      !ColumnRepo.isOptionalOfType<boolean>(isNullable, 'boolean') ||
-      !ColumnRepo.isOptionalOfType<string>(comment, 'string')
+      !ColumnRepo.isOptionalOfType<boolean>(isIdentityValue, 'boolean') ||
+      !ColumnRepo.isOptionalOfType<boolean>(isNullableValue, 'boolean') ||
+      !ColumnRepo.isOptionalOfType<string>(commentValue, 'string')
     )
       throw new Error(
         'Type mismatch detected when reading column from persistence'
@@ -79,10 +86,10 @@ export default class ColumnRepo
       relationName,
       index,
       dataType: parseColumnDataType(dataType),
-      isIdentity,
-      isNullable,
+      isIdentity: isIdentityValue,
+      isNullable: isNullableValue,
       materializationId,
-      comment,
+      comment: commentValue,
     };
   };
 
@@ -100,56 +107,31 @@ export default class ColumnRepo
 
   buildFindByQuery(dto: ColumnQueryDto): Query {
     const binds: Bind[] = [];
-    let whereClause = '';
+    const filter: any = {};
 
     if (dto.relationNames && dto.relationNames.length) {
-      const whereCondition = `array_contains(relation_name::variant, array_construct(${dto.relationNames
-        .map((el) => `'${el}'`)
-        .join(',')}))`;
-
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
+      filter.relation_name = { $in: dto.relationNames };
     }
+
     if (dto.names && dto.names.length) {
-      const whereCondition = `array_contains(name::variant, array_construct(${dto.names
-        .map((el) => `'${el}'`)
-        .join(',')}))`;
-
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
+      filter.name = { $in: dto.names };
     }
+
     if (dto.index) {
       binds.push(dto.index);
-      const whereCondition = 'index = ?';
-
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
+      filter.index = dto.index;
     }
+
     if (dto.type) {
       binds.push(dto.type);
-      const whereCondition = 'type = ?';
-
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
+      filter.type = dto.type;
     }
+    
     if (dto.materializationIds && dto.materializationIds.length) {
-      const whereCondition = `array_contains(materialization_id::variant, array_construct(${dto.materializationIds
-        .map((el) => `'${el}'`)
-        .join(',')}))`;
-
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
+      filter.materialization_id = { $in: dto.materializationIds };
     }
 
-    const text = `select * from cito.lineage.${this.matName}
-        ${whereClause ? 'where' : ''}  ${whereClause};`;
-
-    return { binds, text };
+    return { binds, filter };
   }
 
   buildUpdateQuery(id: string, dto: undefined): Query {

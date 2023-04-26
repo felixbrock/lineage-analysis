@@ -8,6 +8,7 @@ import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../snowflake-api/query-snowflake';
 import { Auth } from '../external-data-env/base-get-sf-external-data-env';
 import { Dependency } from '../entities/dependency';
+import { IDb, IDbConnection } from '../services/i-db';
 
 export type GenerateSfEnvLineageRequestDto = undefined;
 
@@ -69,7 +70,7 @@ export class GenerateSfEnvLineage
       GenerateSfEnvLineageRequestDto,
       GenerateSfEnvLineageResponse,
       GenerateSfEnvLineageAuthDto,
-      IConnectionPool
+      IDb
     >
 {
   readonly querySnowflake: QuerySnowflake;
@@ -77,6 +78,8 @@ export class GenerateSfEnvLineage
   #connPool?: IConnectionPool;
 
   #auth?: Auth;
+
+  #dbConnection?: IDbConnection;
 
   constructor(querySnowflake: QuerySnowflake) {
     this.querySnowflake = querySnowflake;
@@ -107,28 +110,27 @@ export class GenerateSfEnvLineage
   #getAllLineageMats = async (
     relationNames: string[]
   ): Promise<CitoMatRepresentation[]> => {
-    if (!this.#connPool || !this.#auth)
+    if (!this.#dbConnection || !this.#auth)
       throw new Error('Missing properties for generating sf data env');
 
-    const queryText = `select id, relation_name from cito.lineage.materializations where array_contains((database_name ||'.' ||  schema_name ||'.' ||  name)::variant, array_construct(${relationNames
-      .map((el) => `'${el}'`)
-      .join(', ')}
-    ));`;
+    const results = await this.#dbConnection
+    .collection(`materializations_${this.#auth.callerOrgId}`)
+    .find({
+      'relation_name': {
+        $in: relationNames.map((el) => `'${el}'`)
+        // new RegExp(`^${el}$`, 'i')
+      }
+    })
+    .project({
+      id: 1,
+      relation_name: 1,
+    })
+    .toArray();
 
-    const queryResult = await this.querySnowflake.execute(
-      { queryText, binds: [] },
-      this.#auth,
-      this.#connPool
-    );
-    if (!queryResult.success) {
-      throw new Error(queryResult.error);
-    }
-    if (!queryResult.value) throw new Error('Query did not return a value');
-
-    const results = queryResult.value;
+    if (!results) return [];
 
     const citoMatRepresentations = results.map((el): CitoMatRepresentation => {
-      const { ID: id, RELATION_NAME: relationName } = el;
+      const { id, relation_name: relationName } = el;
 
       if (typeof id !== 'string' || typeof relationName !== 'string')
         throw new Error('Received cito mat in unexpected format');
@@ -365,10 +367,11 @@ export class GenerateSfEnvLineage
   async execute(
     req: GenerateSfEnvLineageRequestDto,
     auth: GenerateSfEnvLineageAuthDto,
-    connPool: IConnectionPool
+    db: IDb
   ): Promise<GenerateSfEnvLineageResponse> {
     try {
-      this.#connPool = connPool;
+      this.#connPool = db.sfConnPool;
+      this.#dbConnection = db.mongoConn;
       this.#auth = auth;
 
       const dependenciesToCreate = await this.#generateDependencies();

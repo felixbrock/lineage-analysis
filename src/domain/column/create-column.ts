@@ -4,7 +4,7 @@ import IUseCase from '../services/use-case';
 import { Column, ColumnDataType } from '../entities/column';
 import { IColumnRepo } from './i-column-repo';
 import BaseAuth from '../services/base-auth';
-import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
+import { IDbConnection } from '../services/i-db';
 
 export interface CreateColumnRequestDto {
   relationName: string;
@@ -28,8 +28,8 @@ export class CreateColumn
     IUseCase<
       CreateColumnRequestDto,
       CreateColumnResponseDto,
-      CreateColumnAuthDto
-      ,IConnectionPool
+      CreateColumnAuthDto,
+      IDbConnection
     >
 {
   readonly #columnRepo: IColumnRepo;
@@ -42,7 +42,7 @@ export class CreateColumn
   async execute(
     req: CreateColumnRequestDto,
     auth: CreateColumnAuthDto,
-    connPool: IConnectionPool
+    dbConnection: IDbConnection
   ): Promise<CreateColumnResponseDto> {
     try {
       if (auth.isSystemInternal && !req.targetOrgId)
@@ -70,7 +70,7 @@ export class CreateColumn
         await this.#columnRepo.insertOne(
           column,
           auth,
-          connPool,
+          dbConnection,
         );
 
       return Result.ok(column);

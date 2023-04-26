@@ -1,6 +1,5 @@
 // TODO: Violation of control flow. DI for express instead
 import { Request, Response } from 'express';
-import { createPool } from 'snowflake-sdk';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
 import {
   MaterializationType,
@@ -20,17 +19,22 @@ import {
   CodeHttp,
   UserAccountInfo,
 } from './shared/base-controller';
+import Dbo from '../../persistence/db/mongo-db';
 
 export default class ReadMaterializationsController extends BaseController {
   readonly #readMaterializations: ReadMaterializations;
 
+  readonly #dbo: Dbo;
+
   constructor(
     readMaterializations: ReadMaterializations,
     getAccounts: GetAccounts,
-    getSnowflakeProfile: GetSnowflakeProfile
+    getSnowflakeProfile: GetSnowflakeProfile,
+    dbo: Dbo
   ) {
     super(getAccounts, getSnowflakeProfile);
     this.#readMaterializations = readMaterializations;
+    this.#dbo = dbo;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadMaterializationsRequestDto => {
@@ -113,13 +117,11 @@ export default class ReadMaterializationsController extends BaseController {
         this.#buildRequestDto(req);
       const authDto = this.#buildAuthDto(getUserAccountInfoResult.value, jwt);
 
-      const connPool = await this.createConnectionPool(jwt, createPool);
 
       const useCaseResult: ReadMaterializationsResponseDto =
-        await this.#readMaterializations.execute(requestDto, authDto, connPool);
+        await this.#readMaterializations.execute(requestDto, authDto, this.#dbo.dbConnection);
 
-      await connPool.drain();
-      await connPool.clear();
+      await this.#dbo.releaseConnections();
 
       if (!useCaseResult.success) {
         return ReadMaterializationsController.badRequest(res);

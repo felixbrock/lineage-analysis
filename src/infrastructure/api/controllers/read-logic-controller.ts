@@ -1,6 +1,5 @@
 // TODO: Violation of control flow. DI for express instead
 import { Request, Response } from 'express';
-import { createPool } from 'snowflake-sdk';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
 import { GetSnowflakeProfile } from '../../../domain/integration-api/get-snowflake-profile';
 import {
@@ -16,17 +15,22 @@ import {
   CodeHttp,
   UserAccountInfo,
 } from './shared/base-controller';
+import Dbo from '../../persistence/db/mongo-db';
 
 export default class ReadLogicController extends BaseController {
   readonly #readLogic: ReadLogic;
 
+  readonly #dbo: Dbo;
+
   constructor(
     readLogic: ReadLogic,
     getAccounts: GetAccounts,
-    getSnowflakeProfile: GetSnowflakeProfile
+    getSnowflakeProfile: GetSnowflakeProfile,
+    dbo: Dbo
   ) {
     super(getAccounts, getSnowflakeProfile);
     this.#readLogic = readLogic;
+    this.#dbo = dbo;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadLogicRequestDto => ({
@@ -65,16 +69,14 @@ export default class ReadLogicController extends BaseController {
       const requestDto: ReadLogicRequestDto = this.#buildRequestDto(req);
       const authDto = this.#buildAuthDto(getUserAccountInfoResult.value, jwt);
 
-      const connPool = await this.createConnectionPool(jwt, createPool);
 
       const useCaseResult: ReadLogicResponseDto = await this.#readLogic.execute(
         requestDto,
         authDto,
-        connPool
+        this.#dbo.dbConnection
       );
 
-      await connPool.drain();
-      await connPool.clear();
+      await this.#dbo.releaseConnections();
       
       if (!useCaseResult.success) {
         return ReadLogicController.badRequest(res);

@@ -1,3 +1,4 @@
+import { Document } from 'mongodb';
 import {
   DependentOn,
   Logic,
@@ -6,7 +7,6 @@ import {
 } from '../../domain/entities/logic';
 import {
   Bind,
-  SnowflakeEntity,
 } from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import BaseSfRepo, { ColumnDefinition, Query } from './shared/base-sf-repo';
@@ -36,23 +36,26 @@ export default class LogicRepo
     super(querySnowflake);
   }
 
-  buildEntityProps = (sfEntity: SnowflakeEntity): LogicProps => {
+  buildEntityProps = (document: Document): LogicProps => {
     const {
-      ID: id,
-      RELATION_NAME: relationName,
-      SQL: sql,
-      DEPENDENT_ON: dependentOn,
-      PARSED_LOGIC: parsedLogic,
-      STATEMENT_REFS: statementRefs,
-    } = sfEntity;
+      id,
+      relation_name: relationName,
+      sql,
+      dependent_on: dependentOn,
+      parsed_logic: parsedLogic,
+      statement_refs: statementRefs,
+    } = document;
+
+    const dependentOnObject = JSON.parse(dependentOn);
+    const statementRefsObject = JSON.parse(statementRefs);
 
     if (
       typeof id !== 'string' ||
       typeof relationName !== 'string' ||
       typeof sql !== 'string' ||
-      typeof dependentOn !== 'object' ||
+      typeof dependentOnObject !== 'object' ||
       typeof parsedLogic !== 'string' ||
-      typeof statementRefs !== 'object'
+      typeof statementRefsObject !== 'object'
     )
       throw new Error(
         'Retrieved unexpected logic field types from persistence'
@@ -68,7 +71,7 @@ export default class LogicRepo
       'columns' in (el as Refs) &&
       'wildcards' in (el as Refs);
 
-    if (!isDependentOnObj(dependentOn) || !isRefsObj(statementRefs))
+    if (!isDependentOnObj(dependentOnObject) || !isRefsObj(statementRefsObject))
       throw new Error(
         'Type mismatch detected when reading logic from persistence'
       );
@@ -94,21 +97,13 @@ export default class LogicRepo
 
   buildFindByQuery(dto: LogicQueryDto): Query {
     const binds: (string | number)[] = [];
-    let whereClause = '';
+    const filter: any = {};
 
     if (dto.relationNames && dto.relationNames.length) {
-      const whereCondition = `array_contains(relation_name::variant, array_construct(${dto.relationNames
-        .map((el) => `'${el}'`)
-        .join(',')}))`;
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
+      filter.relation_name = { $in: dto.relationNames };
     }
 
-    const text = `select * from cito.lineage.${this.matName}
-  ${whereClause ? 'where' : ''} ${whereClause};`;
-
-    return { text, binds };
+    return { filter, binds };
   }
 
   buildUpdateQuery(id: string, dto: undefined): Query {

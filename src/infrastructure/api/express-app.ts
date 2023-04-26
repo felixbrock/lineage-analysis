@@ -4,6 +4,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import v1Router from './routes/v1';
+import Dbo from '../persistence/db/mongo-db';
+import iocRegister from '../ioc-register';
 
 interface AppConfig {
   port: number;
@@ -21,7 +23,11 @@ export default class ExpressApp {
   }
 
   async start(runningLocal: boolean): Promise<Application> {
+    const dbo: Dbo = iocRegister.resolve('dbo');
+
     try {
+      await dbo.connectToServer();
+
       this.configApp();
 
       if (runningLocal)

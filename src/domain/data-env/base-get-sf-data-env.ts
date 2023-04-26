@@ -13,6 +13,7 @@ import {
 import { CreateLogic } from '../logic/create-logic';
 import { CreateMaterialization } from '../materialization/create-materialization';
 import BaseAuth from '../services/base-auth';
+import { IDbConnection } from '../services/i-db';
 import { Binds, IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../snowflake-api/query-snowflake';
 import { ParseSQL } from '../sql-parser-api/parse-sql';
@@ -103,6 +104,8 @@ export default abstract class BaseGetSfDataEnv {
   protected connPool?: IConnectionPool;
 
   protected auth?: Auth;
+
+  protected dbConnection?: IDbConnection;
 
   constructor(
     createMaterialization: CreateMaterialization,
@@ -328,7 +331,7 @@ export default abstract class BaseGetSfDataEnv {
     columnRepresentation: ColumnRepresentation,
     matId: string
   ): Promise<Column> => {
-    if (!this.connPool || !this.auth)
+    if (!this.dbConnection || !this.auth)
       throw new Error('Missing properties for generating sf data env');
 
     const createColumnResult = await this.#createColumn.execute(
@@ -344,7 +347,7 @@ export default abstract class BaseGetSfDataEnv {
         writeToPersistence: false,
       },
       this.auth,
-      this.connPool
+      this.dbConnection
     );
 
     if (!createColumnResult.success) throw new Error(createColumnResult.error);
@@ -410,7 +413,7 @@ export default abstract class BaseGetSfDataEnv {
     logicRepresentation: LogicRepresentation,
     relationName: string
   ): Promise<Logic> => {
-    if (!this.connPool || !this.auth)
+    if (!this.dbConnection || !this.auth)
       throw new Error('Missing properties for generating sf data env');
 
     // const parsedLogic = logicRepresentation.sql
@@ -434,7 +437,7 @@ export default abstract class BaseGetSfDataEnv {
         },
       },
       this.auth,
-      this.connPool
+      this.dbConnection
     );
 
     if (!createLogicResult.success) throw new Error(createLogicResult.error);
@@ -478,7 +481,7 @@ export default abstract class BaseGetSfDataEnv {
     colsToCreate: Column[];
     logicToCreate: Logic;
   }> => {
-    if (!this.connPool || !this.auth)
+    if (!this.dbConnection || !this.auth)
       throw new Error('Missing properties for generating sf data env');
 
     const { matRepresentation, columnRepresentations, logicRepresentation } =
@@ -498,7 +501,7 @@ export default abstract class BaseGetSfDataEnv {
           logicId: logic.id,
         },
         this.auth,
-        this.connPool
+        this.dbConnection
       );
 
     if (!createMaterializationResult.success)

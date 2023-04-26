@@ -14,6 +14,7 @@ import {
   QuerySfQueryHistoryResponseDto,
 } from '../snowflake-api/query-snowflake-history';
 import { BiToolType, biToolTypes } from '../value-types/bi-tool';
+import { IDbConnection } from '../services/i-db';
 
 export type GenerateSfExternalDataEnvRequestDto = {
   targetOrgId?: string;
@@ -60,6 +61,8 @@ export default abstract class BaseGetSfExternalDataEnv {
   protected targetOrgId?: string;
 
   protected connPool?: IConnectionPool;
+
+  protected dbConnection?: IDbConnection;
 
   constructor(
     querySnowflake: QuerySnowflake,
@@ -201,7 +204,7 @@ export default abstract class BaseGetSfExternalDataEnv {
   protected buildDashboardRefDependencies = async (
     dashboardRefs: DashboardRef[]
   ): Promise<BuildBiResourcesResult> => {
-    if (!this.connPool || !this.auth)
+    if (!this.dbConnection || !this.auth)
       throw new Error('Build dependency field values missing');
 
     const uniqueDashboardRefs = dashboardRefs.filter(
@@ -219,7 +222,7 @@ export default abstract class BaseGetSfExternalDataEnv {
         writeToPersistence: false,
       },
       this.auth,
-      this.connPool
+      this.dbConnection
     );
 
     if (!createDashboardResult.success)
@@ -256,7 +259,7 @@ export default abstract class BaseGetSfExternalDataEnv {
         writeToPersistence: false,
       },
       this.auth,
-      this.connPool
+      this.dbConnection
     );
 
     if (!createDependeciesResult.success)
@@ -300,24 +303,18 @@ export default abstract class BaseGetSfExternalDataEnv {
   };
 
   protected getAllCitoMatReps = async (): Promise<CitoMatRepresentation[]> => {
-    if (!this.connPool || !this.auth)
+    if (!this.dbConnection || !this.auth)
       throw new Error('Missing properties for generating sf data env');
 
-    const queryText = `select id, relation_name from cito.lineage.materializations;`;
-    const queryResult = await this.querySnowflake.execute(
-      { queryText, binds: [] },
-      this.auth,
-      this.connPool
-    );
-    if (!queryResult.success) {
-      throw new Error(queryResult.error);
-    }
-    if (!queryResult.value) throw new Error('Query did not return a value');
+    const mats = await this.dbConnection
+    .collection(`materializations_${this.auth.callerOrgId}`)
+    .find({}, { projection: { id: 1, relation_name: 1 } })
+    .toArray();
 
-    const mats = queryResult.value;
+    if (!mats) return [];
 
     return mats.map((el): CitoMatRepresentation => {
-      const { ID: id, RELATION_NAME: relationName } = el;
+      const { id, relation_name: relationName } = el;
 
       if (typeof id !== 'string' || typeof relationName !== 'string')
         throw new Error(

@@ -1,6 +1,5 @@
 // TODO: Violation of control flow. DI for express instead
 import { Request, Response } from 'express';
-import { createPool } from 'snowflake-sdk';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
 import { GetSnowflakeProfile } from '../../../domain/integration-api/get-snowflake-profile';
 import {
@@ -16,17 +15,22 @@ import {
   CodeHttp,
   UserAccountInfo,
 } from './shared/base-controller';
+import Dbo from '../../persistence/db/mongo-db';
 
 export default class ReadLineageController extends BaseController {
   readonly #readLineage: ReadLineage;
 
+  readonly #dbo: Dbo;
+  
   constructor(
     readLineage: ReadLineage,
     getAccounts: GetAccounts,
-    getSnowflakeProfile: GetSnowflakeProfile
+    getSnowflakeProfile: GetSnowflakeProfile,
+    dbo: Dbo
   ) {
     super(getAccounts, getSnowflakeProfile);
     this.#readLineage = readLineage;
+    this.#dbo = dbo;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadLineageRequestDto => {
@@ -85,13 +89,11 @@ export default class ReadLineageController extends BaseController {
       const requestDto: ReadLineageRequestDto = this.#buildRequestDto(req);
       const authDto = this.#buildAuthDto(getUserAccountInfoResult.value, jwt);
 
-      const connPool = await this.createConnectionPool(jwt, createPool);
 
       const useCaseResult: ReadLineageResponseDto =
-        await this.#readLineage.execute(requestDto, authDto, connPool);
+        await this.#readLineage.execute(requestDto, authDto, this.#dbo.dbConnection);
 
-      await connPool.drain();
-      await connPool.clear();
+      await this.#dbo.releaseConnections();
 
       if (!useCaseResult.success) {
         return ReadLineageController.badRequest(res);

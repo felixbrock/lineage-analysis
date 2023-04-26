@@ -7,7 +7,8 @@ const columnsRoutes = Router();
 const readColumnsController = new ReadColumnsController(
   app.resolve('readColumns'),
   app.resolve('getAccounts'),
-  app.resolve('getSnowflakeProfile')
+  app.resolve('getSnowflakeProfile'),
+  app.resolve('dbo')
 );
 
 columnsRoutes.get('/', (req, res) => {

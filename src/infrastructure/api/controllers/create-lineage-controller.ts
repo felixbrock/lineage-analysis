@@ -16,17 +16,22 @@ import {
   CodeHttp,
   UserAccountInfo,
 } from './shared/base-controller';
+import Dbo from '../../persistence/db/mongo-db';
 
 export default class CreateLineageController extends BaseController {
   readonly #createLineage: CreateLineage;
 
+  readonly #dbo: Dbo;
+
   constructor(
     createLineage: CreateLineage,
     getAccounts: GetAccounts,
-    getSnowflakeProfile: GetSnowflakeProfile
+    getSnowflakeProfile: GetSnowflakeProfile,
+    dbo: Dbo
   ) {
     super(getAccounts, getSnowflakeProfile);
     this.#createLineage = createLineage;
+    this.#dbo = dbo;
   }
 
   #buildRequestDto = (req: Request): CreateLineageRequestDto => {
@@ -97,10 +102,12 @@ export default class CreateLineageController extends BaseController {
       const connPool = await this.createConnectionPool(jwt, createPool);
 
       const useCaseResult: CreateLineageResponseDto =
-        await this.#createLineage.execute(requestDto, authDto, connPool);
+        await this.#createLineage.execute(requestDto, authDto, 
+          { sfConnPool: connPool, mongoConn: this.#dbo.dbConnection });
 
       await connPool.drain();
       await connPool.clear();
+      this.#dbo.closeConnection();
 
       if (!useCaseResult.success) {
         return CreateLineageController.badRequest(res);

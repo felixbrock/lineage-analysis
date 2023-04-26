@@ -3,13 +3,13 @@ import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import BaseAuth from '../services/base-auth';
 import { ExternalDataEnvProps } from './external-data-env';
-import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 import BaseGetSfExternalDataEnv from './base-get-sf-external-data-env';
 import { QuerySnowflake } from '../snowflake-api/query-snowflake';
 import { BiToolType } from '../value-types/bi-tool';
 import { CreateDashboards } from '../dashboard/create-dashboards';
 import { CreateDependencies } from '../dependency/create-dependencies';
 import { QuerySfQueryHistory } from '../snowflake-api/query-snowflake-history';
+import { IDb } from '../services/i-db';
 
 export type GenerateSfExternalDataEnvRequestDto = {
   targetOrgId?: string;
@@ -27,7 +27,7 @@ export class GenerateSfExternalDataEnv
       GenerateSfExternalDataEnvRequestDto,
       GenerateSfExternalDataEnvResponse,
       GenerateSfExternalDataEnvAuthDto,
-      IConnectionPool
+      IDb
     >
 {
   constructor(
@@ -48,10 +48,11 @@ export class GenerateSfExternalDataEnv
   async execute(
     req: GenerateSfExternalDataEnvRequestDto,
     auth: GenerateSfExternalDataEnvAuthDto,
-    connPool: IConnectionPool
+    db: IDb
   ): Promise<GenerateSfExternalDataEnvResponse> {
     try {
-      this.connPool = connPool;
+      this.connPool = db.sfConnPool;
+      this.dbConnection = db.mongoConn;
       this.auth = auth;
       this.targetOrgId = req.targetOrgId;
 

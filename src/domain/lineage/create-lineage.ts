@@ -38,6 +38,7 @@ import { GenerateSfExternalDataEnv } from '../external-data-env/generate-sf-exte
 import { Materialization } from '../entities/materialization';
 import { Column } from '../entities/column';
 import { EnvLineage } from '../data-env/env-lineage';
+import { IDb, IDbConnection } from '../services/i-db';
 
 export interface CreateLineageRequestDto {
   targetOrgId?: string;
@@ -59,7 +60,7 @@ export class CreateLineage
       CreateLineageRequestDto,
       CreateLineageResponseDto,
       CreateLineageAuthDto,
-      IConnectionPool
+      IDb
     >
 {
   readonly #lineageRepo: ILineageRepo;
@@ -91,6 +92,8 @@ export class CreateLineage
   #auth?: CreateLineageAuthDto;
 
   #connPool?: IConnectionPool;
+
+  #dbConnection?: IDbConnection;
 
   #req?: CreateLineageRequestDto;
 
@@ -125,10 +128,10 @@ export class CreateLineage
   }
 
   #writeLineageToPersistence = async (lineage: Lineage): Promise<void> => {
-    if (!this.#auth || !this.#connPool || !this.#req)
+    if (!this.#auth || !this.#dbConnection || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
-    await this.#lineageRepo.insertOne(lineage, this.#auth, this.#connPool);
+    await this.#lineageRepo.insertOne(lineage, this.#auth, this.#dbConnection);
   };
 
   #createWhResourcesInPersistence = async (
@@ -136,21 +139,21 @@ export class CreateLineage
     mats: Materialization[],
     cols: Column[]
   ): Promise<void> => {
-    if (!this.#auth || !this.#connPool || !this.#req)
+    if (!this.#auth || !this.#dbConnection || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
     if (logics.length)
-      await this.#logicRepo.insertMany(logics, this.#auth, this.#connPool);
+      await this.#logicRepo.insertMany(logics, this.#auth, this.#dbConnection);
 
     if (mats.length)
       await this.#materializationRepo.insertMany(
         mats,
         this.#auth,
-        this.#connPool
+        this.#dbConnection
       );
 
     if (cols.length)
-      await this.#columnRepo.insertMany(cols, this.#auth, this.#connPool);
+      await this.#columnRepo.insertMany(cols, this.#auth, this.#dbConnection);
   };
 
   #replaceWhResourcesInPersistence = async (
@@ -158,19 +161,19 @@ export class CreateLineage
     mats: Materialization[],
     cols: Column[]
   ): Promise<void> => {
-    if (!this.#auth || !this.#connPool || !this.#req)
+    if (!this.#auth || !this.#dbConnection || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
     if (logics.length)
-      await this.#logicRepo.replaceMany(logics, this.#auth, this.#connPool);
+      await this.#logicRepo.replaceMany(logics, this.#auth, this.#dbConnection);
     if (mats.length)
       await this.#materializationRepo.replaceMany(
         mats,
         this.#auth,
-        this.#connPool
+        this.#dbConnection
       );
     if (cols.length)
-      await this.#columnRepo.replaceMany(cols, this.#auth, this.#connPool);
+      await this.#columnRepo.replaceMany(cols, this.#auth, this.#dbConnection);
   };
 
   #deleteTestSuites = async (
@@ -194,14 +197,14 @@ export class CreateLineage
     matRefs: MatToDeleteRef[],
     colRefs: ColToDeleteRef[]
   ): Promise<void> => {
-    if (!this.#auth || !this.#connPool || !this.#req)
+    if (!this.#auth || !this.#dbConnection || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
     if (logicRefs.length)
       await this.#logicRepo.deleteMany(
         logicRefs.map((el) => el.id),
         this.#auth,
-        this.#connPool
+        this.#dbConnection
       );
 
     const targetResourceIds: string[] = [];
@@ -209,7 +212,7 @@ export class CreateLineage
       await this.#materializationRepo.deleteMany(
         matRefs.map((el) => el.id),
         this.#auth,
-        this.#connPool
+        this.#dbConnection
       );
 
       targetResourceIds.push(...matRefs.map((el) => el.id));
@@ -219,7 +222,7 @@ export class CreateLineage
       await this.#columnRepo.deleteMany(
         colRefs.map((el) => el.id),
         this.#auth,
-        this.#connPool
+        this.#dbConnection
       );
 
       targetResourceIds.push(...colRefs.map((el) => el.id));
@@ -230,7 +233,7 @@ export class CreateLineage
   };
 
   #writeWhResourcesToPersistence = async (dataEnv: DataEnv): Promise<void> => {
-    if (!this.#auth || !this.#connPool || !this.#req)
+    if (!this.#auth || !this.#dbConnection || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
     await this.#deleteWhResourcesFromPersistence(
@@ -256,35 +259,35 @@ export class CreateLineage
     dashboards: Dashboard[],
     dependencies: Dependency[]
   ): Promise<void> => {
-    if (!this.#auth || !this.#connPool || !this.#req)
+    if (!this.#auth || !this.#dbConnection || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
     if (dashboards.length)
       await this.#dashboardRepo.insertMany(
         dashboards,
         this.#auth,
-        this.#connPool
+        this.#dbConnection
       );
 
     if (dependencies.length)
       await this.#dependencyRepo.insertMany(
         dependencies,
         this.#auth,
-        this.#connPool
+        this.#dbConnection
       );
   };
 
   #replaceExternalResourcesInPersistence = async (
     dashboards: Dashboard[]
   ): Promise<void> => {
-    if (!this.#auth || !this.#connPool || !this.#req)
+    if (!this.#auth || !this.#dbConnection || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
     if (dashboards.length)
       await this.#dashboardRepo.replaceMany(
         dashboards,
         this.#auth,
-        this.#connPool
+        this.#dbConnection
       );
   };
 
@@ -292,25 +295,25 @@ export class CreateLineage
     dashboardToDeleteRefs: DashboardToDeleteRef[],
     deleteAllDependencies: boolean
   ): Promise<void> => {
-    if (!this.#auth || !this.#connPool || !this.#req)
+    if (!this.#auth || !this.#dbConnection || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
     if (deleteAllDependencies) {
-      await this.#dependencyRepo.deleteAll(this.#auth, this.#connPool);
+      await this.#dependencyRepo.deleteAll(this.#auth, this.#dbConnection);
     }
 
     if (dashboardToDeleteRefs.length)
       await this.#dashboardRepo.deleteMany(
         dashboardToDeleteRefs.map((el) => el.id),
         this.#auth,
-        this.#connPool
+        this.#dbConnection
       );
   };
 
   #writeExternalResourcesToPersistence = async (
     dataEnv: ExternalDataEnv
   ): Promise<void> => {
-    if (!this.#auth || !this.#connPool || !this.#req)
+    if (!this.#auth || !this.#dbConnection || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
     await this.#deleteExternalResourcesFromPersistence(
@@ -332,14 +335,14 @@ export class CreateLineage
     id: string,
     updateDto: LineageUpdateDto
   ): Promise<void> => {
-    if (!this.#auth || !this.#connPool || !this.#req)
+    if (!this.#auth || !this.#dbConnection || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
     await this.#lineageRepo.updateOne(
       id,
       updateDto,
       this.#auth,
-      this.#connPool
+      this.#dbConnection
     );
   };
 
@@ -376,7 +379,7 @@ export class CreateLineage
   };
 
   #genSfDataEnv = async (): Promise<DataEnvProps> => {
-    if (!this.#auth || !this.#connPool || !this.#req)
+    if (!this.#auth || !this.#connPool || !this.#dbConnection || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
     const { callerOrgId } = this.#auth;
@@ -386,7 +389,7 @@ export class CreateLineage
     const result = await this.#generateSfDataEnv.execute(
       undefined,
       { ...this.#auth, callerOrgId },
-      this.#connPool
+      { mongoConn: this.#dbConnection, sfConnPool: this.#connPool }
     );
 
     if (!result.success) throw new Error(result.error);
@@ -399,7 +402,7 @@ export class CreateLineage
   #genSfExternalDataEnv = async (
     biToolType?: BiToolType
   ): Promise<ExternalDataEnvProps> => {
-    if (!this.#auth || !this.#connPool || !this.#req)
+    if (!this.#auth || !this.#connPool || !this.#dbConnection || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
     const { callerOrgId } = this.#auth;
@@ -409,7 +412,7 @@ export class CreateLineage
     const result = await this.#generateSfExternalDataEnv.execute(
       { biToolType },
       { ...this.#auth, callerOrgId },
-      this.#connPool
+      { mongoConn: this.#dbConnection, sfConnPool: this.#connPool }
     );
 
     if (!result.success) throw new Error(result.error);
@@ -452,26 +455,26 @@ export class CreateLineage
   #writeSfEnvLineageToPersistence = async (
     dependencies: Dependency[]
   ): Promise<void> => {
-    if (!this.#auth || !this.#connPool)
+    if (!this.#auth || !this.#dbConnection)
       throw new Error('Missing properties detected when creating lineage');
 
-    await this.#dependencyRepo.deleteAll(this.#auth, this.#connPool);
+    await this.#dependencyRepo.deleteAll(this.#auth, this.#dbConnection);
 
     await this.#dependencyRepo.insertMany(
       dependencies,
       this.#auth,
-      this.#connPool
+      this.#dbConnection
     );
   };
 
   #genSfEnvLineage = async (): Promise<EnvLineage> => {
-    if (!this.#auth || !this.#connPool)
+    if (!this.#auth || !this.#connPool || !this.#dbConnection)
       throw new Error('Missing properties detected when creating lineage');
 
     const generateSfEnvLineageResult = await this.#generateSfEnvLineage.execute(
       undefined,
       this.#auth,
-      this.#connPool
+      { sfConnPool: this.#connPool, mongoConn: this.#dbConnection }
     );
 
     if (!generateSfEnvLineageResult.success)
@@ -488,7 +491,7 @@ export class CreateLineage
     latestLineageCompletedAt: string,
     biToolType?: BiToolType
   ): Promise<ExternalDataEnvProps> => {
-    if (!this.#auth || !this.#connPool || !this.#req)
+    if (!this.#auth || !this.#dbConnection || !this.#connPool || !this.#req)
       throw new Error('Missing properties detected when creating lineage');
 
     const { callerOrgId } = this.#auth;
@@ -503,7 +506,7 @@ export class CreateLineage
         biToolType,
       },
       { ...this.#auth, callerOrgId },
-      this.#connPool
+      { mongoConn: this.#dbConnection, sfConnPool: this.#connPool }
     );
 
     if (!result.success) throw new Error(result.error);
@@ -517,7 +520,7 @@ export class CreateLineage
     latestLineageCompletedAt: string,
     latestLineagedbCoveredNames: string[]
   ): Promise<DataEnvProps> => {
-    if (!this.#auth || !this.#connPool || !this.#req)
+    if (!this.#auth || !this.#connPool || !this.#req || !this.#dbConnection)
       throw new Error('Missing properties detected when creating lineage');
 
     const { callerOrgId } = this.#auth;
@@ -532,7 +535,7 @@ export class CreateLineage
         },
       },
       { ...this.#auth, callerOrgId },
-      this.#connPool
+      { sfConnPool: this.#connPool, mongoConn: this.#dbConnection}
     );
 
     if (!result.success) throw new Error(result.error);
@@ -640,7 +643,7 @@ export class CreateLineage
   async execute(
     req: CreateLineageRequestDto,
     auth: CreateLineageAuthDto,
-    connPool: IConnectionPool
+    db: IDb
   ): Promise<CreateLineageResponseDto> {
     try {
       if (auth.isSystemInternal && !req.targetOrgId)
@@ -652,14 +655,15 @@ export class CreateLineage
       if (req.targetOrgId && auth.callerOrgId)
         throw new Error('callerOrgId and targetOrgId provided. Not allowed');
 
-      this.#connPool = connPool;
+      this.#connPool = db.sfConnPool;
+      this.#dbConnection = db.mongoConn;
       this.#auth = auth;
       this.#req = req;
 
       const latestLineage = await this.#lineageRepo.findLatest(
         { tolerateIncomplete: true },
         this.#auth,
-        this.#connPool,
+        this.#dbConnection,
         this.#req.targetOrgId
       );
 
@@ -669,7 +673,7 @@ export class CreateLineage
           : await this.#lineageRepo.findLatest(
               { tolerateIncomplete: false },
               this.#auth,
-              this.#connPool,
+              this.#dbConnection,
               this.#req.targetOrgId
             );
 

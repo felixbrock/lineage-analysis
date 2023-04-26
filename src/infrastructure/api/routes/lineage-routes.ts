@@ -9,17 +9,21 @@ const getAccounts = app.resolve('getAccounts');
 
 const getProfile = app.resolve('getSnowflakeProfile');
 
+const getDbo = app.resolve('dbo');
+
 const readLineageController = new ReadLineageController(
   app.resolve('readLineage'),
   getAccounts,
-  getProfile
+  getProfile,
+  getDbo
 );
 
 lineageRoutes.post('/', (req, res) => {
   new CreateLineageController(
     app.resolve('createLineage'),
     getAccounts,
-    getProfile
+    getProfile,
+    getDbo
   ).execute(req, res);
 });
 

@@ -4,8 +4,7 @@ import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import { Dependency, DependencyType } from '../entities/dependency';
 import { IDependencyRepo } from './i-dependency-repo';
-
-import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
+import { IDbConnection } from '../services/i-db';
 
 export interface CreateDependenciesRequestDto {
   toCreate: { headId: string; tailId: string; type: DependencyType }[];
@@ -27,7 +26,7 @@ export class CreateDependencies
       CreateDependenciesRequestDto,
       CreateDependenciesResponse,
       CreateDependenciesAuthDto,
-      IConnectionPool
+      IDbConnection
     >
 {
   readonly #dependencyRepo: IDependencyRepo;
@@ -39,7 +38,7 @@ export class CreateDependencies
   async execute(
     req: CreateDependenciesRequestDto,
     auth: CreateDependenciesAuthDto,
-    connPool: IConnectionPool
+    dbConnection: IDbConnection
   ): Promise<CreateDependenciesResponse> {
     try {
       if (auth.isSystemInternal && !req.targetOrgId)
@@ -61,7 +60,7 @@ export class CreateDependencies
       );
 
       if (req.writeToPersistence)
-        await this.#dependencyRepo.insertMany(dependencies, auth, connPool);
+        await this.#dependencyRepo.insertMany(dependencies, auth, dbConnection);
 
       return Result.ok(dependencies);
     } catch (error: unknown) {
