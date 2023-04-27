@@ -93,7 +93,6 @@ export default class ReadColumnsController extends BaseController {
       const useCaseResult: ReadColumnsResponseDto =
         await this.#readColumns.execute(requestDto, authDto, this.#dbo.dbConnection);
 
-      this.#dbo.releaseConnections();
 
       if (!useCaseResult.success) {
         return ReadColumnsController.badRequest(res);

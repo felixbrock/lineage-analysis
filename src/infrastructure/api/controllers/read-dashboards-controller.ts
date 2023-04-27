@@ -105,7 +105,6 @@ export default class ReadDashboardsController extends BaseController {
         ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
 
-      await this.#dbo.releaseConnections();
 
       return ReadDashboardsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {

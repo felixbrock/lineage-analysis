@@ -47,7 +47,7 @@ export class ReadLineage
             },
             auth,
             dbConnection,
-            req.targetOrgId
+            auth.callerOrgId
           );
       if (req.id && !lineage)
         throw new Error(

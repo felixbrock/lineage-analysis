@@ -76,7 +76,6 @@ export default class ReadLogicController extends BaseController {
         this.#dbo.dbConnection
       );
 
-      await this.#dbo.releaseConnections();
       
       if (!useCaseResult.success) {
         return ReadLogicController.badRequest(res);

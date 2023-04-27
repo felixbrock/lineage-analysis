@@ -107,7 +107,6 @@ export default class CreateLineageController extends BaseController {
 
       await connPool.drain();
       await connPool.clear();
-      this.#dbo.closeConnection();
 
       if (!useCaseResult.success) {
         return CreateLineageController.badRequest(res);

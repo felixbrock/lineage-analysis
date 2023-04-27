@@ -101,7 +101,6 @@ export default class ReadDependenciesController extends BaseController {
       const useCaseResult: ReadDependenciesResponseDto =
         await this.#readDependencies.execute(requestDto, authDto, this.#dbo.dbConnection);
 
-      await this.#dbo.releaseConnections();
 
       if (!useCaseResult.success) {
         return ReadDependenciesController.badRequest(res);

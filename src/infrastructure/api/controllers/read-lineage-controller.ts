@@ -93,7 +93,6 @@ export default class ReadLineageController extends BaseController {
       const useCaseResult: ReadLineageResponseDto =
         await this.#readLineage.execute(requestDto, authDto, this.#dbo.dbConnection);
 
-      await this.#dbo.releaseConnections();
 
       if (!useCaseResult.success) {
         return ReadLineageController.badRequest(res);

@@ -121,7 +121,6 @@ export default class ReadMaterializationsController extends BaseController {
       const useCaseResult: ReadMaterializationsResponseDto =
         await this.#readMaterializations.execute(requestDto, authDto, this.#dbo.dbConnection);
 
-      await this.#dbo.releaseConnections();
 
       if (!useCaseResult.success) {
         return ReadMaterializationsController.badRequest(res);
