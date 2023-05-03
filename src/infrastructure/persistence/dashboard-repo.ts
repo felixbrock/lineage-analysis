@@ -6,9 +6,6 @@ import {
 } from '../../domain/dashboard/i-dashboard-repo';
 import { Dashboard, DashboardProps } from '../../domain/entities/dashboard';
 
-import {
-  Bind,
-} from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import BaseSfRepo, { ColumnDefinition, Query } from './shared/base-sf-repo';
 
@@ -57,26 +54,26 @@ export default class DashboardRepo
     };
   };
 
-  getBinds = (entity: Dashboard): Bind[] => [
+  getValues = (entity: Dashboard): (string | number)[] => [
     entity.id,
     entity.name || 'null',
     entity.url,
   ];
 
   buildFindByQuery(dto: DashboardQueryDto): Query {
-    const binds: (string | number)[] = [];
+    const values: (string | number)[] = [];
     const filter: any = {};
 
     if (dto.url) {
-      binds.push(dto.url);
+      values.push(dto.url);
       filter.url = dto.url;
     }
     if (dto.name) {
-      binds.push(dto.name);
+      values.push(dto.name);
       filter.name = dto.name;
     }
 
-    return { filter, binds };
+    return { filter, values };
   }
 
   buildUpdateQuery(id: string, dto: undefined): Query {

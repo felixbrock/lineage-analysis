@@ -4,9 +4,6 @@ import {
   LineageProps,
   parseLineageCreationState,
 } from '../../domain/entities/lineage';
-import {
-  Bind,
-} from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import BaseSfRepo, { ColumnDefinition, Query } from './shared/base-sf-repo';
 import {
@@ -114,7 +111,7 @@ export default class LineageRepo
     }
   };
 
-  getBinds = (entity: Lineage): Bind[] => [
+  getValues = (entity: Lineage): (string | number)[] => [
     entity.id,
     entity.createdAt,
     JSON.stringify(entity.dbCoveredNames),
@@ -130,24 +127,24 @@ export default class LineageRepo
 
   buildUpdateQuery(id: string, dto: LineageUpdateDto): Query {
     const colDefinitions: ColumnDefinition[] = [this.getDefinition('id')];
-    const binds = [id];
+    const values = [id];
 
     if (dto.creationState) {
       colDefinitions.push(this.getDefinition('creation_state'));
-      binds.push(dto.creationState);
+      values.push(dto.creationState);
     }
 
     if (dto.dbCoveredNames) {
       colDefinitions.push(this.getDefinition('db_covered_names'));
-      binds.push(JSON.stringify(dto.dbCoveredNames));
+      values.push(JSON.stringify(dto.dbCoveredNames));
     }
 
     if (dto.diff) {
       colDefinitions.push(this.getDefinition('diff'));
-      binds.push(dto.diff);
+      values.push(dto.diff);
     }
 
-    return { binds, colDefinitions };
+    return { values, colDefinitions };
   }
 
   toEntity = (lineageProperties: LineageProps): Lineage =>

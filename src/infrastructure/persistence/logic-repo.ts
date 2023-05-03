@@ -5,9 +5,6 @@ import {
   LogicProps,
   Refs,
 } from '../../domain/entities/logic';
-import {
-  Bind,
-} from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import BaseSfRepo, { ColumnDefinition, Query } from './shared/base-sf-repo';
 import {
@@ -86,7 +83,7 @@ export default class LogicRepo
     };
   };
 
-  getBinds = (entity: Logic): Bind[] => [
+  getValues = (entity: Logic): (string | number)[] => [
     entity.id,
     entity.relationName,
     entity.sql,
@@ -96,14 +93,14 @@ export default class LogicRepo
   ];
 
   buildFindByQuery(dto: LogicQueryDto): Query {
-    const binds: (string | number)[] = [];
+    const values: (string | number)[] = [];
     const filter: any = {};
 
     if (dto.relationNames && dto.relationNames.length) {
       filter.relation_name = { $in: dto.relationNames };
     }
 
-    return { filter, binds };
+    return { filter, values };
   }
 
   buildUpdateQuery(id: string, dto: undefined): Query {

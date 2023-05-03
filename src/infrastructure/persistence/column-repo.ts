@@ -9,10 +9,6 @@ import {
   ColumnProps,
   parseColumnDataType,
 } from '../../domain/entities/column';
-
-import {
-  Bind,
-} from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import BaseSfRepo, { ColumnDefinition, Query } from './shared/base-sf-repo';
 
@@ -63,13 +59,11 @@ export default class ColumnRepo
       throw new Error(
         'Retrieved unexpected column field types from persistence'
       );
-    let commentValue = comment;
-    if (!comment) commentValue = null;
 
     if (
       !ColumnRepo.isOptionalOfType<boolean>(isIdentity, 'boolean') ||
       !ColumnRepo.isOptionalOfType<boolean>(isNullable, 'boolean') ||
-      !ColumnRepo.isOptionalOfType<string>(commentValue, 'string')
+      !ColumnRepo.isOptionalOfType<string>(comment, 'string')
     )
       throw new Error(
         'Type mismatch detected when reading column from persistence'
@@ -84,11 +78,11 @@ export default class ColumnRepo
       isIdentity,
       isNullable,
       materializationId,
-      comment: commentValue,
+      comment,
     };
   };
 
-  getBinds = (entity: Column): (Bind | boolean)[] => [
+  getValues = (entity: Column): (string | number | boolean)[] => [
     entity.id,
     entity.name,
     entity.relationName,
@@ -101,7 +95,7 @@ export default class ColumnRepo
   ];
 
   buildFindByQuery(dto: ColumnQueryDto): Query {
-    const binds: Bind[] = [];
+    const values: (string | number)[] = [];
     const filter: any = {};
 
     if (dto.relationNames && dto.relationNames.length) {
@@ -113,12 +107,12 @@ export default class ColumnRepo
     }
 
     if (dto.index) {
-      binds.push(dto.index);
+      values.push(dto.index);
       filter.index = dto.index;
     }
 
     if (dto.type) {
-      binds.push(dto.type);
+      values.push(dto.type);
       filter.type = dto.type;
     }
     
@@ -126,7 +120,7 @@ export default class ColumnRepo
       filter.materialization_id = { $in: dto.materializationIds };
     }
 
-    return { binds, filter };
+    return { values, filter };
   }
 
   buildUpdateQuery(id: string, dto: undefined): Query {

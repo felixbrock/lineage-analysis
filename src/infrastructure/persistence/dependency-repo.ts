@@ -9,7 +9,6 @@ import {
   DependencyProps,
   parseDependencyType,
 } from '../../domain/entities/dependency';
-import { Bind } from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import BaseSfRepo, { ColumnDefinition, Query } from './shared/base-sf-repo';
 
@@ -62,7 +61,7 @@ export default class DependencyRepo
     };
   };
 
-  getBinds = (entity: Dependency): Bind[] => [
+  getValues = (entity: Dependency): (string | number)[] => [
     entity.id,
     entity.type,
     entity.headId,
@@ -70,23 +69,23 @@ export default class DependencyRepo
   ];
 
   protected buildFindByQuery(dto: DependencyQueryDto): Query {
-    const binds: (string | number)[] = [];
+    const values: (string | number)[] = [];
     const filter: any = {};
 
     if (dto.tailId) {
-      binds.push(dto.tailId);
+      values.push(dto.tailId);
       filter.tail_id = dto.tailId;
     }
     if (dto.headId) {
-      binds.push(dto.headId);
+      values.push(dto.headId);
       filter.head_id = dto.headId;
     }
     if (dto.type) {
-      binds.push(dto.type);
+      values.push(dto.type);
       filter.type = dto.type;
     }
 
-    return { filter, binds };
+    return { filter, values };
   }
 
   buildUpdateQuery(id: string, dto: undefined): Query {

@@ -4,9 +4,6 @@ import {
   MaterializationProps,
   parseMaterializationType,
 } from '../../domain/entities/materialization';
-import {
-  Bind,
-} from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import BaseSfRepo, { ColumnDefinition, Query } from './shared/base-sf-repo';
 import {
@@ -105,7 +102,7 @@ export default class MaterializationRepo
     };
   };
 
-  getBinds = (el: Materialization): Bind[] => [
+  getValues = (el: Materialization): (string | number)[] => [
     el.id,
     el.name,
     el.schemaName,
@@ -119,37 +116,37 @@ export default class MaterializationRepo
   ];
 
   buildFindByQuery(dto: MaterializationQueryDto): Query {
-    const binds: Bind[] = [];
+    const values: (string | number)[] = [];
     const filter: any = {};
 
     if (dto.ids && dto.ids.length) {
       filter.id = { $in: dto.ids };
     }
     if (dto.relationName) {
-      binds.push(dto.relationName);
+      values.push(dto.relationName);
       filter.relation_name = dto.relationName;
     }
     if (dto.type) {
-      binds.push(dto.type);
+      values.push(dto.type);
       filter.type = dto.type;
     }
     if (dto.names && dto.names.length) {
       filter.name = { $in: dto.names };
     }
     if (dto.schemaName) {
-      binds.push(dto.schemaName);
+      values.push(dto.schemaName);
       filter.schema_name = dto.schemaName;
     }
     if (dto.databaseName) {
-      binds.push(dto.databaseName);
+      values.push(dto.databaseName);
       filter.database_name = dto.databaseName;
     }
     if (dto.logicId) {
-      binds.push(dto.logicId);
+      values.push(dto.logicId);
       filter.logic_id = dto.logicId;
     }
 
-    return { filter, binds };
+    return { filter, values };
   }
 
   buildUpdateQuery(id: string, dto: undefined): Query {
