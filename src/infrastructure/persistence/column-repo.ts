@@ -63,17 +63,12 @@ export default class ColumnRepo
       throw new Error(
         'Retrieved unexpected column field types from persistence'
       );
-     
-    const isIdentityValue = isIdentity !== undefined ? JSON.parse(isIdentity) : null;
-    
-    const isNullableValue = isNullable !== undefined ? JSON.parse(isNullable) : null;
-    
     let commentValue = comment;
     if (!comment) commentValue = null;
 
     if (
-      !ColumnRepo.isOptionalOfType<boolean>(isIdentityValue, 'boolean') ||
-      !ColumnRepo.isOptionalOfType<boolean>(isNullableValue, 'boolean') ||
+      !ColumnRepo.isOptionalOfType<boolean>(isIdentity, 'boolean') ||
+      !ColumnRepo.isOptionalOfType<boolean>(isNullable, 'boolean') ||
       !ColumnRepo.isOptionalOfType<string>(commentValue, 'string')
     )
       throw new Error(
@@ -86,21 +81,21 @@ export default class ColumnRepo
       relationName,
       index,
       dataType: parseColumnDataType(dataType),
-      isIdentity: isIdentityValue,
-      isNullable: isNullableValue,
+      isIdentity,
+      isNullable,
       materializationId,
       comment: commentValue,
     };
   };
 
-  getBinds = (entity: Column): Bind[] => [
+  getBinds = (entity: Column): (Bind | boolean)[] => [
     entity.id,
     entity.name,
     entity.relationName,
     entity.index,
     entity.dataType,
-    entity.isIdentity !== undefined ? entity.isIdentity.toString() : 'null',
-    entity.isNullable !== undefined ? entity.isNullable.toString() : 'null',
+    entity.isIdentity !== undefined ? entity.isIdentity : 'null',
+    entity.isNullable !== undefined ? entity.isNullable : 'null',
     entity.materializationId,
     entity.comment || 'null',
   ];

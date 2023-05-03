@@ -176,7 +176,7 @@ export default abstract class BaseSfRepo<
     }
   };
 
-  protected abstract getBinds(entity: Entity): (string | number)[];
+  protected abstract getBinds(entity: Entity): (string | number | boolean)[];
 
   insertOne = async (
     entity: Entity,
