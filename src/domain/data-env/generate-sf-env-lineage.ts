@@ -9,6 +9,7 @@ import { QuerySnowflake } from '../snowflake-api/query-snowflake';
 import { Auth } from '../external-data-env/base-get-sf-external-data-env';
 import { Dependency } from '../entities/dependency';
 import { IDb, IDbConnection } from '../services/i-db';
+import GenerateSfEnvLineageRepo from '../../infrastructure/persistence/generate-sf-env-lineage-repo';
 
 export type GenerateSfEnvLineageRequestDto = undefined;
 
@@ -75,14 +76,17 @@ export class GenerateSfEnvLineage
 {
   readonly querySnowflake: QuerySnowflake;
 
+  #generateRepo: GenerateSfEnvLineageRepo;
+
   #connPool?: IConnectionPool;
 
   #auth?: Auth;
 
   #dbConnection?: IDbConnection;
 
-  constructor(querySnowflake: QuerySnowflake) {
+  constructor(querySnowflake: QuerySnowflake, generateSfEnvLineageRepo: GenerateSfEnvLineageRepo) {
     this.querySnowflake = querySnowflake;
+    this.#generateRepo = generateSfEnvLineageRepo;
   }
 
   #getDistinctRelationNames = async (
@@ -110,22 +114,10 @@ export class GenerateSfEnvLineage
   #getAllLineageMats = async (
     relationNames: string[]
   ): Promise<CitoMatRepresentation[]> => {
-    if (!this.#dbConnection || !this.#auth)
+    if (!this.#dbConnection || !this.#auth || !this.#auth.callerOrgId)
       throw new Error('Missing properties for generating sf data env');
 
-    const results = await this.#dbConnection
-    .collection(`materializations_${this.#auth.callerOrgId}`)
-    .find({
-      'relation_name': {
-        $in: relationNames.map((el) => `'${el}'`)
-        // new RegExp(`^${el}$`, 'i')
-      }
-    })
-    .project({
-      id: 1,
-      relation_name: 1,
-    })
-    .toArray();
+    const results = await this.#generateRepo.findBy(relationNames, this.#dbConnection, this.#auth.callerOrgId);
 
     if (!results) return [];
 

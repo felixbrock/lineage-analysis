@@ -16,6 +16,7 @@ import { CreateDependencies } from '../dependency/create-dependencies';
 import { IDashboardRepo } from '../dashboard/i-dashboard-repo';
 import { Dependency } from '../entities/dependency';
 import { IDb } from '../services/i-db';
+import GetSfExternalDataEnvRepo from '../../infrastructure/persistence/get-sf-external-data-env-repo';
 
 export interface UpdateSfExternalDataEnvRequestDto {
   latestCompletedLineage: {
@@ -49,13 +50,15 @@ export class UpdateSfExternalDataEnv
     querySfQueryHistory: QuerySfQueryHistory,
     createDashboards: CreateDashboards,
     createDependencies: CreateDependencies,
-    dashboardRepo: IDashboardRepo
+    dashboardRepo: IDashboardRepo,
+    getSfExternalDataEnvRepo: GetSfExternalDataEnvRepo
   ) {
     super(
       querySnowflake,
       querySfQueryHistory,
       createDashboards,
-      createDependencies
+      createDependencies,
+      getSfExternalDataEnvRepo
     );
     this.#dasboardRepo = dashboardRepo;
   }

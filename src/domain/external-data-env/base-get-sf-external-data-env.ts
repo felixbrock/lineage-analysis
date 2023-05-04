@@ -15,6 +15,7 @@ import {
 } from '../snowflake-api/query-snowflake-history';
 import { BiToolType, biToolTypes } from '../value-types/bi-tool';
 import { IDbConnection } from '../services/i-db';
+import GetSfExternalDataEnvRepo from '../../infrastructure/persistence/get-sf-external-data-env-repo';
 
 export type GenerateSfExternalDataEnvRequestDto = {
   targetOrgId?: string;
@@ -56,6 +57,8 @@ export default abstract class BaseGetSfExternalDataEnv {
 
   protected readonly querySnowflake: QuerySnowflake;
 
+  readonly repo: GetSfExternalDataEnvRepo;
+
   protected auth?: Auth;
 
   protected targetOrgId?: string;
@@ -68,12 +71,14 @@ export default abstract class BaseGetSfExternalDataEnv {
     querySnowflake: QuerySnowflake,
     querySfQueryHistory: QuerySfQueryHistory,
     createDashboards: CreateDashboards,
-    createDependencies: CreateDependencies
+    createDependencies: CreateDependencies,
+    getSfExternalDataEnvRepo: GetSfExternalDataEnvRepo
   ) {
     this.querySnowflake = querySnowflake;
     this.#querySfQueryHistory = querySfQueryHistory;
     this.#createDashboards = createDashboards;
     this.#createDependencies = createDependencies;
+    this.repo = getSfExternalDataEnvRepo;
   }
 
   protected retrieveQuerySfQueryHistory = async (
@@ -303,17 +308,14 @@ export default abstract class BaseGetSfExternalDataEnv {
   };
 
   protected getAllCitoMatReps = async (): Promise<CitoMatRepresentation[]> => {
-    if (!this.dbConnection || !this.auth)
+    if (!this.dbConnection || !this.auth || !this.auth.callerOrgId)
       throw new Error('Missing properties for generating sf data env');
 
-    const mats = await this.dbConnection
-    .collection(`materializations_${this.auth.callerOrgId}`)
-    .find({}, { projection: { id: 1, relation_name: 1 } })
-    .toArray();
+    const mats = await this.repo.allRelations(this.dbConnection, this.auth.callerOrgId);
 
     if (!mats) return [];
 
-    return mats.map((el): CitoMatRepresentation => {
+    return mats.map((el: any): CitoMatRepresentation => {
       const { id, relation_name: relationName } = el;
 
       if (typeof id !== 'string' || typeof relationName !== 'string')

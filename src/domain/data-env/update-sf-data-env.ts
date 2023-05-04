@@ -18,6 +18,7 @@ import { ILineageRepo } from '../lineage/i-lineage-repo';
 import { IMaterializationRepo } from '../materialization/i-materialization-repo';
 import { IColumnRepo } from '../column/i-column-repo';
 import { ILogicRepo } from '../logic/i-logic-repo';
+import UpdateSfDataEnvRepo from '../../infrastructure/persistence/update-sf-data-env-repo';
 import BaseGetSfDataEnv, { ColumnRepresentation } from './base-get-sf-data-env';
 import { QuerySnowflake } from '../snowflake-api/query-snowflake';
 import { CreateMaterialization } from '../materialization/create-materialization';
@@ -68,6 +69,8 @@ export class UpdateSfDataEnv
 
   readonly #logicRepo: ILogicRepo;
 
+  readonly #updateRepo: UpdateSfDataEnvRepo;
+
   readonly #logicsToReplace: Logic[] = [];
 
   readonly #logicsToCreate: Logic[] = [];
@@ -95,7 +98,8 @@ export class UpdateSfDataEnv
     createMaterialization: CreateMaterialization,
     createColumn: CreateColumn,
     createLogic: CreateLogic,
-    parseSQL: ParseSQL
+    parseSQL: ParseSQL,
+    updateSfDataEnvRepo: UpdateSfDataEnvRepo
   ) {
     super(
       createMaterialization,
@@ -108,6 +112,7 @@ export class UpdateSfDataEnv
     this.#materializationRepo = materializationRepo;
     this.#columnRepo = columnRepo;
     this.#logicRepo = logicRepo;
+    this.#updateRepo = updateSfDataEnvRepo;
   }
 
   #buildLogicToReplace = (
@@ -579,41 +584,7 @@ export class UpdateSfDataEnv
     if (!this.auth || !this.dbConnection || !this.connPool)
       throw new Error('Missing auth or dbConnection or connPool');
 
-    const tempCollectionName = `temp_collection_${auth.callerOrgId}_${dbName}`;
-    const matsCollectionName = `materializations_${auth.callerOrgId}`;
-    const fullJoinName = `full_join_${auth.callerOrgId}_${dbName}`;
-
-    if ((await dbConnection
-        .listCollections({ name: tempCollectionName })
-        .toArray()).length > 0) {
-      await dbConnection.collection(tempCollectionName).deleteMany({})
-      .then()
-      .catch((err) => {
-        throw err;
-      });
-    } else {
-      await dbConnection.createCollection(tempCollectionName)
-      .then()
-      .catch((err) => {
-        throw err;
-      });
-    }
-
-    if ((await dbConnection
-        .listCollections({ name: fullJoinName })
-        .toArray()).length > 0) {
-      await dbConnection.collection(fullJoinName).deleteMany({})
-      .then()
-      .catch((err) => {
-        throw err;
-      });
-    } else {
-      await dbConnection.createCollection(fullJoinName)
-      .then()
-      .catch((err) => {
-        throw err;
-      });
-    }
+    await this.#updateRepo.createTempCollections(dbName, dbConnection, auth.callerOrgId);
 
     const queryText = `select table_catalog, table_schema, table_name, last_altered from "${dbName}".information_schema.tables;`;
     const binds = [dbName];
@@ -640,163 +611,15 @@ export class UpdateSfDataEnv
       return doc;
     });
 
-    await dbConnection.collection(tempCollectionName).insertMany(docs);
+    await this.#updateRepo.insertMany(dbName, dbConnection, auth.callerOrgId, docs);
 
-    const leftJoin = [
-      {
-        $lookup: {
-          from: tempCollectionName,
-          localField: "relation_name",
-          foreignField: "concatted_name",
-          as: "leftJoin"
-        }
-      },
-      {
-        $unwind: {
-          path: "$leftJoin",
-          preserveNullAndEmptyArrays: true
-        }
-      },
-      {
-        $replaceRoot: {
-          newRoot: {
-            $mergeObjects: ["$leftJoin", "$$ROOT"]
-          }
-        }
-      },
-      {
-        $merge: {
-          into: fullJoinName
-        } 
-      },
-    ];
+    await this.#updateRepo.fullJoin(dbName, dbConnection, auth.callerOrgId);
 
-    await dbConnection.collection(matsCollectionName).aggregate(leftJoin).toArray();
+    const results = await this.#updateRepo.readDataEnv(dbName, dbConnection, auth.callerOrgId, lastLineageCompletedAt);
 
-    const rightJoin = [
-      {
-        $lookup: {
-          from: matsCollectionName,
-          localField: "concatted_name",
-          foreignField: "relation_name",
-          as: "rightJoin"
-        }
-      },
-      {
-        $unwind: {
-          path: "$rightJoin",
-          preserveNullAndEmptyArrays: true
-        }
-      },
-      {
-        $replaceRoot: {
-          newRoot: {
-            $mergeObjects: ["$rightJoin", "$$ROOT"]
-          }
-        }
-      },
-      {
-        $merge: {
-          into: fullJoinName  
-        }
-      }
-    ];
+    await this.#updateRepo.dropTempCollections(dbName, dbConnection, auth.callerOrgId);
 
-  await dbConnection.collection(tempCollectionName).aggregate(rightJoin).toArray();
-
-    const pipeline = [
-      {
-        $match: {
-          $and: [
-            {
-              $and: [
-                { "database_name": { $in: [dbName, null] }},
-                { "table_catalog": { $in: [dbName, null] }}
-              ] 
-            },
-            {
-              $or: [
-                {
-                  $or: [
-                    { "table_name": null },
-                    {
-                      $and: [
-                        { "relation_name": null },
-                        { "table_schema": { $ne: "INFORMATION_SCHEMA" }}
-                      ]
-                    }
-                  ]
-                },
-                {
-                  $expr: {
-                    $gt: [
-                      {
-                        $divide: [
-                          {
-                            $subtract: [
-                              { $dateFromString: { dateString: lastLineageCompletedAt } },
-                              { $dateFromString: { dateString: "$last_altered" } }
-                            ]
-                          },
-                          60000
-                        ]  
-                      },
-                      0
-                    ]
-                  }
-                }
-              ]
-            }
-          ]
-        }  
-      },
-      {
-        $project: {
-          "mat_deleted_id": "$id",
-          "mat_added_relation_name": "$concatted_name",
-          "altered": {
-            $cond: {
-              if: { $and: [ { $ne: [ "$table_name", null ] }, { $ne: [ "$relation_name", null ] } ] },
-              then: true,
-              else: false
-            }
-          }
-        }
-      },
-      {
-        $group: {
-          _id: "$mat_deleted_id",
-          mat_deleted_id: { $first: "$mat_deleted_id" },
-          mat_added_relation_name: { $first: "$mat_added_relation_name" },
-          altered: { $first: "$altered" }
-        }
-      },
-      {
-        $project: {
-          _id: 0,
-          mat_deleted_id: 1,
-          mat_added_relation_name: 1,
-          altered: 1
-        }
-      }
-    ];
-
-    const result = await dbConnection
-    .collection(fullJoinName).aggregate(pipeline).toArray();
-
-    await dbConnection.collection(tempCollectionName).drop()
-      .then()
-      .catch((err) => {
-        throw err;
-      });
-
-    await dbConnection.collection(fullJoinName).drop()
-      .then()
-      .catch((err) => {
-        throw err;
-      });
-
-    const dataEnvDiff = this.#getDataEnvDiff(result);
+    const dataEnvDiff = this.#getDataEnvDiff(results);
 
     await this.#addResourcesToAdd(dataEnvDiff.matAddedRelationNames, dbName);
     await this.#addResourcesToDelete({

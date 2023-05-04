@@ -10,6 +10,7 @@ import { CreateDashboards } from '../dashboard/create-dashboards';
 import { CreateDependencies } from '../dependency/create-dependencies';
 import { QuerySfQueryHistory } from '../snowflake-api/query-snowflake-history';
 import { IDb } from '../services/i-db';
+import GetSfExternalDataEnvRepo from '../../infrastructure/persistence/get-sf-external-data-env-repo';
 
 export type GenerateSfExternalDataEnvRequestDto = {
   targetOrgId?: string;
@@ -34,13 +35,15 @@ export class GenerateSfExternalDataEnv
     createDashboards: CreateDashboards,
     createDependencies: CreateDependencies,
     querySfQueryHistory: QuerySfQueryHistory,
-    querySnowflake: QuerySnowflake
+    querySnowflake: QuerySnowflake,
+    getSfExternalDataEnvRepo: GetSfExternalDataEnvRepo
   ) {
     super(
       querySnowflake,
       querySfQueryHistory,
       createDashboards,
-      createDependencies
+      createDependencies,
+      getSfExternalDataEnvRepo
     );
   }
 
