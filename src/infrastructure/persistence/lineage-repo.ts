@@ -1,13 +1,9 @@
+import { Document } from 'mongodb';
 import {
   Lineage,
   LineageProps,
   parseLineageCreationState,
 } from '../../domain/entities/lineage';
-import {
-  Bind,
-  IConnectionPool,
-  SnowflakeEntity,
-} from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import BaseSfRepo, { ColumnDefinition, Query } from './shared/base-sf-repo';
 import {
@@ -16,6 +12,7 @@ import {
   LineageUpdateDto,
 } from '../../domain/lineage/i-lineage-repo';
 import BaseAuth from '../../domain/services/base-auth';
+import { IDbConnection } from '../../domain/services/i-db';
 
 export default class LineageRepo
   extends BaseSfRepo<Lineage, LineageProps, LineageQueryDto, LineageUpdateDto>
@@ -36,20 +33,28 @@ export default class LineageRepo
     super(querySnowflake);
   }
 
-  buildEntityProps = (sfEntity: SnowflakeEntity): LineageProps => {
+  buildEntityProps = (document: Document): LineageProps => {
     const {
-      ID: id,
-      CREATED_AT: createdAt,
-      DB_COVERED_NAMES: dbCoveredNames,
-      DIFF: diff,
-      CREATION_STATE: creationState,
-    } = sfEntity;
+      id,
+      created_at: createdAt,
+      db_covered_names: dbCoveredNames,
+      diff,
+      creation_state: creationState,
+    } = document;
+
+    const createdAtDate = new Date(createdAt);
+
+    // maybe check for string array
+    const dbCoveredNamesArray = JSON.parse(dbCoveredNames);
+
+    let diffValue = diff;
+    if (!diff) diffValue = null;
 
     if (
       typeof id !== 'string' ||
-      !(createdAt instanceof Date) ||
-      !LineageRepo.isStringArray(dbCoveredNames) ||
-      !LineageRepo.isOptionalOfType<string>(diff, 'string')
+      !(createdAtDate instanceof Date) ||
+      !LineageRepo.isStringArray(dbCoveredNamesArray) ||
+      !LineageRepo.isOptionalOfType<string>(diffValue, 'string')
     )
       throw new Error(
         'Retrieved unexpected lineage field types from persistence'
@@ -58,50 +63,47 @@ export default class LineageRepo
     return {
       id,
       creationState: parseLineageCreationState(creationState),
-      createdAt: createdAt.toISOString(),
-      dbCoveredNames,
-      diff,
+      createdAt: createdAtDate.toISOString(),
+      dbCoveredNames: dbCoveredNamesArray,
+      diff: diffValue,
     };
   };
 
   findLatest = async (
     filter: { tolerateIncomplete: boolean; minuteTolerance?: number },
     auth: BaseAuth,
-    connPool: IConnectionPool
+    dbConnection: IDbConnection
   ): Promise<Lineage | undefined> => {
-    const queryText = `select * from cito.lineage.${this.matName} 
-    where creation_state = 'completed' 
-    ${
-      filter.tolerateIncomplete
-        ? `or (creation_state != 'completed' ${
-            filter.minuteTolerance
-              ? `and timediff(minute, created_at, sysdate()) < ?`
-              : ''
-          })`
-        : ''
-    }
-    order by created_at desc limit 1;`;
+    try {  
+      const query: any = { creation_state: 'completed' };
 
-    const binds =
-      filter.tolerateIncomplete && filter.minuteTolerance
-        ? [filter.minuteTolerance]
-        : [];
+      if (filter.tolerateIncomplete) {
+        const incompleteQuery: any = {
+          creation_state: { $ne: 'complete' },
+        };
 
-    try {
-      const result = await this.querySnowflake.execute(
-        { queryText, binds },
-        auth,
-        connPool
-      );
+        if (filter.minuteTolerance) {
+          incompleteQuery.created_at = 
+          {
+            $gte: new Date(Date.now() - (filter.minuteTolerance * 1000 * 60)),
+          };
+        }
 
-      if (!result.success) throw new Error(result.error);
-      if (!result.value) throw new Error('Missing sf query value');
-      if (result.value.length > 1)
-        throw new Error(`Multiple lineage entities with id found`);
+        query.$or = [incompleteQuery, { creation_state: 'completed' }];
+      }
 
-      return !result.value.length
-        ? undefined
-        : this.toEntity(this.buildEntityProps(result.value[0]));
+      const result = await dbConnection
+      .collection(`${this.matName}_${auth.callerOrgId}`)
+      .find(query)
+      .sort({ created_at: -1 })
+      .limit(1)
+      .toArray();
+
+      if (!result.length) return undefined;
+      if (result.length > 1)
+          throw new Error(`Multiple lineage entities with id found`);
+
+      return !result.length ? undefined : this.toEntity(this.buildEntityProps(result[0]));
     } catch (error: unknown) {
       if (error instanceof Error) console.error(error.stack);
       else if (error) console.trace(error);
@@ -109,7 +111,7 @@ export default class LineageRepo
     }
   };
 
-  getBinds = (entity: Lineage): Bind[] => [
+  getValues = (entity: Lineage): (string | number)[] => [
     entity.id,
     entity.createdAt,
     JSON.stringify(entity.dbCoveredNames),
@@ -125,28 +127,24 @@ export default class LineageRepo
 
   buildUpdateQuery(id: string, dto: LineageUpdateDto): Query {
     const colDefinitions: ColumnDefinition[] = [this.getDefinition('id')];
-    const binds = [id];
+    const values = [id];
 
     if (dto.creationState) {
       colDefinitions.push(this.getDefinition('creation_state'));
-      binds.push(dto.creationState);
+      values.push(dto.creationState);
     }
 
     if (dto.dbCoveredNames) {
       colDefinitions.push(this.getDefinition('db_covered_names'));
-      binds.push(JSON.stringify(dto.dbCoveredNames));
+      values.push(JSON.stringify(dto.dbCoveredNames));
     }
 
     if (dto.diff) {
       colDefinitions.push(this.getDefinition('diff'));
-      binds.push(dto.diff);
+      values.push(dto.diff);
     }
 
-    const text = this.getUpdateQueryText(this.matName, colDefinitions, [
-      `(${binds.map(() => '?').join(', ')})`,
-    ]);
-
-    return { text, binds, colDefinitions };
+    return { values, colDefinitions };
   }
 
   toEntity = (lineageProperties: LineageProps): Lineage =>

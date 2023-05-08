@@ -1,8 +1,8 @@
 import { Logic } from '../entities/logic';
 import BaseAuth from '../services/base-auth';
+import { IDbConnection } from '../services/i-db';
  
 import IUseCase from '../services/use-case';
-import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 import Result from '../value-types/transient-types/result';
 import { ILogicRepo, LogicQueryDto } from './i-logic-repo';
 
@@ -17,7 +17,7 @@ export type ReadLogicsResponseDto = Result<Logic[]>;
 
 export class ReadLogics
   implements
-    IUseCase<ReadLogicsRequestDto, ReadLogicsResponseDto, ReadLogicsAuthDto,IConnectionPool>
+    IUseCase<ReadLogicsRequestDto, ReadLogicsResponseDto, ReadLogicsAuthDto, IDbConnection>
 {
   readonly #logicRepo: ILogicRepo;
 
@@ -28,7 +28,7 @@ export class ReadLogics
   async execute(
     req: ReadLogicsRequestDto,
     auth: ReadLogicsAuthDto,
-    connPool: IConnectionPool
+    dbConnection: IDbConnection
   ): Promise<ReadLogicsResponseDto> {
     try {
       if (auth.isSystemInternal && !req.targetOrgId)
@@ -43,7 +43,7 @@ export class ReadLogics
       const logics: Logic[] = await this.#logicRepo.findBy(
         this.#buildLogicQueryDto(req),
         auth,
-        connPool,
+        dbConnection,
       );
       if (!logics) throw new Error(`Queried logics do not exist`);
 

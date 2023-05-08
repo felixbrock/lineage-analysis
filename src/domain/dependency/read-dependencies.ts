@@ -1,9 +1,9 @@
 import { Dependency, DependencyType } from '../entities/dependency';
 import BaseAuth from '../services/base-auth';
 import IUseCase from '../services/use-case';
-import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 import Result from '../value-types/transient-types/result';
 import { IDependencyRepo, DependencyQueryDto } from './i-dependency-repo';
+import { IDbConnection } from '../services/i-db';
 
 export interface ReadDependenciesRequestDto {
   type?: DependencyType;
@@ -23,7 +23,8 @@ export class ReadDependencies
     IUseCase<
       ReadDependenciesRequestDto,
       ReadDependenciesResponseDto,
-      ReadDependenciesAuthDto,IConnectionPool
+      ReadDependenciesAuthDto,
+      IDbConnection
     >
 {
   readonly #dependencyRepo: IDependencyRepo;
@@ -37,7 +38,7 @@ export class ReadDependencies
   async execute(
     req: ReadDependenciesRequestDto,
     auth: ReadDependenciesAuthDto,
-    connPool: IConnectionPool
+    dbConnection: IDbConnection
   ): Promise<ReadDependenciesResponseDto> {
     try {
       if (auth.isSystemInternal && !req.targetOrgId)
@@ -52,7 +53,7 @@ export class ReadDependencies
             const dependencies: Dependency[] = await this.#dependencyRepo.findBy(
         this.#buildDependencyQueryDto(req),
         auth,
-        connPool,
+        dbConnection,
       );
       if (!dependencies)
         throw new ReferenceError(`Queried dependencies do not exist`);

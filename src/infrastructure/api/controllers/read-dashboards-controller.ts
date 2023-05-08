@@ -1,6 +1,5 @@
 // TODO: Violation of control flow. DI for express instead
 import { Request, Response } from 'express';
-import { createPool } from 'snowflake-sdk';
 import { GetAccounts } from '../../../domain/account-api/get-accounts';
 import {
   ReadDashboards,
@@ -16,17 +15,22 @@ import {
   CodeHttp,
   UserAccountInfo,
 } from './shared/base-controller';
+import Dbo from '../../persistence/db/mongo-db';
 
 export default class ReadDashboardsController extends BaseController {
   readonly #readDashboards: ReadDashboards;
 
+  readonly #dbo: Dbo;
+
   constructor(
     readDashboards: ReadDashboards,
     getAccounts: GetAccounts,
-    getSnowflakeProfile: GetSnowflakeProfile
+    getSnowflakeProfile: GetSnowflakeProfile,
+    dbo: Dbo
   ) {
     super(getAccounts, getSnowflakeProfile);
     this.#readDashboards = readDashboards;
+    this.#dbo = dbo;
   }
 
   #buildRequestDto = (httpRequest: Request): ReadDashboardsRequestDto => {
@@ -89,10 +93,9 @@ export default class ReadDashboardsController extends BaseController {
       const requestDto: ReadDashboardsRequestDto = this.#buildRequestDto(req);
       const authDto = this.#buildAuthDto(getUserAccountInfoResult.value, jwt);
 
-      const connPool = await this.createConnectionPool(jwt, createPool);
 
       const useCaseResult: ReadDashboardsResponseDto =
-        await this.#readDashboards.execute(requestDto, authDto, connPool);
+        await this.#readDashboards.execute(requestDto, authDto, this.#dbo.dbConnection);
 
       if (!useCaseResult.success) {
         return ReadDashboardsController.badRequest(res);
@@ -102,7 +105,6 @@ export default class ReadDashboardsController extends BaseController {
         ? useCaseResult.value.map((element) => element.toDto())
         : useCaseResult.value;
 
-      await connPool.drain(); await connPool.clear();
 
       return ReadDashboardsController.ok(res, resultValue, CodeHttp.OK);
     } catch (error: unknown) {

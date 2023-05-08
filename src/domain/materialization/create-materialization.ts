@@ -10,7 +10,7 @@ import {
 import { ReadMaterializations } from './read-materializations';
 import { IMaterializationRepo } from './i-materialization-repo';
 import BaseAuth from '../services/base-auth';
-import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
+import { IDbConnection } from '../services/i-db';
 
 export interface CreateMaterializationRequestDto {
   id?: string;
@@ -36,7 +36,7 @@ export class CreateMaterialization
     IUseCase<
       CreateMaterializationRequestDto,
       CreateMaterializationResponseDto,
-      CreateMaterializationAuthDto,IConnectionPool
+      CreateMaterializationAuthDto, IDbConnection
     >
 {
   readonly #readMaterializations: ReadMaterializations;
@@ -54,7 +54,7 @@ export class CreateMaterialization
   async execute(
     req: CreateMaterializationRequestDto,
     auth: CreateMaterializationAuthDto,
-    connPool: IConnectionPool
+    dbConnection: IDbConnection
   ): Promise<CreateMaterializationResponseDto> {
     try {
       if (auth.isSystemInternal && !req.targetOrgId)
@@ -83,7 +83,7 @@ export class CreateMaterialization
         await this.#materializationRepo.insertOne(
           materialization,
           auth,
-          connPool,
+          dbConnection,
         );
 
       return Result.ok(materialization);

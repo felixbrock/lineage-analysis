@@ -7,7 +7,8 @@ const logicRoutes = Router();
 const readLogicController = new ReadLogicController(
   app.resolve('readLogic'),
   app.resolve('getAccounts'),
-  app.resolve('getSnowflakeProfile')
+  app.resolve('getSnowflakeProfile'),
+  app.resolve('dbo')
 );
 
 logicRoutes.get('/:id', (req, res) => {

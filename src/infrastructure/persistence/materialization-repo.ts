@@ -1,12 +1,9 @@
+import { Document } from 'mongodb';
 import {
   Materialization,
   MaterializationProps,
   parseMaterializationType,
 } from '../../domain/entities/materialization';
-import {
-  Bind,
-  SnowflakeEntity,
-} from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import BaseSfRepo, { ColumnDefinition, Query } from './shared/base-sf-repo';
 import {
@@ -44,19 +41,19 @@ export default class MaterializationRepo
     super(querySnowflake);
   }
 
-  buildEntityProps = (sfEntity: SnowflakeEntity): MaterializationProps => {
+  buildEntityProps = (document: Document): MaterializationProps => {
     const {
-      ID: id,
-      NAME: name,
-      SCHEMA_NAME: schemaName,
-      DATABASE_NAME: databaseName,
-      RELATION_NAME: relationName,
-      TYPE: type,
-      IS_TRANSIENT: isTransient,
-      LOGIC_ID: logicId,
-      OWNER_ID: ownerId,
-      COMMENT: comment,
-    } = sfEntity;
+      id,
+      name,
+      schema_name: schemaName,
+      database_name: databaseName,
+      relation_name: relationName,
+      type,
+      is_transient: isTransient,
+      logic_id: logicId,
+      owner_id: ownerId,
+      comment,
+    } = document;
 
     if (
       typeof id !== 'string' ||
@@ -70,11 +67,22 @@ export default class MaterializationRepo
         'Retrieved unexpected materialization field types from persistence'
       );
 
+    const isTransientValue = isTransient !== undefined ? JSON.parse(isTransient) : null;
+
+    let logicIdValue = logicId;
+    if (!logicId) logicIdValue = null;
+
+    let ownerIdValue = ownerId;
+    if (!ownerId) ownerIdValue = null;
+
+    let commentValue = comment;
+    if (!comment) commentValue = null;
+
     if (
-      !MaterializationRepo.isOptionalOfType<boolean>(isTransient, 'boolean') ||
-      !MaterializationRepo.isOptionalOfType<string>(logicId, 'string') ||
-      !MaterializationRepo.isOptionalOfType<string>(ownerId, 'string') ||
-      !MaterializationRepo.isOptionalOfType<string>(comment, 'string')
+      !MaterializationRepo.isOptionalOfType<boolean>(isTransientValue, 'boolean') ||
+      !MaterializationRepo.isOptionalOfType<string>(logicIdValue, 'string') ||
+      !MaterializationRepo.isOptionalOfType<string>(ownerIdValue, 'string') ||
+      !MaterializationRepo.isOptionalOfType<string>(commentValue, 'string')
     )
       throw new Error(
         'Type mismatch detected when reading materialization from persistence'
@@ -87,14 +95,14 @@ export default class MaterializationRepo
       databaseName,
       relationName,
       type: parseMaterializationType(type),
-      isTransient,
-      logicId,
-      ownerId,
-      comment,
+      isTransient: isTransientValue,
+      logicId: logicIdValue,
+      ownerId: ownerIdValue,
+      comment: commentValue,
     };
   };
 
-  getBinds = (el: Materialization): Bind[] => [
+  getValues = (el: Materialization): (string | number)[] => [
     el.id,
     el.name,
     el.schemaName,
@@ -108,70 +116,37 @@ export default class MaterializationRepo
   ];
 
   buildFindByQuery(dto: MaterializationQueryDto): Query {
-    const binds: Bind[] = [];
-    let whereClause = '';
+    const values: (string | number)[] = [];
+    const filter: any = {};
 
     if (dto.ids && dto.ids.length) {
-      const whereCondition = `array_contains(id::variant, array_construct(${dto.ids
-        .map((el) => `'${el}'`)
-        .join(',')}))`;
-      whereClause = whereClause
-        ? whereClause.concat(`${whereCondition} `)
-        : whereCondition;
+      filter.id = { $in: dto.ids };
     }
     if (dto.relationName) {
-      binds.push(dto.relationName);
-      const whereCondition = 'relation_name = ?';
-
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
+      values.push(dto.relationName);
+      filter.relation_name = dto.relationName;
     }
     if (dto.type) {
-      binds.push(dto.type);
-      const whereCondition = 'type = ?';
-
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
+      values.push(dto.type);
+      filter.type = dto.type;
     }
     if (dto.names && dto.names.length) {
-      const whereCondition = `array_contains(name::variant, array_construct(${dto.names
-        .map((el) => `'${el}'`)
-        .join(',')}))`;
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
+      filter.name = { $in: dto.names };
     }
     if (dto.schemaName) {
-      binds.push(dto.schemaName);
-      const whereCondition = 'schema_name = ?';
-
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
+      values.push(dto.schemaName);
+      filter.schema_name = dto.schemaName;
     }
     if (dto.databaseName) {
-      binds.push(dto.databaseName);
-      const whereCondition = 'database_name = ?';
-
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
+      values.push(dto.databaseName);
+      filter.database_name = dto.databaseName;
     }
     if (dto.logicId) {
-      binds.push(dto.logicId);
-      const whereCondition = 'logic_id = ?';
-
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
+      values.push(dto.logicId);
+      filter.logic_id = dto.logicId;
     }
 
-    const text = `select * from cito.lineage.${this.matName}
-    ${whereClause ? 'where' : ''}  ${whereClause};`;
-
-    return { text, binds };
+    return { filter, values };
   }
 
   buildUpdateQuery(id: string, dto: undefined): Query {

@@ -1,3 +1,4 @@
+import { Document } from 'mongodb';
 import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import BaseAuth from '../services/base-auth';
@@ -12,19 +13,19 @@ import { Materialization } from '../entities/materialization';
 import { Logic } from '../entities/logic';
 import {
   Binds,
-  IConnectionPool,
-  SnowflakeEntity,
 } from '../snowflake-api/i-snowflake-api-repo';
 import { ILineageRepo } from '../lineage/i-lineage-repo';
 import { IMaterializationRepo } from '../materialization/i-materialization-repo';
 import { IColumnRepo } from '../column/i-column-repo';
 import { ILogicRepo } from '../logic/i-logic-repo';
+import UpdateSfDataEnvRepo from '../../infrastructure/persistence/update-sf-data-env-repo';
 import BaseGetSfDataEnv, { ColumnRepresentation } from './base-get-sf-data-env';
 import { QuerySnowflake } from '../snowflake-api/query-snowflake';
 import { CreateMaterialization } from '../materialization/create-materialization';
 import { CreateColumn } from '../column/create-column';
 import { CreateLogic } from '../logic/create-logic';
 import { ParseSQL } from '../sql-parser-api/parse-sql';
+import { IDb, IDbConnection } from '../services/i-db';
 
 export interface UpdateSfDataEnvRequestDto {
   latestCompletedLineage: {
@@ -57,7 +58,7 @@ export class UpdateSfDataEnv
       UpdateSfDataEnvRequestDto,
       UpdateSfDataEnvResponse,
       UpdateSfDataEnvAuthDto,
-      IConnectionPool
+      IDb
     >
 {
   readonly #lineageRepo: ILineageRepo;
@@ -67,6 +68,8 @@ export class UpdateSfDataEnv
   readonly #columnRepo: IColumnRepo;
 
   readonly #logicRepo: ILogicRepo;
+
+  readonly #updateRepo: UpdateSfDataEnvRepo;
 
   readonly #logicsToReplace: Logic[] = [];
 
@@ -95,7 +98,8 @@ export class UpdateSfDataEnv
     createMaterialization: CreateMaterialization,
     createColumn: CreateColumn,
     createLogic: CreateLogic,
-    parseSQL: ParseSQL
+    parseSQL: ParseSQL,
+    updateSfDataEnvRepo: UpdateSfDataEnvRepo
   ) {
     super(
       createMaterialization,
@@ -108,6 +112,7 @@ export class UpdateSfDataEnv
     this.#materializationRepo = materializationRepo;
     this.#columnRepo = columnRepo;
     this.#logicRepo = logicRepo;
+    this.#updateRepo = updateSfDataEnvRepo;
   }
 
   #buildLogicToReplace = (
@@ -232,7 +237,7 @@ export class UpdateSfDataEnv
     return updatedLogic;
   };
 
-  #getDataEnvDiff = (values: SnowflakeEntity[]): DataEnvDiff => {
+  #getDataEnvDiff = (values: Document[]): DataEnvDiff => {
     const isOptionalOfType = <T>(
       val: unknown,
       targetType:
@@ -247,35 +252,43 @@ export class UpdateSfDataEnv
     ): val is T => val === null || typeof val === targetType;
 
     const dataEnvDiff = values.reduce(
-      (accumulation: DataEnvDiff, el: SnowflakeEntity): DataEnvDiff => {
+      (accumulation: DataEnvDiff, el: Document): DataEnvDiff => {
         const localAcc = accumulation;
 
         const {
-          MAT_DELETED_ID: matDeletedId,
-          MAT_ADDED_RELATION_NAME: matAddedRelationName,
-          ALTERED: altered,
+          mat_deleted_id: matDeletedId,
+          mat_added_relation_name: matAddedRelationName,
+          altered,
         } = el;
 
-        if (typeof altered !== 'boolean')
+        let matDeletedIdValue = matDeletedId;
+        if (!matDeletedId) matDeletedIdValue = null;
+        
+        let matAddedRelationNameValue = matAddedRelationName;
+        if (!matAddedRelationName) matAddedRelationNameValue = null;
+
+        const alteredValue = JSON.parse(altered);
+
+        if (typeof alteredValue !== 'boolean')
           throw new Error('Unexpected altered value');
-        if (!isOptionalOfType<string>(matDeletedId, 'string'))
+        if (!isOptionalOfType<string>(matDeletedIdValue, 'string'))
           throw new Error('Unexpected deletedMatId value');
-        if (!isOptionalOfType<string>(matAddedRelationName, 'string'))
+        if (!isOptionalOfType<string>(matAddedRelationNameValue, 'string'))
           throw new Error('Unexpected addedMatId value');
 
-        if (altered) {
+        if (alteredValue) {
           if (
-            typeof matAddedRelationName !== 'string' ||
-            typeof matDeletedId !== 'string'
+            typeof matAddedRelationNameValue !== 'string' ||
+            typeof matDeletedIdValue !== 'string'
           )
             throw new Error('Unexpected altered column input');
           localAcc.matModifiedDiffs.push({
-            oldMatId: matDeletedId,
-            relationName: matAddedRelationName,
+            oldMatId: matDeletedIdValue,
+            relationName: matAddedRelationNameValue,
           });
-        } else if (matAddedRelationName)
-          localAcc.matAddedRelationNames.push(matAddedRelationName);
-        else if (matDeletedId) localAcc.matDeletedIds.push(matDeletedId);
+        } else if (matAddedRelationNameValue)
+          localAcc.matAddedRelationNames.push(matAddedRelationNameValue);
+        else if (matDeletedIdValue) localAcc.matDeletedIds.push(matDeletedIdValue);
         else throw new Error('Unhandled use case returned');
 
         return localAcc;
@@ -367,7 +380,7 @@ export class UpdateSfDataEnv
     modifiedMatDiffs: MatModifiedDiff[],
     dbName: string
   ): Promise<void> => {
-    if (!this.auth || !this.connPool)
+    if (!this.auth || !this.dbConnection)
       throw new Error('auth or connPool missing');
 
     if (!modifiedMatDiffs.length) return;
@@ -390,13 +403,13 @@ export class UpdateSfDataEnv
     const oldMats = await this.#materializationRepo.findBy(
       { ids },
       this.auth,
-      this.connPool
+      this.dbConnection
     );
 
     const oldCols = await this.#columnRepo.findBy(
       { materializationIds: ids },
       this.auth,
-      this.connPool
+      this.dbConnection
     );
 
     const oldColsByMatId: { [key: string]: Column[] } = oldCols.reduce(
@@ -407,7 +420,7 @@ export class UpdateSfDataEnv
     const oldLogics = await this.#logicRepo.findBy(
       { relationNames },
       this.auth,
-      this.connPool
+      this.dbConnection
     );
 
     const whereCondition = `array_contains(concat(table_catalog, '.', table_schema, '.', table_name)::variant, array_construct(${relationNames
@@ -508,7 +521,7 @@ export class UpdateSfDataEnv
     matToDeleteIds: string[];
     matsToDelete?: Materialization[];
   }): Promise<void> => {
-    if (!this.auth || !this.connPool)
+    if (!this.auth || !this.dbConnection)
       throw new Error('auth or connPool missing');
 
     if (!props.matToDeleteIds.length) return;
@@ -518,7 +531,7 @@ export class UpdateSfDataEnv
       (await this.#materializationRepo.findBy(
         { ids: props.matToDeleteIds },
         this.auth,
-        this.connPool
+        this.dbConnection
       ));
 
     if (!mats.length) throw new Error('Desired mats not found');
@@ -526,13 +539,13 @@ export class UpdateSfDataEnv
     const cols = await this.#columnRepo.findBy(
       { materializationIds: props.matToDeleteIds },
       this.auth,
-      this.connPool
+      this.dbConnection
     );
 
     const logics = await this.#logicRepo.findBy(
       { relationNames: mats.map((el) => el.relationName) },
       this.auth,
-      this.connPool
+      this.dbConnection
     );
 
     this.#matToDeleteRefs.push(
@@ -564,33 +577,17 @@ export class UpdateSfDataEnv
 
   #updateDbDataEnv = async (
     dbName: string,
-    lastLineageCompletedAt: string
+    lastLineageCompletedAt: string,
+    dbConnection: IDbConnection,
+    auth: UpdateSfDataEnvAuthDto
   ): Promise<void> => {
-    if (!this.auth || !this.connPool)
-      throw new Error('Missing auth or connPool');
+    if (!this.auth || !this.dbConnection || !this.connPool)
+      throw new Error('Missing auth or dbConnection or connPool');
 
-    const binds = [dbName, lastLineageCompletedAt];
+    await this.#updateRepo.createTempCollections(dbName, dbConnection, auth.callerOrgId);
 
-    const queryText = `select t2.id as mat_deleted_id, concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name) as mat_added_relation_name, t1.table_name is not null and t2.relation_name is not null as altered
-    from cito.lineage.materializations as t2
-    full join "${dbName}".information_schema.tables as t1 
-    on concat(t1.table_catalog, '.', t1.table_schema, '.', t1.table_name) = t2.relation_name
-    where 
-    (
-        array_contains(t2.database_name::variant, array_construct(:1, null))
-        and
-        array_contains(t1.table_catalog::variant, array_construct(:1, null))
-    ) 
-    and 
-    (
-        (
-            t1.table_name is null 
-            or 
-            (t2.relation_name is null and t1.table_schema != 'INFORMATION_SCHEMA')
-        )
-        or 
-        timediff(minute, :2::timestamp_ntz, convert_timezone('UTC', last_altered)::timestamp_ntz) > 0
-    );`;
+    const queryText = `select table_catalog, table_schema, table_name, last_altered from "${dbName}".information_schema.tables;`;
+    const binds = [dbName];
 
     const queryResult = await this.querySnowflake.execute(
       { queryText, binds },
@@ -602,7 +599,27 @@ export class UpdateSfDataEnv
     if (!queryResult.value)
       throw new Error('Query result is missing value field');
 
-    const dataEnvDiff = this.#getDataEnvDiff(queryResult.value);
+    const docs = queryResult.value.map((row) => {
+      const doc = {
+        table_name: row.TABLE_NAME,
+        table_schema: row.TABLE_SCHEMA,
+        table_catalog: row.TABLE_CATALOG,
+        last_altered: row.LAST_ALTERED instanceof Date ? row.LAST_ALTERED.toISOString() : null,
+        concatted_name: `${row.TABLE_CATALOG}.${row.TABLE_SCHEMA}.${row.TABLE_NAME}`
+      };
+
+      return doc;
+    });
+
+    await this.#updateRepo.insertMany(dbName, dbConnection, auth.callerOrgId, docs);
+
+    await this.#updateRepo.fullJoin(dbName, dbConnection, auth.callerOrgId);
+
+    const results = await this.#updateRepo.readDataEnv(dbName, dbConnection, auth.callerOrgId, lastLineageCompletedAt);
+
+    await this.#updateRepo.dropTempCollections(dbName, dbConnection, auth.callerOrgId);
+
+    const dataEnvDiff = this.#getDataEnvDiff(results);
 
     await this.#addResourcesToAdd(dataEnvDiff.matAddedRelationNames, dbName);
     await this.#addResourcesToDelete({
@@ -612,13 +629,13 @@ export class UpdateSfDataEnv
   };
 
   #addRemovedDbToDelete = async (dbName: string): Promise<void> => {
-    if (!this.auth || !this.connPool)
+    if (!this.auth || !this.dbConnection)
       throw new Error('Missing auth or connPool');
 
     const matsToDelete = await this.#materializationRepo.findBy(
       { databaseName: dbName },
       this.auth,
-      this.connPool
+      this.dbConnection
     );
 
     const matIds = matsToDelete.map((el) => el.id);
@@ -630,13 +647,14 @@ export class UpdateSfDataEnv
   async execute(
     req: UpdateSfDataEnvRequestDto,
     auth: UpdateSfDataEnvAuthDto,
-    connPool: IConnectionPool
+    db: IDb
   ): Promise<UpdateSfDataEnvResponse> {
     try {
       this.auth = auth;
-      this.connPool = connPool;
+      this.connPool = db.sfConnPool;
+      this.dbConnection = db.mongoConn;
 
-      const dbRepresentations = await this.getDbRepresentations(connPool, auth);
+      const dbRepresentations = await this.getDbRepresentations(this.connPool, this.auth);
 
       const dbToCoverNames = dbRepresentations.map((el) => el.name);
       const dbRemovedNames = req.latestCompletedLineage.dbCoveredNames.filter(
@@ -653,7 +671,9 @@ export class UpdateSfDataEnv
         dbRepresentations.map(async (el) => {
           await this.#updateDbDataEnv(
             el.name,
-            req.latestCompletedLineage.completedAt
+            req.latestCompletedLineage.completedAt,
+            db.mongoConn,
+            auth
           );
         })
       );

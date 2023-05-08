@@ -3,7 +3,6 @@ import Result from '../value-types/transient-types/result';
 import IUseCase from '../services/use-case';
 import BaseAuth from '../services/base-auth';
 import { DataEnvProps } from './data-env';
-import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 import BaseGetSfDataEnv, { ColumnRepresentation } from './base-get-sf-data-env';
 import { Materialization } from '../entities/materialization';
 import { Column } from '../entities/column';
@@ -13,6 +12,7 @@ import { CreateMaterialization } from '../materialization/create-materialization
 import { CreateColumn } from '../column/create-column';
 import { CreateLogic } from '../logic/create-logic';
 import { ParseSQL } from '../sql-parser-api/parse-sql';
+import { IDb } from '../services/i-db';
 
 export type GenerateSfDataEnvRequestDto = undefined;
 
@@ -30,7 +30,7 @@ export class GenerateSfDataEnv
       GenerateSfDataEnvRequestDto,
       GenerateSfDataEnvResponse,
       GenerateSfDataEnvAuthDto,
-      IConnectionPool
+      IDb
     >
 {
   readonly #mats: Materialization[] = [];
@@ -110,13 +110,14 @@ export class GenerateSfDataEnv
   async execute(
     req: GenerateSfDataEnvRequestDto,
     auth: GenerateSfDataEnvAuthDto,
-    connPool: IConnectionPool
+    db: IDb
   ): Promise<GenerateSfDataEnvResponse> {
     try {
-      this.connPool = connPool;
+      this.connPool = db.sfConnPool;
+      this.dbConnection = db.mongoConn;
       this.auth = auth;
 
-      const dbRepresentations = await this.getDbRepresentations(connPool, auth);
+      const dbRepresentations = await this.getDbRepresentations(db.sfConnPool, auth);
 
       await Promise.all(
         dbRepresentations.map(async (el) => {

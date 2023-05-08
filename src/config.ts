@@ -55,6 +55,20 @@ const getBaseUrlConfig = (): BaseUrlConfig => {
   };
 };
 
+export interface MongoDbConfig {
+  url: string;
+  dbName: string;
+}
+
+const getMongodbConfig = (): MongoDbConfig => {
+  const url = process.env.DATABASE_URL || '';
+  const dbName = process.env.DATABASE_NAME || '';
+
+  if (!url || !dbName) throw new Error('Missing Mongo DB env values');
+
+  return { url, dbName };
+};
+
 export const appConfig = {
   express: {
     port,
@@ -72,4 +86,5 @@ export const appConfig = {
     databaseName: 'cito',
   },
   baseUrl: getBaseUrlConfig(),
+  mongodb: getMongodbConfig(),
 };

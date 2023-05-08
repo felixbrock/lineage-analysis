@@ -1,3 +1,4 @@
+import { Document } from 'mongodb';
 import {
   ColumnQueryDto,
   ColumnUpdateDto,
@@ -8,11 +9,6 @@ import {
   ColumnProps,
   parseColumnDataType,
 } from '../../domain/entities/column';
-
-import {
-  Bind,
-  SnowflakeEntity,
-} from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import BaseSfRepo, { ColumnDefinition, Query } from './shared/base-sf-repo';
 
@@ -39,18 +35,18 @@ export default class ColumnRepo
     super(querySnowflake);
   }
 
-  buildEntityProps = (sfEntity: SnowflakeEntity): ColumnProps => {
+  buildEntityProps = (document: Document): ColumnProps => {
     const {
-      ID: id,
-      NAME: name,
-      RELATION_NAME: relationName,
-      INDEX: index,
-      DATA_TYPE: dataType,
-      IS_IDENTITY: isIdentity,
-      IS_NULLABLE: isNullable,
-      MATERIALIZATION_ID: materializationId,
-      COMMENT: comment,
-    } = sfEntity;
+      id,
+      name,
+      relation_name: relationName,
+      index,
+      data_type: dataType,
+      is_identity: isIdentity,
+      is_nullable: isNullable,
+      materialization_id: materializationId,
+      comment,
+    } = document;
 
     if (
       typeof id !== 'string' ||
@@ -86,70 +82,45 @@ export default class ColumnRepo
     };
   };
 
-  getBinds = (entity: Column): Bind[] => [
+  getValues = (entity: Column): (string | number | boolean)[] => [
     entity.id,
     entity.name,
     entity.relationName,
     entity.index,
     entity.dataType,
-    entity.isIdentity !== undefined ? entity.isIdentity.toString() : 'null',
-    entity.isNullable !== undefined ? entity.isNullable.toString() : 'null',
+    entity.isIdentity !== undefined ? entity.isIdentity : 'null',
+    entity.isNullable !== undefined ? entity.isNullable : 'null',
     entity.materializationId,
     entity.comment || 'null',
   ];
 
   buildFindByQuery(dto: ColumnQueryDto): Query {
-    const binds: Bind[] = [];
-    let whereClause = '';
+    const values: (string | number)[] = [];
+    const filter: any = {};
 
     if (dto.relationNames && dto.relationNames.length) {
-      const whereCondition = `array_contains(relation_name::variant, array_construct(${dto.relationNames
-        .map((el) => `'${el}'`)
-        .join(',')}))`;
-
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
+      filter.relation_name = { $in: dto.relationNames };
     }
+
     if (dto.names && dto.names.length) {
-      const whereCondition = `array_contains(name::variant, array_construct(${dto.names
-        .map((el) => `'${el}'`)
-        .join(',')}))`;
-
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
+      filter.name = { $in: dto.names };
     }
+
     if (dto.index) {
-      binds.push(dto.index);
-      const whereCondition = 'index = ?';
-
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
+      values.push(dto.index);
+      filter.index = dto.index;
     }
+
     if (dto.type) {
-      binds.push(dto.type);
-      const whereCondition = 'type = ?';
-
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
+      values.push(dto.type);
+      filter.type = dto.type;
     }
+    
     if (dto.materializationIds && dto.materializationIds.length) {
-      const whereCondition = `array_contains(materialization_id::variant, array_construct(${dto.materializationIds
-        .map((el) => `'${el}'`)
-        .join(',')}))`;
-
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
+      filter.materialization_id = { $in: dto.materializationIds };
     }
 
-    const text = `select * from cito.lineage.${this.matName}
-        ${whereClause ? 'where' : ''}  ${whereClause};`;
-
-    return { binds, text };
+    return { values, filter };
   }
 
   buildUpdateQuery(id: string, dto: undefined): Query {

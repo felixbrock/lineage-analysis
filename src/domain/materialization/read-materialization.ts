@@ -3,7 +3,7 @@ import IUseCase from '../services/use-case';
 import { IMaterializationRepo } from './i-materialization-repo';
 
 import { Materialization } from '../entities/materialization';
-import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
+import { IDbConnection } from '../services/i-db';
 
 export interface ReadMaterializationRequestDto {
   id: string;
@@ -23,7 +23,7 @@ export class ReadMaterialization
     IUseCase<
       ReadMaterializationRequestDto,
       ReadMaterializationResponseDto,
-      ReadMaterializationAuthDto,IConnectionPool
+      ReadMaterializationAuthDto, IDbConnection
     >
 {
   readonly #materializationRepo: IMaterializationRepo;
@@ -35,13 +35,13 @@ export class ReadMaterialization
   async execute(
     request: ReadMaterializationRequestDto,
     auth: ReadMaterializationAuthDto,
-    connPool: IConnectionPool
+    dbConnection: IDbConnection
   ): Promise<ReadMaterializationResponseDto> {
     try {
       const materialization = await this.#materializationRepo.findOne(
         request.id,
         auth,
-        connPool,
+        dbConnection,
       );
       if (!materialization)
         throw new Error(`Materialization with id ${request.id} does not exist`);

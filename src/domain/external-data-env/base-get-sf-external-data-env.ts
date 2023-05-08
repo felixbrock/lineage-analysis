@@ -14,6 +14,8 @@ import {
   QuerySfQueryHistoryResponseDto,
 } from '../snowflake-api/query-snowflake-history';
 import { BiToolType, biToolTypes } from '../value-types/bi-tool';
+import { IDbConnection } from '../services/i-db';
+import GetSfExternalDataEnvRepo from '../../infrastructure/persistence/get-sf-external-data-env-repo';
 
 export type GenerateSfExternalDataEnvRequestDto = {
   targetOrgId?: string;
@@ -55,22 +57,28 @@ export default abstract class BaseGetSfExternalDataEnv {
 
   protected readonly querySnowflake: QuerySnowflake;
 
+  readonly repo: GetSfExternalDataEnvRepo;
+
   protected auth?: Auth;
 
   protected targetOrgId?: string;
 
   protected connPool?: IConnectionPool;
 
+  protected dbConnection?: IDbConnection;
+
   constructor(
     querySnowflake: QuerySnowflake,
     querySfQueryHistory: QuerySfQueryHistory,
     createDashboards: CreateDashboards,
-    createDependencies: CreateDependencies
+    createDependencies: CreateDependencies,
+    getSfExternalDataEnvRepo: GetSfExternalDataEnvRepo
   ) {
     this.querySnowflake = querySnowflake;
     this.#querySfQueryHistory = querySfQueryHistory;
     this.#createDashboards = createDashboards;
     this.#createDependencies = createDependencies;
+    this.repo = getSfExternalDataEnvRepo;
   }
 
   protected retrieveQuerySfQueryHistory = async (
@@ -201,7 +209,7 @@ export default abstract class BaseGetSfExternalDataEnv {
   protected buildDashboardRefDependencies = async (
     dashboardRefs: DashboardRef[]
   ): Promise<BuildBiResourcesResult> => {
-    if (!this.connPool || !this.auth)
+    if (!this.dbConnection || !this.auth)
       throw new Error('Build dependency field values missing');
 
     const uniqueDashboardRefs = dashboardRefs.filter(
@@ -219,7 +227,7 @@ export default abstract class BaseGetSfExternalDataEnv {
         writeToPersistence: false,
       },
       this.auth,
-      this.connPool
+      this.dbConnection
     );
 
     if (!createDashboardResult.success)
@@ -256,7 +264,7 @@ export default abstract class BaseGetSfExternalDataEnv {
         writeToPersistence: false,
       },
       this.auth,
-      this.connPool
+      this.dbConnection
     );
 
     if (!createDependeciesResult.success)
@@ -300,24 +308,15 @@ export default abstract class BaseGetSfExternalDataEnv {
   };
 
   protected getAllCitoMatReps = async (): Promise<CitoMatRepresentation[]> => {
-    if (!this.connPool || !this.auth)
+    if (!this.dbConnection || !this.auth || !this.auth.callerOrgId)
       throw new Error('Missing properties for generating sf data env');
 
-    const queryText = `select id, relation_name from cito.lineage.materializations;`;
-    const queryResult = await this.querySnowflake.execute(
-      { queryText, binds: [] },
-      this.auth,
-      this.connPool
-    );
-    if (!queryResult.success) {
-      throw new Error(queryResult.error);
-    }
-    if (!queryResult.value) throw new Error('Query did not return a value');
+    const mats = await this.repo.allRelations(this.dbConnection, this.auth.callerOrgId);
 
-    const mats = queryResult.value;
+    if (!mats) return [];
 
-    return mats.map((el): CitoMatRepresentation => {
-      const { ID: id, RELATION_NAME: relationName } = el;
+    return mats.map((el: any): CitoMatRepresentation => {
+      const { id, relation_name: relationName } = el;
 
       if (typeof id !== 'string' || typeof relationName !== 'string')
         throw new Error(

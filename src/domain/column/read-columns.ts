@@ -1,9 +1,9 @@
 import { Column } from '../entities/column';
 import BaseAuth from '../services/base-auth';
 import IUseCase from '../services/use-case';
-import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 import Result from '../value-types/transient-types/result';
 import { IColumnRepo, ColumnQueryDto } from './i-column-repo';
+import { IDbConnection } from '../services/i-db';
 
 export interface ReadColumnsRequestDto {
   relationNames?: string[];
@@ -20,7 +20,7 @@ export type ReadColumnsResponseDto = Result<Column[]>;
 
 export class ReadColumns
   implements
-    IUseCase<ReadColumnsRequestDto, ReadColumnsResponseDto, ReadColumnsAuthDto,IConnectionPool>
+    IUseCase<ReadColumnsRequestDto, ReadColumnsResponseDto, ReadColumnsAuthDto, IDbConnection>
 {
   readonly #columnRepo: IColumnRepo;
 
@@ -33,7 +33,7 @@ export class ReadColumns
   async execute(
     req: ReadColumnsRequestDto,
     auth: ReadColumnsAuthDto,
-    connPool: IConnectionPool
+    dbConnection: IDbConnection
   ): Promise<ReadColumnsResponseDto> {
     try {
       if (auth.isSystemInternal && !req.targetOrgId)
@@ -48,7 +48,7 @@ export class ReadColumns
       const columns: Column[] = await this.#columnRepo.findBy(
         this.#buildColumnQueryDto(req),
         auth,
-        connPool,
+        dbConnection,
       );
       if (!columns) throw new Error(`Queried columns do not exist`);
 

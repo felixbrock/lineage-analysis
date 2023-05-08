@@ -1,3 +1,4 @@
+import { Document } from 'mongodb';
 import {
   DependencyQueryDto,
   DependencyUpdateDto,
@@ -8,7 +9,6 @@ import {
   DependencyProps,
   parseDependencyType,
 } from '../../domain/entities/dependency';
-import { Bind, SnowflakeEntity } from '../../domain/snowflake-api/i-snowflake-api-repo';
 import { QuerySnowflake } from '../../domain/snowflake-api/query-snowflake';
 import BaseSfRepo, { ColumnDefinition, Query } from './shared/base-sf-repo';
 
@@ -35,13 +35,13 @@ export default class DependencyRepo
     super(querySnowflake);
   }
 
-  buildEntityProps = (sfEntity: SnowflakeEntity): DependencyProps => {
+  buildEntityProps = (document: Document): DependencyProps => {
     const {
-      ID: id,
-      TYPE: type,
-      HEAD_ID: headId,
-      TAIL_ID: tailId,
-    } = sfEntity;
+      id,
+      type,
+      head_id: headId,
+      tail_id: tailId,
+    } = document;
 
     if (
       typeof id !== 'string' ||
@@ -61,7 +61,7 @@ export default class DependencyRepo
     };
   };
 
-  getBinds = (entity: Dependency): Bind[] => [
+  getValues = (entity: Dependency): (string | number)[] => [
     entity.id,
     entity.type,
     entity.headId,
@@ -69,38 +69,23 @@ export default class DependencyRepo
   ];
 
   protected buildFindByQuery(dto: DependencyQueryDto): Query {
-    const binds: (string | number)[] = [];
-    let whereClause = '';
+    const values: (string | number)[] = [];
+    const filter: any = {};
 
     if (dto.tailId) {
-      binds.push(dto.tailId);
-      const whereCondition = 'tail_id = ?';
-
-      whereClause = whereClause
-        ? whereClause.concat(`and ${whereCondition} `)
-        : whereCondition;
+      values.push(dto.tailId);
+      filter.tail_id = dto.tailId;
     }
     if (dto.headId) {
-      binds.push(dto.headId);
-      const whereCondition = 'head_id = ?';
-
-      whereClause = whereClause
-      ? whereClause.concat(`and ${whereCondition} `)
-      : whereCondition;
+      values.push(dto.headId);
+      filter.head_id = dto.headId;
     }
     if (dto.type) {
-      binds.push(dto.type);
-      const whereCondition = 'type = ?';
-
-      whereClause = whereClause
-      ? whereClause.concat(`and ${whereCondition} `)
-      : whereCondition;
+      values.push(dto.type);
+      filter.type = dto.type;
     }
 
-    const text = `select * from cito.lineage.${this.matName}
-        ${whereClause ? 'where': ''}  ${whereClause};`;
-
-    return { text, binds };
+    return { filter, values };
   }
 
   buildUpdateQuery(id: string, dto: undefined): Query {

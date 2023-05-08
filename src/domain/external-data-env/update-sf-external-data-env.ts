@@ -6,7 +6,6 @@ import {
   ExternalDataEnv,
   ExternalDataEnvProps,
 } from './external-data-env';
-import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 import BaseGetSfExternalDataEnv from './base-get-sf-external-data-env';
 import { QuerySnowflake } from '../snowflake-api/query-snowflake';
 import { BiToolType } from '../value-types/bi-tool';
@@ -16,6 +15,8 @@ import { CreateDashboards } from '../dashboard/create-dashboards';
 import { CreateDependencies } from '../dependency/create-dependencies';
 import { IDashboardRepo } from '../dashboard/i-dashboard-repo';
 import { Dependency } from '../entities/dependency';
+import { IDb } from '../services/i-db';
+import GetSfExternalDataEnvRepo from '../../infrastructure/persistence/get-sf-external-data-env-repo';
 
 export interface UpdateSfExternalDataEnvRequestDto {
   latestCompletedLineage: {
@@ -39,7 +40,7 @@ export class UpdateSfExternalDataEnv
       UpdateSfExternalDataEnvRequestDto,
       UpdateSfExternalDataEnvResponse,
       UpdateSfExternalDataEnvAuthDto,
-      IConnectionPool
+      IDb
     >
 {
   readonly #dasboardRepo: IDashboardRepo;
@@ -49,13 +50,15 @@ export class UpdateSfExternalDataEnv
     querySfQueryHistory: QuerySfQueryHistory,
     createDashboards: CreateDashboards,
     createDependencies: CreateDependencies,
-    dashboardRepo: IDashboardRepo
+    dashboardRepo: IDashboardRepo,
+    getSfExternalDataEnvRepo: GetSfExternalDataEnvRepo
   ) {
     super(
       querySnowflake,
       querySfQueryHistory,
       createDashboards,
-      createDependencies
+      createDependencies,
+      getSfExternalDataEnvRepo
     );
     this.#dasboardRepo = dashboardRepo;
   }
@@ -75,12 +78,12 @@ export class UpdateSfExternalDataEnv
     newDashboards: Dashboard[],
     dependencies: Dependency[]
   ): Promise<ExternalDataEnv> => {
-    if (!this.auth || !this.connPool)
-      throw new Error('Auth or connPool not set');
+    if (!this.auth || !this.dbConnection)
+      throw new Error('Auth or Database Connection not set');
 
     const oldDashboards = await this.#dasboardRepo.all(
       this.auth,
-      this.connPool
+      this.dbConnection
     );
 
     if (!oldDashboards.length)
@@ -156,7 +159,7 @@ export class UpdateSfExternalDataEnv
   async execute(
     req: UpdateSfExternalDataEnvRequestDto,
     auth: UpdateSfExternalDataEnvAuthDto,
-    connPool: IConnectionPool
+    db: IDb
   ): Promise<UpdateSfExternalDataEnvResponse> {
     try {
       /* 
@@ -165,7 +168,8 @@ export class UpdateSfExternalDataEnv
         3. Generate new dashboards and dependencies
         identify dashboards to replace and dashboards to delete
 */
-      this.connPool = connPool;
+      this.dbConnection = db.mongoConn;
+      this.connPool = db.sfConnPool;
       this.auth = auth;
       this.targetOrgId = req.targetOrgId;
 

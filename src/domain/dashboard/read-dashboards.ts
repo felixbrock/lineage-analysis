@@ -1,9 +1,9 @@
 import { Dashboard } from '../entities/dashboard';
 import BaseAuth from '../services/base-auth';
 import IUseCase from '../services/use-case';
-import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 import Result from '../value-types/transient-types/result';
 import { IDashboardRepo, DashboardQueryDto } from './i-dashboard-repo';
+import { IDbConnection } from '../services/i-db';
 
 export interface ReadDashboardsRequestDto {
   url?: string;
@@ -26,7 +26,7 @@ export class ReadDashboards
       ReadDashboardsRequestDto,
       ReadDashboardsResponseDto,
       ReadDashboardsAuthDto,
-      IConnectionPool
+      IDbConnection
     >
 {
   readonly #dashboardRepo: IDashboardRepo;
@@ -38,7 +38,7 @@ export class ReadDashboards
   async execute(
     req: ReadDashboardsRequestDto,
     auth: ReadDashboardsAuthDto,
-    connPool: IConnectionPool
+    dbConnection: IDbConnection
   ): Promise<ReadDashboardsResponseDto> {
     try {
       if (auth.isSystemInternal && !req.targetOrgId)
@@ -53,7 +53,7 @@ export class ReadDashboards
       const dashboards: Dashboard[] = await this.#dashboardRepo.findBy(
         this.#buildDashboardQueryDto(req),
         auth,
-        connPool
+        dbConnection
       );
       if (!dashboards)
         throw new ReferenceError(`Queried dashboards do not exist`);

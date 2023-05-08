@@ -36,6 +36,10 @@ import ObservabilityApiRepo from './persistence/observability-api-repo';
 import { GenerateSfExternalDataEnv } from '../domain/external-data-env/generate-sf-external-data-env';
 import { UpdateSfExternalDataEnv } from '../domain/external-data-env/update-sf-external-data-env';
 import { GenerateSfEnvLineage } from '../domain/data-env/generate-sf-env-lineage';
+import Dbo from './persistence/db/mongo-db';
+import UpdateSfDataEnvRepo from './persistence/update-sf-data-env-repo';
+import GenerateSfEnvLineageRepo from './persistence/generate-sf-env-lineage-repo';
+import GetSfExternalDataEnvRepo from './persistence/get-sf-external-data-env-repo';
 
 const iocRegister = createContainer({ injectionMode: InjectionMode.CLASSIC });
 
@@ -82,6 +86,11 @@ iocRegister.register({
   integrationApiRepo: asClass(IntegrationApiRepo),
   observabilityApiRepo: asClass(ObservabilityApiRepo),
   snowflakeApiRepo: asClass(SnowflakeApiRepo),
+  updateSfDataEnvRepo: asClass(UpdateSfDataEnvRepo),
+  generateSfEnvLineageRepo: asClass(GenerateSfEnvLineageRepo),
+  getSfExternalDataEnvRepo: asClass(GetSfExternalDataEnvRepo),
+
+  dbo: asClass(Dbo).singleton(),
 });
 
 export default iocRegister;

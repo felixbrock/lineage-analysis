@@ -3,8 +3,8 @@ import {
   Materialization,
 } from '../entities/materialization';
 import BaseAuth from '../services/base-auth';
+import { IDbConnection } from '../services/i-db';
 import IUseCase from '../services/use-case';
-import { IConnectionPool } from '../snowflake-api/i-snowflake-api-repo';
 import Result from '../value-types/transient-types/result';
 import {
   IMaterializationRepo,
@@ -32,7 +32,7 @@ export class ReadMaterializations
     IUseCase<
       ReadMaterializationsRequestDto,
       ReadMaterializationsResponseDto,
-      ReadMaterializationsAuthDto,IConnectionPool
+      ReadMaterializationsAuthDto, IDbConnection
     >
 {
   readonly #materializationRepo: IMaterializationRepo;
@@ -46,7 +46,7 @@ export class ReadMaterializations
   async execute(
     req: ReadMaterializationsRequestDto,
     auth: ReadMaterializationsAuthDto,
-    connPool: IConnectionPool
+    dbConnection: IDbConnection
   ): Promise<ReadMaterializationsResponseDto> {
     try {
       if (auth.isSystemInternal && !req.targetOrgId)
@@ -62,7 +62,7 @@ export class ReadMaterializations
         await this.#materializationRepo.findBy(
           this.#buildMaterializationQueryDto(req),
           auth,
-          connPool,
+          dbConnection,
         );
       if (!materializations)
         throw new Error(`Queried materializations do not exist`);
