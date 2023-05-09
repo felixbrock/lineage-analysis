@@ -10,37 +10,30 @@ export default class UpdateSfDataEnvRepo {
     ): Promise<void> => {
         const tempCollectionName = `temp_collection_${callerOrgId}_${dbName}`;
         const fullJoinName = `full_join_${callerOrgId}_${dbName}`;
-    
-        if ((await dbConnection
+
+        try {
+          const tempCollectionExists = await dbConnection
             .listCollections({ name: tempCollectionName })
-            .toArray()).length > 0) {
-          await dbConnection.collection(tempCollectionName).deleteMany({})
-          .then()
-          .catch((err) => {
-            throw err;
-          });
-        } else {
-          await dbConnection.createCollection(tempCollectionName)
-          .then()
-          .catch((err) => {
-            throw err;
-          });
-        }
-    
-        if ((await dbConnection
+            .toArray();
+
+          if (tempCollectionExists.length > 0) {
+            await dbConnection.collection(tempCollectionName).deleteMany({});
+          } else {
+            await dbConnection.createCollection(tempCollectionName);
+          }
+
+          const fullJoinCollectionExists = await dbConnection
             .listCollections({ name: fullJoinName })
-            .toArray()).length > 0) {
-          await dbConnection.collection(fullJoinName).deleteMany({})
-          .then()
-          .catch((err) => {
-            throw err;
-          });
-        } else {
-          await dbConnection.createCollection(fullJoinName)
-          .then()
-          .catch((err) => {
-            throw err;
-          });
+            .toArray();
+          
+          if (fullJoinCollectionExists.length > 0) {
+            await dbConnection.collection(fullJoinName).deleteMany({});
+          } else {
+            await dbConnection.createCollection(fullJoinName);
+          }
+
+        } catch (err) {
+          console.log(err);
         }
     };
 
@@ -225,16 +218,11 @@ export default class UpdateSfDataEnvRepo {
       const tempCollectionName = `temp_collection_${callerOrgId}_${dbName}`;
       const fullJoinName = `full_join_${callerOrgId}_${dbName}`;  
 
-      await dbConnection.collection(tempCollectionName).drop()
-      .then()
-      .catch((err) => {
-        throw err;
-      });
-
-      await dbConnection.collection(fullJoinName).drop()
-      .then()
-      .catch((err) => {
-        throw err;
-      });
+      try {
+        await dbConnection.collection(tempCollectionName).drop();
+        await dbConnection.collection(fullJoinName).drop();
+      } catch (err) {
+        console.log(err);
+      }
     };
 }
