@@ -67,22 +67,11 @@ export default class MaterializationRepo
         'Retrieved unexpected materialization field types from persistence'
       );
 
-    const isTransientValue = isTransient !== undefined ? JSON.parse(isTransient) : null;
-
-    let logicIdValue = logicId;
-    if (!logicId) logicIdValue = null;
-
-    let ownerIdValue = ownerId;
-    if (!ownerId) ownerIdValue = null;
-
-    let commentValue = comment;
-    if (!comment) commentValue = null;
-
     if (
-      !MaterializationRepo.isOptionalOfType<boolean>(isTransientValue, 'boolean') ||
-      !MaterializationRepo.isOptionalOfType<string>(logicIdValue, 'string') ||
-      !MaterializationRepo.isOptionalOfType<string>(ownerIdValue, 'string') ||
-      !MaterializationRepo.isOptionalOfType<string>(commentValue, 'string')
+      !MaterializationRepo.isOptionalOfType<boolean>(isTransient, 'boolean') ||
+      !MaterializationRepo.isOptionalOfType<string>(logicId, 'string') ||
+      !MaterializationRepo.isOptionalOfType<string>(ownerId, 'string') ||
+      !MaterializationRepo.isOptionalOfType<string>(comment, 'string')
     )
       throw new Error(
         'Type mismatch detected when reading materialization from persistence'
@@ -95,21 +84,21 @@ export default class MaterializationRepo
       databaseName,
       relationName,
       type: parseMaterializationType(type),
-      isTransient: isTransientValue,
-      logicId: logicIdValue,
-      ownerId: ownerIdValue,
-      comment: commentValue,
+      isTransient,
+      logicId,
+      ownerId,
+      comment,
     };
   };
 
-  getValues = (el: Materialization): (string | number)[] => [
+  getValues = (el: Materialization): (string | number | boolean)[] => [
     el.id,
     el.name,
     el.schemaName,
     el.databaseName,
     el.relationName,
     el.type,
-    el.isTransient !== undefined ? el.isTransient.toString() : 'null',
+    el.isTransient || 'null',
     el.logicId || 'null',
     el.ownerId || 'null',
     el.comment || 'null',

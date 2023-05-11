@@ -39,17 +39,14 @@ export default class DashboardRepo
         'Retrieved unexpected dashboard field types from persistence'
       );
 
-    let nameValue = name;
-    if (!name) nameValue = null;
-
-    if (!DashboardRepo.isOptionalOfType<string>(nameValue, 'string'))
+    if (!DashboardRepo.isOptionalOfType<string>(name, 'string'))
       throw new Error(
         'Type mismatch detected when reading dashboard from persistence'
       );
 
     return {
       id,
-      name: nameValue,
+      name,
       url,
     };
   };
