@@ -261,34 +261,26 @@ export class UpdateSfDataEnv
           altered,
         } = el;
 
-        let matDeletedIdValue = matDeletedId;
-        if (!matDeletedId) matDeletedIdValue = null;
-        
-        let matAddedRelationNameValue = matAddedRelationName;
-        if (!matAddedRelationName) matAddedRelationNameValue = null;
-
-        const alteredValue = JSON.parse(altered);
-
-        if (typeof alteredValue !== 'boolean')
+        if (typeof altered !== 'boolean')
           throw new Error('Unexpected altered value');
-        if (!isOptionalOfType<string>(matDeletedIdValue, 'string'))
+        if (!isOptionalOfType<string>(matDeletedId, 'string'))
           throw new Error('Unexpected deletedMatId value');
-        if (!isOptionalOfType<string>(matAddedRelationNameValue, 'string'))
+        if (!isOptionalOfType<string>(matAddedRelationName, 'string'))
           throw new Error('Unexpected addedMatId value');
 
-        if (alteredValue) {
+        if (altered) {
           if (
-            typeof matAddedRelationNameValue !== 'string' ||
-            typeof matDeletedIdValue !== 'string'
+            typeof matAddedRelationName !== 'string' ||
+            typeof matDeletedId !== 'string'
           )
             throw new Error('Unexpected altered column input');
           localAcc.matModifiedDiffs.push({
-            oldMatId: matDeletedIdValue,
-            relationName: matAddedRelationNameValue,
+            oldMatId: matDeletedId,
+            relationName: matAddedRelationName,
           });
-        } else if (matAddedRelationNameValue)
-          localAcc.matAddedRelationNames.push(matAddedRelationNameValue);
-        else if (matDeletedIdValue) localAcc.matDeletedIds.push(matDeletedIdValue);
+        } else if (matAddedRelationName)
+          localAcc.matAddedRelationNames.push(matAddedRelationName);
+        else if (matDeletedId) localAcc.matDeletedIds.push(matDeletedId);
         else throw new Error('Unhandled use case returned');
 
         return localAcc;

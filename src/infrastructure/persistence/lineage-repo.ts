@@ -44,17 +44,13 @@ export default class LineageRepo
 
     const createdAtDate = new Date(createdAt);
 
-    // maybe check for string array
     const dbCoveredNamesArray = JSON.parse(dbCoveredNames);
-
-    let diffValue = diff;
-    if (!diff) diffValue = null;
 
     if (
       typeof id !== 'string' ||
       !(createdAtDate instanceof Date) ||
       !LineageRepo.isStringArray(dbCoveredNamesArray) ||
-      !LineageRepo.isOptionalOfType<string>(diffValue, 'string')
+      !LineageRepo.isOptionalOfType<string>(diff, 'string')
     )
       throw new Error(
         'Retrieved unexpected lineage field types from persistence'
@@ -65,7 +61,7 @@ export default class LineageRepo
       creationState: parseLineageCreationState(creationState),
       createdAt: createdAtDate.toISOString(),
       dbCoveredNames: dbCoveredNamesArray,
-      diff: diffValue,
+      diff,
     };
   };
 

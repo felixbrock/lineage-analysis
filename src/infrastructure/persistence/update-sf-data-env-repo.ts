@@ -129,6 +129,18 @@ export default class UpdateSfDataEnvRepo {
       
       const pipeline = [
         {
+          $project: {
+            "id": { $cond: [{ $eq: [{$type: "$id"}, "missing"]}, null, "$id" ]},
+            "database_name": { $cond: [{ $eq: [{$type: "$database_name"}, "missing"]}, null, "$database_name" ]},
+            "table_catalog": { $cond: [{ $eq: [{$type: "$table_catalog"}, "missing"]}, null, "$table_catalog" ]},
+            "table_name": { $cond: [{ $eq: [{$type: "$table_name"}, "missing"]}, null, "$table_name" ] },
+            "relation_name": { $cond: [{ $eq: [{$type: "$relation_name"}, "missing"]}, null, "$relation_name" ]},
+            "table_schema": { $cond: [{ $eq: [{$type: "$table_schema"}, "missing"]}, null, "$table_schema" ]},
+            "last_altered": { $cond: [{ $eq: [{$type: "$last_altered"}, "missing"]}, null, "$last_altered" ] },
+            "concatted_name": { $cond: [{ $eq: [{$type: "$concatted_name"}, "missing"]}, null, "$concatted_name" ] }
+          }
+        },
+        {
           $match: {
             $and: [
               {
