@@ -98,7 +98,7 @@ export default class MaterializationRepo
     el.databaseName,
     el.relationName,
     el.type,
-    el.isTransient || 'null',
+    el.isTransient !== undefined ? el.isTransient : 'null',
     el.logicId || 'null',
     el.ownerId || 'null',
     el.comment || 'null',

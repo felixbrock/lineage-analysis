@@ -300,7 +300,7 @@ export default abstract class BaseSfRepo<
 
       const rows = entities.map((entity) => this.getValues(entity));
 
-			const documents = rows.map(row => {
+			const documents = rows.map((row) => {
 				const document: any = {};
 				this.colDefinitions.forEach((column, index) => {
 					const value = row[index];
